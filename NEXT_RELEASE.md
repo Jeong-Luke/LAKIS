@@ -1,6 +1,6 @@
-# Next release notes
+# Release notes
 
-## Planned for v7.2.2
+## v7.2.2
 
 ### Clean-install workflow launcher fix
 
@@ -22,10 +22,8 @@
   - runtime visual workflow parses with 110 nodes;
   - editable workflow parses with 110 nodes;
   - both workflow choices resolve when the user workflow directory is empty.
-- Before release:
-  - review the tester's error dialog or
-    `ComfyUI/LAKIS_DEV/process_audit.jsonl` if available;
-  - bump the application version to v7.2.2;
-  - rebuild binaries and regenerate the update manifest;
-  - test both workflow choices in a fresh installation;
-  - publish only after the clean-install test passes.
+- Release verification:
+  - application version bumped to v7.2.2;
+  - binaries rebuilt and the 51-file update manifest regenerated;
+  - both workflow choices pass the empty-user-workflow regression test;
+  - the installer compiles with both application-owned workflows included.

@@ -200,7 +200,7 @@ internal sealed class UpdaterForm : Form
             try
             {
                 var request = (HttpWebRequest)WebRequest.Create(url + "?t=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-                request.UserAgent = "LAKIS-Updater/7.2.1";
+                request.UserAgent = "LAKIS-Updater/7.2.2";
                 request.Timeout = 20000;
                 request.ReadWriteTimeout = 20000;
                 request.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
@@ -354,7 +354,7 @@ internal sealed class UpdaterForm : Form
     {
         using (var client = new WebClient())
         {
-            client.Headers.Add(HttpRequestHeader.UserAgent, "LAKIS-Updater/7.2.1");
+            client.Headers.Add(HttpRequestHeader.UserAgent, "LAKIS-Updater/7.2.2");
             client.DownloadFile(url, output);
         }
     }
