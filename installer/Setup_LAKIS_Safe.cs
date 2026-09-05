@@ -25,26 +25,64 @@ internal sealed class SafeSetupForm : Form
 {
     private readonly TextBox destination = new TextBox();
     private readonly Label status = new Label();
-    private readonly ProgressBar progress = new ProgressBar();
+    private readonly LakisProgressBar progress = new LakisProgressBar();
     private readonly Button install = new Button();
     private readonly Button repair = new Button();
     private readonly CheckBox launch = new CheckBox();
+    private readonly CenterCropPictureBox artwork = new CenterCropPictureBox();
+    private readonly List<Image> artworkFrames = new List<Image>();
+    private readonly Timer artworkTimer = new Timer();
+    private int artworkIndex;
+    private readonly Button closeButton = new Button();
 
     internal SafeSetupForm()
     {
-        Text = "LAKIS 설치"; Width = 590; Height = 310; FormBorderStyle = FormBorderStyle.FixedDialog;
+        Text = "LAKIS 설치"; ClientSize = new Size(760,430); FormBorderStyle = FormBorderStyle.None;
         MaximizeBox = false; StartPosition = FormStartPosition.CenterScreen;
-        Controls.Add(new Label { Left=24,Top=20,Width=530,Height=36,Text="LAKIS Studio",Font=new Font("Segoe UI",17,FontStyle.Bold) });
-        Controls.Add(new Label { Left=26,Top=62,Width=530,Height=38,Text="공식 배포처에서 검증된 구성요소를 다운로드합니다.\n최소 15GB의 여유 공간이 필요합니다." });
-        Controls.Add(new Label { Left=26,Top=112,Width=100,Text="설치 위치" });
-        destination.SetBounds(26,134,530,25);
+        BackColor=Color.FromArgb(12,14,22);ForeColor=Color.White;Font=new Font("Segoe UI",10F);DoubleBuffered=true;
+        LakisWindowDrag.Enable(this);
+        LoadArtwork();artwork.SetBounds(400,48,336,358);artwork.BackColor=Color.FromArgb(18,22,38);
+        if(artworkFrames.Count>0)artwork.Image=artworkFrames[0];artworkTimer.Interval=5000;artworkTimer.Tick+=(_,__)=>{if(artworkFrames.Count<2)return;artworkIndex=(artworkIndex+1)%artworkFrames.Count;artwork.Image=artworkFrames[artworkIndex];};artworkTimer.Start();
+        var logo=new PictureBox{Left=42,Top=35,Width=48,Height=48,SizeMode=PictureBoxSizeMode.Zoom,Image=Icon.ExtractAssociatedIcon(Application.ExecutablePath).ToBitmap()};
+        Controls.Add(new Label { Left=104,Top=36,Width=265,Height=32,Text="L A K I S",Font=new Font("Segoe UI",19,FontStyle.Bold),ForeColor=Color.FromArgb(225,229,255) });
+        Controls.Add(new Label { Left=106,Top=70,Width=245,Height=24,Text="LAKIS Studio 설치",Font=new Font("Segoe UI",10,FontStyle.Bold),ForeColor=Color.FromArgb(171,178,203) });
+        Controls.Add(new Label { Left=43,Top=111,Width=315,Height=38,Text="공식 배포처의 검증된 구성요소를 설치합니다.\n최소 15GB의 여유 공간이 필요합니다.",ForeColor=Color.FromArgb(132,141,165),Font=new Font("Segoe UI",8.5F) });
+        Controls.Add(new Label { Left=43,Top=158,Width=100,Text="설치 위치",ForeColor=Color.FromArgb(184,168,255) });
+        destination.SetBounds(43,181,315,27);destination.BackColor=Color.FromArgb(19,23,34);destination.ForeColor=Color.White;destination.BorderStyle=BorderStyle.FixedSingle;
         destination.Text = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"Programs","LAKIS");
-        progress.SetBounds(26,172,530,18); progress.Minimum=0; progress.Maximum=100;
-        status.SetBounds(26,198,530,34); status.Text="설치 준비 완료";
-        launch.SetBounds(26,238,260,25); launch.Text="설치 후 LAKIS 실행"; launch.Checked=true;
-        repair.SetBounds(330,234,110,32); repair.Text="기존 설치 복구"; repair.Click += async (_,__) => await RepairAsync();
-        install.SetBounds(446,234,110,32); install.Text="새로 설치"; install.Click += async (_,__) => await InstallAsync();
-        Controls.AddRange(new Control[]{destination,progress,status,launch,repair,install});
+        progress.SetBounds(43,228,315,7); progress.Minimum=0; progress.Maximum=100;
+        status.SetBounds(43,250,315,34); status.Text="설치 준비 완료";status.ForeColor=Color.FromArgb(184,168,255);
+        launch.SetBounds(43,286,230,25); launch.Text="설치 후 LAKIS 실행"; launch.Checked=true;
+        repair.SetBounds(43,337,145,38); repair.Text="기존 설치 복구"; repair.Click += async (_,__) => await RepairAsync();
+        install.SetBounds(201,337,157,38); install.Text="새로 설치"; install.Click += async (_,__) => await InstallAsync();
+        foreach(Button button in new[]{repair,install}){button.FlatStyle=FlatStyle.Flat;button.FlatAppearance.BorderSize=0;button.BackColor=Color.FromArgb(111,82,225);button.ForeColor=Color.White;button.Font=new Font("Segoe UI",9F,FontStyle.Bold);button.Cursor=Cursors.Hand;}
+        var copyright=new Label{Left=43,Top=399,Width=335,Height=18,Text="ⓒ 2026. Luke_Jeong All rights reserved. · LAKIS v7.1.5",ForeColor=Color.FromArgb(104,112,137),Font=new Font("Segoe UI",8F)};
+        ConfigureCloseButton();
+        Controls.AddRange(new Control[]{artwork,logo,destination,progress,status,launch,repair,install,copyright,closeButton});
+        closeButton.BringToFront();
+        FormClosed+=(_,__)=>{artworkTimer.Stop();foreach(Image frame in artworkFrames)frame.Dispose();};
+    }
+
+    private void ConfigureCloseButton()
+    {
+        closeButton.SetBounds(ClientSize.Width-48,0,48,42);
+        closeButton.Text="\uE8BB";
+        closeButton.Font=new Font("Segoe MDL2 Assets",9F);
+        closeButton.ForeColor=Color.FromArgb(205,211,225);
+        closeButton.BackColor=Color.Transparent;
+        closeButton.FlatStyle=FlatStyle.Flat;
+        closeButton.FlatAppearance.BorderSize=0;
+        closeButton.FlatAppearance.MouseOverBackColor=Color.FromArgb(196,43,28);
+        closeButton.TabStop=false;
+        closeButton.Cursor=Cursors.Hand;
+        closeButton.Anchor=AnchorStyles.Top|AnchorStyles.Right;
+        closeButton.Click+=(_,__)=>Close();
+    }
+
+    private void LoadArtwork()
+    {
+        Assembly assembly=Assembly.GetExecutingAssembly();
+        foreach(string name in new[]{"LAKIS.Splash1","LAKIS.Splash2"})using(Stream stream=assembly.GetManifestResourceStream(name))if(stream!=null)artworkFrames.Add(new Bitmap(stream));
     }
 
     private async Task InstallAsync()
@@ -96,7 +134,7 @@ internal sealed class SafeSetupForm : Form
 
 internal static class SafeInstaller
 {
-    private const string Revision = "v7.1.4";
+    private const string Revision = "v7.1.5";
     private static readonly DownloadItem Portable = new DownloadItem("ComfyUI v0.21.1",
         "https://github.com/Comfy-Org/ComfyUI/releases/download/v0.21.1/ComfyUI_windows_portable_nvidia.7z",
         "7C380D4309BBDA395366C49564EDF8996181FD45E61B6F353EA417F32BC3B970",null,2001582790);
@@ -129,6 +167,7 @@ internal static class SafeInstaller
     internal static void Install(string target, Action<string> report)
     {
         ServicePointManager.SecurityProtocol=(SecurityProtocolType)3072;
+        ServicePointManager.DefaultConnectionLimit=8;
         string cache=Path.Combine(Path.GetTempPath(),"LAKIS-safe-v7.1"); Directory.CreateDirectory(cache);
         var log=new List<string>(); Action<string> status=s=>{lock(log)log.Add(s);report(s);};
         string previous=null;
@@ -157,7 +196,7 @@ internal static class SafeInstaller
             string python=Path.Combine(target,"python_embeded","python.exe");foreach(string node in Directory.GetDirectories(custom)){string req=Path.Combine(node,"requirements.txt");if(File.Exists(req)){status("의존성 설치: "+Path.GetFileName(node));string safeReq=PrepareRequirements(req);Run(python,"-s -m pip install --disable-pip-version-check -r \""+safeReq+"\"",target,status);}}
             ExtractDesktopRuntime(target,status);
             CreateDesktopShortcut(target,status);
-            File.WriteAllText(Path.Combine(target,"VERSION"),"7.1.4");File.WriteAllText(Path.Combine(target,"install.complete"),DateTime.UtcNow.ToString("O"));File.WriteAllLines(Path.Combine(target,"network-install.log"),log.ToArray());if(previous!=null)try{DeleteTree(previous);}catch{status("이전 설치 폴더는 재부팅 후 삭제할 수 있습니다: "+previous);}status("설치 완료");
+            File.WriteAllText(Path.Combine(target,"VERSION"),"7.1.5");File.WriteAllText(Path.Combine(target,"install.complete"),DateTime.UtcNow.ToString("O"));File.WriteAllLines(Path.Combine(target,"network-install.log"),log.ToArray());if(previous!=null)try{DeleteTree(previous);}catch{status("이전 설치 폴더는 재부팅 후 삭제할 수 있습니다: "+previous);}status("설치 완료");
         }
         catch(Exception error){try{Directory.CreateDirectory(target);File.WriteAllLines(Path.Combine(target,"network-install.log"),log.ToArray());}catch{}throw new InvalidOperationException("설치 중 오류가 발생했습니다.\n"+error.Message+"\n\n로그: "+Path.Combine(target,"network-install.log"),error);}
     }
@@ -183,18 +222,23 @@ internal static class SafeInstaller
             string uiRoot=FirstDirectory(uiStage);CopyTree(Path.Combine(uiRoot,"src","external_ui"),Path.Combine(comfy,"LAKIS_DEV","external_ui"));
             ExtractDesktopRuntime(target,status);
             CreateDesktopShortcut(target,status);
-            File.WriteAllText(Path.Combine(target,"VERSION"),"7.1.4");File.WriteAllLines(Path.Combine(target,"repair.log"),log.ToArray());status("복구 완료");
+            File.WriteAllText(Path.Combine(target,"VERSION"),"7.1.5");File.WriteAllLines(Path.Combine(target,"repair.log"),log.ToArray());status("복구 완료");
         }
         catch(Exception error){try{File.WriteAllLines(Path.Combine(target,"repair.log"),log.ToArray());}catch{}throw new InvalidOperationException("복구 중 오류가 발생했습니다.\n"+error.Message+"\n\n로그: "+Path.Combine(target,"repair.log"),error);}
     }
     private static string Fetch(DownloadItem item,string cache,Action<string> status){string path=Path.Combine(cache,item.Name.Replace('/','_'));if(File.Exists(path)&&(item.Bytes>0&&new FileInfo(path).Length!=item.Bytes||item.Sha.Length>0&&!String.Equals(Hash(path),item.Sha,StringComparison.OrdinalIgnoreCase)))File.Delete(path);if(!File.Exists(path))Download(item.Url,path,item.Name,item.Bytes,status);if(item.Bytes>0&&new FileInfo(path).Length!=item.Bytes)throw new IOException("크기 검증 실패: "+item.Name);if(item.Sha.Length>0&&!String.Equals(Hash(path),item.Sha,StringComparison.OrdinalIgnoreCase))throw new IOException("SHA-256 검증 실패: "+item.Name);return path;}
     private static void Download(string url,string path,string name,long expected,Action<string> status)
     {
+        if(expected>=1024L*1024*1024&&!File.Exists(path+".part"))
+        {
+            try { DownloadParallel(url,path,name,expected,status); return; }
+            catch(Exception error) { status("병렬 다운로드 재시도: "+name+" ("+error.Message+")"); }
+        }
         string part=path+".part";
         long offset=File.Exists(part)?new FileInfo(part).Length:0;
         if(expected>0&&offset>expected){File.Delete(part);offset=0;}
         var request=(HttpWebRequest)WebRequest.Create(url);
-        request.UserAgent="LAKIS-Installer/7.1.4";
+        request.UserAgent="LAKIS-Installer/7.1.5";
         request.AllowAutoRedirect=true;
         if(offset>0)request.AddRange(offset);
         using(var response=(HttpWebResponse)request.GetResponse())
@@ -223,6 +267,39 @@ internal static class SafeInstaller
         if(File.Exists(path))File.Delete(path);
         File.Move(part,path);
         status("다운로드 완료: "+name);
+    }
+    private static void DownloadParallel(string url,string path,string name,long expected,Action<string> status)
+    {
+        const int segmentCount=4;
+        string[] parts=new string[segmentCount];
+        long[] received=new long[segmentCount];
+        int lastReported=-1;
+        var tasks=new Task[segmentCount];
+        status("고속 병렬 다운로드 시작: "+name);
+        for(int index=0;index<segmentCount;index++)
+        {
+            int segment=index; long start=expected*segment/segmentCount; long end=expected*(segment+1)/segmentCount-1;
+            parts[segment]=path+".segment"+segment;
+            tasks[segment]=Task.Run(()=>{
+                var request=(HttpWebRequest)WebRequest.Create(url);request.UserAgent="LAKIS-Installer/7.1.5";request.AllowAutoRedirect=true;request.Timeout=30000;request.ReadWriteTimeout=30000;request.AddRange(start,end);
+                using(var response=(HttpWebResponse)request.GetResponse())
+                {
+                    if(response.StatusCode!=HttpStatusCode.PartialContent)throw new IOException("서버가 구간 다운로드를 지원하지 않습니다.");
+                    using(Stream input=response.GetResponseStream())using(var output=new FileStream(parts[segment],FileMode.Create,FileAccess.Write,FileShare.Read))
+                    {byte[] buffer=new byte[1024*1024];int read;while((read=input.Read(buffer,0,buffer.Length))>0){output.Write(buffer,0,read);int percent=-1;lock(received){received[segment]+=read;long total=0;for(int i=0;i<segmentCount;i++)total+=received[i];int current=(int)Math.Min(100,total*100/expected);if(current!=lastReported){lastReported=current;percent=current;}}if(percent>=0)status("고속 다운로드: "+name+" "+percent+"%");}}
+                }
+                if(new FileInfo(parts[segment]).Length!=end-start+1)throw new IOException("다운로드 구간 크기가 일치하지 않습니다.");
+            });
+        }
+        try
+        {
+            Task.WaitAll(tasks);
+            using(var output=new FileStream(path,FileMode.Create,FileAccess.Write,FileShare.None))
+                foreach(string part in parts)using(var input=File.OpenRead(part))input.CopyTo(output,1024*1024);
+            if(new FileInfo(path).Length!=expected)throw new IOException("결합된 파일 크기가 일치하지 않습니다.");
+            status("다운로드 완료: "+name);
+        }
+        finally { foreach(string part in parts)try{if(File.Exists(part))File.Delete(part);}catch{} }
     }
     private static string Hash(string path){using(var s=File.OpenRead(path))using(var h=SHA256.Create())return BitConverter.ToString(h.ComputeHash(s)).Replace("-","");}
     private static void InstallZip(DownloadItem item,string cache,string destination,Action<string> status){string zip=Fetch(item,cache,status),stage=Path.Combine(cache,"unpack-"+item.Name);Reset(stage);ExtractZip(zip,stage);string source=FirstDirectory(stage);if(Directory.Exists(destination))try{DeleteTree(destination);}catch{}Directory.CreateDirectory(Path.GetDirectoryName(destination));if(Directory.Exists(destination)){CopyTree(source,destination);try{DeleteTree(source);}catch{}}else Directory.Move(source,destination);}

@@ -1,9 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.IO;
 using System.Net;
 using System.Security.Cryptography;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using System.Web.Script.Serialization;
@@ -32,36 +35,126 @@ internal sealed class UpdaterForm : Form
         "https://cdn.jsdelivr.net/gh/Jeong-Luke/LAKIS@main/manifests/update-latest.json"
     };
     private readonly Label status = new Label();
-    private readonly ProgressBar progress = new ProgressBar();
+    private readonly LakisProgressBar progress = new LakisProgressBar();
     private readonly Button update = new Button();
     private readonly string targetRoot;
     private readonly bool launchAfterUpdate;
     private string pendingSelfUpdate;
+    private bool started;
+    private readonly CenterCropPictureBox artwork = new CenterCropPictureBox();
+    private readonly List<Image> artworkFrames = new List<Image>();
+    private readonly Timer artworkTimer = new Timer();
+    private int artworkIndex;
+    private readonly Button closeButton = new Button();
 
     internal UpdaterForm(string root, bool launchWhenFinished = false)
     {
         targetRoot = Path.GetFullPath(root);
         launchAfterUpdate = launchWhenFinished;
         Text = "LAKIS 업데이트";
-        Width = 540; Height = 220; FormBorderStyle = FormBorderStyle.FixedDialog;
+        ClientSize = new Size(760, 430); FormBorderStyle = FormBorderStyle.None;
         MaximizeBox = false; StartPosition = FormStartPosition.CenterScreen;
-        Controls.Add(new Label { Left = 24, Top = 22, Width = 480, Height = 32, Text = "LAKIS Studio 업데이트", Font = new System.Drawing.Font("Segoe UI", 16, System.Drawing.FontStyle.Bold) });
-        status.Left = 26; status.Top = 72; status.Width = 480; status.Height = 38; status.Text = "업데이트 확인 준비 완료";
-        progress.Left = 26; progress.Top = 116; progress.Width = 480; progress.Height = 18;
-        update.Left = 396; update.Top = 148; update.Width = 110; update.Height = 30; update.Text = "확인";
-        update.Click += async (_, __) => await UpdateAsync();
-        Controls.AddRange(new Control[] { status, progress, update });
+        BackColor = Color.FromArgb(12, 14, 22); ForeColor = Color.White;
+        Font = new Font("Segoe UI", 10F); DoubleBuffered = true;
+        LakisWindowDrag.Enable(this);
+        LoadArtwork();
+        artwork.SetBounds(400, 48, 336, 358);
+        artwork.BackColor = Color.FromArgb(18, 22, 38);
+        if (artworkFrames.Count > 0) artwork.Image = artworkFrames[0];
+        artworkTimer.Interval = 5000;
+        artworkTimer.Tick += (_, __) => {
+            if (artworkFrames.Count < 2) return;
+            artworkIndex = (artworkIndex + 1) % artworkFrames.Count;
+            artwork.Image = artworkFrames[artworkIndex];
+        };
+        artworkTimer.Start();
+        var logo = new PictureBox {
+            Left = 42, Top = 42, Width = 54, Height = 54,
+            SizeMode = PictureBoxSizeMode.Zoom,
+            Image = Icon.ExtractAssociatedIcon(Application.ExecutablePath).ToBitmap()
+        };
+        Controls.Add(new Label {
+            Left = 112, Top = 43, Width = 280, Height = 34, Text = "L A K I S",
+            Font = new Font("Segoe UI", 20F, FontStyle.Bold), ForeColor = Color.FromArgb(225, 229, 255)
+        });
+        Controls.Add(new Label {
+            Left = 114, Top = 78, Width = 260, Height = 25, Text = "LAKIS Studio 업데이트",
+            Font = new Font("Segoe UI", 11F, FontStyle.Bold), ForeColor = Color.FromArgb(171, 178, 203)
+        });
+        Controls.Add(new Label {
+            Left = 43, Top = 217, Width = 315, Height = 46,
+            Text = "안전한 업데이트를 확인하고 적용합니다.",
+            ForeColor = Color.FromArgb(104, 112, 137), Font = new Font("Segoe UI", 8F)
+        });
+        var copyright = new Label {
+            Left = 43, Top = 399, Width = 335, Height = 18,
+            Text = "ⓒ 2026. Luke_Jeong All rights reserved. · LAKIS v" + ReadCurrentVersion(),
+            ForeColor = Color.FromArgb(104, 112, 137), Font = new Font("Segoe UI", 8F)
+        };
+        status.Left = 43; status.Top = 277; status.Width = 315; status.Height = 34;
+        status.Text = "업데이트 확인 준비 완료"; status.ForeColor = Color.FromArgb(184, 168, 255);
+        progress.Left = 43; progress.Top = 318; progress.Width = 315; progress.Height = 7;
+        update.Left = 238; update.Top = 350; update.Width = 120; update.Height = 38; update.Text = "확인";
+        update.FlatStyle = FlatStyle.Flat; update.FlatAppearance.BorderSize = 0;
+        update.BackColor = Color.FromArgb(111, 82, 225); update.ForeColor = Color.White;
+        update.Font = new Font("Segoe UI", 10F, FontStyle.Bold); update.Cursor = Cursors.Hand;
+        update.Visible = false;
+        ConfigureCloseButton();
+        Controls.AddRange(new Control[] { artwork, logo, status, progress, update, copyright, closeButton });
+        closeButton.BringToFront();
+        Shown += async (_, __) => {
+            if (started) return;
+            started = true;
+            await UpdateAsync();
+        };
+        FormClosed += (_, __) => { artworkTimer.Stop(); foreach (Image frame in artworkFrames) frame.Dispose(); };
+    }
+
+    private void ConfigureCloseButton()
+    {
+        closeButton.SetBounds(ClientSize.Width - 48, 0, 48, 42);
+        closeButton.Text = "\uE8BB";
+        closeButton.Font = new Font("Segoe MDL2 Assets", 9F);
+        closeButton.ForeColor = Color.FromArgb(205, 211, 225);
+        closeButton.BackColor = Color.Transparent;
+        closeButton.FlatStyle = FlatStyle.Flat;
+        closeButton.FlatAppearance.BorderSize = 0;
+        closeButton.FlatAppearance.MouseOverBackColor = Color.FromArgb(196, 43, 28);
+        closeButton.TabStop = false;
+        closeButton.Cursor = Cursors.Hand;
+        closeButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+        closeButton.Click += (_, __) => Close();
+    }
+
+    private void LoadArtwork()
+    {
+        Assembly assembly = Assembly.GetExecutingAssembly();
+        foreach (string name in new[] { "LAKIS.Splash1", "LAKIS.Splash2" })
+        {
+            using (Stream stream = assembly.GetManifestResourceStream(name))
+                if (stream != null) artworkFrames.Add(new Bitmap(stream));
+        }
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        base.OnPaint(e);
+        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        using (var border = new Pen(Color.FromArgb(47, 54, 73)))
+            e.Graphics.DrawRectangle(border, 0, 0, ClientSize.Width - 1, ClientSize.Height - 1);
     }
 
     private async Task UpdateAsync()
     {
         update.Enabled = false; progress.Value = 0;
+        progress.Style = ProgressBarStyle.Marquee; progress.MarqueeAnimationSpeed = 24;
         try
         {
             if (!File.Exists(Path.Combine(targetRoot, "LAKIS.exe")) || !Directory.Exists(Path.Combine(targetRoot, "ComfyUI")))
                 throw new DirectoryNotFoundException("LAKIS 설치 위치를 찾을 수 없습니다: " + targetRoot);
             status.Text = "업데이트 정보를 확인하고 있습니다…";
             UpdateManifest manifest = await Task.Run(() => DownloadManifest());
+            progress.Style = ProgressBarStyle.Continuous; progress.Value = 0;
             string current = ReadCurrentVersion();
             if (CompareVersions(manifest.version, current) <= 0)
             {
@@ -69,7 +162,8 @@ internal sealed class UpdaterForm : Form
                 MessageBox.Show("현재 LAKIS가 최신 버전입니다.", "LAKIS 업데이트", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
-            if (MessageBox.Show("v" + manifest.version + " 업데이트가 있습니다.\n\n" + manifest.release_notes + "\n\n지금 업데이트할까요?",
+            if (!launchAfterUpdate && MessageBox.Show(
+                "v" + manifest.version + " 업데이트가 있습니다.\n\n" + manifest.release_notes + "\n\n지금 업데이트할까요?",
                 "LAKIS 업데이트", MessageBoxButtons.YesNo, MessageBoxIcon.Information) != DialogResult.Yes) return;
             await Task.Run(() => ApplyUpdate(manifest));
             if (!String.IsNullOrWhiteSpace(pendingSelfUpdate))
@@ -94,7 +188,7 @@ internal sealed class UpdaterForm : Form
             status.Text = "업데이트 실패";
             MessageBox.Show(error.Message, "LAKIS 업데이트 오류", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
-        finally { update.Enabled = true; }
+        finally { progress.Style = ProgressBarStyle.Continuous; update.Enabled = true; }
     }
 
     private UpdateManifest DownloadManifest()
@@ -106,7 +200,7 @@ internal sealed class UpdaterForm : Form
             try
             {
                 var request = (HttpWebRequest)WebRequest.Create(url + "?t=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-                request.UserAgent = "LAKIS-Updater/7.1.4";
+                request.UserAgent = "LAKIS-Updater/7.1.5";
                 request.Timeout = 20000;
                 request.ReadWriteTimeout = 20000;
                 request.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
@@ -259,7 +353,7 @@ internal sealed class UpdaterForm : Form
     {
         using (var client = new WebClient())
         {
-            client.Headers.Add(HttpRequestHeader.UserAgent, "LAKIS-Updater/7.1.4");
+            client.Headers.Add(HttpRequestHeader.UserAgent, "LAKIS-Updater/7.1.5");
             client.DownloadFile(url, output);
         }
     }

@@ -27,10 +27,10 @@ internal sealed class LakisDesktopForm : Form
         Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
         FormBorderStyle = FormBorderStyle.None;
         BackColor = Color.FromArgb(10, 13, 20);
-        StartPosition = FormStartPosition.CenterScreen;
-        MinimumSize = new Size(1100, 720);
-        Size = new Size(1600, 1000);
+        StartPosition = FormStartPosition.Manual;
+        ConfigureSafeWindowBounds();
         AutoScaleMode = AutoScaleMode.Dpi;
+        ResizeRedraw = true;
         statePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, ".lakis", "desktop-window.txt");
         RestoreWindowState();
         BuildTitleBar();
@@ -177,24 +177,54 @@ internal sealed class LakisDesktopForm : Form
         }
     }
 
-    private void RestoreWindowState()
+    private bool RestoreWindowState()
     {
         try
         {
-            if (!File.Exists(statePath)) return;
+            if (!File.Exists(statePath)) return false;
             string[] values = File.ReadAllText(statePath).Split(',');
-            if (values.Length != 4) return;
+            if (values.Length != 4) return false;
             int x, y, width, height;
             if (!Int32.TryParse(values[0], out x) || !Int32.TryParse(values[1], out y)
-                || !Int32.TryParse(values[2], out width) || !Int32.TryParse(values[3], out height)) return;
+                || !Int32.TryParse(values[2], out width) || !Int32.TryParse(values[3], out height)) return false;
             var bounds = new Rectangle(x, y, width, height);
-            bool visible = false;
-            foreach (Screen screen in Screen.AllScreens) if (screen.WorkingArea.IntersectsWith(bounds)) { visible = true; break; }
-            if (!visible) return;
+            Screen target = null;
+            foreach (Screen screen in Screen.AllScreens)
+                if (screen.WorkingArea.IntersectsWith(bounds)) { target = screen; break; }
+            if (target == null) return false;
+            Rectangle work = target.WorkingArea;
+            width = Math.Min(Math.Max(width, MinimumSize.Width), work.Width);
+            height = Math.Min(Math.Max(height, MinimumSize.Height), work.Height);
+            x = Math.Max(work.Left, Math.Min(x, work.Right - width));
+            y = Math.Max(work.Top, Math.Min(y, work.Bottom - height));
             StartPosition = FormStartPosition.Manual;
-            Bounds = bounds;
+            Bounds = new Rectangle(x, y, width, height);
+            return true;
         }
-        catch { }
+        catch { return false; }
+    }
+
+    private void ConfigureSafeWindowBounds()
+    {
+        Rectangle work = Screen.PrimaryScreen.WorkingArea;
+        int minimumWidth = Math.Min(1500, work.Width);
+        int minimumHeight = Math.Min(844, work.Height);
+        MinimumSize = new Size(minimumWidth, minimumHeight);
+
+        int width = Math.Max(minimumWidth, (int)(work.Width * 0.92));
+        int height = (int)Math.Round(width * 9.0 / 16.0);
+        int maximumHeight = (int)(work.Height * 0.92);
+        if (height > maximumHeight)
+        {
+            height = Math.Max(minimumHeight, maximumHeight);
+            width = (int)Math.Round(height * 16.0 / 9.0);
+        }
+        width = Math.Min(width, work.Width);
+        height = Math.Min(height, work.Height);
+        Bounds = new Rectangle(
+            work.Left + (work.Width - width) / 2,
+            work.Top + (work.Height - height) / 2,
+            width, height);
     }
 
     private void SaveWindowState()
@@ -265,7 +295,7 @@ internal sealed class LakisDesktopForm : Form
     [DllImport("user32.dll")]
     private static extern IntPtr SendMessage(IntPtr window, int message, int wParam, int lParam);
 
-    private const int ResizeBorderWidth = 7;
+    private const int ResizeBorderWidth = 10;
     private const int WM_NCHITTEST = 0x0084;
     private const int WM_NCLBUTTONDOWN = 0x00A1;
     private const int HTCLIENT = 1;
