@@ -211,6 +211,35 @@ internal sealed class LakisDesktopForm : Form
     [STAThread]
     private static void Main(string[] args)
     {
+        // A desktop shortcut launches this host without arguments. Route that
+        // entry through LAKIS.exe so update checks and backend startup always
+        // happen. launch_lakis.py supplies the URL when it is time to create
+        // the actual WebView window, which avoids a launcher/host loop.
+        if (args.Length == 0)
+        {
+            string root = AppDomain.CurrentDomain.BaseDirectory;
+            string launcher = Path.Combine(root, "LAKIS.exe");
+            if (!File.Exists(launcher))
+            {
+                MessageBox.Show("LAKIS 실행 파일을 찾을 수 없습니다. 복구 설치를 진행해 주세요.",
+                    "LAKIS 실행 오류", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+            try
+            {
+                Process.Start(new ProcessStartInfo {
+                    FileName = launcher,
+                    WorkingDirectory = root,
+                    UseShellExecute = true,
+                });
+            }
+            catch (Exception error)
+            {
+                MessageBox.Show("LAKIS를 실행하지 못했습니다.\n\n" + error.Message,
+                    "LAKIS 실행 오류", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            return;
+        }
         EnablePerMonitorDpi();
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);

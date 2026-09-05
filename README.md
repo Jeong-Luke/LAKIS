@@ -4,7 +4,7 @@ LAKIS Studio is an external user interface and curated workflow environment for 
 
 ## Stable baseline
 
-This repository contains the clean `v7.1` distribution line. The current prepared baseline is `v7.1.3`. Pre-v7.1 development packages and workflows are maintained separately and are not distributed to new users.
+This repository contains the clean `v7.1` distribution line. The current prepared baseline is `v7.1.4`. Pre-v7.1 development packages and workflows are maintained separately and are not distributed to new users.
 
 ## Distribution policy
 

@@ -96,7 +96,7 @@ internal sealed class SafeSetupForm : Form
 
 internal static class SafeInstaller
 {
-    private const string Revision = "v7.1.3";
+    private const string Revision = "v7.1.4";
     private static readonly DownloadItem Portable = new DownloadItem("ComfyUI v0.21.1",
         "https://github.com/Comfy-Org/ComfyUI/releases/download/v0.21.1/ComfyUI_windows_portable_nvidia.7z",
         "7C380D4309BBDA395366C49564EDF8996181FD45E61B6F353EA417F32BC3B970",null,2001582790);
@@ -157,7 +157,7 @@ internal static class SafeInstaller
             string python=Path.Combine(target,"python_embeded","python.exe");foreach(string node in Directory.GetDirectories(custom)){string req=Path.Combine(node,"requirements.txt");if(File.Exists(req)){status("의존성 설치: "+Path.GetFileName(node));string safeReq=PrepareRequirements(req);Run(python,"-s -m pip install --disable-pip-version-check -r \""+safeReq+"\"",target,status);}}
             ExtractDesktopRuntime(target,status);
             CreateDesktopShortcut(target,status);
-            File.WriteAllText(Path.Combine(target,"VERSION"),"7.1.3");File.WriteAllText(Path.Combine(target,"install.complete"),DateTime.UtcNow.ToString("O"));File.WriteAllLines(Path.Combine(target,"network-install.log"),log.ToArray());if(previous!=null)try{DeleteTree(previous);}catch{status("이전 설치 폴더는 재부팅 후 삭제할 수 있습니다: "+previous);}status("설치 완료");
+            File.WriteAllText(Path.Combine(target,"VERSION"),"7.1.4");File.WriteAllText(Path.Combine(target,"install.complete"),DateTime.UtcNow.ToString("O"));File.WriteAllLines(Path.Combine(target,"network-install.log"),log.ToArray());if(previous!=null)try{DeleteTree(previous);}catch{status("이전 설치 폴더는 재부팅 후 삭제할 수 있습니다: "+previous);}status("설치 완료");
         }
         catch(Exception error){try{Directory.CreateDirectory(target);File.WriteAllLines(Path.Combine(target,"network-install.log"),log.ToArray());}catch{}throw new InvalidOperationException("설치 중 오류가 발생했습니다.\n"+error.Message+"\n\n로그: "+Path.Combine(target,"network-install.log"),error);}
     }
@@ -183,7 +183,7 @@ internal static class SafeInstaller
             string uiRoot=FirstDirectory(uiStage);CopyTree(Path.Combine(uiRoot,"src","external_ui"),Path.Combine(comfy,"LAKIS_DEV","external_ui"));
             ExtractDesktopRuntime(target,status);
             CreateDesktopShortcut(target,status);
-            File.WriteAllText(Path.Combine(target,"VERSION"),"7.1.3");File.WriteAllLines(Path.Combine(target,"repair.log"),log.ToArray());status("복구 완료");
+            File.WriteAllText(Path.Combine(target,"VERSION"),"7.1.4");File.WriteAllLines(Path.Combine(target,"repair.log"),log.ToArray());status("복구 완료");
         }
         catch(Exception error){try{File.WriteAllLines(Path.Combine(target,"repair.log"),log.ToArray());}catch{}throw new InvalidOperationException("복구 중 오류가 발생했습니다.\n"+error.Message+"\n\n로그: "+Path.Combine(target,"repair.log"),error);}
     }
@@ -194,7 +194,7 @@ internal static class SafeInstaller
         long offset=File.Exists(part)?new FileInfo(part).Length:0;
         if(expected>0&&offset>expected){File.Delete(part);offset=0;}
         var request=(HttpWebRequest)WebRequest.Create(url);
-        request.UserAgent="LAKIS-Installer/7.1.3";
+        request.UserAgent="LAKIS-Installer/7.1.4";
         request.AllowAutoRedirect=true;
         if(offset>0)request.AddRange(offset);
         using(var response=(HttpWebResponse)request.GetResponse())
@@ -284,7 +284,7 @@ internal static class SafeInstaller
     }
     private static void CreateDesktopShortcut(string target,Action<string> status)
     {
-        string launcher=Path.Combine(target,"LAKIS.exe");
+        string launcher=Path.Combine(target,"LAKIS_Desktop.exe");
         string desktop=Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
         string shortcutPath=Path.Combine(desktop,"LAKIS.lnk");
         Type shellType=Type.GetTypeFromProgID("WScript.Shell");

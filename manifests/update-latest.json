@@ -1,23 +1,212 @@
 {
-  "version": "7.1.3",
-  "minimum_version": "7.0.24",
-  "release_notes": "한글 프롬프트 자동 번역과 오렌지색 강조를 추가했습니다. 영문 태그와 작가·LoRA 태그는 보존하며, 프롬프트 원문은 유지한 채 생성 요청에만 번역본을 사용합니다. 구도·광원 노브 크기와 패널 비율, 이미지 및 프롬프트 레이아웃도 개선했습니다.",
+  "version": "7.1.4",
+  "release_notes": "LAKIS 7.1.4 업데이트",
   "files": [
-    {"path":"LAKIS.exe","url":"https://github.com/Jeong-Luke/LAKIS/releases/download/v7.1.3/LAKIS.exe","sha256":"392DF167C13A1F446542BA046BC27358C0E3E707B0EA87892989C3C3633469B3"},
-    {"path":"LAKIS_Patcher.exe","url":"https://github.com/Jeong-Luke/LAKIS/releases/download/v7.1.3/LAKIS_Patcher.exe","sha256":"18A6DB2A47E0E70CB320A4DD48FF6CEB9EBCD9D0D757860019682832EA76BA24"},
-    {"path":"LAKIS_Desktop.exe","url":"https://github.com/Jeong-Luke/LAKIS/releases/download/v7.1.3/LAKIS_Desktop.exe","sha256":"F2E844B88D3E6646C56338F14ECC6B79C2CBD63B80753DE28B4710C43E990DE7"},
-    {"path":"Microsoft.Web.WebView2.Core.dll","url":"https://github.com/Jeong-Luke/LAKIS/releases/download/v7.1.3/Microsoft.Web.WebView2.Core.dll","sha256":"E6F54C8CE208E3797C427D01AD671B47CB25ABC85604753D6EC2546D0FFEF550"},
-    {"path":"Microsoft.Web.WebView2.WinForms.dll","url":"https://github.com/Jeong-Luke/LAKIS/releases/download/v7.1.3/Microsoft.Web.WebView2.WinForms.dll","sha256":"CC3D2937C350A4F5E20399855BCAB4FE695A395308FEB2ED67394FAA6A1AE849"},
-    {"path":"WebView2Loader.dll","url":"https://github.com/Jeong-Luke/LAKIS/releases/download/v7.1.3/WebView2Loader.dll","sha256":"C66E4A92FDC7A216118E43B7A5024EA2200E8C43F9310BF20D96A0084F82C5BC"},
-    {"path":"ComfyUI/LAKIS_DEV/external_ui/app.js","url":"https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.3/src/external_ui/app.js","sha256":"7CA62095EB43AB30216CEF793658FF9B2793CC5F569E5E8194DAE0AAF56A934A"},
-    {"path":"ComfyUI/LAKIS_DEV/external_ui/generation-actions.css","url":"https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.3/src/external_ui/generation-actions.css","sha256":"ED821B2E97F266484F2D554E092B60D08797FD06CFA276B9030F03C96562986F"},
-    {"path":"ComfyUI/LAKIS_DEV/external_ui/index.html","url":"https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.3/src/external_ui/index.html","sha256":"801474A78B547528876AF2AEE3A0F05191E74E042BC0F3E9F3E75E38BE7EE759"},
-    {"path":"ComfyUI/LAKIS_DEV/external_ui/layout-adjustment.css","url":"https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.3/src/external_ui/layout-adjustment.css","sha256":"D691D3149D046D1EDA50137C421248FA78CC4F62F8DCCC223E195D86F55F5521"},
-    {"path":"ComfyUI/LAKIS_DEV/external_ui/preview-zoom.css","url":"https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.3/src/external_ui/preview-zoom.css","sha256":"012ADF0E986B7C3642C8649FC3D56CE53BAB19D1A31401B332C498336536BF14"},
-    {"path":"ComfyUI/LAKIS_DEV/external_ui/prompt-highlighting.css","url":"https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.3/src/external_ui/prompt-highlighting.css","sha256":"7D35F377B0DA54B87E82E77980B700F097FE7DF00A74D7465AD2163C6B976F00"},
-    {"path":"ComfyUI/LAKIS_DEV/external_ui/prompt-highlighting.js","url":"https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.3/src/external_ui/prompt-highlighting.js","sha256":"BD062A1FE022535E81D598C066E35E87053EF44D5239379599FFF7EE07ABA2E4"},
-    {"path":"ComfyUI/LAKIS_DEV/external_ui/prompt-width.css","url":"https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.3/src/external_ui/prompt-width.css","sha256":"7FF305944056A705DCCC0B00BDD1085E95587F58CF54BB332AAF1CDACCBB4D10"},
-    {"path":"ComfyUI/LAKIS_DEV/external_ui/serve_ui.py","url":"https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.3/src/external_ui/serve_ui.py","sha256":"AFF752B6CC0BA2938557B5A108AF86EDDC4CA01BF816EA8AEE1A71BCBBCC8922"}
+    {
+      "path": "LAKIS.exe",
+      "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v7.1.4/LAKIS.exe",
+      "sha256": "802AB3B77070AAC9BB06EE7A27554E20543A87F2B30E894C43E3402038E19678"
+    },
+    {
+      "path": "LAKIS_Patcher.exe",
+      "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v7.1.4/LAKIS_Patcher.exe",
+      "sha256": "D54BDA66168664565F9B73647475BE3AA38F8819B70A0BAFC29F8176FE103604"
+    },
+    {
+      "path": "LAKIS_Desktop.exe",
+      "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v7.1.4/LAKIS_Desktop.exe",
+      "sha256": "8B120AAEF92B91BE811E4B95C8163B96EFBCD00510179A1F7D3D99A02D7C9A69"
+    },
+    {
+      "path": "Microsoft.Web.WebView2.Core.dll",
+      "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v7.1.4/Microsoft.Web.WebView2.Core.dll",
+      "sha256": "E6F54C8CE208E3797C427D01AD671B47CB25ABC85604753D6EC2546D0FFEF550"
+    },
+    {
+      "path": "Microsoft.Web.WebView2.WinForms.dll",
+      "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v7.1.4/Microsoft.Web.WebView2.WinForms.dll",
+      "sha256": "CC3D2937C350A4F5E20399855BCAB4FE695A395308FEB2ED67394FAA6A1AE849"
+    },
+    {
+      "path": "WebView2Loader.dll",
+      "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v7.1.4/WebView2Loader.dll",
+      "sha256": "C66E4A92FDC7A216118E43B7A5024EA2200E8C43F9310BF20D96A0084F82C5BC"
+    },
+    {
+      "path": "ComfyUI/LAKIS_DEV/external_ui/app.js",
+      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.4/src/external_ui/app.js",
+      "sha256": "BCA19CE71A442793E0B4F2C580393DAFA7B9D0BE3DD53D33E22CC783CB91C071"
+    },
+    {
+      "path": "ComfyUI/LAKIS_DEV/external_ui/assets/LAKIS_windows_compatible.ico",
+      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.4/src/external_ui/assets/LAKIS_windows_compatible.ico",
+      "sha256": "06058E18A21F4D7CA1826D2137FDF71804B55D3520AC1F08493523537CF1385F"
+    },
+    {
+      "path": "ComfyUI/LAKIS_DEV/external_ui/brand-position-fix.css",
+      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.4/src/external_ui/brand-position-fix.css",
+      "sha256": "FA0DCC5EA5EA405C8CA917B84823B594730A56F93D2515208B784D5EE4081589"
+    },
+    {
+      "path": "ComfyUI/LAKIS_DEV/external_ui/camera-3d.css",
+      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.4/src/external_ui/camera-3d.css",
+      "sha256": "3A6D3C1B18C00BAD2AB6EBC9813B73DB415257929E54EFA0676C5FC80F72EC54"
+    },
+    {
+      "path": "ComfyUI/LAKIS_DEV/external_ui/composition-control.css",
+      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.4/src/external_ui/composition-control.css",
+      "sha256": "28329820744F1630B940A8F0AEF703A6D73ED569BA8063627A15A7569BE3BC6C"
+    },
+    {
+      "path": "ComfyUI/LAKIS_DEV/external_ui/composition-toggle.css",
+      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.4/src/external_ui/composition-toggle.css",
+      "sha256": "B2EADCFB028D05DE6A2A7517D30389F5F9CF94BE6399D81BE15206D9469009C5"
+    },
+    {
+      "path": "ComfyUI/LAKIS_DEV/external_ui/error-dialog.css",
+      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.4/src/external_ui/error-dialog.css",
+      "sha256": "C97EE679F2DA8FFF7C71EBF95C22142B99D80CF91A5B894B1D89E6CC150B40C7"
+    },
+    {
+      "path": "ComfyUI/LAKIS_DEV/external_ui/generation-actions.css",
+      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.4/src/external_ui/generation-actions.css",
+      "sha256": "82B3A587E776FBFE28772889811AA8621DFECA62D4C0D78A43F35BBCE1DAB676"
+    },
+    {
+      "path": "ComfyUI/LAKIS_DEV/external_ui/generation-monitor.css",
+      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.4/src/external_ui/generation-monitor.css",
+      "sha256": "92662029E58FBD1D23390B43EA9A11D62D26060379D1FFB3CBE821FDD99E5311"
+    },
+    {
+      "path": "ComfyUI/LAKIS_DEV/external_ui/history-mode-badge.css",
+      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.4/src/external_ui/history-mode-badge.css",
+      "sha256": "798A489AA9AB9CE4E035ED59478B0E07E81200A78DA6DFC96D76D4FD6BAA5705"
+    },
+    {
+      "path": "ComfyUI/LAKIS_DEV/external_ui/index.html",
+      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.4/src/external_ui/index.html",
+      "sha256": "C4ED2F7E2FC7DD22B6032AD11588744255D0BC1731C670DE75EE4893C27F72F5"
+    },
+    {
+      "path": "ComfyUI/LAKIS_DEV/external_ui/launch_lakis.py",
+      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.4/src/external_ui/launch_lakis.py",
+      "sha256": "F11AFB03E129986795E5D81FA4A5C4499C525B09DBE52F8D82B6EA8094AE9304"
+    },
+    {
+      "path": "ComfyUI/LAKIS_DEV/external_ui/layout-adjustment.css",
+      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.4/src/external_ui/layout-adjustment.css",
+      "sha256": "234C77A8CEFFA1ADB59FC392E47091B0CBF6F34DA4E974133199B79E4E817023"
+    },
+    {
+      "path": "ComfyUI/LAKIS_DEV/external_ui/light-control-prototype.css",
+      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.4/src/external_ui/light-control-prototype.css",
+      "sha256": "F362CBE91B4CCD35F0537ADC14546BA24F72B8BFD041D6E352FC633C523683D9"
+    },
+    {
+      "path": "ComfyUI/LAKIS_DEV/external_ui/lightmap-knob-mockup.js",
+      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.4/src/external_ui/lightmap-knob-mockup.js",
+      "sha256": "85B828D907795F029CC8B34A9A8DC6E49AAE2BD90DE3D2CF6989BEA5D3D557F7"
+    },
+    {
+      "path": "ComfyUI/LAKIS_DEV/external_ui/lora-controls.css",
+      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.4/src/external_ui/lora-controls.css",
+      "sha256": "8758220201B916B88D620BB71EC67B69C7FB650D2E6765A59B65D0F3DC5F72A9"
+    },
+    {
+      "path": "ComfyUI/LAKIS_DEV/external_ui/mockup-layout.css",
+      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.4/src/external_ui/mockup-layout.css",
+      "sha256": "FC77B282CEF4F6226AA8404CF89D81042F7515EAFB1D6DEC3017CB58BAE67682"
+    },
+    {
+      "path": "ComfyUI/LAKIS_DEV/external_ui/preview-zoom.css",
+      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.4/src/external_ui/preview-zoom.css",
+      "sha256": "F63E6CF73BE48EA1C7B59543AFE239725217385F247ED47247F5EF48FA5788F3"
+    },
+    {
+      "path": "ComfyUI/LAKIS_DEV/external_ui/prompt-categories.css",
+      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.4/src/external_ui/prompt-categories.css",
+      "sha256": "3AAF4226E1AB4E217F50D0E6F517B20CAD16B96B81A92DB56F77733738815075"
+    },
+    {
+      "path": "ComfyUI/LAKIS_DEV/external_ui/prompt-highlighting.css",
+      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.4/src/external_ui/prompt-highlighting.css",
+      "sha256": "39DA7C393AFEB30A9A374E9D0FA08013D2DC563CAD737B4547D06856768E8630"
+    },
+    {
+      "path": "ComfyUI/LAKIS_DEV/external_ui/prompt-highlighting.js",
+      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.4/src/external_ui/prompt-highlighting.js",
+      "sha256": "9B1A90851A3E5F771C64649B9D1A7254560A4066E3A0D6FCDDA0E11A3C077C13"
+    },
+    {
+      "path": "ComfyUI/LAKIS_DEV/external_ui/prompt-model-controls.css",
+      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.4/src/external_ui/prompt-model-controls.css",
+      "sha256": "A5AE3FC69A24128D76F1A9A836FB682F59CFE1E9A021E8606BEA7FA41A9E6F4A"
+    },
+    {
+      "path": "ComfyUI/LAKIS_DEV/external_ui/prompt-width.css",
+      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.4/src/external_ui/prompt-width.css",
+      "sha256": "7FF305944056A705DCCC0B00BDD1085E95587F58CF54BB332AAF1CDACCBB4D10"
+    },
+    {
+      "path": "ComfyUI/LAKIS_DEV/external_ui/readability.css",
+      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.4/src/external_ui/readability.css",
+      "sha256": "466FF971CA6E797EF6A16A17AFD8D1A0A3760B5F298301AD65A61D5D892F1161"
+    },
+    {
+      "path": "ComfyUI/LAKIS_DEV/external_ui/README.md",
+      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.4/src/external_ui/README.md",
+      "sha256": "ACEA4283DA91201A28BA7F35F9D4F3120FEF209F044B23D9C6590B0440B3E0F0"
+    },
+    {
+      "path": "ComfyUI/LAKIS_DEV/external_ui/seed-controls.css",
+      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.4/src/external_ui/seed-controls.css",
+      "sha256": "DC8E3F443FF021898A8CD1F51F3FAB6E2884CB2F787D4281613466556975A967"
+    },
+    {
+      "path": "ComfyUI/LAKIS_DEV/external_ui/seed-layout-fix.css",
+      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.4/src/external_ui/seed-layout-fix.css",
+      "sha256": "A757D402B731A580723A02251D96754DD86EBFE3E11C06B3E21B79E45DEFB9CB"
+    },
+    {
+      "path": "ComfyUI/LAKIS_DEV/external_ui/serve_ui.py",
+      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.4/src/external_ui/serve_ui.py",
+      "sha256": "7F1E4C51B9561E8445D20553422DEF53DD66D3338B13AA5E06932039A590C812"
+    },
+    {
+      "path": "ComfyUI/LAKIS_DEV/external_ui/sidebar-links.css",
+      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.4/src/external_ui/sidebar-links.css",
+      "sha256": "F0CDF1A048CE31FA0F098B1B61A8029CD6C56DC94363C1616F2D60B096B9C0F2"
+    },
+    {
+      "path": "ComfyUI/LAKIS_DEV/external_ui/status-footer-large.css",
+      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.4/src/external_ui/status-footer-large.css",
+      "sha256": "6FE163B507A7D2EF08886A368EC356FA110A569E8512E82C3A4C2066F2DE3670"
+    },
+    {
+      "path": "ComfyUI/LAKIS_DEV/external_ui/status-footer.css",
+      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.4/src/external_ui/status-footer.css",
+      "sha256": "67F3E176E86F2DC115A4849CF633534835D502D4323ADAD7F4EFAE5F1446EED2"
+    },
+    {
+      "path": "ComfyUI/LAKIS_DEV/external_ui/styles.css",
+      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.4/src/external_ui/styles.css",
+      "sha256": "4026A9E039F2183CF4A914626E3566EC414A8766E00357DAAD7DCA8376518012"
+    },
+    {
+      "path": "ComfyUI/LAKIS_DEV/external_ui/viewport-fix.css",
+      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.4/src/external_ui/viewport-fix.css",
+      "sha256": "12F78D24F02968A1A5B4E2A3ABB180DEE6FA1BC47B11AADC2E019476E574AA80"
+    },
+    {
+      "path": "ComfyUI/LAKIS_DEV/external_ui/workflow_bridge.py",
+      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.4/src/external_ui/workflow_bridge.py",
+      "sha256": "691BB52C58383B97306B473A0B499D312A440B4A50A2CB36277C19A9BF7BA387"
+    },
+    {
+      "path": "ComfyUI/LAKIS/workflows/LAKIS_runtime_api_v7.1.json",
+      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.4/workflows/LAKIS_runtime_api_v7.1.json",
+      "sha256": "A50593942B6E89EE389C3D52224D2A749FD80E6D7210F27A955F9AFD8B180FB5"
+    }
   ],
   "delete": []
 }

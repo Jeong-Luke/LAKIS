@@ -24,7 +24,7 @@ internal static class LakisLauncher
             try
             {
                 var request = (HttpWebRequest)WebRequest.Create(url + "?t=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-                request.UserAgent = "LAKIS-Launcher/7.1.3";
+                request.UserAgent = "LAKIS-Launcher/7.1.4";
                 request.Timeout = 12000;
                 request.ReadWriteTimeout = 12000;
                 request.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
@@ -45,7 +45,7 @@ internal static class LakisLauncher
         try
         {
             var request = (HttpWebRequest)WebRequest.Create(LatestReleaseApiUrl + "?t=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-            request.UserAgent = "LAKIS-Launcher/7.1.3";
+            request.UserAgent = "LAKIS-Launcher/7.1.4";
             request.Accept = "application/vnd.github+json";
             request.Timeout = 12000;
             request.ReadWriteTimeout = 12000;

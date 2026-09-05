@@ -35,6 +35,17 @@ STOP_FILE = DEV_ROOT / "STOP_AUTOMATION"
 ALLOW_FILE = DEV_ROOT / "ALLOW_ONE_GENERATION"
 TEMPLATE = COMFY_ROOT / "LAKIS" / "workflows" / "LAKIS_runtime_api_v7.1.json"
 SAVED_WORKFLOW = COMFY_ROOT / "user" / "default" / "workflows" / "LAKIS_custom_v7.1.json"
+# Repair/updater installations made before v7.1 kept the validated workflow
+# contents under their v7.0.24 filenames. Continue to accept those files so a
+# UI-only update cannot leave the launcher without an executable workflow.
+if not TEMPLATE.is_file():
+    TEMPLATE = next(iter(sorted((COMFY_ROOT / "LAKIS" / "workflows").glob(
+        "LAKIS_runtime_api_v*.json"
+    ), reverse=True)), TEMPLATE)
+if not SAVED_WORKFLOW.is_file():
+    SAVED_WORKFLOW = next(iter(sorted((COMFY_ROOT / "user" / "default" / "workflows").glob(
+        "LAKIS_custom_v*.json"
+    ), reverse=True)), SAVED_WORKFLOW)
 AUDIT_PATH = DEV_ROOT / "external_ui_bridge_audit.jsonl"
 UI_STATE_PATH = DEV_ROOT / "external_ui_user_state.json"
 CAMERA_SOURCE = COMFY_ROOT / "custom_nodes" / "ComfyUI-KR-Camera-Control" / "camera_control.py"
@@ -466,21 +477,31 @@ def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dic
         "sampler_name": str(model.get("sampler", sampler_config["sampler_name"])),
         "scheduler": str(model.get("scheduler", sampler_config["scheduler"])),
     })
-    studio = prompt["2133"]["inputs"]
-    # The external UI always supplies an explicit width/height pair.  Leaving
-    # this on a named bucket makes Prompt Studio reject non-preset pairs and
-    # silently fall back to the first (very tall) entry in that bucket.
-    studio["resolution_bucket"] = "Custom"
-    studio["resolution_size"] = f"{width} * {height} (custom)"
-    studio["resolution_custom_width"] = width
-    studio["resolution_custom_height"] = height
-
-    # Also pin the actual txt2img latent dimensions.  This keeps the output
-    # contract correct even if a future Prompt Studio release changes its
-    # output ordering or custom-resolution parsing.
-    initial_latent = prompt["1736:1987"]["inputs"]
-    initial_latent["width"] = width
-    initial_latent["height"] = height
+    # Apply the requested dimensions to every resolution-producing node, not
+    # just the node id used by one exported workflow revision. Runtime graph
+    # updates can replace or duplicate those ids; leaving even one latent
+    # source connected to an old portrait preset makes the visible values and
+    # the generated image disagree.
+    resolution_nodes: list[str] = []
+    latent_nodes: list[str] = []
+    for node_id, node in prompt.items():
+        inputs = node.get("inputs", {})
+        class_type = str(node.get("class_type", ""))
+        if "resolution_custom_width" in inputs and "resolution_custom_height" in inputs:
+            inputs["resolution_bucket"] = "Custom"
+            inputs["resolution_size"] = f"{width} * {height} (custom)"
+            inputs["resolution_custom_width"] = width
+            inputs["resolution_custom_height"] = height
+            resolution_nodes.append(node_id)
+        if "latent" in class_type.casefold() and "width" in inputs and "height" in inputs:
+            inputs["width"] = width
+            inputs["height"] = height
+            latent_nodes.append(node_id)
+    if not resolution_nodes or not latent_nodes:
+        raise RuntimeError(
+            "Workflow resolution contract is incomplete: "
+            f"prompt_studios={resolution_nodes}, latent_sources={latent_nodes}"
+        )
 
     camera_inputs = prompt["2135"]["inputs"]
     for source, target in (("x", "pos_x"), ("y", "pos_y"), ("z", "pos_z"),
@@ -539,11 +560,14 @@ def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dic
         "camera_prompt": camera_prompt,
         "composition_enabled": composition_enabled,
         "lora_stack_node": prompt["890:1281"]["inputs"].get("lora_stack") == ["1925", 1],
+        "resolution": f"{width}x{height}",
+        "resolution_nodes": resolution_nodes,
+        "latent_nodes": latent_nodes,
         **lora_assertions,
     }
     ignored_assertions = {"detail_enabled", "node_count", "lora_count", "enabled_lora_count",
                           "loras_globally_enabled", "lora_profile_index", "composition_enabled",
-                          "camera_prompt"}
+                          "camera_prompt", "resolution", "resolution_nodes", "latent_nodes"}
     if not all(value for key, value in assertions.items() if key not in ignored_assertions):
         raise RuntimeError(f"External UI prompt preflight failed: {assertions}")
     return prompt, assertions

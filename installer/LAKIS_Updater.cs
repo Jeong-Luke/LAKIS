@@ -106,7 +106,7 @@ internal sealed class UpdaterForm : Form
             try
             {
                 var request = (HttpWebRequest)WebRequest.Create(url + "?t=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-                request.UserAgent = "LAKIS-Updater/7.1.3";
+                request.UserAgent = "LAKIS-Updater/7.1.4";
                 request.Timeout = 20000;
                 request.ReadWriteTimeout = 20000;
                 request.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
@@ -181,6 +181,7 @@ internal sealed class UpdaterForm : Form
                 File.Copy(destination, saved, true);
                 File.Delete(destination);
             }
+            CreateOrRepairDesktopShortcut(targetRoot);
             if (String.IsNullOrWhiteSpace(pendingSelfUpdate)) File.WriteAllText(Path.Combine(targetRoot, "VERSION"), manifest.version);
         }
         catch
@@ -205,6 +206,41 @@ internal sealed class UpdaterForm : Form
         return normalized;
     }
 
+    private static void CreateOrRepairDesktopShortcut(string root)
+    {
+        string desktopHost = Path.Combine(root, "LAKIS_Desktop.exe");
+        if (!File.Exists(desktopHost)) return;
+        string shortcutPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "LAKIS.lnk");
+        Type shellType = Type.GetTypeFromProgID("WScript.Shell");
+        if (shellType == null) return;
+        object shell = null;
+        object shortcut = null;
+        try
+        {
+            shell = Activator.CreateInstance(shellType);
+            shortcut = shellType.InvokeMember("CreateShortcut", System.Reflection.BindingFlags.InvokeMethod,
+                null, shell, new object[] { shortcutPath });
+            Type shortcutType = shortcut.GetType();
+            shortcutType.InvokeMember("TargetPath", System.Reflection.BindingFlags.SetProperty,
+                null, shortcut, new object[] { desktopHost });
+            shortcutType.InvokeMember("WorkingDirectory", System.Reflection.BindingFlags.SetProperty,
+                null, shortcut, new object[] { root });
+            shortcutType.InvokeMember("IconLocation", System.Reflection.BindingFlags.SetProperty,
+                null, shortcut, new object[] { desktopHost + ",0" });
+            shortcutType.InvokeMember("Description", System.Reflection.BindingFlags.SetProperty,
+                null, shortcut, new object[] { "LAKIS Studio 실행" });
+            shortcutType.InvokeMember("Save", System.Reflection.BindingFlags.InvokeMethod, null, shortcut, null);
+        }
+        finally
+        {
+            if (shortcut != null && System.Runtime.InteropServices.Marshal.IsComObject(shortcut))
+                System.Runtime.InteropServices.Marshal.FinalReleaseComObject(shortcut);
+            if (shell != null && System.Runtime.InteropServices.Marshal.IsComObject(shell))
+                System.Runtime.InteropServices.Marshal.FinalReleaseComObject(shell);
+        }
+    }
+
     private static bool IsProtected(string path)
     {
         string p = path.Replace('/', '\\').TrimStart('\\').ToLowerInvariant();
@@ -223,7 +259,7 @@ internal sealed class UpdaterForm : Form
     {
         using (var client = new WebClient())
         {
-            client.Headers.Add(HttpRequestHeader.UserAgent, "LAKIS-Updater/7.1.3");
+            client.Headers.Add(HttpRequestHeader.UserAgent, "LAKIS-Updater/7.1.4");
             client.DownloadFile(url, output);
         }
     }
@@ -315,6 +351,7 @@ internal sealed class UpdaterForm : Form
             }
             if (last != null) throw last;
             File.WriteAllText(Path.Combine(root, "VERSION"), version);
+            CreateOrRepairDesktopShortcut(root);
             if (launch) Process.Start(Path.Combine(root, "LAKIS.exe"));
         }
         catch (Exception error)
