@@ -3,6 +3,7 @@ const state = {
   translation_enabled: true,
   lora_enabled: true,
   composition_enabled: true,
+  i2i: { enabled: false, denoise: 0.5, image_name: "" },
   loras: [],
   camera: { x: 0, y: .35, z: -.45, roll: 0, frame_y: 0 },
   output: { width: 1536, height: 1024, seed: 579441119814924, seed_mode: "random" },
@@ -998,6 +999,87 @@ document.querySelector(".history-strip").addEventListener("click", event => {
   }
 });
 
+const i2iToggle = document.querySelector("#i2iToggle");
+const i2iFileInput = document.querySelector("#i2iFileInput");
+const i2iDropZone = document.querySelector("#i2iDropZone");
+const i2iPreview = document.querySelector("#i2iPreview");
+const i2iPlaceholder = document.querySelector("#i2iPlaceholder");
+const i2iDenoise = document.querySelector("#i2iDenoise");
+const i2iDenoiseValue = document.querySelector("#i2iDenoiseValue");
+const i2iRemove = document.querySelector("#i2iRemove");
+const i2iStatus = document.querySelector("#i2iStatus");
+
+function setI2iEnabled(enabled) {
+  state.i2i.enabled = Boolean(enabled);
+  i2iToggle.classList.toggle("on", state.i2i.enabled);
+  i2iToggle.setAttribute("aria-pressed", String(state.i2i.enabled));
+  i2iToggle.setAttribute("aria-label", state.i2i.enabled ? "i2i 끄기" : "i2i 켜기");
+  document.querySelector(".i2i-panel").classList.toggle("is-disabled", !state.i2i.enabled);
+}
+
+async function uploadI2iFile(file) {
+  if (!file || !["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+    i2iStatus.textContent = "PNG, JPEG 또는 WebP 이미지를 선택해 주세요.";
+    return;
+  }
+  if (file.size > 32 * 1024 * 1024) {
+    i2iStatus.textContent = "입력 이미지는 32MB 이하여야 합니다.";
+    return;
+  }
+  i2iStatus.textContent = "입력 이미지 준비 중…";
+  const dataUrl = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error || new Error("이미지를 읽지 못했어요."));
+    reader.readAsDataURL(file);
+  });
+  try {
+    const response = await fetch("/api/i2i-image", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ data_url: dataUrl }),
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.error || "이미지 업로드 실패");
+    state.i2i.image_name = result.image_name;
+    i2iPreview.src = dataUrl;
+    i2iPreview.hidden = false;
+    i2iPlaceholder.hidden = true;
+    i2iRemove.disabled = false;
+    setI2iEnabled(state.i2i.enabled);
+    i2iStatus.textContent = "입력 이미지에 현재 프롬프트를 적용합니다.";
+  } catch (error) {
+    setI2iEnabled(false);
+    i2iStatus.textContent = error.message || "입력 이미지를 준비하지 못했어요.";
+  }
+}
+
+i2iToggle.addEventListener("click", () => {
+  setI2iEnabled(!state.i2i.enabled);
+  i2iStatus.textContent = state.i2i.enabled && !state.i2i.image_name
+    ? "i2i 입력 이미지를 선택해 주세요."
+    : state.i2i.enabled ? "입력 이미지에 현재 프롬프트를 적용합니다." : "i2i가 꺼져 있습니다.";
+});
+i2iDropZone.addEventListener("click", () => i2iFileInput.click());
+i2iFileInput.addEventListener("change", () => uploadI2iFile(i2iFileInput.files?.[0]));
+for (const eventName of ["dragenter", "dragover"]) i2iDropZone.addEventListener(eventName, event => {
+  event.preventDefault(); i2iDropZone.classList.add("is-dragging");
+});
+for (const eventName of ["dragleave", "drop"]) i2iDropZone.addEventListener(eventName, event => {
+  event.preventDefault(); i2iDropZone.classList.remove("is-dragging");
+});
+i2iDropZone.addEventListener("drop", event => uploadI2iFile(event.dataTransfer?.files?.[0]));
+i2iDenoise.addEventListener("input", () => {
+  state.i2i.denoise = Number(i2iDenoise.value);
+  i2iDenoiseValue.textContent = state.i2i.denoise.toFixed(2);
+});
+i2iRemove.addEventListener("click", () => {
+  state.i2i.image_name = ""; setI2iEnabled(false);
+  i2iPreview.removeAttribute("src"); i2iPreview.hidden = true; i2iPlaceholder.hidden = false;
+  i2iRemove.disabled = true; i2iFileInput.value = "";
+  i2iStatus.textContent = "입력 이미지를 프롬프트 방향으로 변형합니다.";
+});
+setI2iEnabled(false);
+
 const generateButton = document.querySelector("#generateButton");
 const generateButtonLabel = generateButton.querySelector("span");
 const generateButtonHint = document.querySelector("#generateHint");
@@ -1164,6 +1246,12 @@ generateButton.addEventListener("click", async () => {
     setGenerationProgress(0, "생성 중");
   } catch (error) {
     showGenerationError(error.message || "프롬프트 자동 번역에 실패했어요.");
+  }
+
+  if (state.i2i.enabled && !state.i2i.image_name) {
+    i2iStatus.textContent = "i2i 입력 이미지를 먼저 선택해 주세요.";
+    i2iDropZone.focus();
+    return;
   }
 });
 

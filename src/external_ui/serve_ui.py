@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import html
+import base64
+import binascii
 import json
 import os
 import re
@@ -13,6 +15,7 @@ import sys
 import time
 from urllib.error import URLError
 from urllib.request import Request, urlopen
+from urllib.parse import parse_qs, quote, urlparse
 
 UI_ROOT = Path(__file__).resolve().parent
 if str(UI_ROOT) not in sys.path:
@@ -34,6 +37,7 @@ except ImportError:  # optional in prototype runtime
 COMFY_ROOT = UI_ROOT.parents[1].resolve()
 LAKIS_VERSION_PATH = COMFY_ROOT.parent / "VERSION"
 OUTPUT_ROOT = (COMFY_ROOT / "output").resolve()
+INPUT_ROOT = (COMFY_ROOT / "input").resolve()
 AUDIT_PATH = COMFY_ROOT / "LAKIS_DEV" / "process_audit.jsonl"
 HOST = "127.0.0.1"
 PORT = 8766
@@ -44,6 +48,7 @@ AUTOPATCH_MARKER = COMFY_ROOT / "custom_nodes" / "ComfyUI-LAKIS-AutoPatch" / "st
 GENERATION_BRIDGE = WorkflowBridge()
 KOREAN_PATTERN = re.compile(r"[\u1100-\u11ff\u3130-\u318f\uac00-\ud7af]")
 TRANSLATION_SPLIT_PATTERN = re.compile(r"([,\n]+)")
+I2I_DATA_PATTERN = re.compile(r"^data:image/(png|jpeg|webp);base64,([A-Za-z0-9+/=\r\n]+)$")
 
 try:
     EASYUSE_ANIMA_ROOT = COMFY_ROOT / "custom_nodes" / "comfyui-easyuse-anima"
@@ -123,6 +128,32 @@ def open_output_folder() -> int:
             "action": "left_running_as_user_requested",
         })
     return process.pid
+
+
+def save_i2i_image(data_url: object) -> dict:
+    match = I2I_DATA_PATTERN.fullmatch(str(data_url or ""))
+    if not match:
+        raise ValueError("PNG, JPEG 또는 WebP 이미지만 사용할 수 있어요.")
+    try:
+        payload = base64.b64decode(match.group(2), validate=True)
+    except (ValueError, binascii.Error) as error:
+        raise ValueError("입력 이미지 데이터가 올바르지 않아요.") from error
+    if not payload or len(payload) > 32 * 1024 * 1024:
+        raise ValueError("입력 이미지는 32MB 이하여야 해요.")
+    extension = "jpg" if match.group(1) == "jpeg" else match.group(1)
+    signatures = {
+        "png": payload.startswith(b"\x89PNG\r\n\x1a\n"),
+        "jpg": payload.startswith(b"\xff\xd8\xff"),
+        "webp": payload.startswith(b"RIFF") and payload[8:12] == b"WEBP",
+    }
+    if not signatures[extension]:
+        raise ValueError("파일 내용이 선택한 이미지 형식과 일치하지 않아요.")
+    INPUT_ROOT.mkdir(parents=True, exist_ok=True)
+    target = INPUT_ROOT / f"LAKIS_i2i_input.{extension}"
+    temporary = target.with_suffix(target.suffix + ".tmp")
+    temporary.write_bytes(payload)
+    os.replace(temporary, target)
+    return {"ok": True, "image_name": target.name, "bytes": len(payload)}
 
 
 def workflow_version() -> str:
@@ -233,6 +264,19 @@ class Handler(SimpleHTTPRequestHandler):
         super().end_headers()
 
     def do_GET(self) -> None:  # noqa: N802
+        if self.path.startswith("/api/tag-suggestions"):
+            query = parse_qs(urlparse(self.path).query).get("q", [""])[0][:100]
+            try:
+                with urlopen(
+                    COMFY_SERVER + "/easyuse_anima/autocomplete?q=" + quote(query) + "&limit=12",
+                    timeout=3.0,
+                ) as response:
+                    payload = json.loads(response.read().decode("utf-8"))
+                self._send_json(200, {"ok": True, "suggestions": payload.get("results", payload.get("items", []))})
+            except Exception as error:
+                audit({"event": "external_ui_autocomplete_failed", "error": repr(error)})
+                self._send_json(200, {"ok": True, "suggestions": []})
+            return
         if self.path == "/api/workflow-config":
             self._send_json(200, workflow_configuration())
             return
@@ -268,13 +312,21 @@ class Handler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def _read_json(self) -> dict:
+    def _read_json(self, max_size: int = 1_000_000) -> dict:
         size = int(self.headers.get("Content-Length", "0"))
-        if size <= 0 or size > 1_000_000:
+        if size <= 0 or size > max_size:
             raise ValueError("Invalid request size")
         return json.loads(self.rfile.read(size).decode("utf-8"))
 
     def do_POST(self) -> None:  # noqa: N802
+        if self.path == "/api/i2i-image":
+            try:
+                result = save_i2i_image(self._read_json(45_000_000).get("data_url"))
+                self._send_json(200, result)
+            except Exception as error:
+                audit({"event": "external_ui_i2i_upload_failed", "error": repr(error)})
+                self._send_json(400, {"ok": False, "error": str(error)})
+            return
         if self.path == "/api/open-workflow":
             try:
                 self._send_json(200, self._prepare_lakis_workflow())

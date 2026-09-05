@@ -45,11 +45,10 @@
 }
 
 .prompt-highlight-token.is-unverified {
-  text-decoration-line: underline;
-  text-decoration-style: wavy;
-  text-decoration-color: #ef4444;
-  text-underline-offset: 2px;
+  text-decoration: none;
 }
+
+.prompt-autocomplete{position:absolute;z-index:20;left:8px;right:8px;top:calc(100% - 4px);max-height:230px;overflow:auto;padding:5px;border:1px solid #39435d;border-radius:9px;background:#111621;box-shadow:0 14px 35px #000b}.prompt-autocomplete button{display:flex;justify-content:space-between;gap:15px;width:100%;padding:8px 10px;border:0;border-radius:6px;background:transparent;color:#dce2f0;text-align:left;cursor:pointer}.prompt-autocomplete button:hover,.prompt-autocomplete button.active{background:#29234d}.prompt-autocomplete strong{font-size:11px}.prompt-autocomplete span{color:#f1b84b;font-size:10px;white-space:nowrap}
 
 .prompt-heading-row {
   display: flex;

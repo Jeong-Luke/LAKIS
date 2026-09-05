@@ -30,6 +30,7 @@
   <link rel="stylesheet" href="readability.css">
   <link rel="stylesheet" href="composition-toggle.css">
   <link rel="stylesheet" href="light-control-prototype.css?v=20260904-orbit-knob">
+  <link rel="stylesheet" href="i2i-control.css?v=20260905-i2i">
 </head>
 <body>
   <div class="app-shell">
@@ -132,6 +133,19 @@
                 <label class="light-color-row"><span>광원 색상</span><select id="lightColor"><option>Neutral</option><option>Warm</option><option>Cool</option><option>Cyan</option><option>Magenta</option><option>Cyan + Magenta</option><option>Golden</option><option>Moonlight</option></select></label>
               </div>
             </div>
+          </article>
+          <article class="panel i2i-panel">
+            <div class="panel-heading"><div><h2 class="section-title-accent">i2i</h2></div><button id="i2iToggle" class="lora-switch" type="button" aria-label="i2i 켜기" aria-pressed="false"></button></div>
+            <input id="i2iFileInput" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+            <button id="i2iDropZone" class="i2i-drop-zone" type="button">
+              <img id="i2iPreview" alt="i2i 입력 이미지" hidden>
+              <span id="i2iPlaceholder"><strong>이미지 선택</strong><small>PNG · JPEG · WebP / 드래그 앤 드롭</small></span>
+            </button>
+            <div class="i2i-controls">
+              <label><span>변형 강도 (Denoise)</span><output id="i2iDenoiseValue">0.50</output><input id="i2iDenoise" type="range" min="0" max="1" step="0.01" value="0.50"></label>
+              <button id="i2iRemove" class="mini-button" type="button" disabled>이미지 제거</button>
+            </div>
+            <p id="i2iStatus" class="panel-note">입력 이미지를 프롬프트 방향으로 변형합니다.</p>
           </article>
         </div>
 
@@ -252,6 +266,6 @@
   </div>
   <script src="app.js?v=20260905-prompt-translation"></script>
   <script type="module" src="lightmap-knob-mockup.js?v=20260904-source-port"></script>
-  <script type="module" src="prompt-highlighting.js?v=20260905-korean-highlight"></script>
+  <script type="module" src="prompt-highlighting.js?v=20260905-autocomplete"></script>
 </body>
 </html>

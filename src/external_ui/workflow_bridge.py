@@ -428,6 +428,7 @@ def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dic
         raise RuntimeError(f"Validated API prompt template is missing: {TEMPLATE}")
     prompt = json.loads(TEMPLATE.read_text(encoding="utf-8"))
     required = {FINAL_NODE, "1925", "890:1281", "2133", "2135", "2138", "2139", "2140",
+                "1744", "1736:1737", "1634:1760",
                 "1736:1987",
                 "1634:1721", "1634:1622", "1633:1616", "1633:1790", "1633:1612",
                 "1633:1619", "2165"}
@@ -441,6 +442,7 @@ def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dic
     prompt_state = application_state.get("prompt", {})
     lora_state = application_state.get("loras", workflow_configuration()["lora"]["current"])
     model = application_state.get("model", {})
+    i2i = application_state.get("i2i", {})
     mode = generation.get("mode", "fast")
     if mode not in {"fast", "detail"}:
         raise ValueError("generation.mode must be fast or detail")
@@ -455,6 +457,16 @@ def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dic
     width = max(256, min(4096, int(output.get("width", 1024))))
     height = max(256, min(4096, int(output.get("height", 1536))))
     prompt["890:1864"]["inputs"]["seed"] = seed
+    i2i_enabled = bool(i2i.get("enabled", False))
+    i2i_denoise = max(0.0, min(1.0, float(i2i.get("denoise", 0.5))))
+    if i2i_enabled:
+        image_name = Path(str(i2i.get("image_name", ""))).name
+        image_path = (COMFY_ROOT / "input" / image_name).resolve()
+        if not image_name.startswith("LAKIS_i2i_input.") or image_path.parent != (COMFY_ROOT / "input").resolve() or not image_path.is_file():
+            raise ValueError("i2i 입력 이미지를 다시 선택해 주세요.")
+        prompt["1744"]["inputs"]["image"] = image_name
+    prompt["1736:1737"]["inputs"]["value"] = i2i_enabled
+    prompt["1634:1760"]["inputs"]["value"] = i2i_denoise
     checkpoint = str(model.get("checkpoint", prompt["890:1365"]["inputs"]["model_name"]))
     vae = str(model.get("vae", prompt["890:159"]["inputs"]["vae_name"]))
     clip = str(model.get("clip", prompt["890:164"]["inputs"]["clip_name"]))
@@ -561,13 +573,16 @@ def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dic
         "composition_enabled": composition_enabled,
         "lora_stack_node": prompt["890:1281"]["inputs"].get("lora_stack") == ["1925", 1],
         "resolution": f"{width}x{height}",
+        "i2i_enabled": i2i_enabled,
+        "i2i_denoise": i2i_denoise,
         "resolution_nodes": resolution_nodes,
         "latent_nodes": latent_nodes,
         **lora_assertions,
     }
     ignored_assertions = {"detail_enabled", "node_count", "lora_count", "enabled_lora_count",
                           "loras_globally_enabled", "lora_profile_index", "composition_enabled",
-                          "camera_prompt", "resolution", "resolution_nodes", "latent_nodes"}
+                          "camera_prompt", "resolution", "resolution_nodes", "latent_nodes",
+                          "i2i_enabled", "i2i_denoise"}
     if not all(value for key, value in assertions.items() if key not in ignored_assertions):
         raise RuntimeError(f"External UI prompt preflight failed: {assertions}")
     return prompt, assertions

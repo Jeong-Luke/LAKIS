@@ -4,6 +4,14 @@ const TARGET_IDS = [
   "artistPromptInput", "triggerPromptInput", "negativePrompt",
   "negativeFixedPromptInput", "negativeQualityPromptInput", "negativeArtistPromptInput"
 ];
+const COMMON_TAGS = [
+  ["girl", "소녀"], ["1girl", "한 명의 소녀"], ["boy", "소년"], ["1boy", "한 명의 소년"],
+  ["solo", "단독"], ["looking_at_viewer", "정면 응시"], ["smile", "미소"], ["long_hair", "긴 머리"],
+  ["short_hair", "짧은 머리"], ["blue_eyes", "파란 눈"], ["full_body", "전신"], ["upper_body", "상반신"],
+  ["close-up", "클로즈업"], ["from_above", "위에서"], ["from_below", "아래에서"], ["standing", "서 있는 자세"],
+  ["sitting", "앉은 자세"], ["dynamic_pose", "역동적인 자세"], ["detailed_background", "상세한 배경"],
+  ["masterpiece", "최고 품질"], ["best_quality", "최상 품질"], ["blurry", "흐림"], ["bad_hands", "잘못된 손"]
+].map(([tag, ko]) => ({ tag, ko, category: "common" }));
 
 const SECTION_STYLES = {
   quality: ["#facc15", "rgba(202,138,4,.18)"],
@@ -90,6 +98,8 @@ function copyTextMetrics(textarea, overlay) {
 function install(textarea) {
   if (!textarea || textarea.dataset.promptHighlight === "true") return;
   textarea.dataset.promptHighlight = "true";
+  textarea.spellcheck = false;
+  textarea.setAttribute("spellcheck", "false");
   const host = document.createElement("div");
   host.className = "prompt-highlight-host";
   const overlay = document.createElement("pre");
@@ -97,10 +107,18 @@ function install(textarea) {
   overlay.setAttribute("aria-hidden", "true");
   textarea.parentNode.insertBefore(host, textarea);
   host.append(overlay, textarea);
+  const suggestions = document.createElement("div");
+  suggestions.className = "prompt-autocomplete";
+  suggestions.hidden = true;
+  host.append(suggestions);
 
   let sequence = 0;
   let timer = 0;
   let lastTokens = [];
+  let suggestionTimer = 0;
+  let suggestionSequence = 0;
+  let activeSuggestion = 0;
+  let currentRange = null;
   const syncScroll = () => {
     overlay.scrollTop = textarea.scrollTop;
     overlay.scrollLeft = textarea.scrollLeft;
@@ -140,7 +158,65 @@ function install(textarea) {
     clearTimeout(timer);
     paint();
     timer = setTimeout(classify, 180);
+    scheduleSuggestions();
   };
+  const currentFragment = () => {
+    const end = textarea.selectionStart ?? textarea.value.length;
+    const start = Math.max(textarea.value.lastIndexOf(",", end - 1), textarea.value.lastIndexOf("\n", end - 1)) + 1;
+    return { start, end, query: textarea.value.slice(start, end).trim().replace(/_/g, " ").toLowerCase() };
+  };
+  const closeSuggestions = () => { suggestions.hidden = true; suggestions.replaceChildren(); currentRange = null; };
+  const chooseSuggestion = item => {
+    if (!currentRange) return;
+    const before = textarea.value.slice(0, currentRange.start);
+    const after = textarea.value.slice(currentRange.end);
+    const prefix = before && !/[\s\n]$/.test(before) ? " " : "";
+    textarea.value = before + prefix + item.tag.replace(/_/g, " ") + after;
+    const caret = (before + prefix + item.tag.replace(/_/g, " ")).length;
+    textarea.setSelectionRange(caret, caret);
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    closeSuggestions(); textarea.focus();
+  };
+  const renderSuggestions = items => {
+    suggestions.replaceChildren(...items.map((item, index) => {
+      const button = document.createElement("button");
+      button.type = "button"; button.className = index === activeSuggestion ? "active" : "";
+      button.innerHTML = `<strong>${escapeHtml(item.tag.replace(/_/g, " "))}</strong><span>${escapeHtml(item.ko || item.description || item.category || "태그")}</span>`;
+      button.addEventListener("mousedown", event => { event.preventDefault(); chooseSuggestion(item); });
+      return button;
+    }));
+    suggestions.hidden = items.length === 0;
+  };
+  const scheduleSuggestions = () => {
+    clearTimeout(suggestionTimer);
+    const fragment = currentFragment();
+    if (fragment.query.length < 2 || containsKorean(fragment.query)) { closeSuggestions(); return; }
+    currentRange = fragment;
+    suggestionTimer = setTimeout(async () => {
+      const requestSequence = ++suggestionSequence;
+      const local = COMMON_TAGS.filter(item => item.tag.replace(/_/g, " ").startsWith(fragment.query));
+      let remote = [];
+      try {
+        const response = await fetch(`/api/tag-suggestions?q=${encodeURIComponent(fragment.query)}`, { cache: "no-store" });
+        const result = await response.json();
+        remote = Array.isArray(result.suggestions) ? result.suggestions : [];
+      } catch {}
+      if (requestSequence !== suggestionSequence || currentFragment().query !== fragment.query) return;
+      const merged = [...local, ...remote].filter((item, index, all) => item?.tag && all.findIndex(other => other?.tag === item.tag) === index).slice(0, 8);
+      activeSuggestion = 0; renderSuggestions(merged);
+    }, 120);
+  };
+  textarea.addEventListener("keydown", event => {
+    if (suggestions.hidden) return;
+    const items = [...suggestions.querySelectorAll("button")];
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault(); activeSuggestion = (activeSuggestion + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
+      items.forEach((item, index) => item.classList.toggle("active", index === activeSuggestion));
+    } else if (event.key === "Tab" || event.key === "Enter") {
+      event.preventDefault(); items[activeSuggestion]?.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+    } else if (event.key === "Escape") closeSuggestions();
+  });
+  textarea.addEventListener("blur", () => setTimeout(closeSuggestions, 120));
   textarea.addEventListener("input", schedule);
   textarea.addEventListener("change", schedule);
   textarea.addEventListener("scroll", syncScroll, { passive: true });

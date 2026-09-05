@@ -12,6 +12,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.Web.Script.Serialization;
 
 internal static class LakisLauncher
 {
@@ -171,8 +172,7 @@ internal static class LakisLauncher
                     MessageBox.Show(this, "업데이트 확인에 실패했습니다. LAKIS는 계속 실행됩니다.\n\n" + check.Item3,
                         "LAKIS 업데이트", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 if (File.Exists(updater) && check.Item1 && check.Item2 > current &&
-                    MessageBox.Show(this, "새로운 LAKIS 업데이트가 있습니다.\n지금 업데이트할까요?",
-                        "LAKIS 업데이트", MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
+                    ShowUpdatePrompt(this, check.Item2, GetLatestReleaseNotes(check.Item2)))
                 {
                     SetStatus("업데이트 프로그램 여는 중");
                     Process.Start(new ProcessStartInfo {
@@ -293,6 +293,57 @@ internal static class LakisLauncher
         }
         catch (Exception error) { failure = error.Message; }
         return false;
+    }
+
+    private static string GetLatestReleaseNotes(Version expected)
+    {
+        try
+        {
+            var request = (HttpWebRequest)WebRequest.Create(LatestReleaseApiUrl + "?t=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+            request.UserAgent = "LAKIS-Launcher/7.1.7";
+            request.Accept = "application/vnd.github+json";
+            request.Timeout = 12000; request.ReadWriteTimeout = 12000;
+            request.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
+            string json;
+            using (var response = request.GetResponse())
+            using (var reader = new StreamReader(response.GetResponseStream(), Encoding.UTF8, true)) json = reader.ReadToEnd();
+            var payload = new JavaScriptSerializer().Deserialize<Dictionary<string, object>>(json);
+            string tag = payload.ContainsKey("tag_name") ? Convert.ToString(payload["tag_name"]).TrimStart('v', 'V') : "";
+            Version published;
+            if (!Version.TryParse(tag, out published) || published != expected) return "업데이트 세부 내용을 불러오지 못했습니다.";
+            string body = payload.ContainsKey("body") ? Convert.ToString(payload["body"]).Trim() : "";
+            if (String.IsNullOrWhiteSpace(body)) return "이번 버전의 릴리스 설명이 없습니다.";
+            return body.Length > 1800 ? body.Substring(0, 1800) + "…" : body;
+        }
+        catch { return "업데이트 세부 내용을 불러오지 못했습니다."; }
+    }
+
+    private static bool ShowUpdatePrompt(IWin32Window owner, Version version, string releaseNotes)
+    {
+        using (var dialog = new Form())
+        {
+            dialog.Text = "LAKIS 업데이트";
+            dialog.ClientSize = new Size(610, 430);
+            dialog.StartPosition = FormStartPosition.CenterParent;
+            dialog.FormBorderStyle = FormBorderStyle.FixedDialog;
+            dialog.MaximizeBox = false; dialog.MinimizeBox = false;
+            dialog.Font = new Font("Segoe UI", 10F);
+            var heading = new Label { Left = 24, Top = 20, Width = 560, Height = 34,
+                Text = "LAKIS v" + version + " 업데이트가 있습니다.", Font = new Font("Segoe UI", 15F, FontStyle.Bold) };
+            var guide = new Label { Left = 25, Top = 58, Width = 560, Height = 23,
+                Text = "GitHub 릴리스에서 제공한 변경 내용입니다." };
+            var notes = new TextBox { Left = 24, Top = 88, Width = 562, Height = 270,
+                Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical,
+                Text = releaseNotes, BackColor = SystemColors.Window, ForeColor = SystemColors.WindowText };
+            var update = new Button { Left = 376, Top = 377, Width = 100, Height = 34,
+                Text = "업데이트", DialogResult = DialogResult.Yes };
+            var continueButton = new Button { Left = 486, Top = 377, Width = 100, Height = 34,
+                Text = "그냥 실행", DialogResult = DialogResult.No };
+            dialog.Controls.AddRange(new Control[] { heading, guide, notes, update, continueButton });
+            dialog.AcceptButton = update; dialog.CancelButton = continueButton;
+            dialog.Shown += (_, __) => update.Focus();
+            return dialog.ShowDialog(owner) == DialogResult.Yes;
+        }
     }
 
     [STAThread]
