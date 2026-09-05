@@ -1,6 +1,7 @@
 param(
     [Parameter(Mandatory = $true)][string]$Version,
-    [string]$Repository = "Jeong-Luke/LAKIS"
+    [string]$Repository = "Jeong-Luke/LAKIS",
+    [switch]$UsePublishedTagHashes
 )
 
 $ErrorActionPreference = "Stop"
@@ -16,10 +17,20 @@ function Add-UpdateFile([string]$InstallPath, [string]$SourcePath, [string]$Url)
     if (-not (Test-Path -LiteralPath $SourcePath -PathType Leaf)) {
         throw "Update source is missing: $SourcePath"
     }
+    $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $SourcePath).Hash
+    if ($UsePublishedTagHashes -and $Url.StartsWith($rawBase, [System.StringComparison]::OrdinalIgnoreCase)) {
+        $temporary = Join-Path ([System.IO.Path]::GetTempPath()) ("lakis-tag-hash-" + [guid]::NewGuid().ToString("N"))
+        try {
+            Invoke-WebRequest -UseBasicParsing -Headers @{ "User-Agent" = "LAKIS-Manifest/$Version" } `
+                -Uri ($Url + "?manifest=" + [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()) -OutFile $temporary
+            $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $temporary).Hash
+        }
+        finally { if (Test-Path -LiteralPath $temporary) { Remove-Item -LiteralPath $temporary -Force } }
+    }
     $files.Add([ordered]@{
         path = $InstallPath.Replace('\', '/')
         url = $Url
-        sha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $SourcePath).Hash
+        sha256 = $hash
     })
 }
 
