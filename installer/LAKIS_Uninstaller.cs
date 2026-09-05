@@ -53,7 +53,7 @@ internal sealed class UninstallForm : Form
         var close = new Button { Left=712, Top=0, Width=48, Height=42, Text="\uE8BB", Font=new Font("Segoe MDL2 Assets",9F), ForeColor=Color.FromArgb(205,211,225), BackColor=Color.Transparent, FlatStyle=FlatStyle.Flat, TabStop=false, Cursor=Cursors.Hand, DialogResult=DialogResult.Cancel };
         close.FlatAppearance.BorderSize=0;
         close.FlatAppearance.MouseOverBackColor=Color.FromArgb(196,43,28);
-        string version="7.2.0";
+        string version="7.2.1";
         try { string path=Path.Combine(root,"VERSION"); if(File.Exists(path)) version=File.ReadAllText(path).Trim(); } catch { }
         var copyright = new Label { Left=43, Top=399, Width=335, Height=18, Text="ⓒ 2026. Luke_Jeong All rights reserved. · LAKIS v"+version, ForeColor=Color.FromArgb(104,112,137), Font=new Font("Segoe UI",8F) };
 

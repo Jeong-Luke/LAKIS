@@ -35,7 +35,7 @@ function Add-UpdateFile([string]$InstallPath, [string]$SourcePath, [string]$Url)
 }
 
 foreach ($name in @(
-    "LAKIS.exe", "LAKIS_Patcher.exe", "LAKIS_Desktop.exe",
+    "LAKIS.exe", "LAKIS_Patcher.exe", "LAKIS_Desktop.exe", "Uninstall_LAKIS.exe",
     "Microsoft.Web.WebView2.Core.dll", "Microsoft.Web.WebView2.WinForms.dll", "WebView2Loader.dll"
 )) {
     Add-UpdateFile $name (Join-Path $dist $name) "$releaseBase/$name"

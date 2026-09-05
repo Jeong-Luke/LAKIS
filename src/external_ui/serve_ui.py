@@ -135,7 +135,7 @@ def translate_korean_text(value: str) -> str:
                     "https://translate.googleapis.com/translate_a/single"
                     f"?client=gtx&sl=auto&tl=en&dt=t&q={quote(source_text)}"
                 )
-                request = Request(endpoint, headers={"User-Agent": "LAKIS/7.2.0"})
+                request = Request(endpoint, headers={"User-Agent": "LAKIS/7.2.1"})
                 with urlopen(request, timeout=10.0) as response:
                     payload = json.loads(response.read().decode("utf-8"))
                 translated_body = "".join(
