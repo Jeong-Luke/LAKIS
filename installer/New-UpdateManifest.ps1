@@ -54,9 +54,14 @@ Get-ChildItem -LiteralPath $externalRoot -File -Recurse |
 
 # This is application-owned and safe to update. The editable workflow under
 # ComfyUI/user is deliberately excluded because it contains user changes.
-$runtimeName = "LAKIS_runtime_api_v7.1.json"
-Add-UpdateFile "ComfyUI/LAKIS/workflows/$runtimeName" `
-    (Join-Path $repo "workflows\$runtimeName") "$rawBase/workflows/$runtimeName"
+foreach ($runtimeName in @(
+    "LAKIS_runtime_api_v7.1.json",
+    "LAKIS_runtime_visual_v7.1.json",
+    "LAKIS_custom_v7.1_editable.json"
+)) {
+    Add-UpdateFile "ComfyUI/LAKIS/workflows/$runtimeName" `
+        (Join-Path $repo "workflows\$runtimeName") "$rawBase/workflows/$runtimeName"
+}
 
 $manifest = [ordered]@{
     version = $Version

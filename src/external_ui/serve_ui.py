@@ -45,9 +45,10 @@ HOST = "127.0.0.1"
 PORT = 8766
 COMFY_SERVER = "http://127.0.0.1:8189"
 WORKFLOW_ROOT = COMFY_ROOT / "user" / "default" / "workflows"
+PACKAGED_WORKFLOW_ROOT = COMFY_ROOT / "LAKIS" / "workflows"
 PREFERRED_LAKIS_WORKFLOW = WORKFLOW_ROOT / "LAKIS_custom_v7.1.json"
-RUNTIME_LAKIS_WORKFLOW = WORKFLOW_ROOT / "LAKIS_runtime_visual_v7.1.json"
-EDITABLE_LAKIS_WORKFLOW = WORKFLOW_ROOT / "LAKIS_custom_v7.1_editable.json"
+RUNTIME_LAKIS_WORKFLOW = PACKAGED_WORKFLOW_ROOT / "LAKIS_runtime_visual_v7.1.json"
+EDITABLE_LAKIS_WORKFLOW = PACKAGED_WORKFLOW_ROOT / "LAKIS_custom_v7.1_editable.json"
 AUTOPATCH_MARKER = COMFY_ROOT / "custom_nodes" / "ComfyUI-LAKIS-AutoPatch" / "startup_workflow.json"
 GENERATION_BRIDGE = WorkflowBridge()
 KOREAN_PATTERN = re.compile(r"[\u1100-\u11ff\u3130-\u318f\uac00-\ud7af]")
@@ -262,7 +263,8 @@ def resolve_lakis_workflow(kind: str = "runtime") -> tuple[Path, dict]:
             continue
         seen.add(candidate)
         try:
-            if not candidate.is_file() or candidate.parent.resolve() != WORKFLOW_ROOT.resolve():
+            allowed_roots = {WORKFLOW_ROOT.resolve(), PACKAGED_WORKFLOW_ROOT.resolve()}
+            if not candidate.is_file() or candidate.parent.resolve() not in allowed_roots:
                 continue
             workflow = json.loads(candidate.read_text(encoding="utf-8-sig"))
             if isinstance(workflow, dict) and isinstance(workflow.get("nodes"), list):

@@ -196,6 +196,8 @@ internal static class SafeInstaller
             Directory.CreateDirectory(Path.Combine(comfy,"LAKIS_DEV"));File.WriteAllText(Path.Combine(comfy,"LAKIS_DEV","STOP_AUTOMATION"),"LAKIS owns this runtime.");
             Directory.CreateDirectory(Path.Combine(comfy,"LAKIS","workflows"));File.Copy(Path.Combine(lakis,"src","runtime","sync_runtime_workflow.py"),Path.Combine(comfy,"LAKIS","sync_runtime_workflow.py"),true);
             File.Copy(Path.Combine(lakis,"workflows","LAKIS_runtime_api_v7.1.json"),Path.Combine(comfy,"LAKIS","workflows","LAKIS_runtime_api_v7.1.json"),true);
+            File.Copy(Path.Combine(lakis,"workflows","LAKIS_runtime_visual_v7.1.json"),Path.Combine(comfy,"LAKIS","workflows","LAKIS_runtime_visual_v7.1.json"),true);
+            File.Copy(Path.Combine(lakis,"workflows","LAKIS_custom_v7.1_editable.json"),Path.Combine(comfy,"LAKIS","workflows","LAKIS_custom_v7.1_editable.json"),true);
             Directory.CreateDirectory(Path.Combine(comfy,"user","default","workflows"));File.Copy(Path.Combine(lakis,"workflows","LAKIS_custom_v7.1.json"),Path.Combine(comfy,"user","default","workflows","LAKIS_custom_v7.1.json"),true);
             File.Copy(Path.Combine(lakis,"patches","ComfyUI-Spectrum-KSampler","files","nodes.py"),Path.Combine(custom,"comfyui-spectrum-ksampler","nodes.py"),true);
             File.Copy(Path.Combine(lakis,"patches","ComfyUI-Spectrum-KSampler","files","spectrum.py"),Path.Combine(custom,"comfyui-spectrum-ksampler","spectrum.py"),true);
