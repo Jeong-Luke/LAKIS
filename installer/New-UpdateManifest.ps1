@@ -1,7 +1,7 @@
 param(
     [Parameter(Mandatory = $true)][string]$Version,
     [string]$Repository = "Jeong-Luke/LAKIS",
-    [switch]$UsePublishedTagHashes
+    [switch]$UseLocalWorkingTreeHashes
 )
 
 $ErrorActionPreference = "Stop"
@@ -18,7 +18,10 @@ function Add-UpdateFile([string]$InstallPath, [string]$SourcePath, [string]$Url)
         throw "Update source is missing: $SourcePath"
     }
     $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $SourcePath).Hash
-    if ($UsePublishedTagHashes -and $Url.StartsWith($rawBase, [System.StringComparison]::OrdinalIgnoreCase)) {
+    # GitHub serves repository text with the line endings stored in Git. A
+    # Windows working tree can contain CRLF bytes for the same LF-tagged file,
+    # so release manifests must hash the published bytes by default.
+    if (-not $UseLocalWorkingTreeHashes -and $Url.StartsWith($rawBase, [System.StringComparison]::OrdinalIgnoreCase)) {
         $temporary = Join-Path ([System.IO.Path]::GetTempPath()) ("lakis-tag-hash-" + [guid]::NewGuid().ToString("N"))
         try {
             Invoke-WebRequest -UseBasicParsing -Headers @{ "User-Agent" = "LAKIS-Manifest/$Version" } `
