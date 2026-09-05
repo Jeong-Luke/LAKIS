@@ -37,6 +37,7 @@ internal sealed class LakisDesktopForm : Form
         webView.Dock = DockStyle.Fill;
         Controls.Add(webView);
         Controls.Add(titleBar);
+        webView.Resize += (_, __) => ApplyResponsiveZoom();
         Shown += async (_, __) => await InitializeAsync();
         FormClosing += (_, __) => SaveWindowState();
     }
@@ -155,6 +156,7 @@ internal sealed class LakisDesktopForm : Form
             Directory.CreateDirectory(data);
             CoreWebView2Environment environment = await CoreWebView2Environment.CreateAsync(null, data);
             await webView.EnsureCoreWebView2Async(environment);
+            ApplyResponsiveZoom();
             webView.CoreWebView2.Settings.AreDevToolsEnabled = false;
             webView.CoreWebView2.Settings.IsStatusBarEnabled = false;
             webView.CoreWebView2.NewWindowRequested += (_, eventArgs) =>
@@ -193,6 +195,12 @@ internal sealed class LakisDesktopForm : Form
                 if (screen.WorkingArea.IntersectsWith(bounds)) { target = screen; break; }
             if (target == null) return false;
             Rectangle work = target.WorkingArea;
+            // Old releases could persist a narrow two-column window. Do not
+            // restore it on a large display because it breaks the four-panel
+            // LAKIS composition on the next startup.
+            int safeRestoreWidth = Math.Max(MinimumSize.Width, (int)Math.Round(work.Width * 0.75));
+            int safeRestoreHeight = Math.Max(MinimumSize.Height, (int)Math.Round(work.Height * 0.72));
+            if (width < safeRestoreWidth || height < safeRestoreHeight) return false;
             width = Math.Min(Math.Max(width, MinimumSize.Width), work.Width);
             height = Math.Min(Math.Max(height, MinimumSize.Height), work.Height);
             x = Math.Max(work.Left, Math.Min(x, work.Right - width));
@@ -202,6 +210,15 @@ internal sealed class LakisDesktopForm : Form
             return true;
         }
         catch { return false; }
+    }
+
+    private void ApplyResponsiveZoom()
+    {
+        if (webView.CoreWebView2 == null || webView.ClientSize.Width <= 0) return;
+        // Keep enough CSS viewport width for the 1:1:2.5:1.5 four-panel
+        // layout while still allowing a practical windowed minimum size.
+        double zoom = Math.Min(1.0, Math.Max(0.68, webView.ClientSize.Width / 2100.0));
+        if (Math.Abs(webView.ZoomFactor - zoom) > 0.01) webView.ZoomFactor = zoom;
     }
 
     private void ConfigureSafeWindowBounds()

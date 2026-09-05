@@ -192,12 +192,17 @@ internal static class LakisLauncher
                     Path.Combine(root, "ComfyUI", "user", "default", "lora-manager");
                 Process process = Process.Start(startInfo);
                 startupProcess = process;
-                SetStatus("LAKIS Studio 여는 중");
                 bool ready = await Task.Run(() => WaitForUi(process, 180));
                 if (userCancelled || IsDisposed) return;
                 if (!ready)
+                {
                     MessageBox.Show(this, "LAKIS가 제한 시간 안에 준비되지 않았습니다. 런처 로그를 확인해 주세요.",
                         "LAKIS 실행 오류", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    Close();
+                    return;
+                }
+                SetStatus("LAKIS Studio 여는 중");
+                await Task.Delay(350);
                 Close();
             }
             catch (Exception error)
@@ -252,7 +257,7 @@ internal static class LakisLauncher
             try
             {
                 var request = (HttpWebRequest)WebRequest.Create(url + "?t=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-                request.UserAgent = "LAKIS-Launcher/7.1.5";
+                request.UserAgent = "LAKIS-Launcher/7.1.6";
                 request.Timeout = 12000;
                 request.ReadWriteTimeout = 12000;
                 request.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
@@ -273,7 +278,7 @@ internal static class LakisLauncher
         try
         {
             var request = (HttpWebRequest)WebRequest.Create(LatestReleaseApiUrl + "?t=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-            request.UserAgent = "LAKIS-Launcher/7.1.5";
+            request.UserAgent = "LAKIS-Launcher/7.1.6";
             request.Accept = "application/vnd.github+json";
             request.Timeout = 12000;
             request.ReadWriteTimeout = 12000;
