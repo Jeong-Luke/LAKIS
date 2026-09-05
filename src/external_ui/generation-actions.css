@@ -1,14 +1,15 @@
 .generation-action-row {
   display: grid;
-  grid-template-columns: minmax(150px, 0.8fr) minmax(220px, 1.2fr);
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
   gap: 8px;
   align-items: stretch;
   flex: 0 0 auto;
+  min-width: 0;
 }
-
 .generation-action-row .compact-mode-panel {
   height: 100%;
   margin: 0;
+  min-width: 0;
 }
 
 .generation-action-row.mode-fast .mode-option.active {
@@ -32,6 +33,7 @@
   isolation: isolate;
   overflow: hidden;
   width: 100%;
+  min-width: 0;
   height: 100%;
   min-height: 82px;
   margin: 0;
@@ -87,14 +89,4 @@
   z-index: 1;
   margin-top: 5px;
   font-size: 8px;
-}
-
-@media (max-width: 1350px) {
-  .generation-action-row {
-    grid-template-columns: 1fr;
-  }
-
-  .generation-action-row .generate-button {
-    min-height: 58px;
-  }
 }

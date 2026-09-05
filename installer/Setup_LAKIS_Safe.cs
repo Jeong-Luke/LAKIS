@@ -96,7 +96,7 @@ internal sealed class SafeSetupForm : Form
 
 internal static class SafeInstaller
 {
-    private const string Revision = "v7.1.2";
+    private const string Revision = "v7.1.3";
     private static readonly DownloadItem Portable = new DownloadItem("ComfyUI v0.21.1",
         "https://github.com/Comfy-Org/ComfyUI/releases/download/v0.21.1/ComfyUI_windows_portable_nvidia.7z",
         "7C380D4309BBDA395366C49564EDF8996181FD45E61B6F353EA417F32BC3B970",null,2001582790);
@@ -157,7 +157,7 @@ internal static class SafeInstaller
             string python=Path.Combine(target,"python_embeded","python.exe");foreach(string node in Directory.GetDirectories(custom)){string req=Path.Combine(node,"requirements.txt");if(File.Exists(req)){status("의존성 설치: "+Path.GetFileName(node));string safeReq=PrepareRequirements(req);Run(python,"-s -m pip install --disable-pip-version-check -r \""+safeReq+"\"",target,status);}}
             ExtractDesktopRuntime(target,status);
             CreateDesktopShortcut(target,status);
-            File.WriteAllText(Path.Combine(target,"VERSION"),"7.1.2");File.WriteAllText(Path.Combine(target,"install.complete"),DateTime.UtcNow.ToString("O"));File.WriteAllLines(Path.Combine(target,"network-install.log"),log.ToArray());if(previous!=null)try{DeleteTree(previous);}catch{status("이전 설치 폴더는 재부팅 후 삭제할 수 있습니다: "+previous);}status("설치 완료");
+            File.WriteAllText(Path.Combine(target,"VERSION"),"7.1.3");File.WriteAllText(Path.Combine(target,"install.complete"),DateTime.UtcNow.ToString("O"));File.WriteAllLines(Path.Combine(target,"network-install.log"),log.ToArray());if(previous!=null)try{DeleteTree(previous);}catch{status("이전 설치 폴더는 재부팅 후 삭제할 수 있습니다: "+previous);}status("설치 완료");
         }
         catch(Exception error){try{Directory.CreateDirectory(target);File.WriteAllLines(Path.Combine(target,"network-install.log"),log.ToArray());}catch{}throw new InvalidOperationException("설치 중 오류가 발생했습니다.\n"+error.Message+"\n\n로그: "+Path.Combine(target,"network-install.log"),error);}
     }
@@ -183,12 +183,47 @@ internal static class SafeInstaller
             string uiRoot=FirstDirectory(uiStage);CopyTree(Path.Combine(uiRoot,"src","external_ui"),Path.Combine(comfy,"LAKIS_DEV","external_ui"));
             ExtractDesktopRuntime(target,status);
             CreateDesktopShortcut(target,status);
-            File.WriteAllText(Path.Combine(target,"VERSION"),"7.1.2");File.WriteAllLines(Path.Combine(target,"repair.log"),log.ToArray());status("복구 완료");
+            File.WriteAllText(Path.Combine(target,"VERSION"),"7.1.3");File.WriteAllLines(Path.Combine(target,"repair.log"),log.ToArray());status("복구 완료");
         }
         catch(Exception error){try{File.WriteAllLines(Path.Combine(target,"repair.log"),log.ToArray());}catch{}throw new InvalidOperationException("복구 중 오류가 발생했습니다.\n"+error.Message+"\n\n로그: "+Path.Combine(target,"repair.log"),error);}
     }
     private static string Fetch(DownloadItem item,string cache,Action<string> status){string path=Path.Combine(cache,item.Name.Replace('/','_'));if(File.Exists(path)&&(item.Bytes>0&&new FileInfo(path).Length!=item.Bytes||item.Sha.Length>0&&!String.Equals(Hash(path),item.Sha,StringComparison.OrdinalIgnoreCase)))File.Delete(path);if(!File.Exists(path))Download(item.Url,path,item.Name,item.Bytes,status);if(item.Bytes>0&&new FileInfo(path).Length!=item.Bytes)throw new IOException("크기 검증 실패: "+item.Name);if(item.Sha.Length>0&&!String.Equals(Hash(path),item.Sha,StringComparison.OrdinalIgnoreCase))throw new IOException("SHA-256 검증 실패: "+item.Name);return path;}
-    private static void Download(string url,string path,string name,long expected,Action<string> status){string part=path+".part";long offset=File.Exists(part)?new FileInfo(part).Length:0;if(expected>0&&offset>expected){File.Delete(part);offset=0;}var request=(HttpWebRequest)WebRequest.Create(url);request.UserAgent="LAKIS-Installer/7.1.2";request.AllowAutoRedirect=true;if(offset>0)request.AddRange(offset);using(var response=(HttpWebResponse)request.GetResponse()){bool resumed=response.StatusCode==HttpStatusCode.PartialContent;if(offset>0&&!resumed)offset=0;long total=expected>0?expected:offset+response.ContentLength;using(Stream input=response.GetResponseStream())using(var output=new FileStream(part,resumed?FileMode.Append:FileMode.Create,FileAccess.Write,FileShare.Read)){byte[] buffer=new byte[1024*1024];long received=offset,last=offset;var timer=Stopwatch.StartNew();long lastMs=0;int read;while((read=input.Read(buffer,0,buffer.Length))>0){output.Write(buffer,0,read);received+=read;if(timer.ElapsedMilliseconds-lastMs>=500){double speed=(received-last)/Math.Max(0.001,(timer.ElapsedMilliseconds-lastMs)/1000.0)/1024/1024;int percent=total>0?(int)Math.Min(100,received*100/total):0;status(String.Format("다운로드: {0} {1}% ({2:0.0}/{3:0.0} GB, {4:0.0} MB/s)",name,percent,received/1073741824.0,total/1073741824.0,speed));last=received;lastMs=timer.ElapsedMilliseconds;}}} }if(File.Exists(path))File.Delete(path);File.Move(part,path);status("다운로드 완료: "+name);}
+    private static void Download(string url,string path,string name,long expected,Action<string> status)
+    {
+        string part=path+".part";
+        long offset=File.Exists(part)?new FileInfo(part).Length:0;
+        if(expected>0&&offset>expected){File.Delete(part);offset=0;}
+        var request=(HttpWebRequest)WebRequest.Create(url);
+        request.UserAgent="LAKIS-Installer/7.1.3";
+        request.AllowAutoRedirect=true;
+        if(offset>0)request.AddRange(offset);
+        using(var response=(HttpWebResponse)request.GetResponse())
+        {
+            bool resumed=response.StatusCode==HttpStatusCode.PartialContent;
+            if(offset>0&&!resumed)offset=0;
+            long total=expected>0?expected:offset+response.ContentLength;
+            using(Stream input=response.GetResponseStream())
+            using(var output=new FileStream(part,resumed?FileMode.Append:FileMode.Create,FileAccess.Write,FileShare.Read))
+            {
+                byte[] buffer=new byte[1024*1024];long received=offset,last=offset;
+                var timer=Stopwatch.StartNew();long lastMs=0;int read;
+                while((read=input.Read(buffer,0,buffer.Length))>0)
+                {
+                    output.Write(buffer,0,read);received+=read;
+                    if(timer.ElapsedMilliseconds-lastMs>=500)
+                    {
+                        double speed=(received-last)/Math.Max(0.001,(timer.ElapsedMilliseconds-lastMs)/1000.0)/1024/1024;
+                        int percent=total>0?(int)Math.Min(100,received*100/total):0;
+                        status(String.Format("다운로드: {0} {1}% ({2:0.0}/{3:0.0} GB, {4:0.0} MB/s)",name,percent,received/1073741824.0,total/1073741824.0,speed));
+                        last=received;lastMs=timer.ElapsedMilliseconds;
+                    }
+                }
+            }
+        }
+        if(File.Exists(path))File.Delete(path);
+        File.Move(part,path);
+        status("다운로드 완료: "+name);
+    }
     private static string Hash(string path){using(var s=File.OpenRead(path))using(var h=SHA256.Create())return BitConverter.ToString(h.ComputeHash(s)).Replace("-","");}
     private static void InstallZip(DownloadItem item,string cache,string destination,Action<string> status){string zip=Fetch(item,cache,status),stage=Path.Combine(cache,"unpack-"+item.Name);Reset(stage);ExtractZip(zip,stage);string source=FirstDirectory(stage);if(Directory.Exists(destination))try{DeleteTree(destination);}catch{}Directory.CreateDirectory(Path.GetDirectoryName(destination));if(Directory.Exists(destination)){CopyTree(source,destination);try{DeleteTree(source);}catch{}}else Directory.Move(source,destination);}
     private static void ExtractZip(string archive,string destination){string root=Path.GetFullPath(destination).TrimEnd(Path.DirectorySeparatorChar)+Path.DirectorySeparatorChar;using(var zip=ZipFile.OpenRead(archive)){foreach(var entry in zip.Entries){string output=Path.GetFullPath(Path.Combine(destination,entry.FullName.Replace('/',Path.DirectorySeparatorChar)));if(!output.StartsWith(root,StringComparison.OrdinalIgnoreCase))throw new IOException("Unsafe ZIP path: "+entry.FullName);if(String.IsNullOrEmpty(entry.Name)){Directory.CreateDirectory(output);continue;}Directory.CreateDirectory(Path.GetDirectoryName(output));using(Stream input=entry.Open())using(Stream file=new FileStream(output,FileMode.Create,FileAccess.Write,FileShare.None))input.CopyTo(file);}}}

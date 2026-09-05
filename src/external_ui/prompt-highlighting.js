@@ -16,6 +16,7 @@ const SECTION_STYLES = {
   meta: ["#94a3b8", "rgba(100,116,139,.18)"],
   general: ["#4ade80", "rgba(22,163,74,.16)"],
   natural: ["#cbd5e1", "rgba(71,85,105,.16)"],
+  korean: ["#fbbf24", "rgba(245,158,11,.22)"],
   translation: ["#22d3ee", "rgba(8,145,178,.22)"],
   wildcard: ["#c084fc", "rgba(126,34,206,.24)"],
   lora: ["#e879f9", "rgba(192,38,211,.22)"],
@@ -47,6 +48,10 @@ function tokenSpan(text, token) {
   return `<span class="prompt-highlight-token${unverified ? " is-unverified" : ""}" title="${escapeHtml(title)}" style="color:${color};background:${background}">${escapeHtml(text)}</span>`;
 }
 
+function containsKorean(text) {
+  return /[\u1100-\u11ff\u3130-\u318f\uac00-\ud7af]/u.test(String(text || ""));
+}
+
 function render(text, tokens) {
   const queues = new Map();
   for (const token of tokens || []) {
@@ -61,6 +66,12 @@ function render(text, tokens) {
     const match = /^(\s*)([\s\S]*?)(\s*)$/.exec(part);
     const body = match?.[2] || "";
     if (!body) return escapeHtml(part);
+    if (containsKorean(body)) {
+      return escapeHtml(match[1]) + tokenSpan(body, {
+        section: "korean",
+        label: "자동 번역 대상"
+      }) + escapeHtml(match[3]);
+    }
     const key = normalized(body);
     const token = queues.get(key)?.shift();
     if (!token) return escapeHtml(part);

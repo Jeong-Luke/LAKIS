@@ -1,2 +1,24 @@
-@media(min-width:1181px){.workspace{grid-template-columns:minmax(300px,340px) minmax(300px,340px) minmax(300px,.65fr) minmax(390px,.35fr)}.prompt-column,.prompt-panel,.prompt-panel textarea{width:100%;max-width:none}}
-@media(min-width:1700px){.workspace{grid-template-columns:340px 340px minmax(340px,.65fr) minmax(440px,.35fr)}}
+/* Preserve the intended LAKIS desktop ratio: model : controls : preview : prompt = 1 : 1 : 2.5 : 1.5. */
+@media (min-width:1181px) {
+  .workspace {
+    width:100%;
+    grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,2.5fr) minmax(0,1.5fr);
+  }
+
+  .model-column,
+  .control-column,
+  .preview-column,
+  .prompt-column,
+  .prompt-panel,
+  .prompt-panel textarea {
+    min-width:0;
+    width:100%;
+    max-width:none;
+  }
+
+  .model-column,
+  .control-column,
+  .prompt-column {
+    overflow-x:hidden;
+  }
+}

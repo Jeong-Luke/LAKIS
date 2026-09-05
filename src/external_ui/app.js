@@ -1,5 +1,6 @@
 const state = {
   generation: { mode: "detail" },
+  translation_enabled: true,
   lora_enabled: true,
   composition_enabled: true,
   loras: [],
@@ -27,6 +28,7 @@ if (loraManagerLink) loraManagerLink.href = "http://127.0.0.1:8189/loras";
 
 const COMFYUI_SEED_MAX = 1125899906842624;
 const PROMPT_STORAGE_KEY = "lakis.prompt-state.v2";
+const TRANSLATION_STORAGE_KEY = "lakis.prompt-translation-enabled.v1";
 let loraOptions = [];
 let generationStateSaveTimer = null;
 
@@ -47,6 +49,8 @@ function scheduleGenerationStateSave() {
 
 const previewStage = document.querySelector(".preview-stage");
 const previewImage = document.querySelector("#previewImage");
+const previewEmptyState = document.querySelector("#previewEmptyState");
+const previewBadge = document.querySelector(".preview-badge");
 const previewZoomValue = document.querySelector("#previewZoomValue");
 const PREVIEW_ZOOM_MIN = 25;
 const PREVIEW_ZOOM_MAX = 400;
@@ -54,6 +58,19 @@ const PREVIEW_ZOOM_STEP = 10;
 let previewZoom = 100;
 let previewPanX = 0;
 let previewPanY = 0;
+
+function setPreviewAvailability(hasImage) {
+  previewImage.hidden = !hasImage;
+  previewEmptyState.hidden = hasImage;
+  previewBadge.hidden = !hasImage;
+}
+
+previewImage.addEventListener("load", () => setPreviewAvailability(true));
+previewImage.addEventListener("error", () => {
+  previewImage.removeAttribute("src");
+  setPreviewAvailability(false);
+});
+setPreviewAvailability(false);
 
 function clampPreviewPan(scale) {
   if (scale <= 1) {
@@ -775,6 +792,38 @@ const promptInputBindings = [
   ["negativePrompt", "negative"],
 ];
 
+const promptTranslationToggle = document.querySelector("#promptTranslationToggle");
+try {
+  const savedTranslation = localStorage.getItem(TRANSLATION_STORAGE_KEY);
+  state.translation_enabled = savedTranslation === null ? true : savedTranslation === "true";
+} catch (_) {
+  state.translation_enabled = true;
+}
+promptTranslationToggle.checked = state.translation_enabled;
+promptTranslationToggle.addEventListener("change", event => {
+  state.translation_enabled = Boolean(event.target.checked);
+  try {
+    localStorage.setItem(TRANSLATION_STORAGE_KEY, String(state.translation_enabled));
+  } catch (_) {}
+});
+
+const containsKoreanPrompt = value => /[\u1100-\u11ff\u3130-\u318f\uac00-\ud7af]/u.test(String(value || ""));
+
+async function translatedPromptForGeneration(prompt) {
+  const original = structuredClone(prompt);
+  if (!state.translation_enabled || !Object.values(original).some(containsKoreanPrompt)) return original;
+  const response = await fetch("/api/translate-prompt", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt: original }),
+  });
+  const result = await response.json();
+  if (!response.ok || !result.ok || !result.prompt) {
+    throw new Error(result.error || "프롬프트 자동 번역에 실패했어요.");
+  }
+  return result.prompt;
+}
+
 function syncPromptStateFromInputs() {
   for (const [id, key] of promptInputBindings) {
     state.prompt[key] = document.querySelector(`#${id}`).value;
@@ -1075,7 +1124,7 @@ async function pollGenerationStatus() {
 }
 setInterval(pollGenerationStatus, 500);
 
-generateButton.addEventListener("click", () => {
+generateButton.addEventListener("click", async () => {
   if (generationActive) {
     if (generationCancelRequested) return;
     generationCancelRequested = true;
@@ -1104,9 +1153,18 @@ generateButton.addEventListener("click", () => {
   // A zoom chosen for the previous aspect ratio must not make the next image
   // appear cropped or locked to that ratio.
   setPreviewZoom(100);
-  window.dispatchEvent(new CustomEvent("lakis:generate", { detail: structuredClone(state) }));
-  lastPreviewRevision = 0;
-  setGenerationProgress(0, "생성 중");
+  const generationPayload = structuredClone(state);
+  try {
+    if (state.translation_enabled && Object.values(state.prompt).some(containsKoreanPrompt)) {
+      setGenerationProgress(0, "프롬프트 번역 중");
+    }
+    generationPayload.prompt = await translatedPromptForGeneration(state.prompt);
+    window.dispatchEvent(new CustomEvent("lakis:generate", { detail: generationPayload }));
+    lastPreviewRevision = 0;
+    setGenerationProgress(0, "생성 중");
+  } catch (error) {
+    showGenerationError(error.message || "프롬프트 자동 번역에 실패했어요.");
+  }
 });
 
 window.addEventListener("lakis:generate", async event => {

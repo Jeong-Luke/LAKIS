@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import html
 import json
 import os
+import re
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 import subprocess
@@ -40,6 +42,47 @@ WORKFLOW_ROOT = COMFY_ROOT / "user" / "default" / "workflows"
 LAKIS_WORKFLOW = WORKFLOW_ROOT / "LAKIS_custom_v7.1.json"
 AUTOPATCH_MARKER = COMFY_ROOT / "custom_nodes" / "ComfyUI-LAKIS-AutoPatch" / "startup_workflow.json"
 GENERATION_BRIDGE = WorkflowBridge()
+KOREAN_PATTERN = re.compile(r"[\u1100-\u11ff\u3130-\u318f\uac00-\ud7af]")
+TRANSLATION_SPLIT_PATTERN = re.compile(r"([,\n]+)")
+
+try:
+    EASYUSE_ANIMA_ROOT = COMFY_ROOT / "custom_nodes" / "comfyui-easyuse-anima"
+    if str(EASYUSE_ANIMA_ROOT) not in sys.path:
+        sys.path.insert(0, str(EASYUSE_ANIMA_ROOT))
+    from easyuse_anima.translation.providers.google import GoogleTranslationProvider
+    GOOGLE_TRANSLATOR = GoogleTranslationProvider(timeout_seconds=10.0)
+except Exception:
+    GOOGLE_TRANSLATOR = None
+
+
+def translate_korean_text(value: str) -> str:
+    """Translate only comma/newline fields containing Hangul, preserving tags."""
+    text = str(value or "")
+    if not KOREAN_PATTERN.search(text):
+        return text
+    if GOOGLE_TRANSLATOR is None:
+        raise RuntimeError("Google 번역 기능을 불러오지 못했어요.")
+    translated = []
+    for part in TRANSLATION_SPLIT_PATTERN.split(text):
+        if not part or TRANSLATION_SPLIT_PATTERN.fullmatch(part):
+            translated.append(part)
+            continue
+        if not KOREAN_PATTERN.search(part):
+            translated.append(part)
+            continue
+        leading = part[: len(part) - len(part.lstrip())]
+        trailing = part[len(part.rstrip()) :]
+        translated_body = GOOGLE_TRANSLATOR.translate(part.strip(), "auto", "en")
+        translated.append(leading + html.unescape(translated_body) + trailing)
+    return "".join(translated)
+
+
+def translate_prompt_payload(prompt: object) -> dict:
+    if not isinstance(prompt, dict):
+        raise ValueError("Invalid prompt payload")
+    if sum(len(str(value or "")) for value in prompt.values()) > 20_000:
+        raise ValueError("번역할 프롬프트가 너무 깁니다.")
+    return {str(key): translate_korean_text(value) for key, value in prompt.items()}
 
 
 def audit(event: dict) -> None:
@@ -232,6 +275,17 @@ class Handler(SimpleHTTPRequestHandler):
             except Exception as error:
                 audit({"event": "external_ui_prompt_classify_failed", "error": repr(error)})
                 self._send_json(503, {"ok": False, "tokens": [], "error": "태그 판별 서비스를 사용할 수 없어요."})
+            return
+        if self.path == "/api/translate-prompt":
+            try:
+                translated = translate_prompt_payload(self._read_json().get("prompt"))
+                self._send_json(200, {"ok": True, "prompt": translated})
+            except Exception as error:
+                audit({"event": "external_ui_prompt_translation_failed", "error": repr(error)})
+                self._send_json(503, {
+                    "ok": False,
+                    "error": "프롬프트를 영어로 번역하지 못했어요. 인터넷 연결을 확인해 주세요.",
+                })
             return
         if self.path == "/api/prompt-state":
             try:

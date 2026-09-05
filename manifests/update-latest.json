@@ -1,17 +1,23 @@
 {
-  "version": "7.1.1",
+  "version": "7.1.3",
   "minimum_version": "7.0.24",
-  "release_notes": "업데이트 확인을 안정화하고 실패 안내 및 대체 CDN 재시도를 추가했습니다. ComfyUI 버튼의 about: 오류를 제거하고 4K 화면에 Per-Monitor V2 DPI 렌더링을 적용했습니다.",
+  "release_notes": "한글 프롬프트 자동 번역과 오렌지색 강조를 추가했습니다. 영문 태그와 작가·LoRA 태그는 보존하며, 프롬프트 원문은 유지한 채 생성 요청에만 번역본을 사용합니다. 구도·광원 노브 크기와 패널 비율, 이미지 및 프롬프트 레이아웃도 개선했습니다.",
   "files": [
-    {"path":"LAKIS.exe","url":"https://github.com/Jeong-Luke/LAKIS/releases/download/v7.1.1/LAKIS.exe","sha256":"9B010A06FDC1E9CA54C835966B171CA7BFF3B4A62482D11346BC8E4BABB46BA1"},
-    {"path":"LAKIS_Patcher.exe","url":"https://github.com/Jeong-Luke/LAKIS/releases/download/v7.1.1/LAKIS_Patcher.exe","sha256":"B29B0B654D2FD4265AF834813032493E2710AC8B989ED5D5AC56449F85A407D4"},
-    {"path":"LAKIS_Desktop.exe","url":"https://github.com/Jeong-Luke/LAKIS/releases/download/v7.1.1/LAKIS_Desktop.exe","sha256":"974B9F11ADCC90BF5069DFEE1F64CF0B69D01D62B22D3A045F99D99A27A65B73"},
-    {"path":"Microsoft.Web.WebView2.Core.dll","url":"https://github.com/Jeong-Luke/LAKIS/releases/download/v7.1.1/Microsoft.Web.WebView2.Core.dll","sha256":"E6F54C8CE208E3797C427D01AD671B47CB25ABC85604753D6EC2546D0FFEF550"},
-    {"path":"Microsoft.Web.WebView2.WinForms.dll","url":"https://github.com/Jeong-Luke/LAKIS/releases/download/v7.1.1/Microsoft.Web.WebView2.WinForms.dll","sha256":"CC3D2937C350A4F5E20399855BCAB4FE695A395308FEB2ED67394FAA6A1AE849"},
-    {"path":"WebView2Loader.dll","url":"https://github.com/Jeong-Luke/LAKIS/releases/download/v7.1.1/WebView2Loader.dll","sha256":"C66E4A92FDC7A216118E43B7A5024EA2200E8C43F9310BF20D96A0084F82C5BC"},
-    {"path":"ComfyUI/LAKIS_DEV/external_ui/launch_lakis.py","url":"https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.1/src/external_ui/launch_lakis.py","sha256":"FCA86DE0EABD9E02C0DB76470401A7847D376723BCB20F124D43A8B54DA7FC07"},
-    {"path":"ComfyUI/LAKIS_DEV/external_ui/index.html","url":"https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.1/src/external_ui/index.html","sha256":"C3BCB6204A1EC0F0C112D8B1A8E0E1FBFE3815AFEC284B0CF44EC23E116726F2"},
-    {"path":"ComfyUI/LAKIS_DEV/external_ui/status-footer.css","url":"https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.1/src/external_ui/status-footer.css","sha256":"C6C716C43A6539C906551D79A0830F4BF7BE0C7D8205F85DD3FF5A89FE897D0E"}
+    {"path":"LAKIS.exe","url":"https://github.com/Jeong-Luke/LAKIS/releases/download/v7.1.3/LAKIS.exe","sha256":"392DF167C13A1F446542BA046BC27358C0E3E707B0EA87892989C3C3633469B3"},
+    {"path":"LAKIS_Patcher.exe","url":"https://github.com/Jeong-Luke/LAKIS/releases/download/v7.1.3/LAKIS_Patcher.exe","sha256":"18A6DB2A47E0E70CB320A4DD48FF6CEB9EBCD9D0D757860019682832EA76BA24"},
+    {"path":"LAKIS_Desktop.exe","url":"https://github.com/Jeong-Luke/LAKIS/releases/download/v7.1.3/LAKIS_Desktop.exe","sha256":"F2E844B88D3E6646C56338F14ECC6B79C2CBD63B80753DE28B4710C43E990DE7"},
+    {"path":"Microsoft.Web.WebView2.Core.dll","url":"https://github.com/Jeong-Luke/LAKIS/releases/download/v7.1.3/Microsoft.Web.WebView2.Core.dll","sha256":"E6F54C8CE208E3797C427D01AD671B47CB25ABC85604753D6EC2546D0FFEF550"},
+    {"path":"Microsoft.Web.WebView2.WinForms.dll","url":"https://github.com/Jeong-Luke/LAKIS/releases/download/v7.1.3/Microsoft.Web.WebView2.WinForms.dll","sha256":"CC3D2937C350A4F5E20399855BCAB4FE695A395308FEB2ED67394FAA6A1AE849"},
+    {"path":"WebView2Loader.dll","url":"https://github.com/Jeong-Luke/LAKIS/releases/download/v7.1.3/WebView2Loader.dll","sha256":"C66E4A92FDC7A216118E43B7A5024EA2200E8C43F9310BF20D96A0084F82C5BC"},
+    {"path":"ComfyUI/LAKIS_DEV/external_ui/app.js","url":"https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.3/src/external_ui/app.js","sha256":"BCA19CE71A442793E0B4F2C580393DAFA7B9D0BE3DD53D33E22CC783CB91C071"},
+    {"path":"ComfyUI/LAKIS_DEV/external_ui/generation-actions.css","url":"https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.3/src/external_ui/generation-actions.css","sha256":"82B3A587E776FBFE28772889811AA8621DFECA62D4C0D78A43F35BBCE1DAB676"},
+    {"path":"ComfyUI/LAKIS_DEV/external_ui/index.html","url":"https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.3/src/external_ui/index.html","sha256":"C4ED2F7E2FC7DD22B6032AD11588744255D0BC1731C670DE75EE4893C27F72F5"},
+    {"path":"ComfyUI/LAKIS_DEV/external_ui/layout-adjustment.css","url":"https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.3/src/external_ui/layout-adjustment.css","sha256":"234C77A8CEFFA1ADB59FC392E47091B0CBF6F34DA4E974133199B79E4E817023"},
+    {"path":"ComfyUI/LAKIS_DEV/external_ui/preview-zoom.css","url":"https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.3/src/external_ui/preview-zoom.css","sha256":"F63E6CF73BE48EA1C7B59543AFE239725217385F247ED47247F5EF48FA5788F3"},
+    {"path":"ComfyUI/LAKIS_DEV/external_ui/prompt-highlighting.css","url":"https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.3/src/external_ui/prompt-highlighting.css","sha256":"39DA7C393AFEB30A9A374E9D0FA08013D2DC563CAD737B4547D06856768E8630"},
+    {"path":"ComfyUI/LAKIS_DEV/external_ui/prompt-highlighting.js","url":"https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.3/src/external_ui/prompt-highlighting.js","sha256":"9B1A90851A3E5F771C64649B9D1A7254560A4066E3A0D6FCDDA0E11A3C077C13"},
+    {"path":"ComfyUI/LAKIS_DEV/external_ui/prompt-width.css","url":"https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.3/src/external_ui/prompt-width.css","sha256":"7FF305944056A705DCCC0B00BDD1085E95587F58CF54BB332AAF1CDACCBB4D10"},
+    {"path":"ComfyUI/LAKIS_DEV/external_ui/serve_ui.py","url":"https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.3/src/external_ui/serve_ui.py","sha256":"7F1E4C51B9561E8445D20553422DEF53DD66D3338B13AA5E06932039A590C812"}
   ],
   "delete": []
 }

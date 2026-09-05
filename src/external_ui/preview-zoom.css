@@ -32,7 +32,30 @@
   overscroll-behavior: contain;
 }
 
+.preview-empty-state {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: grid;
+  place-items: center;
+  color: rgba(184, 190, 210, 0.12);
+  font-size: clamp(32px, 4vw, 64px);
+  font-weight: 720;
+  letter-spacing: 0.34em;
+  text-indent: 0.34em;
+  user-select: none;
+  pointer-events: none;
+}
+
+.preview-empty-state[hidden],
+.preview-stage img[hidden],
+.preview-badge[hidden] {
+  display: none !important;
+}
+
 .preview-stage img {
+  position: relative;
+  z-index: 1;
   --preview-zoom: 1;
   --preview-pan-x: 0px;
   --preview-pan-y: 0px;
@@ -40,4 +63,8 @@
   transform-origin: center center;
   transition: transform 100ms ease-out;
   will-change: transform;
+}
+
+.preview-badge {
+  z-index: 2;
 }

@@ -50,3 +50,59 @@
   text-decoration-color: #ef4444;
   text-underline-offset: 2px;
 }
+
+.prompt-heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.prompt-translation-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #fbbf24;
+  font-size: 9px;
+  font-weight: 700;
+  cursor: pointer;
+  user-select: none;
+}
+
+.prompt-translation-toggle input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.prompt-translation-toggle i {
+  position: relative;
+  width: 28px;
+  height: 16px;
+  border-radius: 999px;
+  background: #343945;
+  box-shadow: inset 0 0 0 1px #464d5b;
+  transition: background .18s ease;
+}
+
+.prompt-translation-toggle i::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #c7ccd6;
+  transition: transform .18s ease, background .18s ease;
+}
+
+.prompt-translation-toggle input:checked + i {
+  background: #b66a08;
+  box-shadow: inset 0 0 0 1px #f59e0b;
+}
+
+.prompt-translation-toggle input:checked + i::after {
+  transform: translateX(12px);
+  background: #fff4c2;
+}

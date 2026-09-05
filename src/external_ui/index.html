@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="composition-control.css">
   <link rel="stylesheet" href="camera-3d.css">
   <link rel="stylesheet" href="mockup-layout.css">
-  <link rel="stylesheet" href="layout-adjustment.css">
+  <link rel="stylesheet" href="layout-adjustment.css?v=20260905-composition-54">
   <link rel="stylesheet" href="prompt-model-controls.css">
   <link rel="stylesheet" href="brand-position-fix.css">
   <link rel="stylesheet" href="seed-controls.css?v=20260904-preview-seed-cyan">
@@ -20,12 +20,12 @@
   <link rel="stylesheet" href="sidebar-links.css">
   <link rel="stylesheet" href="status-footer.css?v=20260905-copyright">
   <link rel="stylesheet" href="status-footer-large.css?v=20260905-copyright">
-  <link rel="stylesheet" href="prompt-width.css">
-  <link rel="stylesheet" href="generation-actions.css?v=20260904-mode-colors">
+  <link rel="stylesheet" href="prompt-width.css?v=20260905-ratio-1-1-25-15">
+  <link rel="stylesheet" href="generation-actions.css?v=20260905-responsive-action">
   <link rel="stylesheet" href="prompt-categories.css">
-  <link rel="stylesheet" href="prompt-highlighting.css?v=20260904-caret-alignment">
+  <link rel="stylesheet" href="prompt-highlighting.css?v=20260905-translation-toggle">
   <link rel="stylesheet" href="lora-controls.css">
-  <link rel="stylesheet" href="preview-zoom.css?v=20260905-cursor-zoom">
+  <link rel="stylesheet" href="preview-zoom.css?v=20260905-empty-preview">
   <link rel="stylesheet" href="error-dialog.css">
   <link rel="stylesheet" href="readability.css">
   <link rel="stylesheet" href="composition-toggle.css">
@@ -139,8 +139,9 @@
           <article class="preview-panel">
             <div class="preview-toolbar"><span class="section-title-accent">이미지</span><div class="preview-zoom-controls"><button id="previewZoomOut" type="button" aria-label="이미지 축소">−</button><span id="previewZoomValue">100%</span><button id="previewZoomIn" type="button" aria-label="이미지 확대">＋</button></div></div>
             <div class="preview-stage">
-              <img id="previewImage" src="../../output/LAKIS/1/LAKIS_1_2026-09-04-020343.webp" alt="LAKIS generation preview">
-              <div class="preview-badge"><span id="previewMode">DETAIL</span><span id="previewSeed">SEED 579441119814924</span><span id="previewDuration" hidden>0.0초</span></div>
+              <div id="previewEmptyState" class="preview-empty-state" aria-label="아직 생성된 이미지가 없습니다">LAKIS</div>
+              <img id="previewImage" alt="" hidden>
+              <div class="preview-badge" hidden><span id="previewMode">DETAIL</span><span id="previewSeed">SEED 579441119814924</span><span id="previewDuration" hidden>0.0초</span></div>
             </div>
             <div class="history-strip" aria-label="생성 이미지 기록"></div>
           </article>
@@ -149,7 +150,14 @@
         <div class="prompt-column">
           <article class="panel prompt-panel">
             <div class="field-label prompt-field-title" data-prompt-group>
-              <span class="prompt-section-heading">프롬프트</span>
+              <div class="prompt-heading-row">
+                <span class="prompt-section-heading">프롬프트</span>
+                <label class="prompt-translation-toggle" title="한글 프롬프트를 제작 직전에 영어로 번역합니다">
+                  <span>자동 번역</span>
+                  <input id="promptTranslationToggle" type="checkbox" checked>
+                  <i aria-hidden="true"></i>
+                </label>
+              </div>
               <div class="prompt-tools">
                 <button class="prompt-tool" data-prompt-panel="triggerPromptPanel" aria-expanded="false">트리거</button>
                 <button class="prompt-tool" data-prompt-panel="artistPromptPanel" aria-expanded="false">작가</button>
@@ -242,8 +250,8 @@
       <button id="errorDialogClose" type="button">확인</button>
     </div>
   </div>
-  <script src="app.js?v=20260905-cursor-zoom"></script>
+  <script src="app.js?v=20260905-prompt-translation"></script>
   <script type="module" src="lightmap-knob-mockup.js?v=20260904-source-port"></script>
-  <script type="module" src="prompt-highlighting.js?v=20260905-dedicated-ports"></script>
+  <script type="module" src="prompt-highlighting.js?v=20260905-korean-highlight"></script>
 </body>
 </html>
