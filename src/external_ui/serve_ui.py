@@ -39,7 +39,7 @@ HOST = "127.0.0.1"
 PORT = 8766
 COMFY_SERVER = "http://127.0.0.1:8189"
 WORKFLOW_ROOT = COMFY_ROOT / "user" / "default" / "workflows"
-LAKIS_WORKFLOW = WORKFLOW_ROOT / "LAKIS_custom_v7.1.json"
+PREFERRED_LAKIS_WORKFLOW = WORKFLOW_ROOT / "LAKIS_custom_v7.1.json"
 AUTOPATCH_MARKER = COMFY_ROOT / "custom_nodes" / "ComfyUI-LAKIS-AutoPatch" / "startup_workflow.json"
 GENERATION_BRIDGE = WorkflowBridge()
 KOREAN_PATTERN = re.compile(r"[\u1100-\u11ff\u3130-\u318f\uac00-\ud7af]")
@@ -136,6 +136,37 @@ def workflow_version() -> str:
     return max(versions)[1] if versions else "unknown"
 
 
+def _workflow_sort_key(path: Path) -> tuple[int, ...]:
+    raw = path.stem.rsplit("_v", 1)[-1]
+    try:
+        return tuple(int(part) for part in raw.split("."))
+    except ValueError:
+        return ()
+
+
+def resolve_lakis_workflow() -> tuple[Path, dict]:
+    """Return the preferred or newest valid editable workflow without overwriting user data."""
+    candidates = [PREFERRED_LAKIS_WORKFLOW]
+    candidates.extend(sorted(WORKFLOW_ROOT.glob("LAKIS_custom_v*.json"), key=_workflow_sort_key, reverse=True))
+    seen: set[Path] = set()
+    errors = []
+    for candidate in candidates:
+        if candidate in seen:
+            continue
+        seen.add(candidate)
+        try:
+            if not candidate.is_file() or candidate.parent.resolve() != WORKFLOW_ROOT.resolve():
+                continue
+            workflow = json.loads(candidate.read_text(encoding="utf-8-sig"))
+            if isinstance(workflow, dict) and isinstance(workflow.get("nodes"), list):
+                return candidate, workflow
+            errors.append(f"{candidate.name}: invalid workflow structure")
+        except (OSError, ValueError, json.JSONDecodeError) as error:
+            errors.append(f"{candidate.name}: {error}")
+    detail = "; ".join(errors) if errors else "no LAKIS_custom_v*.json files found"
+    raise FileNotFoundError(f"No valid LAKIS workflow in {WORKFLOW_ROOT}: {detail}")
+
+
 def lakis_version() -> str:
     try:
         value = LAKIS_VERSION_PATH.read_text(encoding="utf-8-sig").strip()
@@ -182,18 +213,14 @@ class Handler(SimpleHTTPRequestHandler):
         super().__init__(*args, directory=str(UI_ROOT), **kwargs)
 
     def _prepare_lakis_workflow(self) -> dict:
-        if not LAKIS_WORKFLOW.is_file() or LAKIS_WORKFLOW.parent.resolve() != WORKFLOW_ROOT:
-            raise FileNotFoundError(f"LAKIS workflow is missing: {LAKIS_WORKFLOW}")
-        workflow = json.loads(LAKIS_WORKFLOW.read_text(encoding="utf-8"))
-        if not isinstance(workflow, dict) or not isinstance(workflow.get("nodes"), list):
-            raise ValueError("LAKIS workflow is not a valid ComfyUI workflow")
+        workflow_path, workflow = resolve_lakis_workflow()
         AUTOPATCH_MARKER.parent.mkdir(parents=True, exist_ok=True)
         temporary = AUTOPATCH_MARKER.with_suffix(".tmp")
         temporary.write_text(json.dumps(workflow, ensure_ascii=False), encoding="utf-8")
         os.replace(temporary, AUTOPATCH_MARKER)
         audit({
             "event": "external_ui_workflow_open_prepared",
-            "workflow": str(LAKIS_WORKFLOW),
+            "workflow": str(workflow_path),
             "marker": str(AUTOPATCH_MARKER),
             "node_count": len(workflow["nodes"]),
         })
