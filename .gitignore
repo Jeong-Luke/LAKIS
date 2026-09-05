@@ -12,6 +12,10 @@ temp/
 user/
 external_ui_user_state.json
 lakis_launcher_state.json
+.local-build/
+.manifest-audit-*/
+.release-audit-*/
+dist/.lakis/
 
 installer/build_package.ps1
 installer/split_release.ps1

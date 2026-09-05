@@ -74,7 +74,7 @@ internal static class LakisLauncher
             title.MouseDown += DragWindow;
             var subtitle = new Label {
                 Left = 114, Top = 78, Width = 260, Height = 25,
-                Text = "LAKIS Studio", Font = new Font("Segoe UI", 11F, FontStyle.Bold),
+                Text = "Studio", Font = new Font("Segoe UI", 11F, FontStyle.Bold),
                 ForeColor = Color.FromArgb(171, 178, 203)
             };
             subtitle.MouseDown += DragWindow;
@@ -201,8 +201,19 @@ internal static class LakisLauncher
                     Close();
                     return;
                 }
-                SetStatus("LAKIS Studio 여는 중");
-                await Task.Delay(350);
+                SetStatus("LAKIS Studio 화면 준비 중");
+                bool desktopReady = await Task.Run(() => WaitForDesktopWindow(process, 45));
+                if (userCancelled || IsDisposed) return;
+                if (!desktopReady)
+                {
+                    progress.MarqueeAnimationSpeed = 0;
+                    SetStatus("LAKIS Studio 화면을 열지 못했습니다");
+                    MessageBox.Show(this, "LAKIS 백엔드는 준비되었지만 화면이 열리지 않았습니다. 이 창을 닫지 않고 유지합니다.",
+                        "LAKIS 실행 오류", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+                SetStatus("LAKIS Studio 실행 완료");
+                await Task.Delay(750);
                 Close();
             }
             catch (Exception error)
@@ -235,6 +246,31 @@ internal static class LakisLauncher
         return false;
     }
 
+    private static bool WaitForDesktopWindow(Process startupProcess, int timeoutSeconds)
+    {
+        DateTime deadline = DateTime.UtcNow.AddSeconds(timeoutSeconds);
+        while (DateTime.UtcNow < deadline)
+        {
+            try
+            {
+                foreach (Process desktop in Process.GetProcessesByName("LAKIS_Desktop"))
+                {
+                    try
+                    {
+                        desktop.Refresh();
+                        if (!desktop.HasExited && desktop.MainWindowHandle != IntPtr.Zero)
+                            return true;
+                    }
+                    finally { desktop.Dispose(); }
+                }
+                if (startupProcess == null || startupProcess.HasExited) return false;
+            }
+            catch { }
+            Thread.Sleep(250);
+        }
+        return false;
+    }
+
     private static bool UiResponds()
     {
         try
@@ -257,7 +293,7 @@ internal static class LakisLauncher
             try
             {
                 var request = (HttpWebRequest)WebRequest.Create(url + "?t=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-                request.UserAgent = "LAKIS-Launcher/7.1.7";
+                request.UserAgent = "LAKIS-Launcher/7.2.0";
                 request.Timeout = 12000;
                 request.ReadWriteTimeout = 12000;
                 request.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
@@ -278,7 +314,7 @@ internal static class LakisLauncher
         try
         {
             var request = (HttpWebRequest)WebRequest.Create(LatestReleaseApiUrl + "?t=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-            request.UserAgent = "LAKIS-Launcher/7.1.7";
+            request.UserAgent = "LAKIS-Launcher/7.2.0";
             request.Accept = "application/vnd.github+json";
             request.Timeout = 12000;
             request.ReadWriteTimeout = 12000;
@@ -300,7 +336,7 @@ internal static class LakisLauncher
         try
         {
             var request = (HttpWebRequest)WebRequest.Create(LatestReleaseApiUrl + "?t=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-            request.UserAgent = "LAKIS-Launcher/7.1.7";
+            request.UserAgent = "LAKIS-Launcher/7.2.0";
             request.Accept = "application/vnd.github+json";
             request.Timeout = 12000; request.ReadWriteTimeout = 12000;
             request.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
@@ -350,6 +386,16 @@ internal static class LakisLauncher
     private static void Main()
     {
         string root = AppDomain.CurrentDomain.BaseDirectory;
+        try
+        {
+            using (Mutex.OpenExisting("Local\\LAKIS-Studio-Desktop"))
+            {
+                MessageBox.Show("LAKIS가 이미 실행 중입니다.", "LAKIS Studio",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+        }
+        catch (WaitHandleCannotBeOpenedException) { }
         bool ownsStartup;
         using (var mutex = new Mutex(true, "Local\\LAKIS-Studio-Startup", out ownsStartup))
         {

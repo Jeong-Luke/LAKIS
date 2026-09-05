@@ -78,7 +78,7 @@ internal sealed class UpdaterForm : Form
             Font = new Font("Segoe UI", 20F, FontStyle.Bold), ForeColor = Color.FromArgb(225, 229, 255)
         });
         Controls.Add(new Label {
-            Left = 114, Top = 78, Width = 260, Height = 25, Text = "LAKIS Studio 업데이트",
+            Left = 114, Top = 78, Width = 260, Height = 25, Text = "Studio",
             Font = new Font("Segoe UI", 11F, FontStyle.Bold), ForeColor = Color.FromArgb(171, 178, 203)
         });
         Controls.Add(new Label {
@@ -200,7 +200,7 @@ internal sealed class UpdaterForm : Form
             try
             {
                 var request = (HttpWebRequest)WebRequest.Create(url + "?t=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-                request.UserAgent = "LAKIS-Updater/7.1.7";
+                request.UserAgent = "LAKIS-Updater/7.2.0";
                 request.Timeout = 20000;
                 request.ReadWriteTimeout = 20000;
                 request.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
@@ -303,6 +303,7 @@ internal sealed class UpdaterForm : Form
     private static void CreateOrRepairDesktopShortcut(string root)
     {
         string desktopHost = Path.Combine(root, "LAKIS_Desktop.exe");
+        string iconPath = Path.Combine(root, "LAKIS.ico");
         if (!File.Exists(desktopHost)) return;
         string shortcutPath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "LAKIS.lnk");
@@ -321,7 +322,7 @@ internal sealed class UpdaterForm : Form
             shortcutType.InvokeMember("WorkingDirectory", System.Reflection.BindingFlags.SetProperty,
                 null, shortcut, new object[] { root });
             shortcutType.InvokeMember("IconLocation", System.Reflection.BindingFlags.SetProperty,
-                null, shortcut, new object[] { desktopHost + ",0" });
+                null, shortcut, new object[] { (File.Exists(iconPath) ? iconPath : desktopHost) + ",0" });
             shortcutType.InvokeMember("Description", System.Reflection.BindingFlags.SetProperty,
                 null, shortcut, new object[] { "LAKIS Studio 실행" });
             shortcutType.InvokeMember("Save", System.Reflection.BindingFlags.InvokeMethod, null, shortcut, null);
@@ -353,7 +354,7 @@ internal sealed class UpdaterForm : Form
     {
         using (var client = new WebClient())
         {
-            client.Headers.Add(HttpRequestHeader.UserAgent, "LAKIS-Updater/7.1.7");
+            client.Headers.Add(HttpRequestHeader.UserAgent, "LAKIS-Updater/7.2.0");
             client.DownloadFile(url, output);
         }
     }

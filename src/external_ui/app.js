@@ -3,10 +3,10 @@ const state = {
   translation_enabled: true,
   lora_enabled: true,
   composition_enabled: true,
-  i2i: { enabled: false, denoise: 0.5, image_name: "" },
+  i2i: { enabled: false, denoise: 0.5, image_name: "", auto_size: false, image_width: 0, image_height: 0 },
   loras: [],
   camera: { x: 0, y: .35, z: -.45, roll: 0, frame_y: 0 },
-  output: { width: 1536, height: 1024, seed: 579441119814924, seed_mode: "random" },
+  output: { width: 1536, height: 1024, seed: 579441119814924, seed_mode: "random", aspect_locked: false },
   prompt: {
     negative: "", fixed: "", general: "", quality: "", artist: "", trigger: "",
     negative_fixed: "", negative_quality: "", negative_artist: ""
@@ -19,7 +19,8 @@ const state = {
     scheduler: "normal",
     steps: 30,
     cfg: 5.0
-  }
+  },
+  node_overrides: {}
 };
 
 // The packaged application owns a dedicated ComfyUI port so it never opens a
@@ -40,7 +41,12 @@ function scheduleGenerationStateSave() {
       await fetch("/api/generation-state", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: state.model, output: state.output }),
+        body: JSON.stringify({
+          model: state.model,
+          output: state.output,
+          loras: state.loras,
+          lora_enabled: state.lora_enabled,
+        }),
       });
     } catch (error) {
       console.error("Could not persist LAKIS model configuration", error);
@@ -52,6 +58,11 @@ const previewStage = document.querySelector(".preview-stage");
 const previewImage = document.querySelector("#previewImage");
 const previewEmptyState = document.querySelector("#previewEmptyState");
 const previewBadge = document.querySelector(".preview-badge");
+const previewPromptButton = document.querySelector("#previewPromptButton");
+const promptInspector = document.querySelector("#promptInspector");
+const promptInspectorClose = document.querySelector("#promptInspectorClose");
+const usedPositivePrompt = document.querySelector("#usedPositivePrompt");
+const usedNegativePrompt = document.querySelector("#usedNegativePrompt");
 const previewZoomValue = document.querySelector("#previewZoomValue");
 const PREVIEW_ZOOM_MIN = 25;
 const PREVIEW_ZOOM_MAX = 400;
@@ -59,11 +70,51 @@ const PREVIEW_ZOOM_STEP = 10;
 let previewZoom = 100;
 let previewPanX = 0;
 let previewPanY = 0;
+let currentPreviewPrompt = null;
+
+function syncPreviewPromptButton() {
+  previewPromptButton.hidden = previewImage.hidden || !currentPreviewPrompt;
+}
+
+function setCurrentPreviewPrompt(promptSnapshot) {
+  currentPreviewPrompt = promptSnapshot && typeof promptSnapshot === "object"
+    ? structuredClone(promptSnapshot)
+    : null;
+  syncPreviewPromptButton();
+}
+
+function joinPromptParts(promptSnapshot, keys) {
+  return keys
+    .map(key => String(promptSnapshot?.[key] || "").trim())
+    .filter(Boolean)
+    .join(", ");
+}
+
+function closePromptInspector() {
+  promptInspector.hidden = true;
+}
+
+previewPromptButton.addEventListener("click", () => {
+  if (!currentPreviewPrompt) return;
+  usedPositivePrompt.value = joinPromptParts(currentPreviewPrompt, ["trigger", "artist", "quality", "fixed", "general", "composition"]);
+  usedNegativePrompt.value = joinPromptParts(currentPreviewPrompt, ["negative_artist", "negative_quality", "negative_fixed", "negative"]);
+  promptInspector.hidden = false;
+  promptInspectorClose.focus();
+});
+
+promptInspectorClose.addEventListener("click", closePromptInspector);
+promptInspector.addEventListener("click", event => {
+  if (event.target === promptInspector) closePromptInspector();
+});
+document.addEventListener("keydown", event => {
+  if (event.key === "Escape" && !promptInspector.hidden) closePromptInspector();
+});
 
 function setPreviewAvailability(hasImage) {
   previewImage.hidden = !hasImage;
   previewEmptyState.hidden = hasImage;
   previewBadge.hidden = !hasImage;
+  syncPreviewPromptButton();
 }
 
 previewImage.addEventListener("load", () => setPreviewAvailability(true));
@@ -154,6 +205,7 @@ function renderLoras() {
       state.loras[index].name = event.target.value;
       if (event.target.value) state.loras[index].enabled = true;
       event.target.title = event.target.value;
+      scheduleGenerationStateSave();
       renderLoras();
     });
 
@@ -168,6 +220,7 @@ function renderLoras() {
       const value = Number(event.target.value);
       state.loras[index].strength = Number.isFinite(value) ? value : 1;
       event.target.value = state.loras[index].strength.toFixed(2);
+      scheduleGenerationStateSave();
     });
 
     const toggle = document.createElement("button");
@@ -177,6 +230,7 @@ function renderLoras() {
     toggle.setAttribute("aria-pressed", String(lora.enabled));
     toggle.addEventListener("click", () => {
       state.loras[index].enabled = !state.loras[index].enabled;
+      scheduleGenerationStateSave();
       renderLoras();
     });
 
@@ -187,10 +241,45 @@ function renderLoras() {
     remove.title = "로라 제거";
     remove.addEventListener("click", () => {
       state.loras.splice(index, 1);
+      scheduleGenerationStateSave();
       renderLoras();
     });
 
-    row.append(remove, select, strength, toggle);
+    const orderControls = document.createElement("div");
+    orderControls.className = "lora-order-controls";
+    const moveUp = document.createElement("button");
+    moveUp.type = "button";
+    moveUp.className = "lora-order-button";
+    moveUp.textContent = "▲";
+    moveUp.title = "위 로라와 순서 바꾸기";
+    moveUp.setAttribute("aria-label", `${lora.name || `로라 ${index + 1}`} 위로 이동`);
+    moveUp.disabled = index === 0;
+    moveUp.addEventListener("click", () => {
+      if (index === 0) return;
+      [state.loras[index - 1], state.loras[index]] = [state.loras[index], state.loras[index - 1]];
+      scheduleGenerationStateSave();
+      renderLoras();
+    });
+    const moveDown = document.createElement("button");
+    moveDown.type = "button";
+    moveDown.className = "lora-order-button";
+    moveDown.textContent = "▼";
+    moveDown.title = "아래 로라와 순서 바꾸기";
+    moveDown.setAttribute("aria-label", `${lora.name || `로라 ${index + 1}`} 아래로 이동`);
+    moveDown.disabled = index === state.loras.length - 1;
+    moveDown.addEventListener("click", () => {
+      if (index >= state.loras.length - 1) return;
+      [state.loras[index], state.loras[index + 1]] = [state.loras[index + 1], state.loras[index]];
+      scheduleGenerationStateSave();
+      renderLoras();
+    });
+    orderControls.append(moveUp, moveDown);
+
+    const rowActions = document.createElement("div");
+    rowActions.className = "lora-row-actions";
+    rowActions.append(remove, orderControls);
+
+    row.append(rowActions, select, strength, toggle);
     list.append(row);
   });
   count.textContent = `(${state.loras.length})`;
@@ -198,6 +287,7 @@ function renderLoras() {
 
 document.querySelector("#addLoraButton").addEventListener("click", () => {
   state.loras.push({ name: "", enabled: false, strength: 1 });
+  scheduleGenerationStateSave();
   renderLoras();
   document.querySelector("#loraList").lastElementChild?.scrollIntoView({ block: "nearest" });
 });
@@ -208,6 +298,7 @@ document.querySelector("#allLorasToggle").addEventListener("click", event => {
   event.currentTarget.setAttribute("aria-pressed", String(state.lora_enabled));
   event.currentTarget.setAttribute("aria-label", `전체 로라 ${state.lora_enabled ? "끄기" : "켜기"}`);
   document.querySelector("#loraList").classList.toggle("all-disabled", !state.lora_enabled);
+  scheduleGenerationStateSave();
 });
 
 const modeButtons = [...document.querySelectorAll(".mode-option")];
@@ -700,12 +791,17 @@ document.querySelector("#cameraReset").addEventListener("click", () => {
   renderCamera();
 });
 
-document.querySelector("#compositionToggle").addEventListener("click", event => {
-  state.composition_enabled = !state.composition_enabled;
-  event.currentTarget.classList.toggle("on", state.composition_enabled);
-  event.currentTarget.setAttribute("aria-pressed", String(state.composition_enabled));
-  event.currentTarget.setAttribute("aria-label", `구도 설정 ${state.composition_enabled ? "끄기" : "켜기"}`);
+function setCompositionEnabled(enabled) {
+  state.composition_enabled = Boolean(enabled);
+  const toggle = document.querySelector("#compositionToggle");
+  toggle.classList.toggle("on", state.composition_enabled);
+  toggle.setAttribute("aria-pressed", String(state.composition_enabled));
+  toggle.setAttribute("aria-label", `구도 설정 ${state.composition_enabled ? "끄기" : "켜기"}`);
   document.querySelector("#compositionControls").classList.toggle("is-disabled", !state.composition_enabled);
+}
+
+document.querySelector("#compositionToggle").addEventListener("click", () => {
+  setCompositionEnabled(!state.composition_enabled);
 });
 
 document.querySelector("#outputFolderButton").addEventListener("click", async () => {
@@ -719,10 +815,29 @@ document.querySelector("#outputFolderButton").addEventListener("click", async ()
   }
 });
 
-document.querySelector("#workflowButton").addEventListener("click", async () => {
+const workflowButton = document.querySelector("#workflowButton");
+const workflowMenu = document.querySelector("#workflowMenu");
+function closeWorkflowMenu() {
+  workflowMenu.hidden = true;
+  workflowButton.setAttribute("aria-expanded", "false");
+}
+workflowButton.addEventListener("click", event => {
+  event.stopPropagation();
+  workflowMenu.hidden = !workflowMenu.hidden;
+  workflowButton.setAttribute("aria-expanded", String(!workflowMenu.hidden));
+});
+workflowMenu.addEventListener("click", async event => {
+  const option = event.target.closest("[data-workflow-kind]");
+  if (!option) return;
+  const kind = option.dataset.workflowKind;
+  closeWorkflowMenu();
   const workflowWindow = window.open("about:blank", "_blank");
   try {
-    const response = await fetch("/api/open-workflow", { method: "POST" });
+    const response = await fetch("/api/open-workflow", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kind }),
+    });
     const result = await response.json();
     if (!response.ok || !result.ok) throw new Error(result.error || `HTTP ${response.status}`);
     if (workflowWindow) workflowWindow.location.replace(result.comfy_url || "http://127.0.0.1:8189/");
@@ -913,6 +1028,8 @@ async function refreshWorkflowConfiguration() {
     for (const [id, key] of [["imageWidth", "width"], ["imageHeight", "height"], ["seedInput", "seed"]]) {
       document.querySelector(`#${id}`).value = state.output[key];
     }
+    document.querySelector("#aspectRatioLock").checked = state.output.aspect_locked === true;
+    lockedAspectRatio = clampImageDimension(state.output.width) / clampImageDimension(state.output.height);
     document.querySelectorAll("[data-seed-mode]").forEach(button => {
       button.classList.toggle("active", button.dataset.seedMode === state.output.seed_mode);
     });
@@ -953,20 +1070,80 @@ async function refreshWorkflowConfiguration() {
 refreshWorkflowConfiguration();
 
 function syncOutputStateFromInputs() {
-  for (const [id, key] of [["imageWidth", "width"], ["imageHeight", "height"], ["seedInput", "seed"]]) {
-    const value = Number(document.querySelector(`#${id}`).value);
-    if (Number.isFinite(value)) state.output[key] = value;
+  for (const [id, key] of [["imageWidth", "width"], ["imageHeight", "height"]]) {
+    const input = document.querySelector(`#${id}`);
+    const value = clampImageDimension(input.value);
+    input.value = String(value);
+    state.output[key] = value;
   }
+  const seed = Number(document.querySelector("#seedInput").value);
+  if (Number.isFinite(seed)) state.output.seed = seed;
 }
 
-for (const [id,key] of [["imageWidth","width"],["imageHeight","height"],["seedInput","seed"]]) {
-  document.querySelector(`#${id}`).addEventListener("input", event => {
+const aspectRatioLock = document.querySelector("#aspectRatioLock");
+const sizeInputs = {
+  width: document.querySelector("#imageWidth"),
+  height: document.querySelector("#imageHeight"),
+};
+let lockedAspectRatio = state.output.width / state.output.height;
+let syncingAspectRatio = false;
+
+function clampImageDimension(value) {
+  const bounded = Math.max(64, Math.min(8192, Math.round(Number(value) || 64)));
+  return Math.round(bounded / 16) * 16;
+}
+
+function syncLockedImageDimension(changedKey) {
+  if (!aspectRatioLock.checked || syncingAspectRatio || !Number.isFinite(lockedAspectRatio) || lockedAspectRatio <= 0) return;
+  const otherKey = changedKey === "width" ? "height" : "width";
+  const changedValue = clampImageDimension(sizeInputs[changedKey].value);
+  const calculated = changedKey === "width" ? changedValue / lockedAspectRatio : changedValue * lockedAspectRatio;
+  // Anima/Spectrum requires an even latent width/height, so keep dimensions
+  // on a 16-pixel boundary. Preserve the
+  // locked ratio as closely as possible while keeping the paired value valid.
+  const pairedValue = clampImageDimension(Math.round(calculated / 16) * 16);
+  syncingAspectRatio = true;
+  sizeInputs[otherKey].value = String(pairedValue);
+  state.output[otherKey] = pairedValue;
+  syncingAspectRatio = false;
+}
+
+for (const [key, input] of Object.entries(sizeInputs)) {
+  input.addEventListener("input", event => {
     const value = Number(event.target.value);
     if (!Number.isFinite(value)) return;
-    state.output[key] = value;
+    state.output[key] = clampImageDimension(value);
+    syncLockedImageDimension(key);
     scheduleGenerationStateSave();
   });
+  input.addEventListener("change", event => {
+    event.target.value = String(clampImageDimension(event.target.value));
+    event.target.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  input.addEventListener("wheel", event => {
+    event.preventDefault();
+    const step = Number(input.step) || 64;
+    input.value = String(clampImageDimension(Number(input.value) + (event.deltaY < 0 ? step : -step)));
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  }, { passive: false });
 }
+
+aspectRatioLock.addEventListener("change", () => {
+  state.output.aspect_locked = aspectRatioLock.checked;
+  if (aspectRatioLock.checked) {
+    const width = clampImageDimension(sizeInputs.width.value);
+    const height = clampImageDimension(sizeInputs.height.value);
+    lockedAspectRatio = width / height;
+  }
+  scheduleGenerationStateSave();
+});
+
+document.querySelector("#seedInput").addEventListener("input", event => {
+  const value = Number(event.target.value);
+  if (!Number.isFinite(value)) return;
+  state.output.seed = value;
+  scheduleGenerationStateSave();
+});
 document.querySelectorAll("[data-seed-mode]").forEach(button => button.addEventListener("click", () => {
   state.output.seed_mode = button.dataset.seedMode;
   document.querySelectorAll("[data-seed-mode]").forEach(item => item.classList.toggle("active", item === button));
@@ -980,9 +1157,11 @@ document.querySelector(".history-strip").addEventListener("click", event => {
   document.querySelectorAll(".history-thumb").forEach(item => item.classList.remove("selected"));
   button.classList.add("selected");
   document.querySelector("#previewImage").src = button.querySelector("img").src;
+  setCurrentPreviewPrompt(button._lakisPrompt || null);
   if (button.dataset.mode) {
     document.querySelector("#previewMode").textContent = button.dataset.mode.toUpperCase();
   }
+  document.querySelector("#previewI2i").hidden = button.dataset.i2i !== "true";
   if (button.dataset.seed) {
     document.querySelector("#previewSeed").textContent = `SEED ${button.dataset.seed}`;
   }
@@ -1005,16 +1184,65 @@ const i2iDropZone = document.querySelector("#i2iDropZone");
 const i2iPreview = document.querySelector("#i2iPreview");
 const i2iPlaceholder = document.querySelector("#i2iPlaceholder");
 const i2iDenoise = document.querySelector("#i2iDenoise");
-const i2iDenoiseValue = document.querySelector("#i2iDenoiseValue");
+const i2iDenoiseNumber = document.querySelector("#i2iDenoiseNumber");
 const i2iRemove = document.querySelector("#i2iRemove");
 const i2iStatus = document.querySelector("#i2iStatus");
+const i2iAutoSize = document.querySelector("#i2iAutoSize");
+const imageWidthInput = document.querySelector("#imageWidth");
+const imageHeightInput = document.querySelector("#imageHeight");
+let manualI2iSize = { width: Number(imageWidthInput.value), height: Number(imageHeightInput.value) };
+
+function setModelImageSize(width, height) {
+  const safeWidth = clampImageDimension(width);
+  const safeHeight = clampImageDimension(height);
+  if (aspectRatioLock.checked && safeWidth > 0 && safeHeight > 0) {
+    lockedAspectRatio = safeWidth / safeHeight;
+  }
+  syncingAspectRatio = true;
+  imageWidthInput.value = String(safeWidth);
+  imageHeightInput.value = String(safeHeight);
+  imageWidthInput.dispatchEvent(new Event("input", { bubbles: true }));
+  imageHeightInput.dispatchEvent(new Event("input", { bubbles: true }));
+  syncingAspectRatio = false;
+}
+
+function applyI2iAutoSize() {
+  if (!state.i2i.auto_size || !state.i2i.image_width || !state.i2i.image_height) return;
+  setModelImageSize(state.i2i.image_width, state.i2i.image_height);
+}
+
+function readImageDimensions(dataUrl) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve({ width: image.naturalWidth, height: image.naturalHeight });
+    image.onerror = () => reject(new Error("이미지 크기를 확인하지 못했어요."));
+    image.src = dataUrl;
+  });
+}
 
 function setI2iEnabled(enabled) {
+  const wasEnabled = state.i2i.enabled;
   state.i2i.enabled = Boolean(enabled);
+  if (state.i2i.enabled) {
+    setCompositionEnabled(false);
+    if (!wasEnabled) showI2iCompositionNotice();
+  }
   i2iToggle.classList.toggle("on", state.i2i.enabled);
   i2iToggle.setAttribute("aria-pressed", String(state.i2i.enabled));
-  i2iToggle.setAttribute("aria-label", state.i2i.enabled ? "i2i 끄기" : "i2i 켜기");
+  i2iToggle.setAttribute("aria-label", state.i2i.enabled ? "Image to Image 끄기" : "Image to Image 켜기");
   document.querySelector(".i2i-panel").classList.toggle("is-disabled", !state.i2i.enabled);
+}
+
+let i2iNoticeTimer = null;
+function showI2iCompositionNotice() {
+  const notice = document.querySelector("#i2iCompositionNotice");
+  clearTimeout(i2iNoticeTimer);
+  notice.hidden = false;
+  requestAnimationFrame(() => notice.classList.add("visible"));
+  i2iNoticeTimer = setTimeout(() => {
+    notice.classList.remove("visible");
+    setTimeout(() => { notice.hidden = true; }, 180);
+  }, 3200);
 }
 
 async function uploadI2iFile(file) {
@@ -1034,6 +1262,7 @@ async function uploadI2iFile(file) {
     reader.readAsDataURL(file);
   });
   try {
+    const dimensions = await readImageDimensions(dataUrl);
     const response = await fetch("/api/i2i-image", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ data_url: dataUrl }),
@@ -1041,12 +1270,15 @@ async function uploadI2iFile(file) {
     const result = await response.json();
     if (!response.ok || !result.ok) throw new Error(result.error || "이미지 업로드 실패");
     state.i2i.image_name = result.image_name;
+    state.i2i.image_width = dimensions.width;
+    state.i2i.image_height = dimensions.height;
     i2iPreview.src = dataUrl;
     i2iPreview.hidden = false;
     i2iPlaceholder.hidden = true;
     i2iRemove.disabled = false;
     setI2iEnabled(state.i2i.enabled);
-    i2iStatus.textContent = "입력 이미지에 현재 프롬프트를 적용합니다.";
+    applyI2iAutoSize();
+    i2iStatus.textContent = "원본 이미지 크기 자동 입력하기";
   } catch (error) {
     setI2iEnabled(false);
     i2iStatus.textContent = error.message || "입력 이미지를 준비하지 못했어요.";
@@ -1055,11 +1287,26 @@ async function uploadI2iFile(file) {
 
 i2iToggle.addEventListener("click", () => {
   setI2iEnabled(!state.i2i.enabled);
-  i2iStatus.textContent = state.i2i.enabled && !state.i2i.image_name
-    ? "i2i 입력 이미지를 선택해 주세요."
-    : state.i2i.enabled ? "입력 이미지에 현재 프롬프트를 적용합니다." : "i2i가 꺼져 있습니다.";
+  i2iStatus.textContent = "원본 이미지 크기 자동 입력하기";
 });
-i2iDropZone.addEventListener("click", () => i2iFileInput.click());
+i2iAutoSize.addEventListener("change", () => {
+  state.i2i.auto_size = i2iAutoSize.checked;
+  if (state.i2i.auto_size) {
+    manualI2iSize = { width: Number(imageWidthInput.value), height: Number(imageHeightInput.value) };
+    applyI2iAutoSize();
+  } else {
+    setModelImageSize(manualI2iSize.width, manualI2iSize.height);
+  }
+});
+i2iDropZone.addEventListener("click", event => {
+  if (!event.target.closest("#i2iRemove")) i2iFileInput.click();
+});
+i2iDropZone.addEventListener("keydown", event => {
+  if ((event.key === "Enter" || event.key === " ") && !event.target.closest("#i2iRemove")) {
+    event.preventDefault();
+    i2iFileInput.click();
+  }
+});
 i2iFileInput.addEventListener("change", () => uploadI2iFile(i2iFileInput.files?.[0]));
 for (const eventName of ["dragenter", "dragover"]) i2iDropZone.addEventListener(eventName, event => {
   event.preventDefault(); i2iDropZone.classList.add("is-dragging");
@@ -1070,13 +1317,29 @@ for (const eventName of ["dragleave", "drop"]) i2iDropZone.addEventListener(even
 i2iDropZone.addEventListener("drop", event => uploadI2iFile(event.dataTransfer?.files?.[0]));
 i2iDenoise.addEventListener("input", () => {
   state.i2i.denoise = Number(i2iDenoise.value);
-  i2iDenoiseValue.textContent = state.i2i.denoise.toFixed(2);
+  i2iDenoiseNumber.value = state.i2i.denoise.toFixed(2);
 });
-i2iRemove.addEventListener("click", () => {
+i2iDenoiseNumber.addEventListener("input", () => {
+  const value = Math.min(1, Math.max(0, Number(i2iDenoiseNumber.value)));
+  if (!Number.isFinite(value)) return;
+  state.i2i.denoise = value;
+  i2iDenoise.value = String(value);
+});
+i2iDenoiseNumber.addEventListener("change", () => {
+  const value = Math.min(1, Math.max(0, Number(i2iDenoiseNumber.value) || 0));
+  state.i2i.denoise = value;
+  i2iDenoise.value = String(value);
+  i2iDenoiseNumber.value = value.toFixed(2);
+});
+i2iRemove.addEventListener("click", event => {
+  event.stopPropagation();
   state.i2i.image_name = ""; setI2iEnabled(false);
+  state.i2i.image_width = 0; state.i2i.image_height = 0;
+  if (state.i2i.auto_size) setModelImageSize(manualI2iSize.width, manualI2iSize.height);
+  state.i2i.auto_size = false; i2iAutoSize.checked = false;
   i2iPreview.removeAttribute("src"); i2iPreview.hidden = true; i2iPlaceholder.hidden = false;
   i2iRemove.disabled = true; i2iFileInput.value = "";
-  i2iStatus.textContent = "입력 이미지를 프롬프트 방향으로 변형합니다.";
+  i2iStatus.textContent = "원본 이미지 크기 자동 입력하기";
 });
 setI2iEnabled(false);
 
@@ -1089,6 +1352,8 @@ let generationActive = false;
 let generationCancelRequested = false;
 let lastPreviewRevision = 0;
 let previewObjectUrl = null;
+let generationResetTimer = null;
+let generationSubmissionPending = false;
 
 async function refreshGenerationPreview(revision) {
   if (!revision || revision === lastPreviewRevision) return;
@@ -1103,6 +1368,10 @@ async function refreshGenerationPreview(revision) {
 }
 
 function setGenerationProgress(percent, stage = "최종 이미지 생성 중") {
+  if (generationResetTimer) {
+    clearTimeout(generationResetTimer);
+    generationResetTimer = null;
+  }
   const progress = Math.max(0, Math.min(100, Number(percent) || 0));
   const phase = String(stage || "")
     .replace(/^생성 중\s*·\s*/, "")
@@ -1117,6 +1386,10 @@ function setGenerationProgress(percent, stage = "최종 이미지 생성 중") {
 }
 
 function resetGenerationButton() {
+  if (generationResetTimer) {
+    clearTimeout(generationResetTimer);
+    generationResetTimer = null;
+  }
   generationActive = false;
   generationCancelRequested = false;
   generateButton.style.setProperty("--generation-progress", "0%");
@@ -1150,7 +1423,10 @@ window.addEventListener("lakis:generation-progress", event => {
 });
 window.addEventListener("lakis:generation-complete", () => {
   setGenerationProgress(100, "완료");
-  setTimeout(resetGenerationButton, 1400);
+  generationResetTimer = setTimeout(() => {
+    generationResetTimer = null;
+    resetGenerationButton();
+  }, 1400);
 });
 window.addEventListener("lakis:generation-error", resetGenerationButton);
 window.addEventListener("lakis:generation-cancelled", resetGenerationButton);
@@ -1162,6 +1438,10 @@ async function pollGenerationStatus() {
     const response = await fetch("/api/generation-status", { cache: "no-store" });
     if (!response.ok) return;
     const status = await response.json();
+    // While /api/generate is being accepted, the bridge may still report the
+    // previous job's terminal state for one poll. Ignore only that stale
+    // terminal snapshot so it cannot unlock the button mid-submission.
+    if (generationSubmissionPending && ["idle", "complete", "cancelled", "error"].includes(status.state)) return;
     if (["preparing", "running"].includes(status.state)) {
       setGenerationProgress(status.percent, status.stage || "생성 중");
       refreshGenerationPreview(status.preview_revision).catch(() => {});
@@ -1181,6 +1461,10 @@ async function pollGenerationStatus() {
         thumb.className = "history-thumb selected";
         thumb.dataset.seed = String(status.seed ?? state.output.seed);
         thumb.dataset.mode = status.mode === "detail" ? "detail" : "fast";
+        thumb.dataset.i2i = String(status.i2i_enabled === true);
+        thumb._lakisPrompt = status.prompt_used && typeof status.prompt_used === "object"
+          ? structuredClone(status.prompt_used)
+          : null;
         const durationSeconds = Math.max(0, Number(status.finished_at || 0) - Number(status.started_at || 0));
         thumb.dataset.duration = durationSeconds.toFixed(3);
         thumb.innerHTML = `<img src="${imageUrl}" alt="LAKIS generated image">`;
@@ -1189,9 +1473,11 @@ async function pollGenerationStatus() {
         historyStrip.prepend(thumb);
         historyStrip.scrollLeft = 0;
         document.querySelector("#previewMode").textContent = thumb.dataset.mode.toUpperCase();
+        document.querySelector("#previewI2i").hidden = thumb.dataset.i2i !== "true";
         document.querySelector("#previewSeed").textContent = `SEED ${thumb.dataset.seed}`;
         document.querySelector("#previewDuration").textContent = `${durationSeconds.toFixed(1)}초`;
         document.querySelector("#previewDuration").hidden = false;
+        setCurrentPreviewPrompt(thumb._lakisPrompt);
       }
       window.dispatchEvent(new CustomEvent("lakis:generation-complete"));
     } else if (status.state === "cancelled" && lastGenerationState !== "cancelled") {
@@ -1217,6 +1503,12 @@ generateButton.addEventListener("click", async () => {
     return;
   }
 
+  if (state.i2i.enabled && !state.i2i.image_name) {
+    i2iStatus.textContent = "i2i 입력 이미지를 먼저 선택해 주세요.";
+    i2iDropZone.focus();
+    return;
+  }
+
   // Number inputs do not always dispatch `change` before a nearby button is
   // activated (notably with spinner/IME interaction). Read the visible size
   // again so every generation uses the ratio currently shown in the UI.
@@ -1230,6 +1522,7 @@ generateButton.addEventListener("click", async () => {
   syncPromptStateFromInputs();
   saveLocalPromptState();
   document.querySelector("#previewMode").textContent = state.generation.mode === "detail" ? "DETAIL" : "FAST";
+  document.querySelector("#previewI2i").hidden = !state.i2i.enabled;
   document.querySelector("#previewSeed").textContent = `SEED ${state.output.seed}`;
   document.querySelector("#previewDuration").hidden = true;
   // A zoom chosen for the previous aspect ratio must not make the next image
@@ -1241,18 +1534,21 @@ generateButton.addEventListener("click", async () => {
       setGenerationProgress(0, "프롬프트 번역 중");
     }
     generationPayload.prompt = await translatedPromptForGeneration(state.prompt);
-    window.dispatchEvent(new CustomEvent("lakis:generate", { detail: generationPayload }));
     lastPreviewRevision = 0;
+    lastGenerationState = "preparing";
     setGenerationProgress(0, "생성 중");
+    generationSubmissionPending = true;
+    window.dispatchEvent(new CustomEvent("lakis:generate", { detail: generationPayload }));
   } catch (error) {
     showGenerationError(error.message || "프롬프트 자동 번역에 실패했어요.");
   }
 
-  if (state.i2i.enabled && !state.i2i.image_name) {
-    i2iStatus.textContent = "i2i 입력 이미지를 먼저 선택해 주세요.";
-    i2iDropZone.focus();
-    return;
-  }
+});
+document.addEventListener("click", event => {
+  if (!event.target.closest(".workflow-launcher")) closeWorkflowMenu();
+});
+document.addEventListener("keydown", event => {
+  if (event.key === "Escape") closeWorkflowMenu();
 });
 
 window.addEventListener("lakis:generate", async event => {
@@ -1267,6 +1563,8 @@ window.addEventListener("lakis:generate", async event => {
     lastGenerationState = "preparing";
   } catch (error) {
     showGenerationError(error.message);
+  } finally {
+    generationSubmissionPending = false;
   }
 });
 

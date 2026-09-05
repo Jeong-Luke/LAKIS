@@ -1,9 +1,10 @@
 @media (min-width:1181px){
+  .sidebar nav{width:62px;transform:translateX(6px)}
   .sidebar .nav-item{text-decoration:none;transition:background-color .16s ease,transform .16s ease}
   .sidebar .nav-item:hover{background:#171b25;transform:translateY(-1px)}
   .sidebar .nav-item:focus-visible{outline:1px solid var(--violet);outline-offset:2px}
   .sidebar .nav-item[title="LoRA Manager"]{order:1}
-  .sidebar .nav-item[title="ComfyUI Workflow"]{order:2}
+  .sidebar .workflow-launcher{order:2}
   .sidebar .sidebar-output-link{order:3}
   .sidebar .sidebar-danbooru-link{order:4}
   .sidebar .sidebar-civitai-link{order:5}
@@ -11,10 +12,21 @@
 }
 
 .sidebar {
+  position:relative;
+  z-index:200;
+  overflow:visible;
   border-right: 0;
 }
 .lora-manager-icon{display:block;width:20px;height:20px;object-fit:contain;image-rendering:auto}
 .workflow-brand-icon{display:block;width:22px;height:22px;border-radius:3px}
+.workflow-launcher{position:relative;display:grid;place-items:center;width:100%}
+.workflow-menu{position:relative;z-index:120;display:grid;gap:5px;width:62px;margin:6px auto 2px;padding:7px;border:1px solid #303747;border-radius:12px;background:#11151f;box-shadow:0 10px 24px #0008}
+.workflow-menu[hidden]{display:none}
+.workflow-menu button{position:relative;display:grid;place-items:center;width:46px;height:42px;padding:0;border:0;border-radius:9px;background:transparent;color:#eef2fa;cursor:pointer}
+.workflow-menu button:hover,.workflow-menu button:focus-visible{background:#20263a;outline:none}
+.workflow-menu svg{width:23px!important;height:23px!important;fill:none!important;stroke:#73a8ff!important;stroke-width:1.7!important}
+.workflow-menu button::after{content:attr(data-tooltip);position:absolute;left:calc(100% + 10px);top:50%;z-index:140;width:max-content;max-width:180px;padding:6px 8px;transform:translateY(-50%) translateX(-3px);border:1px solid #343c50;border-radius:7px;background:#151a26;color:#eaf0fb;font-size:10px;line-height:1.25;white-space:nowrap;box-shadow:0 8px 20px #0009;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .12s ease,transform .12s ease,visibility .12s}
+.workflow-menu button:hover::after,.workflow-menu button:focus-visible::after{opacity:1;visibility:visible;transform:translateY(-50%) translateX(0)}
 .danbooru-icon{width:21px!important;height:21px!important;fill:#f4b957!important;stroke:#fff0c8!important;stroke-width:1.35!important;stroke-linecap:round}
 .civitai-icon{width:22px!important;height:22px!important;fill:#1756d6!important;stroke:#72b9ff!important;stroke-width:1.75!important;stroke-linecap:round;stroke-linejoin:round}
 .sidebar-output-link svg{fill:#75829a!important;stroke:#aeb9cb!important}

@@ -1,0 +1,30 @@
+@media (min-width: 801px) {
+  html,
+  body,
+  .app-shell,
+  main,
+  .workspace,
+  .model-column,
+  .control-column,
+  .preview-column,
+  .prompt-column {
+    max-width: 100%;
+    overflow-x: hidden !important;
+  }
+
+  .prompt-panel {
+    max-width: 100%;
+    overflow: hidden !important;
+  }
+
+  .prompt-column {
+    overflow-y: hidden !important;
+  }
+
+  .workspace > *,
+  .prompt-column > *,
+  .prompt-panel > * {
+    min-width: 0;
+    max-width: 100%;
+  }
+}

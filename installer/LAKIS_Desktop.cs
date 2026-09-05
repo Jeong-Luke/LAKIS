@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Microsoft.Web.WebView2.Core;
@@ -288,10 +289,15 @@ internal sealed class LakisDesktopForm : Form
             return;
         }
         EnablePerMonitorDpi();
-        Application.EnableVisualStyles();
-        Application.SetCompatibleTextRenderingDefault(false);
-        string url = args.Length > 0 ? args[0] : "http://127.0.0.1:8766/";
-        Application.Run(new LakisDesktopForm(url));
+        bool ownsDesktop;
+        using (var mutex = new Mutex(true, "Local\\LAKIS-Studio-Desktop", out ownsDesktop))
+        {
+            if (!ownsDesktop) return;
+            Application.EnableVisualStyles();
+            Application.SetCompatibleTextRenderingDefault(false);
+            string url = args.Length > 0 ? args[0] : "http://127.0.0.1:8766/";
+            Application.Run(new LakisDesktopForm(url));
+        }
     }
 
     private static void EnablePerMonitorDpi()

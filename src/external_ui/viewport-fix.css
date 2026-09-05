@@ -29,7 +29,20 @@
   .control-column,
   .prompt-column {
     min-height: 0;
-    overflow: auto;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  .model-column {
+    min-width: 0;
+    overflow-x: hidden;
+  }
+
+  .workspace > *,
+  .prompt-panel,
+  .generation-actions {
+    min-width: 0;
+    max-width: 100%;
   }
 
   .preview-column,

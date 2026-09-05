@@ -15,7 +15,11 @@
   -webkit-text-fill-color: transparent !important;
   caret-color: #f3f5fb !important;
   background: transparent !important;
+  max-width: 100% !important;
+  height: 100% !important;
+  resize: none !important;
 }
+
 
 .prompt-highlight-host > textarea::selection {
   color: transparent !important;
@@ -48,7 +52,35 @@
   text-decoration: none;
 }
 
-.prompt-autocomplete{position:absolute;z-index:20;left:8px;right:8px;top:calc(100% - 4px);max-height:230px;overflow:auto;padding:5px;border:1px solid #39435d;border-radius:9px;background:#111621;box-shadow:0 14px 35px #000b}.prompt-autocomplete button{display:flex;justify-content:space-between;gap:15px;width:100%;padding:8px 10px;border:0;border-radius:6px;background:transparent;color:#dce2f0;text-align:left;cursor:pointer}.prompt-autocomplete button:hover,.prompt-autocomplete button.active{background:#29234d}.prompt-autocomplete strong{font-size:11px}.prompt-autocomplete span{color:#f1b84b;font-size:10px;white-space:nowrap}
+.prompt-resize-handle {
+  position: absolute;
+  z-index: 5;
+  right: 1px;
+  bottom: 1px;
+  width: 20px;
+  height: 20px;
+  cursor: ns-resize;
+  touch-action: none;
+}
+
+.prompt-resize-handle::after {
+  content: "";
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid #aeb6c8;
+  border-bottom: 2px solid #aeb6c8;
+  opacity: .85;
+}
+
+body.prompt-resizing {
+  cursor: ns-resize !important;
+  user-select: none !important;
+}
+
+.prompt-autocomplete{position:absolute;z-index:20;width:min(270px,calc(100% - 14px));max-height:132px;overflow:hidden;padding:4px;border:1px solid #39435d;border-radius:8px;background:#111621f5;box-shadow:0 10px 26px #000a}.prompt-autocomplete button{display:flex;align-items:center;justify-content:flex-start;gap:6px;width:100%;min-height:34px;padding:7px 9px;border:0;border-radius:5px;background:transparent;color:#dce2f0;text-align:left;cursor:pointer}.prompt-autocomplete button:hover,.prompt-autocomplete button.active{background:#29234d}.prompt-autocomplete strong{overflow:hidden;max-width:68%;font-size:10px;text-overflow:ellipsis;white-space:nowrap}.prompt-autocomplete span{overflow:hidden;color:#f1b84b;font-size:9px;text-overflow:ellipsis;white-space:nowrap}
 
 .prompt-heading-row {
   display: flex;
@@ -66,6 +98,7 @@
   font-weight: 700;
   cursor: pointer;
   user-select: none;
+  margin-left: auto;
 }
 
 .prompt-translation-toggle input {

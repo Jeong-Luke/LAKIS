@@ -5,6 +5,8 @@ from __future__ import annotations
 import html
 import base64
 import binascii
+import csv
+from functools import lru_cache
 import json
 import os
 import re
@@ -44,11 +46,55 @@ PORT = 8766
 COMFY_SERVER = "http://127.0.0.1:8189"
 WORKFLOW_ROOT = COMFY_ROOT / "user" / "default" / "workflows"
 PREFERRED_LAKIS_WORKFLOW = WORKFLOW_ROOT / "LAKIS_custom_v7.1.json"
+RUNTIME_LAKIS_WORKFLOW = WORKFLOW_ROOT / "LAKIS_runtime_visual_v7.1.json"
+EDITABLE_LAKIS_WORKFLOW = WORKFLOW_ROOT / "LAKIS_custom_v7.1_editable.json"
 AUTOPATCH_MARKER = COMFY_ROOT / "custom_nodes" / "ComfyUI-LAKIS-AutoPatch" / "startup_workflow.json"
 GENERATION_BRIDGE = WorkflowBridge()
 KOREAN_PATTERN = re.compile(r"[\u1100-\u11ff\u3130-\u318f\uac00-\ud7af]")
 TRANSLATION_SPLIT_PATTERN = re.compile(r"([,\n]+)")
 I2I_DATA_PATTERN = re.compile(r"^data:image/(png|jpeg|webp);base64,([A-Za-z0-9+/=\r\n]+)$")
+AUTOCOMPLETE_CSV = UI_ROOT / "data" / "autocomplete.csv"
+
+
+@lru_cache(maxsize=1)
+def load_csv_autocomplete() -> tuple[tuple[str, str, int, str], ...]:
+    """Load the bundled, popularity-sorted LAKIS tag dictionary once."""
+    entries: list[tuple[str, str, int, str]] = []
+    if not AUTOCOMPLETE_CSV.is_file():
+        return tuple()
+    with AUTOCOMPLETE_CSV.open("r", encoding="utf-8-sig", newline="") as stream:
+        for row in csv.reader(stream):
+            if len(row) < 4 or not row[0].strip():
+                continue
+            tag, _tag_type, count_text, description = row[:4]
+            label_match = re.match(r"^\[[^\]]+\]\s*([^:/]{1,48}?)\s*:", description)
+            korean_label = label_match.group(1).strip() if label_match else ""
+            try:
+                count = int(count_text)
+            except ValueError:
+                count = 0
+            entries.append((tag.strip(), korean_label, count, description.strip()))
+    return tuple(entries)
+
+
+@lru_cache(maxsize=512)
+def csv_tag_suggestions(query: str, limit: int = 12) -> tuple[dict, ...]:
+    normalized = query.strip().casefold().replace(" ", "_")
+    if len(normalized) < 2:
+        return tuple()
+    matches = []
+    for tag, korean_label, count, description in load_csv_autocomplete():
+        if tag.casefold().startswith(normalized):
+            matches.append({
+                "tag": tag,
+                "ko": korean_label,
+                "count": count,
+                "description": description,
+                "source": "lakis_csv",
+            })
+            if len(matches) >= limit:
+                break
+    return tuple(matches)
 
 try:
     EASYUSE_ANIMA_ROOT = COMFY_ROOT / "custom_nodes" / "comfyui-easyuse-anima"
@@ -65,8 +111,6 @@ def translate_korean_text(value: str) -> str:
     text = str(value or "")
     if not KOREAN_PATTERN.search(text):
         return text
-    if GOOGLE_TRANSLATOR is None:
-        raise RuntimeError("Google 번역 기능을 불러오지 못했어요.")
     translated = []
     for part in TRANSLATION_SPLIT_PATTERN.split(text):
         if not part or TRANSLATION_SPLIT_PATTERN.fullmatch(part):
@@ -77,7 +121,31 @@ def translate_korean_text(value: str) -> str:
             continue
         leading = part[: len(part) - len(part.lstrip())]
         trailing = part[len(part.rstrip()) :]
-        translated_body = GOOGLE_TRANSLATOR.translate(part.strip(), "auto", "en")
+        source_text = part.strip()
+        translated_body = ""
+        provider_error: Exception | None = None
+        if GOOGLE_TRANSLATOR is not None:
+            try:
+                translated_body = GOOGLE_TRANSLATOR.translate(source_text, "auto", "en")
+            except Exception as error:
+                provider_error = error
+        if not translated_body:
+            try:
+                endpoint = (
+                    "https://translate.googleapis.com/translate_a/single"
+                    f"?client=gtx&sl=auto&tl=en&dt=t&q={quote(source_text)}"
+                )
+                request = Request(endpoint, headers={"User-Agent": "LAKIS/7.2.0"})
+                with urlopen(request, timeout=10.0) as response:
+                    payload = json.loads(response.read().decode("utf-8"))
+                translated_body = "".join(
+                    str(segment[0]) for segment in (payload[0] or [])
+                    if isinstance(segment, list) and segment
+                )
+            except Exception as fallback_error:
+                raise RuntimeError("Google prompt translation providers failed") from (provider_error or fallback_error)
+        if not translated_body:
+            raise RuntimeError("Google prompt translation returned an empty result")
         translated.append(leading + html.unescape(translated_body) + trailing)
     return "".join(translated)
 
@@ -175,10 +243,18 @@ def _workflow_sort_key(path: Path) -> tuple[int, ...]:
         return ()
 
 
-def resolve_lakis_workflow() -> tuple[Path, dict]:
+def resolve_lakis_workflow(kind: str = "runtime") -> tuple[Path, dict]:
     """Return the preferred or newest valid editable workflow without overwriting user data."""
-    candidates = [PREFERRED_LAKIS_WORKFLOW]
-    candidates.extend(sorted(WORKFLOW_ROOT.glob("LAKIS_custom_v*.json"), key=_workflow_sort_key, reverse=True))
+    if kind == "editable":
+        candidates = [EDITABLE_LAKIS_WORKFLOW, WORKFLOW_ROOT / "LAKIS_custom_v7.1_fullsync_review.json"]
+    elif kind == "runtime":
+        candidates = [RUNTIME_LAKIS_WORKFLOW, PREFERRED_LAKIS_WORKFLOW]
+        candidates.extend(
+            path for path in sorted(WORKFLOW_ROOT.glob("LAKIS_custom_v*.json"), key=_workflow_sort_key, reverse=True)
+            if "editable" not in path.stem and "fullsync_review" not in path.stem
+        )
+    else:
+        raise ValueError("Unknown workflow kind")
     seen: set[Path] = set()
     errors = []
     for candidate in candidates:
@@ -243,19 +319,26 @@ class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(UI_ROOT), **kwargs)
 
-    def _prepare_lakis_workflow(self) -> dict:
-        workflow_path, workflow = resolve_lakis_workflow()
+    def _prepare_lakis_workflow(self, kind: str = "runtime") -> dict:
+        workflow_path, workflow = resolve_lakis_workflow(kind)
         AUTOPATCH_MARKER.parent.mkdir(parents=True, exist_ok=True)
         temporary = AUTOPATCH_MARKER.with_suffix(".tmp")
         temporary.write_text(json.dumps(workflow, ensure_ascii=False), encoding="utf-8")
         os.replace(temporary, AUTOPATCH_MARKER)
         audit({
             "event": "external_ui_workflow_open_prepared",
+            "kind": kind,
             "workflow": str(workflow_path),
             "marker": str(AUTOPATCH_MARKER),
             "node_count": len(workflow["nodes"]),
         })
-        return {"ok": True, "comfy_url": COMFY_SERVER + "/", "node_count": len(workflow["nodes"])}
+        return {
+            "ok": True,
+            "comfy_url": COMFY_SERVER + "/",
+            "workflow_kind": kind,
+            "workflow_name": workflow_path.name,
+            "node_count": len(workflow["nodes"]),
+        }
 
     def end_headers(self) -> None:
         self.send_header("Access-Control-Allow-Origin", "*")
@@ -266,16 +349,23 @@ class Handler(SimpleHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802
         if self.path.startswith("/api/tag-suggestions"):
             query = parse_qs(urlparse(self.path).query).get("q", [""])[0][:100]
+            csv_results = list(csv_tag_suggestions(query, 12))
             try:
                 with urlopen(
                     COMFY_SERVER + "/easyuse_anima/autocomplete?q=" + quote(query) + "&limit=12",
                     timeout=3.0,
                 ) as response:
                     payload = json.loads(response.read().decode("utf-8"))
-                self._send_json(200, {"ok": True, "suggestions": payload.get("results", payload.get("items", []))})
+                remote_results = payload.get("results", payload.get("items", []))
+                known = {item["tag"] for item in csv_results}
+                suggestions = csv_results + [
+                    item for item in remote_results
+                    if isinstance(item, dict) and item.get("tag") not in known
+                ]
+                self._send_json(200, {"ok": True, "suggestions": suggestions[:12], "source": "lakis_csv"})
             except Exception as error:
                 audit({"event": "external_ui_autocomplete_failed", "error": repr(error)})
-                self._send_json(200, {"ok": True, "suggestions": []})
+                self._send_json(200, {"ok": True, "suggestions": csv_results, "source": "lakis_csv"})
             return
         if self.path == "/api/workflow-config":
             self._send_json(200, workflow_configuration())
@@ -329,7 +419,8 @@ class Handler(SimpleHTTPRequestHandler):
             return
         if self.path == "/api/open-workflow":
             try:
-                self._send_json(200, self._prepare_lakis_workflow())
+                incoming = self._read_json()
+                self._send_json(200, self._prepare_lakis_workflow(str(incoming.get("kind") or "runtime")))
             except Exception as error:
                 audit({"event": "external_ui_workflow_open_failed", "error": repr(error)})
                 self._send_json(500, {"ok": False, "error": "LAKIS 워크플로를 준비하지 못했어요."})
@@ -377,7 +468,10 @@ class Handler(SimpleHTTPRequestHandler):
         if self.path == "/api/generation-state":
             try:
                 incoming = self._read_json()
-                saved = save_external_generation_state(incoming.get("model"), incoming.get("output"))
+                saved = save_external_generation_state(
+                    incoming.get("model"), incoming.get("output"),
+                    incoming.get("loras"), incoming.get("lora_enabled", True),
+                )
                 self._send_json(200, {"ok": True, **saved})
             except Exception as error:
                 audit({"event": "external_ui_generation_state_save_failed", "error": repr(error)})

@@ -1,6 +1,6 @@
 .lora-panel{display:flex;flex-direction:column;min-height:0}
 .lora-list{flex:1;min-height:0;overflow-y:auto;padding-right:2px;padding-bottom:8px}
-.lora-row{display:grid;grid-template-columns:20px minmax(0,1fr) 52px 28px;gap:6px;align-items:center;padding:7px;background:#0d1016;border:1px solid #252b36;border-radius:7px}
+.lora-row{display:grid;grid-template-columns:38px minmax(0,1fr) 52px 28px;gap:6px;align-items:center;padding:7px;background:#0d1016;border:1px solid #252b36;border-radius:7px}
 .lora-heading-actions{display:flex;align-items:center;gap:7px}
 .lora-heading-actions>span{color:#7e8797;font-size:9px}
 .lora-heading-actions .lora-switch{margin-right:3px}
@@ -13,5 +13,10 @@
 .lora-switch.on:after{left:13px;background:white}
 .lora-remove{width:20px;height:24px;padding:0;border:0;background:transparent;color:#687183;font-size:16px;line-height:20px;cursor:pointer}
 .lora-remove:hover{color:#ff718d}
+.lora-row-actions{display:flex;align-items:center;gap:2px;width:38px}
+.lora-order-controls{display:grid;grid-template-rows:1fr 1fr;width:14px;height:24px}
+.lora-order-button{width:14px;height:12px;padding:0;border:0;background:transparent;color:#778196;font-size:7px;line-height:12px;cursor:pointer}
+.lora-order-button:hover:not(:disabled){color:#a98cff}
+.lora-order-button:disabled{color:#343a47;cursor:default}
 .lora-list.all-disabled .lora-row{opacity:.48}
 .lora-list.all-disabled .lora-switch{pointer-events:none}

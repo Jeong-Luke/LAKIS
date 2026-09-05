@@ -40,7 +40,7 @@ internal sealed class UninstallForm : Form
 
         var logo = new PictureBox { Left=42, Top=42, Width=54, Height=54, SizeMode=PictureBoxSizeMode.Zoom, Image=Icon.ExtractAssociatedIcon(Application.ExecutablePath).ToBitmap() };
         var title = new Label { Left=112, Top=43, Width=280, Height=34, Text="L A K I S", Font=new Font("Segoe UI",20F,FontStyle.Bold), ForeColor=Color.FromArgb(225,229,255) };
-        var subtitle = new Label { Left=114, Top=78, Width=260, Height=25, Text="LAKIS Studio 삭제", Font=new Font("Segoe UI",11F,FontStyle.Bold), ForeColor=Color.FromArgb(171,178,203) };
+        var subtitle = new Label { Left=114, Top=78, Width=260, Height=25, Text="Studio", Font=new Font("Segoe UI",11F,FontStyle.Bold), ForeColor=Color.FromArgb(171,178,203) };
         var message = new Label { Left=43, Top=174, Width=315, Height=70, Text="LAKIS를 삭제하시겠습니까?\n생성 이미지를 보관하려면 먼저\nComfyUI\\output 폴더를 복사해 주세요.", ForeColor=Color.FromArgb(150,158,181), Font=new Font("Segoe UI",9F) };
         var cancel = new Button { Left=43, Top=306, Width=145, Height=38, Text="취소", DialogResult=DialogResult.Cancel };
         var remove = new Button { Left=201, Top=306, Width=157, Height=38, Text="삭제", DialogResult=DialogResult.Yes };
@@ -53,7 +53,7 @@ internal sealed class UninstallForm : Form
         var close = new Button { Left=712, Top=0, Width=48, Height=42, Text="\uE8BB", Font=new Font("Segoe MDL2 Assets",9F), ForeColor=Color.FromArgb(205,211,225), BackColor=Color.Transparent, FlatStyle=FlatStyle.Flat, TabStop=false, Cursor=Cursors.Hand, DialogResult=DialogResult.Cancel };
         close.FlatAppearance.BorderSize=0;
         close.FlatAppearance.MouseOverBackColor=Color.FromArgb(196,43,28);
-        string version="7.1.7";
+        string version="7.2.0";
         try { string path=Path.Combine(root,"VERSION"); if(File.Exists(path)) version=File.ReadAllText(path).Trim(); } catch { }
         var copyright = new Label { Left=43, Top=399, Width=335, Height=18, Text="ⓒ 2026. Luke_Jeong All rights reserved. · LAKIS v"+version, ForeColor=Color.FromArgb(104,112,137), Font=new Font("Segoe UI",8F) };
 

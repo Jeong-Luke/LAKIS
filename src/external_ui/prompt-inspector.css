@@ -1,0 +1,107 @@
+.preview-prompt-button {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  z-index: 8;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(151, 161, 190, .34);
+  border-radius: 10px;
+  background: rgba(10, 13, 21, .82);
+  color: #eef0f7;
+  font-family: "Segoe MDL2 Assets", sans-serif;
+  font-size: 16px;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  transition: border-color .15s ease, background .15s ease, color .15s ease;
+}
+
+.preview-prompt-button:hover,
+.preview-prompt-button:focus-visible {
+  border-color: #8b6cff;
+  background: rgba(54, 42, 92, .94);
+  color: #fff;
+  outline: none;
+}
+
+.preview-prompt-button[hidden],
+.prompt-inspector[hidden] {
+  display: none;
+}
+
+.prompt-inspector {
+  position: fixed;
+  inset: 0;
+  z-index: 11000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(5, 7, 13, .76);
+  backdrop-filter: blur(6px);
+}
+
+.prompt-inspector-card {
+  width: min(720px, calc(100vw - 48px));
+  max-height: min(760px, calc(100vh - 48px));
+  overflow: auto;
+  padding: 20px;
+  border: 1px solid #30374a;
+  border-radius: 18px;
+  background: #141823;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, .52);
+}
+
+.prompt-inspector-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.prompt-inspector-header h2 {
+  margin: 0 0 5px;
+  color: #9a77ff;
+  font-size: 20px;
+}
+
+.prompt-inspector-header p {
+  margin: 0;
+  color: #8f98ad;
+  font-size: 13px;
+}
+
+#promptInspectorClose {
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 9px;
+  background: #1b202d;
+  color: #c9cfdd;
+  font-size: 22px;
+  cursor: pointer;
+}
+
+.prompt-inspector-field {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+  color: #d9ddea;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.prompt-inspector-field textarea {
+  width: 100%;
+  min-height: 180px;
+  resize: vertical;
+  box-sizing: border-box;
+  padding: 14px;
+  border: 1px solid #30374a;
+  border-radius: 12px;
+  background: #0d111a;
+  color: #e7eaf2;
+  font: 13px/1.65 "Consolas", "Malgun Gothic", monospace;
+}

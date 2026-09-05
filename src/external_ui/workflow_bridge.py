@@ -15,6 +15,7 @@ import json
 import math
 import os
 from pathlib import Path
+import re
 import struct
 import threading
 import time
@@ -56,8 +57,108 @@ PROMPT_STATE_KEYS = {
     "negative_quality", "negative_artist", "negative_fixed",
 }
 MODEL_STATE_KEYS = {"checkpoint", "vae", "clip", "sampler", "scheduler", "steps", "cfg"}
-OUTPUT_STATE_KEYS = {"width", "height", "seed", "seed_mode"}
+OUTPUT_STATE_KEYS = {"width", "height", "seed", "seed_mode", "aspect_locked"}
 DEFAULT_CHECKPOINT = "anima_baseV10.safetensors"
+
+ADVANCED_NODE_GROUPS = {
+    "model": ("890:1365", "890:159", "890:164", "890:905"),
+    "lora": ("1925",),
+    "composition": ("2135",),
+    "i2i": ("1744", "1736:1737", "1634:1760"),
+    "prompt": ("2133",),
+    "generation": (
+        "2138", "2139", "2140",
+        "1530:2051", "1530:1824", "1530:1827", "1530:1832", "1530:1835", "1530:1834", "1530:2060", "1530:1826",
+        "1836:2076", "1836:2067", "1836:2077", "1836:2074", "1836:2078", "1836:2079", "1836:2080", "1836:2069",
+        "1541:1535", "1541:1534", "1541:1533", "1541:1532", "1541:1536", "1541:1540", "1541:1542", "1541:1837", "1541:1838", "1541:1538",
+    ),
+}
+
+ADVANCED_NODE_TITLES = {
+    "2138": "얼굴 디테일러 스위치", "2139": "눈 디테일러 스위치", "2140": "USDU 스위치",
+    "1530:2051": "얼굴 감지 대상", "1530:1824": "얼굴 SAM3 감지", "1530:1827": "얼굴 마스크→SEGS",
+    "1530:1832": "얼굴 DCW 스위치", "1530:1835": "얼굴 DCW", "1530:1834": "얼굴 Spectrum",
+    "1530:2060": "얼굴 정렬 Hook", "1530:1826": "얼굴 디테일러",
+    "1836:2076": "눈 감지 대상", "1836:2067": "눈 SAM3 감지", "1836:2077": "눈 마스크→SEGS",
+    "1836:2074": "눈 DCW 스위치", "1836:2078": "눈 DCW", "1836:2079": "눈 Spectrum",
+    "1836:2080": "눈 정렬 Hook", "1836:2069": "눈 디테일러",
+    "1541:1535": "USDU 배율", "1541:1534": "USDU 타일 분할", "1541:1533": "USDU 가로 타일 계산",
+    "1541:1532": "USDU 세로 타일 계산", "1541:1536": "USDU 업스케일 모델", "1541:1540": "USDU DCW",
+    "1541:1542": "USDU DCW 스위치", "1541:1837": "USDU Spectrum", "1541:1838": "USDU 스텝",
+    "1541:1538": "Ultimate SD Upscale",
+}
+
+
+def _is_node_link(value: Any) -> bool:
+    return isinstance(value, list) and len(value) == 2 and isinstance(value[0], (str, int)) and isinstance(value[1], int)
+
+
+def advanced_node_configuration(template: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Return editable primitive/JSON inputs for the five LAKIS control groups."""
+    graph = template or json.loads(TEMPLATE.read_text(encoding="utf-8"))
+    groups: dict[str, list[dict[str, Any]]] = {}
+    for group, node_ids in ADVANCED_NODE_GROUPS.items():
+        nodes: list[dict[str, Any]] = []
+        for node_id in node_ids:
+            node = graph.get(node_id)
+            if not isinstance(node, dict):
+                continue
+            fields = []
+            for name, value in node.get("inputs", {}).items():
+                if _is_node_link(value):
+                    continue
+                numeric_string = isinstance(value, str) and re.fullmatch(r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)", value.strip()) is not None
+                field_type = "json" if isinstance(value, (dict, list)) else (
+                    "boolean" if isinstance(value, bool) else
+                    "number" if isinstance(value, (int, float)) or numeric_string else
+                    "json" if isinstance(value, str) and value[:1] in "[{" else "text"
+                )
+                fields.append({
+                    "name": name, "type": field_type, "value": value,
+                    "encoded_json": field_type == "json" and isinstance(value, str),
+                    "encoded_number": numeric_string,
+                })
+            nodes.append({
+                "id": node_id,
+                "title": ADVANCED_NODE_TITLES.get(node_id, str(node.get("_meta", {}).get("title") or node.get("class_type") or node_id)),
+                "class_type": str(node.get("class_type") or ""),
+                "fields": fields,
+            })
+        groups[group] = nodes
+    return groups
+
+
+def _apply_advanced_node_overrides(prompt: dict[str, Any], requested: Any) -> None:
+    if requested in (None, {}):
+        return
+    if not isinstance(requested, dict):
+        raise ValueError("advanced node settings must be an object")
+    allowed = {node_id for node_ids in ADVANCED_NODE_GROUPS.values() for node_id in node_ids}
+    for node_id, fields in requested.items():
+        if node_id not in allowed or node_id not in prompt or not isinstance(fields, dict):
+            continue
+        inputs = prompt[node_id].get("inputs", {})
+        for name, value in fields.items():
+            if name not in inputs or _is_node_link(inputs[name]):
+                continue
+            original = inputs[name]
+            if isinstance(original, bool):
+                if not isinstance(value, bool):
+                    raise ValueError(f"{node_id}.{name} must be true or false")
+            elif isinstance(original, (int, float)) and not isinstance(original, bool):
+                if not isinstance(value, (int, float)) or not math.isfinite(float(value)):
+                    raise ValueError(f"{node_id}.{name} must be a finite number")
+                value = int(value) if isinstance(original, int) else float(value)
+            elif isinstance(original, str) and re.fullmatch(r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)", original.strip()):
+                if not isinstance(value, (int, float)) or not math.isfinite(float(value)):
+                    raise ValueError(f"{node_id}.{name} must be a finite number")
+                value = str(value)
+            elif isinstance(original, (dict, list)):
+                if not isinstance(value, type(original)):
+                    raise ValueError(f"{node_id}.{name} has an invalid JSON type")
+            elif not isinstance(value, str):
+                raise ValueError(f"{node_id}.{name} must be text")
+            inputs[name] = value
 FIRST_RUN_PROMPT = {
     "general": (
         "natsume iroha, iroha (swimsuit) (blue archive), 1girl, solo, halo, long dark red hair, blue eyes, "
@@ -136,20 +237,36 @@ def load_external_generation_state() -> dict[str, Any]:
     }
 
 
-def save_external_generation_state(model: Any, output: Any) -> dict[str, Any]:
+def save_external_generation_state(
+    model: Any, output: Any, loras: Any = None, lora_enabled: Any = True
+) -> dict[str, Any]:
     if not isinstance(model, dict) or not isinstance(output, dict):
         raise ValueError("model and output state must be objects")
     clean_model = {key: model[key] for key in MODEL_STATE_KEYS if key in model}
     clean_output = {key: output[key] for key in OUTPUT_STATE_KEYS if key in output}
+    if not isinstance(loras, list):
+        loras = []
+    if len(loras) > 64:
+        raise ValueError("At most 64 LoRAs may be saved")
+    clean_loras = []
+    for item in loras:
+        if not isinstance(item, dict):
+            continue
+        clean_loras.append({
+            "name": str(item.get("name", ""))[:1000],
+            "enabled": bool(item.get("enabled", False)),
+            "strength": max(-20.0, min(20.0, float(item.get("strength", 1.0)))),
+        })
     payload = _load_external_ui_payload()
     payload.update({
         "version": 2,
         "model": clean_model,
         "output": clean_output,
+        "lora": {"current": clean_loras, "enabled": bool(lora_enabled)},
         "updated_at": time.time(),
     })
     _write_external_ui_payload(payload)
-    return {"model": clean_model, "output": clean_output}
+    return {"model": clean_model, "output": clean_output, "lora": payload["lora"]}
 
 
 def _model_files(folder: str) -> list[str]:
@@ -201,6 +318,7 @@ def workflow_configuration() -> dict[str, Any]:
         },
         "lora": _saved_lora_configuration(),
         "prompt": prompt_defaults,
+        "advanced_nodes": advanced_node_configuration(template),
         "generation_state": {
             "model": {
                 "sampler": str(saved_model.get("sampler", "euler_ancestral")),
@@ -213,6 +331,7 @@ def workflow_configuration() -> dict[str, Any]:
                 "height": int(saved_output.get("height", 1024)),
                 "seed": int(saved_output.get("seed", 579441119814924)),
                 "seed_mode": str(saved_output.get("seed_mode", "random")),
+                "aspect_locked": bool(saved_output.get("aspect_locked", False)),
             },
         },
     }
@@ -226,6 +345,7 @@ def _saved_lora_configuration() -> dict[str, Any]:
     available = _model_files("loras")
     available_by_key = {name.replace("/", "\\").casefold(): name for name in available}
     configured: list[dict[str, Any]] = []
+    saved_lora = _load_external_ui_payload().get("lora", {})
     try:
         profiles = json.loads(widgets[5]) if len(widgets) > 5 else {}
         profile = profiles.get(str(profile_index), {}) if isinstance(profiles, dict) else {}
@@ -248,12 +368,24 @@ def _saved_lora_configuration() -> dict[str, Any]:
             })
     except (TypeError, ValueError, json.JSONDecodeError):
         configured = []
+    if isinstance(saved_lora, dict) and isinstance(saved_lora.get("current"), list):
+        configured = []
+        for row in saved_lora["current"]:
+            if not isinstance(row, dict):
+                continue
+            raw_name = str(row.get("name") or "").replace("/", "\\")
+            installed_name = available_by_key.get(raw_name.casefold()) if raw_name else ""
+            configured.append({
+                "name": installed_name or "",
+                "enabled": bool(row.get("enabled", False)) and bool(installed_name),
+                "strength": max(-20.0, min(20.0, float(row.get("strength", 1)))),
+            })
     return {
         # Restore the selected workflow profile, but only for LoRAs that are
         # actually installed. A clean first launch therefore remains empty.
         "current": configured,
         "options": available,
-        "enabled": True,
+        "enabled": bool(saved_lora.get("enabled", True)) if isinstance(saved_lora, dict) else True,
         "profile_index": profile_index,
         "node_class": preset.get("type"),
     }
@@ -454,8 +586,12 @@ def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dic
     seed = int(output.get("seed", 0))
     if not 0 <= seed <= COMFYUI_SEED_MAX:
         raise ValueError(f"Seed must be between 0 and {COMFYUI_SEED_MAX}")
-    width = max(256, min(4096, int(output.get("width", 1024))))
-    height = max(256, min(4096, int(output.get("height", 1536))))
+    # VAE encoding and the Anima/Spectrum latent path must agree on exact
+    # latent cells. Spectrum requires even latent dimensions, so output pixels
+    # must be multiples of 16. A width such as 728 yields 91 latent cells and
+    # is padded to 92 in one path, causing a 91-vs-92 KSampler mismatch.
+    width = round(max(256, min(4096, int(output.get("width", 1024)))) / 16) * 16
+    height = round(max(256, min(4096, int(output.get("height", 1536)))) / 16) * 16
     prompt["890:1864"]["inputs"]["seed"] = seed
     i2i_enabled = bool(i2i.get("enabled", False))
     i2i_denoise = max(0.0, min(1.0, float(i2i.get("denoise", 0.5))))
@@ -465,6 +601,22 @@ def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dic
         if not image_name.startswith("LAKIS_i2i_input.") or image_path.parent != (COMFY_ROOT / "input").resolve() or not image_path.is_file():
             raise ValueError("i2i 입력 이미지를 다시 선택해 주세요.")
         prompt["1744"]["inputs"]["image"] = image_name
+        # ImageScaleToTotalPixels preserves the source aspect ratio and can
+        # produce latent dimensions that differ by one cell from Anima's
+        # resolution conditioning. That mismatch fails inside KSampler (for
+        # example 107 vs 108). Resize/crop the i2i source to the exact selected
+        # output canvas before VAE encoding so both tensor contracts agree.
+        prompt["1736:1741"] = {
+            "inputs": {
+                "image": ["1744", 0],
+                "upscale_method": "lanczos",
+                "width": width,
+                "height": height,
+                "crop": "center",
+            },
+            "class_type": "ImageScale",
+            "_meta": {"title": "i2i 입력을 출력 해상도에 맞춤"},
+        }
     prompt["1736:1737"]["inputs"]["value"] = i2i_enabled
     prompt["1634:1760"]["inputs"]["value"] = i2i_denoise
     checkpoint = str(model.get("checkpoint", prompt["890:1365"]["inputs"]["model_name"]))
@@ -489,6 +641,17 @@ def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dic
         "sampler_name": str(model.get("sampler", sampler_config["sampler_name"])),
         "scheduler": str(model.get("scheduler", sampler_config["scheduler"])),
     })
+    # The v6.1 reference workflow uses a calmer native-model i2i pass
+    # (20 steps, CFG 8, Euler/Simple).  It preserves source structure better
+    # than the normal T2I sampler defaults without increasing total work.
+    if i2i_enabled:
+        sampler_config.update({
+            "steps_total": 20,
+            "refiner_step": min(12, int(sampler_config.get("refiner_step", 12))),
+            "cfg": 8.0,
+            "sampler_name": "euler",
+            "scheduler": "simple",
+        })
     # Apply the requested dimensions to every resolution-producing node, not
     # just the node id used by one exported workflow revision. Runtime graph
     # updates can replace or duplicate those ids; leaving even one latent
@@ -546,19 +709,46 @@ def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dic
     # Validated S7 Turbo HighRez is shared by FAST and DETAIL.  The user-facing
     # mode controls only Face/Eye/USDU, not the lighting engine or sampler base.
     turbo_id = "lakis_external_turbo_highrez"
-    prompt[turbo_id] = {
-        "class_type": "LoraLoaderModelOnly",
-        "inputs": {"model": ["1633:1619", 0],
-                   "lora_name": "anima-turbo-lora-v0.2.safetensors",
-                   "strength_model": 1.0},
-        "_meta": {"title": "LAKIS External UI - Turbo HighRez"},
-    }
+    if not i2i_enabled:
+        prompt[turbo_id] = {
+            "class_type": "LoraLoaderModelOnly",
+            "inputs": {"model": ["1633:1619", 0],
+                       "lora_name": "anima-turbo-lora-v0.2.safetensors",
+                       "strength_model": 1.0},
+            "_meta": {"title": "LAKIS External UI - Turbo HighRez"},
+        }
+    # v6.1 runs a 20-step native HighRez pass.  LAKIS keeps its 1.25x,
+    # bicubic, multiple-of-32, max-2560 scaling contract, but uses a shorter
+    # 12/16-step native pass: materially more reconstruction than the former
+    # 5/6-step Turbo path at roughly the same total sampling budget.
+    highrez_steps = (16 if detail else 12) if i2i_enabled else 3
+    highrez_cfg = (6.0 if detail else 5.0) if i2i_enabled else 1.0
+    highrez_sampler = "euler" if i2i_enabled else "gradient_estimation"
+    highrez_denoise = (0.31 if detail else 0.28) if i2i_enabled else 0.2
+    highrez_model = ["1633:1619", 0] if i2i_enabled else [turbo_id, 0]
     prompt["1633:1612"]["inputs"].update({
-        "model": [turbo_id, 0], "steps": 3, "cfg": 1.0,
-        "sampler_name": "gradient_estimation", "scheduler": "simple", "denoise": 0.2,
+        "model": highrez_model, "steps": highrez_steps, "cfg": highrez_cfg,
+        "sampler_name": highrez_sampler, "scheduler": "simple", "denoise": highrez_denoise,
     })
 
+    # Advanced-panel values intentionally run after the friendly controls so
+    # an explicit node-level edit is the final authority for this generation.
+    _apply_advanced_node_overrides(prompt, application_state.get("node_overrides"))
+
     prompt = _final_only(prompt)
+    # i2i and t2i must share the exact same positive/negative conditioning
+    # chain. Guard this contract before queueing so a workflow edit can never
+    # silently produce an image while ignoring either prompt branch.
+    prompt_contract = {
+        "positive_text": prompt.get("890:903", {}).get("inputs", {}).get("text") == ["890:2012", 0],
+        "negative_text": prompt.get("890:904", {}).get("inputs", {}).get("text") == ["890:2013", 0],
+        "initial_positive": prompt.get("1634:1622", {}).get("inputs", {}).get("positive") == ["1634:1624", 4],
+        "initial_negative": prompt.get("1634:1622", {}).get("inputs", {}).get("negative") == ["1634:1624", 5],
+        "highrez_positive": prompt.get("1633:1612", {}).get("inputs", {}).get("positive") == ["1633:1618", 4],
+        "highrez_negative": prompt.get("1633:1612", {}).get("inputs", {}).get("negative") == ["1633:1618", 5],
+    }
+    if not all(prompt_contract.values()):
+        raise RuntimeError(f"Prompt conditioning contract is disconnected: {prompt_contract}")
     light_nodes = {"2158", "2142", "2148", "2143", "2151", "2150"}
     assertions = {
         "final_only": FINAL_NODE in prompt,
@@ -575,6 +765,11 @@ def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dic
         "resolution": f"{width}x{height}",
         "i2i_enabled": i2i_enabled,
         "i2i_denoise": i2i_denoise,
+        "highrez_steps": highrez_steps,
+        "highrez_cfg": highrez_cfg,
+        "highrez_sampler": highrez_sampler,
+        "highrez_denoise": highrez_denoise,
+        "prompt_contract": prompt_contract,
         "resolution_nodes": resolution_nodes,
         "latent_nodes": latent_nodes,
         **lora_assertions,
@@ -582,7 +777,9 @@ def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dic
     ignored_assertions = {"detail_enabled", "node_count", "lora_count", "enabled_lora_count",
                           "loras_globally_enabled", "lora_profile_index", "composition_enabled",
                           "camera_prompt", "resolution", "resolution_nodes", "latent_nodes",
-                          "i2i_enabled", "i2i_denoise"}
+                          "i2i_enabled", "i2i_denoise", "highrez_steps", "highrez_cfg",
+                          "highrez_sampler", "highrez_denoise"}
+    ignored_assertions.add("prompt_contract")
     if not all(value for key, value in assertions.items() if key not in ignored_assertions):
         raise RuntimeError(f"External UI prompt preflight failed: {assertions}")
     return prompt, assertions
@@ -617,6 +814,8 @@ class GenerationState:
     error_code: str | None = None
     error_detail: str | None = None
     mode: str | None = None
+    i2i_enabled: bool = False
+    prompt_used: dict[str, Any] = field(default_factory=dict)
     seed: int | None = None
     started_at: float | None = None
     finished_at: float | None = None
@@ -672,6 +871,8 @@ class WorkflowBridge:
         if not STOP_FILE.is_file():
             raise RuntimeError("STOP_AUTOMATION safety lock is missing")
         prompt, preflight = build_prompt(application_state)
+        prompt_used = deepcopy(application_state.get("prompt", {}))
+        prompt_used["composition"] = str(preflight.get("camera_prompt") or "")
         self._clear_preview()
         token = {"request_id": uuid.uuid4().hex, "created_at": time.time(), "source": "external_ui_click"}
         with ALLOW_FILE.open("x", encoding="utf-8") as stream:
@@ -680,6 +881,8 @@ class WorkflowBridge:
                            preview_frames=0, preview_mime=None,
                            output_url=None, error=None, error_code=None, error_detail=None,
                            mode=application_state["generation"]["mode"],
+                           i2i_enabled=bool(application_state.get("i2i", {}).get("enabled", False)),
+                           prompt_used=prompt_used,
                            seed=int(application_state["output"]["seed"]),
                            started_at=time.time(), finished_at=None, cancel_requested=False,
                            prompt_requests=0)

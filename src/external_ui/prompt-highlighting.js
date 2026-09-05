@@ -14,7 +14,7 @@ const COMMON_TAGS = [
 ].map(([tag, ko]) => ({ tag, ko, category: "common" }));
 
 const SECTION_STYLES = {
-  quality: ["#facc15", "rgba(202,138,4,.18)"],
+  quality: ["#fb7a2a", "rgba(234,88,12,.20)"],
   safety: ["#38bdf8", "rgba(2,132,199,.18)"],
   year: ["#2dd4bf", "rgba(13,148,136,.18)"],
   count: ["#60a5fa", "rgba(37,99,235,.18)"],
@@ -111,6 +111,10 @@ function install(textarea) {
   suggestions.className = "prompt-autocomplete";
   suggestions.hidden = true;
   host.append(suggestions);
+  const resizeHandle = document.createElement("div");
+  resizeHandle.className = "prompt-resize-handle";
+  resizeHandle.setAttribute("aria-hidden", "true");
+  host.append(resizeHandle);
 
   let sequence = 0;
   let timer = 0;
@@ -166,6 +170,45 @@ function install(textarea) {
     return { start, end, query: textarea.value.slice(start, end).trim().replace(/_/g, " ").toLowerCase() };
   };
   const closeSuggestions = () => { suggestions.hidden = true; suggestions.replaceChildren(); currentRange = null; };
+  const caretPosition = () => {
+    const style = getComputedStyle(textarea);
+    const mirror = document.createElement("div");
+    mirror.style.position = "fixed";
+    mirror.style.left = "-10000px";
+    mirror.style.top = "0";
+    mirror.style.visibility = "hidden";
+    mirror.style.whiteSpace = "pre-wrap";
+    mirror.style.overflowWrap = "break-word";
+    mirror.style.boxSizing = style.boxSizing;
+    mirror.style.width = `${textarea.clientWidth}px`;
+    for (const property of [
+      "fontFamily", "fontSize", "fontStyle", "fontWeight", "letterSpacing", "lineHeight",
+      "paddingTop", "paddingRight", "paddingBottom", "paddingLeft", "textAlign", "tabSize",
+      "borderTopWidth", "borderRightWidth", "borderBottomWidth", "borderLeftWidth"
+    ]) mirror.style[property] = style[property];
+    mirror.textContent = textarea.value.slice(0, textarea.selectionStart ?? textarea.value.length);
+    const marker = document.createElement("span");
+    marker.textContent = textarea.value.slice(textarea.selectionStart ?? textarea.value.length, (textarea.selectionStart ?? textarea.value.length) + 1) || "\u200b";
+    mirror.append(marker);
+    document.body.append(mirror);
+    const position = {
+      x: marker.offsetLeft - textarea.scrollLeft,
+      y: marker.offsetTop - textarea.scrollTop,
+      lineHeight: Number.parseFloat(style.lineHeight) || Number.parseFloat(style.fontSize) * 1.35,
+    };
+    mirror.remove();
+    return position;
+  };
+  const positionSuggestions = () => {
+    const caret = caretPosition();
+    const popupWidth = Math.min(270, Math.max(160, textarea.clientWidth - 14));
+    const rightSide = caret.x + 10;
+    const left = rightSide + popupWidth <= textarea.clientWidth - 7
+      ? rightSide
+      : Math.max(7, caret.x - popupWidth - 8);
+    suggestions.style.left = `${left}px`;
+    suggestions.style.top = `${Math.max(7, caret.y + caret.lineHeight + 4)}px`;
+  };
   const chooseSuggestion = item => {
     if (!currentRange) return;
     const before = textarea.value.slice(0, currentRange.start);
@@ -186,6 +229,7 @@ function install(textarea) {
       return button;
     }));
     suggestions.hidden = items.length === 0;
+    if (items.length) positionSuggestions();
   };
   const scheduleSuggestions = () => {
     clearTimeout(suggestionTimer);
@@ -202,7 +246,7 @@ function install(textarea) {
         remote = Array.isArray(result.suggestions) ? result.suggestions : [];
       } catch {}
       if (requestSequence !== suggestionSequence || currentFragment().query !== fragment.query) return;
-      const merged = [...local, ...remote].filter((item, index, all) => item?.tag && all.findIndex(other => other?.tag === item.tag) === index).slice(0, 8);
+      const merged = [...local, ...remote].filter((item, index, all) => item?.tag && all.findIndex(other => other?.tag === item.tag) === index).slice(0, 3);
       activeSuggestion = 0; renderSuggestions(merged);
     }, 120);
   };
@@ -220,6 +264,46 @@ function install(textarea) {
   textarea.addEventListener("input", schedule);
   textarea.addEventListener("change", schedule);
   textarea.addEventListener("scroll", syncScroll, { passive: true });
+  let resizeStartY = 0;
+  let resizeStartHeight = 0;
+  let resizeMaxHeight = 0;
+  let resizePanel = null;
+  let resizePanelChrome = 0;
+  resizeHandle.addEventListener("pointerdown", event => {
+    event.preventDefault();
+    const categoryPanel = host.closest(".fixed-prompt-panel");
+    const promptField = host.closest(".prompt-field-title");
+    const hostRect = host.getBoundingClientRect();
+    const categoryRect = categoryPanel?.getBoundingClientRect();
+    const fieldRect = promptField?.getBoundingClientRect();
+    const bottomPadding = Number.parseFloat(getComputedStyle(categoryPanel).paddingBottom) || 12;
+    resizeStartY = event.clientY;
+    resizeStartHeight = hostRect.height;
+    resizePanel = categoryPanel;
+    resizePanelChrome = Math.max(0, (hostRect.top - (categoryRect?.top ?? hostRect.top)) + bottomPadding);
+    resizeMaxHeight = Math.max(80, Math.floor((fieldRect?.bottom ?? hostRect.bottom) - hostRect.top - bottomPadding));
+    resizeHandle.setPointerCapture?.(event.pointerId);
+    document.body.classList.add("prompt-resizing");
+  });
+  resizeHandle.addEventListener("pointermove", event => {
+    if (!resizeHandle.hasPointerCapture?.(event.pointerId)) return;
+    const height = Math.max(80, Math.min(resizeMaxHeight, Math.round(resizeStartHeight + event.clientY - resizeStartY)));
+    host.style.flex = "0 0 auto";
+    host.style.height = `${height}px`;
+    if (resizePanel) {
+      resizePanel.style.flex = "0 0 auto";
+      resizePanel.style.height = `${Math.round(height + resizePanelChrome)}px`;
+    }
+    paint();
+  });
+  const finishResize = event => {
+    if (resizeHandle.hasPointerCapture?.(event.pointerId)) resizeHandle.releasePointerCapture(event.pointerId);
+    document.body.classList.remove("prompt-resizing");
+    resizePanel = null;
+    paint();
+  };
+  resizeHandle.addEventListener("pointerup", finishResize);
+  resizeHandle.addEventListener("pointercancel", finishResize);
   new ResizeObserver(paint).observe(textarea);
   paint();
   classify();
@@ -237,4 +321,17 @@ if (document.readyState === "loading") {
 
 window.addEventListener("lakis-prompt-state-loaded", () => {
   for (const id of TARGET_IDS) document.getElementById(id)?.dispatchEvent(new Event("change"));
+});
+
+document.addEventListener("keydown", event => {
+  if (event.key !== "PageUp" && event.key !== "PageDown") return;
+  requestAnimationFrame(() => {
+    window.scrollTo(0, window.scrollY);
+    document.documentElement.scrollLeft = 0;
+    document.body.scrollLeft = 0;
+    for (const element of document.querySelectorAll(".workspace, .model-column, .control-column, .prompt-column, .prompt-panel")) {
+      element.scrollLeft = 0;
+    }
+    if (event.target instanceof HTMLTextAreaElement) event.target.scrollLeft = 0;
+  });
 });

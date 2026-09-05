@@ -20,15 +20,19 @@
 
 .prompt-panel {
   display: flex;
+  flex: 1 1 0 !important;
   flex-direction: column;
   min-height: 0;
+  height: 0;
+  overflow: hidden;
 }
 
 .prompt-panel > .prompt-field-title {
   display: flex;
-  flex: 1 1 0;
+  flex: 1 1 auto;
   flex-direction: column;
-  min-height: 110px;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .prompt-panel > .prompt-field-title > textarea,
@@ -47,7 +51,19 @@
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
-  min-height: 90px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.prompt-panel .prompt-highlight-host {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
+}
+
+.prompt-panel .prompt-highlight-host > textarea {
+  height: 100%;
+  overflow-y: auto;
 }
 
 .prompt-panel > .prompt-field-title > .default-general-panel[hidden] {
