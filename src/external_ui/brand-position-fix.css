@@ -1,0 +1,19 @@
+@media (min-width:1181px){
+  .brand{
+    position:fixed;
+    top:17px;
+    left:20px;
+    width:auto;
+    padding:0;
+    z-index:5;
+    pointer-events:none;
+  }
+  .brand strong{
+    display:block;
+    color:#c8ccd7;
+    font-size:20px;
+    font-weight:720;
+    letter-spacing:10px;
+    line-height:1;
+  }
+}

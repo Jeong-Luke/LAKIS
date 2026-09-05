@@ -1,0 +1,20 @@
+@media (min-width:1181px){
+  .sidebar .nav-item{text-decoration:none;transition:background-color .16s ease,transform .16s ease}
+  .sidebar .nav-item:hover{background:#171b25;transform:translateY(-1px)}
+  .sidebar .nav-item:focus-visible{outline:1px solid var(--violet);outline-offset:2px}
+  .sidebar .nav-item[title="LoRA Manager"]{order:1}
+  .sidebar .nav-item[title="ComfyUI Workflow"]{order:2}
+  .sidebar .sidebar-output-link{order:3}
+  .sidebar .sidebar-danbooru-link{order:4}
+  .sidebar .sidebar-civitai-link{order:5}
+  .sidebar .nav-item[title="ComfyUI Workflow"] svg{stroke:#69cfff}
+}
+
+.sidebar {
+  border-right: 0;
+}
+.lora-manager-icon{display:block;width:20px;height:20px;object-fit:contain;image-rendering:auto}
+.workflow-brand-icon{display:block;width:22px;height:22px;border-radius:3px}
+.danbooru-icon{width:21px!important;height:21px!important;fill:#f4b957!important;stroke:#fff0c8!important;stroke-width:1.35!important;stroke-linecap:round}
+.civitai-icon{width:22px!important;height:22px!important;fill:#1756d6!important;stroke:#72b9ff!important;stroke-width:1.75!important;stroke-linecap:round;stroke-linejoin:round}
+.sidebar-output-link svg{fill:#75829a!important;stroke:#aeb9cb!important}

@@ -1,0 +1,12 @@
+.composition-panel{min-height:560px}
+.composition-body{display:block}
+.camera-canvas-wrap{position:relative;width:100%;aspect-ratio:16/10;border:1px solid #303746;border-radius:12px;overflow:hidden;background:#151a20;box-shadow:inset 0 0 30px #0008;user-select:none}
+.camera-canvas-wrap canvas{display:block;width:100%;height:100%;outline:none;cursor:crosshair;touch-action:none}
+.camera-canvas-wrap canvas:focus{box-shadow:inset 0 0 0 1px var(--violet)}
+.camera-overlay{position:absolute;left:8px;right:8px;bottom:7px;display:flex;justify-content:space-between;align-items:flex-end;pointer-events:none;color:#929aaa;font-size:7px;text-shadow:0 1px 3px #000}
+.camera-overlay strong{white-space:pre-line;text-align:right;color:#ffd267;font:700 8px Consolas,monospace}
+.composition-sliders{gap:7px}
+.composition-sliders .axis-row{display:grid;grid-template-columns:62px minmax(0,1fr) 58px;gap:8px;align-items:center;margin:0}
+.composition-sliders .axis-row>span{font-size:8px;color:#9ba3b3;white-space:nowrap}
+.composition-sliders .axis-row>input[type="range"]{grid-column:auto;width:100%;min-width:0;padding:0;accent-color:var(--violet)}
+.composition-sliders .axis-row>input[type="number"]{grid-column:auto;padding:6px 5px;text-align:right;font:10px Consolas,monospace}

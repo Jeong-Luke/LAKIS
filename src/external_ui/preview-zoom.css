@@ -1,0 +1,43 @@
+.preview-zoom-controls {
+  align-items: center;
+  gap: 7px !important;
+  font-variant-numeric: tabular-nums;
+}
+
+.preview-zoom-controls button {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 15px;
+}
+
+.preview-zoom-controls button:hover:not(:disabled) {
+  color: #fff;
+  background: #242936;
+}
+
+.preview-zoom-controls button:disabled {
+  opacity: .35;
+  cursor: default;
+}
+
+#previewZoomValue {
+  min-width: 40px;
+  text-align: center;
+}
+
+.preview-stage {
+  overscroll-behavior: contain;
+}
+
+.preview-stage img {
+  --preview-zoom: 1;
+  --preview-pan-x: 0px;
+  --preview-pan-y: 0px;
+  transform: translate(var(--preview-pan-x), var(--preview-pan-y)) scale(var(--preview-zoom));
+  transform-origin: center center;
+  transition: transform 100ms ease-out;
+  will-change: transform;
+}

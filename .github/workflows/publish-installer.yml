@@ -1,0 +1,29 @@
+name: Publish installer
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to update
+        required: true
+        default: v7.1.2
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-publish:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build verified installer
+        shell: powershell
+        run: |
+          $env:LAKIS_INSTALLER_OUTPUT = Join-Path $env:GITHUB_WORKSPACE "dist\LAKIS_Setup.exe"
+          .\installer\build_safe_installer.ps1
+      - name: Upload installer to release
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: gh release upload $env:RELEASE_TAG ".\dist\LAKIS_Setup.exe#LAKIS_Setup.exe" ".\dist\LAKIS.exe#LAKIS.exe" ".\dist\LAKIS_Patcher.exe#LAKIS_Patcher.exe" ".\dist\LAKIS_Desktop.exe#LAKIS_Desktop.exe" ".\dist\Microsoft.Web.WebView2.Core.dll#Microsoft.Web.WebView2.Core.dll" ".\dist\Microsoft.Web.WebView2.WinForms.dll#Microsoft.Web.WebView2.WinForms.dll" ".\dist\WebView2Loader.dll#WebView2Loader.dll" --clobber

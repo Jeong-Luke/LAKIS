@@ -1,0 +1,7 @@
+.error-dialog{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;padding:24px;background:rgba(3,5,10,.72);backdrop-filter:blur(7px)}
+.error-dialog[hidden]{display:none}
+.error-dialog-card{width:min(430px,calc(100vw - 48px));padding:28px 30px 24px;border:1px solid rgba(255,95,126,.55);border-radius:18px;background:#171b27;box-shadow:0 24px 80px #000b;text-align:center}
+.error-dialog-icon{display:grid;place-items:center;width:42px;height:42px;margin:0 auto 14px;border-radius:50%;background:rgba(255,83,117,.14);border:1px solid rgba(255,101,132,.65);color:#ff7892;font-size:23px;font-weight:800}
+.error-dialog-card h2{margin:0;color:#f7f8fb;font-size:21px;letter-spacing:-.02em}
+.error-dialog-card p{margin:13px 0 22px;color:#aeb6c7;font-size:13px;line-height:1.65;white-space:pre-line;overflow-wrap:anywhere}
+.error-dialog-card button{min-width:112px;padding:10px 22px;border:0;border-radius:9px;background:linear-gradient(135deg,#6b4ee7,#4d8ef7);color:white;font-weight:800;cursor:pointer}

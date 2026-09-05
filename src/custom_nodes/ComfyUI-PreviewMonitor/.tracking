@@ -1,0 +1,8 @@
+.github/workflows/publish.yml
+.gitignore
+LICENSE
+README.md
+__init__.py
+assets/logo.png
+pyproject.toml
+web/js/preview_monitor.js

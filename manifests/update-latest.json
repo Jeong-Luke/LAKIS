@@ -1,0 +1,17 @@
+{
+  "version": "7.1.1",
+  "minimum_version": "7.0.24",
+  "release_notes": "업데이트 확인을 안정화하고 실패 안내 및 대체 CDN 재시도를 추가했습니다. ComfyUI 버튼의 about: 오류를 제거하고 4K 화면에 Per-Monitor V2 DPI 렌더링을 적용했습니다.",
+  "files": [
+    {"path":"LAKIS.exe","url":"https://github.com/Jeong-Luke/LAKIS/releases/download/v7.1.1/LAKIS.exe","sha256":"9B010A06FDC1E9CA54C835966B171CA7BFF3B4A62482D11346BC8E4BABB46BA1"},
+    {"path":"LAKIS_Patcher.exe","url":"https://github.com/Jeong-Luke/LAKIS/releases/download/v7.1.1/LAKIS_Patcher.exe","sha256":"B29B0B654D2FD4265AF834813032493E2710AC8B989ED5D5AC56449F85A407D4"},
+    {"path":"LAKIS_Desktop.exe","url":"https://github.com/Jeong-Luke/LAKIS/releases/download/v7.1.1/LAKIS_Desktop.exe","sha256":"974B9F11ADCC90BF5069DFEE1F64CF0B69D01D62B22D3A045F99D99A27A65B73"},
+    {"path":"Microsoft.Web.WebView2.Core.dll","url":"https://github.com/Jeong-Luke/LAKIS/releases/download/v7.1.1/Microsoft.Web.WebView2.Core.dll","sha256":"E6F54C8CE208E3797C427D01AD671B47CB25ABC85604753D6EC2546D0FFEF550"},
+    {"path":"Microsoft.Web.WebView2.WinForms.dll","url":"https://github.com/Jeong-Luke/LAKIS/releases/download/v7.1.1/Microsoft.Web.WebView2.WinForms.dll","sha256":"CC3D2937C350A4F5E20399855BCAB4FE695A395308FEB2ED67394FAA6A1AE849"},
+    {"path":"WebView2Loader.dll","url":"https://github.com/Jeong-Luke/LAKIS/releases/download/v7.1.1/WebView2Loader.dll","sha256":"C66E4A92FDC7A216118E43B7A5024EA2200E8C43F9310BF20D96A0084F82C5BC"},
+    {"path":"ComfyUI/LAKIS_DEV/external_ui/launch_lakis.py","url":"https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.1/src/external_ui/launch_lakis.py","sha256":"FCA86DE0EABD9E02C0DB76470401A7847D376723BCB20F124D43A8B54DA7FC07"},
+    {"path":"ComfyUI/LAKIS_DEV/external_ui/index.html","url":"https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.1/src/external_ui/index.html","sha256":"C3BCB6204A1EC0F0C112D8B1A8E0E1FBFE3815AFEC284B0CF44EC23E116726F2"},
+    {"path":"ComfyUI/LAKIS_DEV/external_ui/status-footer.css","url":"https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.1.1/src/external_ui/status-footer.css","sha256":"C6C716C43A6539C906551D79A0830F4BF7BE0C7D8205F85DD3FF5A89FE897D0E"}
+  ],
+  "delete": []
+}

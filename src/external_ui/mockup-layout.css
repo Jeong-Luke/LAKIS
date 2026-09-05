@@ -1,0 +1,54 @@
+@media (min-width:1181px){
+  .app-shell{grid-template-columns:64px 1fr}
+  .sidebar{position:relative;padding:58px 8px 12px;align-items:center}
+  .brand{position:absolute;top:17px;left:18px;padding:0;width:112px;z-index:2}
+  .brand strong{font-size:15px;letter-spacing:7px;color:#c8ccd7}
+  .brand-mark,.brand small{display:none}
+  .sidebar nav{width:100%;gap:8px}
+  .nav-item{display:grid;place-items:center;width:44px;height:44px;padding:0;margin:auto;border-radius:9px;text-align:center}
+  .nav-item svg{width:18px;height:18px;fill:none;stroke:#8e96a8;stroke-width:1.6;stroke-linejoin:round}
+  .nav-item.active{background:#171b25}
+  .nav-item.active svg{fill:#4d8cff;stroke:#73a8ff}
+  .settings-nav{margin-top:auto}
+  main{padding:0 14px 14px}
+  header{height:54px;align-items:center;padding-left:18px}
+  header .eyebrow{color:#a6abb8;letter-spacing:4px;font-size:10px}
+  .window-actions{display:flex;gap:4px}
+  .window-actions button{width:37px;height:30px;border:0;background:transparent;color:#9ba2b2;font-size:15px}
+  .workspace{height:calc(100vh - 68px);grid-template-columns:minmax(235px,270px) minmax(225px,260px) minmax(390px,1fr) minmax(285px,315px);gap:8px}
+  .model-column,.control-column,.prompt-column{display:flex;flex-direction:column;gap:8px;min-height:0;overflow:auto;scrollbar-width:thin}
+  .panel,.preview-panel{border-radius:12px}
+  .panel{padding:13px}
+  .panel-heading{margin-bottom:11px}
+  .model-panel{flex:0 0 auto}
+  .field-select{display:block;color:#9aa2b2;font-size:9px;margin-bottom:10px}
+  .field-select select,.mini-grid select{width:100%;margin-top:5px;border:1px solid #2a303d;background:#0e1118;color:#dce0e9;border-radius:7px;padding:8px;font-size:10px}
+  .model-divider{height:1px;background:#282e3a;margin:12px 0}
+  .mini-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .mini-grid label{color:#929aaa;font-size:8px}
+  .mini-grid input{margin-top:5px;padding:8px}
+  .mode-panel{flex:0 0 auto}
+  .lora-panel{flex:1;min-height:180px}
+  .lora-panel h2 small{color:#737b8b;font-weight:500}
+  .lora-list{display:grid;gap:6px}
+  .lora-list label{display:grid;grid-template-columns:minmax(0,1fr) 45px 28px;gap:6px;align-items:center;padding:7px;background:#0d1016;border:1px solid #252b36;border-radius:7px}
+  .lora-list label>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:9px;color:#c3c8d3}
+  .lora-list input{padding:5px;text-align:center;font-size:9px}
+  .lora-list .switch{width:25px;height:14px;border-radius:10px;background:#353c49;position:relative}
+  .lora-list .switch:after{content:"";position:absolute;width:10px;height:10px;left:2px;top:2px;border-radius:50%;background:#9299a6}
+  .lora-list .switch.on{background:#3f70d9}
+  .lora-list .switch.on:after{left:13px;background:white}
+  .composition-panel{min-height:100%;height:100%}
+  .composition-body{margin-top:5px}
+  .camera-canvas-wrap{aspect-ratio:1.2/1}
+  .composition-sliders .axis-row{grid-template-columns:55px minmax(0,1fr) 52px}
+  .composition-presets{display:grid;grid-template-columns:1fr 1fr}
+  .preview-panel{padding:8px}
+  .prompt-panel{min-height:305px}
+  .field-label textarea{height:135px}
+  .field-label textarea.negative{height:90px}
+}
+
+@media (min-width:1500px){
+  .workspace{grid-template-columns:270px 270px minmax(520px,1fr) 315px;gap:10px}
+}

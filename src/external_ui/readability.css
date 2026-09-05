@@ -1,0 +1,28 @@
+/* Readability pass: preserve the dense layout while removing sub-10px UI text. */
+.field-select,.mini-grid label,.model-subheading,.image-size-grid label,
+.panel-note,.axis-row>span,.camera-overlay,.pad-hint,
+.composition-presets button,.lora-heading-actions>span,
+.compact-mode-head,.compact-mode-note,.prompt-tools button,
+.fixed-prompt-heading,.fixed-badge,.preview-toolbar,
+.preview-badge span,.footer-left,.footer-right{font-size:10px!important}
+
+.field-select select,.mini-grid select,.mini-grid input,
+.image-size-grid input,.seed-input,.lora-row select,.lora-row input,
+.axis-row input[type="number"]{font-size:11px!important}
+
+.prompt-panel textarea{font-size:11px!important;line-height:1.65!important}
+.prompt-tool{padding:7px 10px!important}
+.fixed-prompt-heading{line-height:1.45}
+.lora-row{min-height:40px}
+.lora-remove{font-size:18px!important}
+.generation-action-row .generate-button small{font-size:10px!important}
+.mode-option strong{font-size:12px!important}
+
+@media (min-width:1800px){
+  .field-select,.mini-grid label,.model-subheading,.image-size-grid label,
+  .panel-note,.axis-row>span,.prompt-tools button,.fixed-prompt-heading,
+  .preview-badge span{font-size:11px!important}
+  .field-select select,.mini-grid select,.mini-grid input,.image-size-grid input,
+  .seed-input,.lora-row select,.lora-row input,.axis-row input[type="number"],
+  .prompt-panel textarea{font-size:12px!important}
+}

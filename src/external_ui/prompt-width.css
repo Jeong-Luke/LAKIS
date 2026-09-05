@@ -1,0 +1,2 @@
+@media(min-width:1181px){.workspace{grid-template-columns:minmax(300px,340px) minmax(300px,340px) minmax(300px,.65fr) minmax(390px,.35fr)}.prompt-column,.prompt-panel,.prompt-panel textarea{width:100%;max-width:none}}
+@media(min-width:1700px){.workspace{grid-template-columns:340px 340px minmax(340px,.65fr) minmax(440px,.35fr)}}

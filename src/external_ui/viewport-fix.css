@@ -1,0 +1,71 @@
+/* Keep portrait output inside the center viewport instead of growing the page. */
+@media (min-width: 801px) {
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .app-shell {
+    width: 100vw;
+    height: 100vh;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  main {
+    height: 100vh;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .workspace {
+    height: calc(100vh - 112px);
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .control-column,
+  .prompt-column {
+    min-height: 0;
+    overflow: auto;
+  }
+
+  .preview-column,
+  .preview-panel {
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .preview-toolbar {
+    flex: 0 0 34px;
+  }
+
+  .preview-stage {
+    flex: 1 1 0;
+    height: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .preview-stage img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+  }
+
+  .history-strip {
+    flex: 0 0 69px;
+    height: 69px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+
+  .history-strip::-webkit-scrollbar { display: none; }
+}

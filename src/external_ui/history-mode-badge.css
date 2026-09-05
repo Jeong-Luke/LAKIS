@@ -1,0 +1,32 @@
+.history-thumb {
+  position: relative;
+}
+
+.history-mode {
+  position: absolute;
+  left: 4px;
+  bottom: 4px;
+  max-width: calc(100% - 8px);
+  padding: 2px 4px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 4px;
+  background: rgba(7, 9, 14, 0.84);
+  color: #f3f5fa;
+  font-size: 7px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+  backdrop-filter: blur(4px);
+}
+
+.history-thumb[data-mode="fast"] .history-mode {
+  color: #8fe8ff;
+}
+
+.history-thumb[data-mode="detail"] .history-mode {
+  color: #b9a8ff;
+}

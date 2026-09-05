@@ -1,0 +1,22 @@
+@media (min-width:1181px){
+  .workspace{grid-template-columns:minmax(300px,340px) minmax(300px,340px) minmax(330px,.82fr) minmax(330px,370px)}
+  .model-column,.control-column,.prompt-column{overflow-y:auto}
+  .model-panel{padding:16px}
+  .lora-panel{padding:16px}
+  .composition-panel{padding:16px}
+  .prompt-column .prompt-panel{flex:1 1 auto}
+  .prompt-column .settings-panel{flex:0 0 auto}
+  .compact-mode-panel{flex:0 0 auto;padding:9px 10px}
+  .compact-mode-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px}
+  .compact-mode-head h2{font-size:10px;margin:0;color:#adb4c2}
+  .compact-mode-panel .mode-switch{padding:3px;border-radius:9px}
+  .compact-mode-panel .mode-option{padding:7px 5px;border-radius:7px}
+  .compact-mode-panel .mode-option strong{font-size:10px}
+  .compact-mode-panel .estimate{font-size:8px;padding:3px 6px}
+  .compact-mode-note{margin-top:6px;color:#747d8e;font-size:8px;text-align:center}
+  .generate-button{flex:0 0 auto}
+}
+
+@media (min-width:1700px){
+  .workspace{grid-template-columns:340px 340px minmax(390px,.9fr) 370px}
+}

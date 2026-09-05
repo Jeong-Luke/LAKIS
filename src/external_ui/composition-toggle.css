@@ -1,0 +1,5 @@
+.composition-heading-actions{display:flex;align-items:center;gap:7px}
+.composition-heading-actions>span{color:#7e8797;font-size:10px}
+#compositionControls{transition:opacity .18s ease,filter .18s ease}
+#compositionControls.is-disabled{opacity:.38;filter:saturate(.25)}
+#compositionControls.is-disabled canvas,#compositionControls.is-disabled input,#compositionControls.is-disabled button{pointer-events:none}

@@ -1,0 +1,1 @@
+.image-size-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.image-size-grid label{font-size:8px;color:#929aaa}.image-size-grid input{margin-top:4px;padding:7px;font-size:9px}.compact-divider{margin:10px 0}.seed-input{padding:7px;font-size:9px}.seed-mode-switch{margin-top:6px;grid-template-columns:1fr 1fr}

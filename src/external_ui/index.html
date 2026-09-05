@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LAKIS Studio</title>
+  <link rel="icon" href="assets/LAKIS_windows_compatible.ico">
+  <link rel="shortcut icon" href="assets/LAKIS_windows_compatible.ico">
+  <link rel="apple-touch-icon" href="assets/LAKIS_windows_compatible.ico">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="viewport-fix.css">
+  <link rel="stylesheet" href="composition-control.css">
+  <link rel="stylesheet" href="camera-3d.css">
+  <link rel="stylesheet" href="mockup-layout.css">
+  <link rel="stylesheet" href="layout-adjustment.css">
+  <link rel="stylesheet" href="prompt-model-controls.css">
+  <link rel="stylesheet" href="brand-position-fix.css">
+  <link rel="stylesheet" href="seed-controls.css?v=20260904-preview-seed-cyan">
+  <link rel="stylesheet" href="seed-layout-fix.css">
+  <link rel="stylesheet" href="sidebar-links.css">
+  <link rel="stylesheet" href="status-footer.css?v=20260905-copyright">
+  <link rel="stylesheet" href="status-footer-large.css?v=20260905-copyright">
+  <link rel="stylesheet" href="prompt-width.css">
+  <link rel="stylesheet" href="generation-actions.css?v=20260904-mode-colors">
+  <link rel="stylesheet" href="prompt-categories.css">
+  <link rel="stylesheet" href="prompt-highlighting.css?v=20260904-caret-alignment">
+  <link rel="stylesheet" href="lora-controls.css">
+  <link rel="stylesheet" href="preview-zoom.css?v=20260905-cursor-zoom">
+  <link rel="stylesheet" href="error-dialog.css">
+  <link rel="stylesheet" href="readability.css">
+  <link rel="stylesheet" href="composition-toggle.css">
+  <link rel="stylesheet" href="light-control-prototype.css?v=20260904-orbit-knob">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand"><strong>LAKIS</strong></div>
+      <nav>
+        <button id="outputFolderButton" class="nav-item sidebar-output-link" aria-label="ComfyUI 출력 폴더 열기" title="ComfyUI 출력 폴더"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h6.8l2 2H21v2H6.2L4.4 18H19l2-8"/><path d="M3 6v12h1.4"/></svg></button>
+        <button id="workflowButton" class="nav-item" type="button" aria-label="ComfyUI Workflow" title="ComfyUI Workflow"><svg class="workflow-brand-icon" viewBox="0 0 204 192" aria-hidden="true"><rect width="204" height="192" rx="5" fill="#2037db"/><path fill="#efff2d" d="M105 32h45c10 0 15 7 12 17l-4 14c-2 8-8 13-17 13h-42l-12 42h37c10 0 15 7 12 17l-4 14c-2 8-8 13-17 13H75c-11 0-16-7-13-17l3-11H55c-10 0-15-7-12-17l12-43c2-9 8-14 17-14h15l5-17c2-9 7-14 13-15z"/></svg></button>
+        <a class="nav-item sidebar-danbooru-link" href="https://danbooru-tag.mephistopheles.moe/" target="_blank" rel="noopener noreferrer" aria-label="Danbooru 태그 툴" title="Danbooru 태그 툴"><svg class="danbooru-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h9.2L20 11.8 11.8 20 4 12.2z"/><circle cx="8.1" cy="9" r="1.4"/><path d="m11 12 4-4m-2 7 4-4"/></svg></a>
+        <a class="nav-item sidebar-civitai-link" href="https://civitai.red/" target="_blank" rel="noopener noreferrer" aria-label="Civitai" title="Civitai"><svg class="civitai-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2.8 7.9 4.6v9.2L12 21.2l-7.9-4.6V7.4z"/><path d="M15.7 8.5 12 6.4 8.3 8.5v7L12 17.6l3.7-2.1"/></svg></a>
+        <a class="nav-item" href="http://127.0.0.1:8188/loras" target="_blank" rel="noopener" aria-label="LoRA Manager" title="LoRA Manager"><img class="lora-manager-icon" alt="" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAD1klEQVRYR62Wy4sURxzHv33wZCIeJIRcEkEFE3J0IYoRgoa4LgbjZBYhQWd3zYpREfZgiM+b4EUWRERBEgiB3AK55ZRb/oI9Jig6D5NZN8ruznR3df1CPbuqunp2F/0cpuvxe3zrV9U1nSw87hIAJCAQEtGUPUAO+4ghY6KpWhJAibZz23ESJcCEMOGqHtFEEbuN4ghQwcpE7rCbaO1VrUecyaMFaORIzNkZI9JN38YErMaIxROohSQLjzqEJPHsbDCPukAlpd9atuV8WQG7MvEQR3IUaySw07oxwjxZeNzRmU1K13KEZ4URtp4gQWnnCBDUBXHGqzF8ZCWDSekexNZx/ENoMW9AmfTc3G30/noCzlMUeYbG5GF83To2QomLSi4sTTLVprACIcqRiDA9N4/O309BL5cBPkTzxDimZ5vWxjw2SqQCJlL5FFWduXQXnSc98OcvgDzF5IlPMXX6uPWqEtwX4dbIrKICj7QAO6cTCwfxlE3CzHf30O71QYwBKyuYnNiPqZnPjZNPLJnTdVEVcA1CZzlEOP39A7S7/4A4AYNVTH62D62pCeUn/ddzQ1aJbEFVsRAwe/kh2t0+iHJQztA8OIZWa9wYeAfWE2HEeYdQGwk3X0DorSFg9soPUgAnBiKG5vhetJqfWBOXMpFo6OT6nHpIAeYq9qgKOXPtJzxt9wEw8ILhy4kxtBpaQNV8fVQrIIhEI+DM9Z/R7S2CcwbiDI3xMZxqHLAmCuMbiVFB2dQIEJSBxO/ZG7+g3VtEwjk4y9A4sgcnj+/XtgHhQQ77hngFIhDh7M1f0e0sylsQBcOeD9/DgbGdco6Ig3iOt7Ztxfu7t1u3ErUQ8xDY5VkBzqTEeavEAr699Ru6z5ZAaQaep0h4gYLl4CwHsRRFlmJTuoz523PYsetdG8bHpC1RF1GkOur0Cgt1FZ+f/x2d7pK8iGg4BBeVYEw+ORuCsgzF8z7eeXsL7ty/ijfe3GxXVU1r4kfPgPWzCNsL9/5A/+UA4AXSxRfgqwPwbAhw0iIy8HQVfLCMj/Z9gBuXp/W2x1anqX8NDVoJARd//BP9/1bkkRz8uwQ+SEFpCsrEdnAwISJPAZ6j4Dm++eoQvjj6sa56/Q1ZvwVBGbgIYsdU0aJuDrXrcohvQZBc7kEYzTVxdYVj1Y7Xr/8eCH0MdeMe2igmXGKCyA+SripuEFhNv15UTP9rKziEOqX3IeELG402dpVL3+ATzzDyJvQSr/FfH4qUfTMYTjqo19ARIO3iDjKU3tLSYeMYSYb6ClSoKeMrUhEQKvQKItvuQA1REzdIyf+19Emx4bfaCQAAAABJRU5ErkJggg=="></a>
+      </nav>
+    </aside>
+
+    <main>
+      <header aria-hidden="true"></header>
+
+      <section class="workspace">
+        <div class="model-column">
+          <article class="panel model-panel">
+            <div class="panel-heading"><div><h2 class="section-title-accent">모델 세팅</h2></div></div>
+            <label class="field-select">체크포인트<select id="checkpointSelect"><option value="fnMomentAnimaTurbo_v40NoTurbo.safetensors">ANIL fmMomentAnimaTurbo_v4</option></select></label>
+            <label class="field-select">VAE<select id="vaeSelect"><option>qwen_image_vae.safetensors</option></select></label>
+            <label class="field-select">CLIP<select id="clipSelect"><option value="qwen_3_06b_base.safetensors">qwen_3_0b_base.safetensors</option></select></label>
+            <div class="model-divider"></div>
+            <div class="mini-grid"><label>샘플러<select id="samplerSelect"><option>euler_ancestral</option></select></label><label>스케줄러<select id="schedulerSelect"><option>normal</option></select></label><label>스텝<input id="stepsInput" type="number" value="30"></label><label>CFG<input id="cfgInput" type="number" value="5.0"></label></div>
+            <div class="model-divider"></div>
+            <div class="model-subheading"><span>이미지 크기</span></div>
+            <div class="image-size-grid">
+              <label>가로<input id="imageWidth" type="number" value="1536"></label>
+              <label>세로<input id="imageHeight" type="number" value="1024"></label>
+            </div>
+            <div class="model-divider compact-divider"></div>
+            <div class="model-subheading seed-heading"><span>시드</span><svg class="seed-sprout" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 14V7.5M8 9.2C6.1 9.2 4.2 8 3.5 5.7 6.1 5.2 8 6.6 8 9.2ZM8 7.8c.1-2.7 1.9-4.3 4.7-4.4-.2 2.7-1.9 4.3-4.7 4.4Z"/></svg></div>
+            <input id="seedInput" class="seed-input" type="number" min="0" max="1125899906842624" step="1" value="579441119814924" aria-label="시드">
+            <div class="seed-mode-switch" role="group" aria-label="Seed behavior">
+              <button class="seed-mode-option active" data-seed-mode="random">랜덤</button>
+              <button class="seed-mode-option" data-seed-mode="current">고정</button>
+            </div>
+          </article>
+          <article class="panel lora-panel">
+            <div class="panel-heading lora-heading">
+              <div><h2 class="section-title-accent">로라 <small id="loraCount">(0)</small></h2></div>
+              <div class="lora-heading-actions">
+                <span>전체</span><button id="allLorasToggle" class="lora-switch on" type="button" aria-label="전체 로라 끄기" aria-pressed="true"></button>
+                <button id="addLoraButton" class="mini-button" type="button">+추가</button>
+              </div>
+            </div>
+            <div id="loraList" class="lora-list"></div>
+          </article>
+        </div>
+
+        <div class="control-column">
+
+          <article class="panel composition-panel">
+            <div class="panel-heading"><div><h2 class="section-title-accent">구도 설정</h2></div><div class="composition-heading-actions"><button id="compositionToggle" class="lora-switch on" type="button" aria-label="구도 설정 끄기" aria-pressed="true"></button><button id="cameraReset" class="mini-button">초기화</button></div></div>
+            <div id="compositionControls">
+            <p class="panel-note">노브를 드래그해 시점을 이동하고, 휠로 거리를 조절합니다.</p>
+            <div class="composition-body">
+              <div>
+                <div id="cameraCanvasWrap" class="camera-canvas-wrap">
+                  <canvas id="cameraCanvas" tabindex="0" aria-label="3D Camera orbit control"></canvas>
+                  <div class="camera-overlay"><span>좌드래그 · 카메라</span><strong id="cameraStatus">정면 0°</strong></div>
+                </div>
+                <div class="pad-hint"><span>우드래그 / ALT · 보기 회전</span><span>휠 · 거리</span></div>
+              </div>
+            </div>
+            <div class="composition-sliders">
+              <label class="axis-row"><span>X · 좌우</span><input id="cameraXSlider" type="range" min="-1" max="1" step="0.01" value="0"><input id="cameraX" type="number" min="-1" max="1" step="0.01" value="0.00"></label>
+              <label class="axis-row"><span>Y · 상하</span><input id="cameraYSlider" type="range" min="-1" max="1" step="0.01" value="0.35"><input id="cameraY" type="number" min="-1" max="1" step="0.01" value="0.35"></label>
+              <label class="axis-row"><span>Z · 거리</span><input id="cameraZSlider" type="range" min="-1" max="1" step="0.01" value="-0.45"><input id="cameraZ" type="number" min="-1" max="1" step="0.01" value="-0.45"></label>
+              <label class="axis-row"><span>R · 롤</span><input id="cameraRollSlider" type="range" min="-1" max="1" step="0.01" value="0"><input id="cameraRoll" type="number" min="-1" max="1" step="0.01" value="0.00"></label>
+              <label class="axis-row"><span>Frame Y</span><input id="frameYSlider" type="range" min="-1" max="1" step="0.01" value="0"><input id="frameYInput" type="number" min="-1" max="1" step="0.01" value="0.00"></label>
+            </div>
+            <fieldset class="composition-preview-presets">
+              <legend>프리뷰</legend>
+              <div class="composition-presets">
+                <button data-camera-preset="front">정면</button><button data-camera-preset="left">왼쪽</button><button data-camera-preset="center">중앙</button><button data-camera-preset="right">오른쪽</button><button data-camera-preset="rear">후면</button>
+              </div>
+            </fieldset>
+            </div>
+          </article>
+          <article class="panel light-prototype-panel">
+            <div id="lightUnavailableNotice" class="light-unavailable-notice" role="status" hidden>미구현된 기능입니다</div>
+            <div class="panel-heading"><div><h2 class="section-title-accent">광원 설정</h2></div><div class="composition-heading-actions"><button id="lightMockToggle" class="lora-switch" type="button" aria-label="미구현된 광원 설정" aria-pressed="false"></button><button id="lightMockReset" class="mini-button" type="button">초기화</button></div></div>
+            <div id="lightMockControls" class="light-prototype-body is-disabled">
+              <div class="light-orbit-wrap">
+                <canvas id="lightOrbitCanvas" tabindex="0" aria-label="3D 광원 방향 조절 노브"></canvas>
+                <div class="light-orbit-overlay"><span>좌드래그 · 광원　우드래그/Alt · 보기</span><strong id="lightOrbitStatus">후면</strong></div>
+              </div>
+              <div class="light-mock-controls" aria-label="광원 설정 목업">
+                <label><span>좌우 (X)</span><input id="lightXSlider" type="range" min="-1" max="1" step="0.01" value="0"><input id="lightX" type="number" min="-1" max="1" step="0.01" value="0.00"></label>
+                <label><span>상하 (Y)</span><input id="lightYSlider" type="range" min="-1" max="1" step="0.01" value="0"><input id="lightY" type="number" min="-1" max="1" step="0.01" value="0.00"></label>
+                <label><span>거리 (Z)</span><input id="lightZSlider" type="range" min="-1" max="1" step="0.01" value="-1"><input id="lightZ" type="number" min="-1" max="1" step="0.01" value="-1.00"></label>
+                <label><span>광량</span><input id="lightIntensitySlider" type="range" min="0" max="2" step="0.01" value="0.80"><input id="lightIntensity" type="number" min="0" max="2" step="0.01" value="0.80"></label>
+                <label><span>주변광</span><input id="lightAmbientSlider" type="range" min="0" max="1" step="0.01" value="0.20"><input id="lightAmbient" type="number" min="0" max="1" step="0.01" value="0.20"></label>
+                <label><span>암부 강도</span><input id="lightShadowSlider" type="range" min="0" max="1" step="0.01" value="0.65"><input id="lightShadow" type="number" min="0" max="1" step="0.01" value="0.65"></label>
+                <label><span>노출</span><input id="lightExposureSlider" type="range" min="-1" max="1" step="0.01" value="0"><input id="lightExposure" type="number" min="-1" max="1" step="0.01" value="0.00"></label>
+                <label><span>림라이트</span><input id="lightRimSlider" type="range" min="0" max="1" step="0.01" value="0"><input id="lightRim" type="number" min="0" max="1" step="0.01" value="0.00"></label>
+                <label class="light-color-row"><span>광원 색상</span><select id="lightColor"><option>Neutral</option><option>Warm</option><option>Cool</option><option>Cyan</option><option>Magenta</option><option>Cyan + Magenta</option><option>Golden</option><option>Moonlight</option></select></label>
+              </div>
+            </div>
+          </article>
+        </div>
+
+        <div class="preview-column">
+          <article class="preview-panel">
+            <div class="preview-toolbar"><span class="section-title-accent">이미지</span><div class="preview-zoom-controls"><button id="previewZoomOut" type="button" aria-label="이미지 축소">−</button><span id="previewZoomValue">100%</span><button id="previewZoomIn" type="button" aria-label="이미지 확대">＋</button></div></div>
+            <div class="preview-stage">
+              <img id="previewImage" src="../../output/LAKIS/1/LAKIS_1_2026-09-04-020343.webp" alt="LAKIS generation preview">
+              <div class="preview-badge"><span id="previewMode">DETAIL</span><span id="previewSeed">SEED 579441119814924</span><span id="previewDuration" hidden>0.0초</span></div>
+            </div>
+            <div class="history-strip" aria-label="생성 이미지 기록"></div>
+          </article>
+        </div>
+
+        <div class="prompt-column">
+          <article class="panel prompt-panel">
+            <div class="field-label prompt-field-title" data-prompt-group>
+              <span class="prompt-section-heading">프롬프트</span>
+              <div class="prompt-tools">
+                <button class="prompt-tool" data-prompt-panel="triggerPromptPanel" aria-expanded="false">트리거</button>
+                <button class="prompt-tool" data-prompt-panel="artistPromptPanel" aria-expanded="false">작가</button>
+                <button class="prompt-tool" data-prompt-panel="qualityPromptPanel" aria-expanded="false">품질</button>
+                <button class="prompt-tool" data-prompt-panel="fixedPromptPanel" aria-expanded="false">고정</button>
+                <button class="prompt-tool active" data-prompt-panel="generalPromptPanel" aria-expanded="true">일반</button>
+              </div>
+              <div id="fixedPromptPanel" class="fixed-prompt-panel" hidden>
+                <div class="fixed-prompt-heading"><span>항상 적용되는 프롬프트</span><span class="fixed-badge">FIXED</span></div>
+                <textarea id="fixedPromptInput" placeholder="모든 생성에 고정으로 추가할 내용을 입력하세요…"></textarea>
+              </div>
+              <div id="generalPromptPanel" class="fixed-prompt-panel prompt-category-panel default-general-panel">
+                <div class="fixed-prompt-heading"><span>일반 태그</span><span class="fixed-badge">GENERAL</span></div>
+                <textarea id="generalPromptInput" placeholder="인물, 의상, 포즈, 배경 등 일반 태그…"></textarea>
+              </div>
+              <div id="qualityPromptPanel" class="fixed-prompt-panel prompt-category-panel" hidden>
+                <div class="fixed-prompt-heading"><span>품질 태그</span><span class="fixed-badge">QUALITY</span></div>
+                <textarea id="qualityPromptInput" placeholder="masterpiece, best quality 등 품질 태그…"></textarea>
+              </div>
+              <div id="artistPromptPanel" class="fixed-prompt-panel prompt-category-panel" hidden>
+                <div class="fixed-prompt-heading"><span>작가 태그</span><span class="fixed-badge">ARTIST</span></div>
+                <textarea id="artistPromptInput" placeholder="@artist_tag 또는 작가 태그…"></textarea>
+              </div>
+              <div id="triggerPromptPanel" class="fixed-prompt-panel prompt-category-panel" hidden>
+                <div class="fixed-prompt-heading"><span>LoRA 트리거</span><span class="fixed-badge">TRIGGER</span></div>
+                <textarea id="triggerPromptInput" placeholder="캐릭터·스타일 LoRA 트리거 단어…"></textarea>
+              </div>
+            </div>
+            <div class="field-label prompt-field-title" data-prompt-group>
+              <span class="prompt-section-heading">네거티브 프롬프트</span>
+              <div class="prompt-tools">
+                <button class="prompt-tool" data-prompt-panel="negativeArtistPromptPanel" aria-expanded="false">작가</button>
+                <button class="prompt-tool" data-prompt-panel="negativeQualityPromptPanel" aria-expanded="false">품질</button>
+                <button class="prompt-tool" data-prompt-panel="negativeFixedPromptPanel" aria-expanded="false">고정</button>
+                <button class="prompt-tool active" data-prompt-panel="negativeGeneralPromptPanel" aria-expanded="true">일반</button>
+              </div>
+              <div id="negativeArtistPromptPanel" class="fixed-prompt-panel prompt-category-panel" hidden>
+                <div class="fixed-prompt-heading"><span>제외할 작가 태그</span><span class="fixed-badge">ARTIST</span></div>
+                <textarea id="negativeArtistPromptInput" placeholder="네거티브에 적용할 작가 태그…"></textarea>
+              </div>
+              <div id="negativeQualityPromptPanel" class="fixed-prompt-panel prompt-category-panel" hidden>
+                <div class="fixed-prompt-heading"><span>제외할 품질 태그</span><span class="fixed-badge">QUALITY</span></div>
+                <textarea id="negativeQualityPromptInput" placeholder="low quality 등 네거티브 품질 태그…"></textarea>
+              </div>
+              <div id="negativeFixedPromptPanel" class="fixed-prompt-panel" hidden>
+                <div class="fixed-prompt-heading"><span>항상 적용되는 네거티브</span><span class="fixed-badge">FIXED</span></div>
+                <textarea id="negativeFixedPromptInput" placeholder="모든 생성에 고정으로 제외할 내용을 입력하세요…"></textarea>
+              </div>
+              <div id="negativeGeneralPromptPanel" class="fixed-prompt-panel prompt-category-panel default-general-panel">
+                <div class="fixed-prompt-heading"><span>일반 네거티브 태그</span><span class="fixed-badge">GENERAL</span></div>
+                <textarea id="negativePrompt" class="negative" aria-label="네거티브 일반 프롬프트" placeholder="제외할 인물, 구조, 품질 등의 일반 태그…"></textarea>
+              </div>
+            </div>
+          </article>
+
+          <div class="generation-action-row">
+            <article class="panel mode-panel compact-mode-panel">
+              <div class="compact-mode-head"><h2>생성 모드</h2><span id="timeEstimate" class="estimate">1분 이상</span></div>
+              <div class="mode-switch" role="group" aria-label="Generation mode">
+                <button class="mode-option" data-mode="fast"><strong>FAST</strong></button>
+                <button class="mode-option active" data-mode="detail"><strong>DETAIL</strong></button>
+              </div>
+              <div id="detailContract" class="compact-mode-note"><span class="contract-dot"></span>Face · Eye · USDU</div>
+            </article>
+
+            <button id="generateButton" class="generate-button"><span>제작하기</span><small id="generateHint">DETAIL · COMPOSITION READY</small></button>
+          </div>
+        </div>
+      </section>
+      <footer class="system-footer">
+        <div class="footer-left">
+          <span>LAKIS <b id="workflowVersion">확인 중</b></span><i></i>
+          <span class="footer-copyright">ⓒ 2026. Luke_Jeong All rights reserved.</span><i></i>
+          <span>ComfyUI <b id="comfyStatusText">확인 중</b> <em id="comfyStatusDot" class="footer-dot"></em></span>
+        </div>
+        <div class="footer-right">
+          <span>VRAM <b id="vramText">-- / -- GB</b></span><div class="meter"><i id="vramMeter"></i></div>
+          <span>RAM <b id="ramText">-- / -- GB</b></span><div class="meter"><i id="ramMeter"></i></div>
+          <span>CPU <b id="cpuText">--%</b></span>
+          <button id="systemInfoButton">시스템 정보</button>
+        </div>
+      </footer>
+    </main>
+  </div>
+  <div id="errorDialog" class="error-dialog" hidden role="alertdialog" aria-modal="true" aria-labelledby="errorDialogTitle">
+    <div class="error-dialog-card">
+      <div class="error-dialog-icon" aria-hidden="true">!</div>
+      <h2 id="errorDialogTitle">생성 오류</h2>
+      <p id="errorDialogMessage">생성 중 오류가 발생했어요.</p>
+      <button id="errorDialogClose" type="button">확인</button>
+    </div>
+  </div>
+  <script src="app.js?v=20260905-cursor-zoom"></script>
+  <script type="module" src="lightmap-knob-mockup.js?v=20260904-source-port"></script>
+  <script type="module" src="prompt-highlighting.js?v=20260905-dedicated-ports"></script>
+</body>
+</html>

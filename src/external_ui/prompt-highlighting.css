@@ -1,0 +1,52 @@
+.prompt-highlight-host {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  margin-top: 7px;
+}
+
+.prompt-highlight-host > textarea {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  margin: 0 !important;
+  color: transparent !important;
+  -webkit-text-fill-color: transparent !important;
+  caret-color: #f3f5fb !important;
+  background: transparent !important;
+}
+
+.prompt-highlight-host > textarea::selection {
+  color: transparent !important;
+  -webkit-text-fill-color: transparent !important;
+  background: rgba(104, 79, 232, 0.34) !important;
+}
+
+.prompt-highlight-layer {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  box-sizing: border-box;
+  margin: 0;
+  overflow: hidden;
+  pointer-events: none;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: normal;
+  color: #cbd5e1;
+  background: #0d1017;
+  border: 1px solid #30384d;
+  border-radius: 9px;
+}
+
+.prompt-highlight-token {
+  border-radius: 3px;
+}
+
+.prompt-highlight-token.is-unverified {
+  text-decoration-line: underline;
+  text-decoration-style: wavy;
+  text-decoration-color: #ef4444;
+  text-underline-offset: 2px;
+}

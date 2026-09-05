@@ -1,0 +1,1138 @@
+const state = {
+  generation: { mode: "detail" },
+  lora_enabled: true,
+  composition_enabled: true,
+  loras: [],
+  camera: { x: 0, y: .35, z: -.45, roll: 0, frame_y: 0 },
+  output: { width: 1536, height: 1024, seed: 579441119814924, seed_mode: "random" },
+  prompt: {
+    negative: "", fixed: "", general: "", quality: "", artist: "", trigger: "",
+    negative_fixed: "", negative_quality: "", negative_artist: ""
+  },
+  model: {
+    checkpoint: "anima_baseV10.safetensors",
+    vae: "qwen_image_vae.safetensors",
+    clip: "qwen_3_06b_base.safetensors",
+    sampler: "euler_ancestral",
+    scheduler: "normal",
+    steps: 30,
+    cfg: 5.0
+  }
+};
+
+// The packaged application owns a dedicated ComfyUI port so it never opens a
+// different portable installation that happens to be running on port 8188.
+const loraManagerLink = document.querySelector('a[aria-label="LoRA Manager"]');
+if (loraManagerLink) loraManagerLink.href = "http://127.0.0.1:8189/loras";
+
+const COMFYUI_SEED_MAX = 1125899906842624;
+const PROMPT_STORAGE_KEY = "lakis.prompt-state.v2";
+let loraOptions = [];
+let generationStateSaveTimer = null;
+
+function scheduleGenerationStateSave() {
+  clearTimeout(generationStateSaveTimer);
+  generationStateSaveTimer = setTimeout(async () => {
+    try {
+      await fetch("/api/generation-state", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: state.model, output: state.output }),
+      });
+    } catch (error) {
+      console.error("Could not persist LAKIS model configuration", error);
+    }
+  }, 250);
+}
+
+const previewStage = document.querySelector(".preview-stage");
+const previewImage = document.querySelector("#previewImage");
+const previewZoomValue = document.querySelector("#previewZoomValue");
+const PREVIEW_ZOOM_MIN = 25;
+const PREVIEW_ZOOM_MAX = 400;
+const PREVIEW_ZOOM_STEP = 10;
+let previewZoom = 100;
+let previewPanX = 0;
+let previewPanY = 0;
+
+function clampPreviewPan(scale) {
+  if (scale <= 1) {
+    previewPanX = 0;
+    previewPanY = 0;
+    return;
+  }
+  const maxX = previewStage.clientWidth * (scale - 1) / 2;
+  const maxY = previewStage.clientHeight * (scale - 1) / 2;
+  previewPanX = Math.max(-maxX, Math.min(maxX, previewPanX));
+  previewPanY = Math.max(-maxY, Math.min(maxY, previewPanY));
+}
+
+function applyPreviewTransform() {
+  const scale = previewZoom / 100;
+  clampPreviewPan(scale);
+  previewImage.style.setProperty("--preview-zoom", String(scale));
+  previewImage.style.setProperty("--preview-pan-x", `${previewPanX}px`);
+  previewImage.style.setProperty("--preview-pan-y", `${previewPanY}px`);
+}
+
+function setPreviewZoom(nextZoom, anchor = null) {
+  const previousScale = previewZoom / 100;
+  const next = Math.max(PREVIEW_ZOOM_MIN, Math.min(PREVIEW_ZOOM_MAX, Math.round(nextZoom)));
+  const nextScale = next / 100;
+  if (anchor && next !== previewZoom) {
+    const centerX = previewStage.clientWidth / 2;
+    const centerY = previewStage.clientHeight / 2;
+    const offsetX = anchor.x - centerX;
+    const offsetY = anchor.y - centerY;
+    previewPanX = offsetX - ((offsetX - previewPanX) / previousScale) * nextScale;
+    previewPanY = offsetY - ((offsetY - previewPanY) / previousScale) * nextScale;
+  }
+  previewZoom = next;
+  applyPreviewTransform();
+  previewZoomValue.textContent = `${previewZoom}%`;
+  document.querySelector("#previewZoomOut").disabled = previewZoom <= PREVIEW_ZOOM_MIN;
+  document.querySelector("#previewZoomIn").disabled = previewZoom >= PREVIEW_ZOOM_MAX;
+}
+
+document.querySelector("#previewZoomOut").addEventListener("click", () => setPreviewZoom(previewZoom - PREVIEW_ZOOM_STEP));
+document.querySelector("#previewZoomIn").addEventListener("click", () => setPreviewZoom(previewZoom + PREVIEW_ZOOM_STEP));
+previewStage.addEventListener("wheel", event => {
+  event.preventDefault();
+  const rect = previewStage.getBoundingClientRect();
+  setPreviewZoom(previewZoom + (event.deltaY < 0 ? PREVIEW_ZOOM_STEP : -PREVIEW_ZOOM_STEP), {
+    x: event.clientX - rect.left,
+    y: event.clientY - rect.top,
+  });
+}, { passive: false });
+previewStage.addEventListener("dblclick", () => {
+  previewPanX = 0;
+  previewPanY = 0;
+  setPreviewZoom(100);
+});
+window.addEventListener("resize", applyPreviewTransform);
+setPreviewZoom(100);
+
+function renderLoras() {
+  const list = document.querySelector("#loraList");
+  const count = document.querySelector("#loraCount");
+  list.replaceChildren();
+  state.loras.forEach((lora, index) => {
+    const row = document.createElement("div");
+    row.className = "lora-row";
+
+    const select = document.createElement("select");
+    select.className = "lora-select";
+    const choices = loraOptions.includes(lora.name) ? loraOptions : [lora.name, ...loraOptions];
+    for (const name of choices) {
+      const option = document.createElement("option");
+      option.value = name;
+      option.textContent = name || "로라 선택";
+      if (name === lora.name && !loraOptions.includes(name)) option.textContent += " (없음)";
+      select.append(option);
+    }
+    select.value = lora.name;
+    select.title = lora.name;
+    select.addEventListener("change", event => {
+      state.loras[index].name = event.target.value;
+      if (event.target.value) state.loras[index].enabled = true;
+      event.target.title = event.target.value;
+      renderLoras();
+    });
+
+    const strength = document.createElement("input");
+    strength.type = "number";
+    strength.min = "-20";
+    strength.max = "20";
+    strength.step = "0.05";
+    strength.value = Number(lora.strength).toFixed(2);
+    strength.title = "로라 강도";
+    strength.addEventListener("change", event => {
+      const value = Number(event.target.value);
+      state.loras[index].strength = Number.isFinite(value) ? value : 1;
+      event.target.value = state.loras[index].strength.toFixed(2);
+    });
+
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = `lora-switch${lora.enabled ? " on" : ""}`;
+    toggle.setAttribute("aria-label", `${lora.name} ${lora.enabled ? "끄기" : "켜기"}`);
+    toggle.setAttribute("aria-pressed", String(lora.enabled));
+    toggle.addEventListener("click", () => {
+      state.loras[index].enabled = !state.loras[index].enabled;
+      renderLoras();
+    });
+
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "lora-remove";
+    remove.textContent = "×";
+    remove.title = "로라 제거";
+    remove.addEventListener("click", () => {
+      state.loras.splice(index, 1);
+      renderLoras();
+    });
+
+    row.append(remove, select, strength, toggle);
+    list.append(row);
+  });
+  count.textContent = `(${state.loras.length})`;
+}
+
+document.querySelector("#addLoraButton").addEventListener("click", () => {
+  state.loras.push({ name: "", enabled: false, strength: 1 });
+  renderLoras();
+  document.querySelector("#loraList").lastElementChild?.scrollIntoView({ block: "nearest" });
+});
+
+document.querySelector("#allLorasToggle").addEventListener("click", event => {
+  state.lora_enabled = !state.lora_enabled;
+  event.currentTarget.classList.toggle("on", state.lora_enabled);
+  event.currentTarget.setAttribute("aria-pressed", String(state.lora_enabled));
+  event.currentTarget.setAttribute("aria-label", `전체 로라 ${state.lora_enabled ? "끄기" : "켜기"}`);
+  document.querySelector("#loraList").classList.toggle("all-disabled", !state.lora_enabled);
+});
+
+const modeButtons = [...document.querySelectorAll(".mode-option")];
+const cameraCanvas = document.querySelector("#cameraCanvas");
+const cameraStatus = document.querySelector("#cameraStatus");
+const clamp = value => Math.max(-1, Math.min(1, Number(value)));
+const WIDTH = 560;
+const HEIGHT = 360;
+const dpr = Math.min(window.devicePixelRatio || 1, 2);
+cameraCanvas.width = WIDTH * dpr;
+cameraCanvas.height = HEIGHT * dpr;
+const cameraContext = cameraCanvas.getContext("2d");
+cameraContext.scale(dpr, dpr);
+let viewYaw = 0;
+let viewPitch = .42;
+
+function project3d(x, y, z) {
+  const cosine = Math.cos(viewYaw);
+  const sine = Math.sin(viewYaw);
+  const horizontal = x * cosine + z * sine;
+  const depth = -x * sine + z * cosine;
+  const scale = 78;
+  return {
+    x: WIDTH / 2 + horizontal * scale,
+    y: HEIGHT / 2 - (y - .7) * scale * Math.cos(viewPitch) + depth * scale * Math.sin(viewPitch)
+  };
+}
+
+function drawOrbit(radius, elevation, color, dashed = true) {
+  cameraContext.beginPath();
+  for (let index = 0; index <= 80; index++) {
+    const angle = index / 80 * Math.PI * 2;
+    const point = project3d(radius * Math.sin(angle), elevation, radius * Math.cos(angle));
+    index ? cameraContext.lineTo(point.x, point.y) : cameraContext.moveTo(point.x, point.y);
+  }
+  cameraContext.strokeStyle = color;
+  cameraContext.lineWidth = 1.8;
+  cameraContext.setLineDash(dashed ? [5,7] : []);
+  cameraContext.stroke();
+  cameraContext.setLineDash([]);
+}
+
+function drawVerticalOrbit(radius, azimuth, color) {
+  cameraContext.beginPath();
+  for (let index = 0; index <= 80; index++) {
+    const angle = index / 80 * Math.PI * 2;
+    const horizontal = radius * Math.cos(angle);
+    const point = project3d(horizontal * Math.sin(azimuth), .7 + radius * Math.sin(angle), horizontal * Math.cos(azimuth));
+    index ? cameraContext.lineTo(point.x, point.y) : cameraContext.moveTo(point.x, point.y);
+  }
+  cameraContext.strokeStyle = color;
+  cameraContext.lineWidth = 1.8;
+  cameraContext.setLineDash([5,7]);
+  cameraContext.stroke();
+  cameraContext.setLineDash([]);
+}
+
+function drawElevationOrbit(radius, elevation, color) {
+  const horizontal = radius * Math.cos(elevation);
+  const height = .7 + radius * Math.sin(elevation);
+  cameraContext.beginPath();
+  for (let index = 0; index <= 80; index++) {
+    const angle = index / 80 * Math.PI * 2;
+    const point = project3d(horizontal * Math.sin(angle), height, horizontal * Math.cos(angle));
+    index ? cameraContext.lineTo(point.x, point.y) : cameraContext.moveTo(point.x, point.y);
+  }
+  cameraContext.strokeStyle = color;
+  cameraContext.lineWidth = 1.4;
+  cameraContext.setLineDash([3,7]);
+  cameraContext.stroke();
+  cameraContext.setLineDash([]);
+}
+
+function drawMarker(x, y, z, label) {
+  const point = project3d(x,y,z);
+  cameraContext.fillStyle = "#75d9e9";
+  cameraContext.beginPath();
+  cameraContext.arc(point.x,point.y,5,0,Math.PI*2);
+  cameraContext.fill();
+  cameraContext.fillStyle = "#eef8ff";
+  cameraContext.font = "700 13px Consolas";
+  cameraContext.textAlign = "center";
+  cameraContext.fillText(label,point.x,point.y-10);
+}
+
+function drawCamera3d() {
+  const ctx = cameraContext;
+  ctx.clearRect(0,0,WIDTH,HEIGHT);
+  const background = ctx.createLinearGradient(0,0,0,HEIGHT);
+  background.addColorStop(0,"#151a20");
+  background.addColorStop(1,"#222932");
+  ctx.fillStyle = background;
+  ctx.fillRect(0,0,WIDTH,HEIGHT);
+  const radius = 1.7 - .7 * state.camera.z;
+  const angle = state.camera.x * Math.PI;
+  const elevation = state.camera.y * Math.PI / 2;
+  drawOrbit(radius,.7,"rgba(74,201,217,.34)");
+  drawVerticalOrbit(radius,angle,"rgba(255,137,75,.38)");
+  drawElevationOrbit(radius,elevation,"rgba(111,215,235,.25)");
+  const horizontal = radius * Math.cos(elevation);
+  const camera = {x:horizontal*Math.sin(angle),y:.7+radius*Math.sin(elevation),z:horizontal*Math.cos(angle)};
+  drawMarker(0,.7,radius,"F"); drawMarker(0,.7,-radius,"B"); drawMarker(radius,.7,0,"L"); drawMarker(-radius,.7,0,"R");
+  const center = project3d(0,.7,0);
+  const cameraPoint = project3d(camera.x,camera.y,camera.z);
+  ctx.strokeStyle = "rgba(255,210,103,.7)";
+  ctx.setLineDash([5,6]); ctx.beginPath(); ctx.moveTo(center.x,center.y); ctx.lineTo(cameraPoint.x,cameraPoint.y); ctx.stroke(); ctx.setLineDash([]);
+  ctx.save();
+  ctx.translate(center.x, center.y);
+  ctx.scale(1.7, 1.7);
+  ctx.shadowColor = "rgba(83,211,226,.72)";
+  ctx.shadowBlur = 12;
+  const personGradient = ctx.createLinearGradient(-8,-16,9,17);
+  personGradient.addColorStop(0,"#e8ffff");
+  personGradient.addColorStop(.45,"#73d9e5");
+  personGradient.addColorStop(1,"#2d7885");
+  ctx.fillStyle = personGradient;
+  ctx.strokeStyle = "rgba(221,255,255,.72)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(0,-11,5,0,Math.PI*2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(-7,-4);
+  ctx.quadraticCurveTo(0,-8,7,-4);
+  ctx.lineTo(5,7);
+  ctx.lineTo(3,7);
+  ctx.lineTo(3,16);
+  ctx.lineTo(0,16);
+  ctx.lineTo(0,8);
+  ctx.lineTo(-3,16);
+  ctx.lineTo(-6,16);
+  ctx.lineTo(-4,7);
+  ctx.lineTo(-6,7);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+  ctx.save(); ctx.translate(cameraPoint.x,cameraPoint.y); ctx.rotate(Math.atan2(center.y-cameraPoint.y,center.x-cameraPoint.x)+state.camera.roll*Math.PI/4);
+  ctx.fillStyle="#ff9555"; ctx.fillRect(-13,-8,26,16); ctx.fillStyle="#10151b"; ctx.beginPath(); ctx.arc(6,0,5,0,Math.PI*2); ctx.fill(); ctx.restore();
+  const degrees = Math.round(state.camera.x*180);
+  cameraStatus.textContent = Math.abs(state.camera.x)>.85 ? "뒤" : state.camera.x<-.05 ? `왼쪽 ${Math.abs(degrees)}°` : state.camera.x>.05 ? `오른쪽 ${degrees}°` : "정면 0°";
+}
+
+function renderCamera() {
+  const { x, y, z, roll, frame_y } = state.camera;
+  for (const [id, value] of [["cameraX",x],["cameraY",y],["cameraZ",z],["cameraRoll",roll]]) {
+    document.querySelector(`#${id}`).value = value.toFixed(2);
+  }
+  document.querySelector("#cameraXSlider").value = x;
+  document.querySelector("#cameraYSlider").value = y;
+  document.querySelector("#cameraZSlider").value = z;
+  document.querySelector("#frameYSlider").value = frame_y;
+  document.querySelector("#cameraRollSlider").value = roll;
+  document.querySelector("#frameYInput").value = frame_y.toFixed(2);
+  drawCamera3d();
+}
+
+function render() {
+  modeButtons.forEach(button => button.classList.toggle("active", button.dataset.mode === state.generation.mode));
+  const detail = state.generation.mode === "detail";
+  const generationActionRow = document.querySelector(".generation-action-row");
+  generationActionRow.classList.toggle("mode-fast", !detail);
+  generationActionRow.classList.toggle("mode-detail", detail);
+  document.querySelector("#detailContract").innerHTML = `<span class="contract-dot ${detail ? "on" : ""}"></span>Face · Eye · USDU ${detail ? "ON" : "OFF"}`;
+  document.querySelector("#timeEstimate").textContent = detail ? "1분 이상" : "약 1분";
+  document.querySelector("#generateHint").textContent = `${detail ? "DETAIL" : "FAST"} · COMPOSITION READY`;
+  renderCamera();
+}
+
+modeButtons.forEach(button => button.addEventListener("click", () => {
+  state.generation.mode = button.dataset.mode;
+  render();
+}));
+
+function canvasPoint(event) {
+  const rect = cameraCanvas.getBoundingClientRect();
+  return {x:(event.clientX-rect.left)*WIDTH/rect.width,y:(event.clientY-rect.top)*HEIGHT/rect.height};
+}
+let cameraDrag = null;
+cameraCanvas.addEventListener("pointerdown", event => {
+  event.preventDefault();
+  cameraCanvas.setPointerCapture(event.pointerId);
+  const point=canvasPoint(event);
+  cameraDrag={mode:event.button===2||event.altKey?"view":"camera",pointerId:event.pointerId,x:point.x,y:point.y,posX:state.camera.x,posY:state.camera.y,viewYaw,viewPitch};
+  cameraCanvas.style.cursor=cameraDrag.mode==="view"?"move":"grabbing";
+});
+cameraCanvas.addEventListener("pointermove", event => {
+  if(!cameraDrag||cameraDrag.pointerId!==event.pointerId)return;
+  const point=canvasPoint(event);
+  if(cameraDrag.mode==="view"){
+    viewYaw=cameraDrag.viewYaw-(point.x-cameraDrag.x)/WIDTH*Math.PI*2;
+    viewPitch=Math.max(.12,Math.min(1.15,cameraDrag.viewPitch+(point.y-cameraDrag.y)/HEIGHT*1.5));
+  }else{
+    let value=cameraDrag.posX+(point.x-cameraDrag.x)/(WIDTH/2);
+    while(value>1)value-=2; while(value<-1)value+=2;
+    state.camera.x=value;
+    state.camera.y=clamp(cameraDrag.posY-(point.y-cameraDrag.y)/(HEIGHT/2));
+  }
+  renderCamera();
+});
+function stopCameraDrag(event){if(!cameraDrag||cameraDrag.pointerId!==event.pointerId)return;cameraDrag=null;cameraCanvas.style.cursor="crosshair";}
+cameraCanvas.addEventListener("pointerup",stopCameraDrag);
+cameraCanvas.addEventListener("pointercancel",stopCameraDrag);
+cameraCanvas.addEventListener("contextmenu",event=>event.preventDefault());
+cameraCanvas.addEventListener("wheel", event => {
+  event.preventDefault();
+  const amount=event.deltaY*.0003;
+  if(event.shiftKey)state.camera.roll=clamp(state.camera.roll-amount*3);
+  else state.camera.z=clamp(state.camera.z-amount);
+  renderCamera();
+}, { passive:false });
+cameraCanvas.addEventListener("dblclick",event=>{if(event.shiftKey){viewYaw=0;viewPitch=.42;}else{state.camera.x=0;state.camera.y=0;}renderCamera();});
+cameraCanvas.addEventListener("keydown", event => {
+  const delta = event.shiftKey ? .1 : .02;
+  if (["ArrowLeft","ArrowRight","ArrowUp","ArrowDown"].includes(event.key)) event.preventDefault();
+  if (event.key === "ArrowLeft") state.camera.x = clamp(state.camera.x - delta);
+  if (event.key === "ArrowRight") state.camera.x = clamp(state.camera.x + delta);
+  if (event.key === "ArrowUp") state.camera.y = clamp(state.camera.y + delta);
+  if (event.key === "ArrowDown") state.camera.y = clamp(state.camera.y - delta);
+  renderCamera();
+});
+
+// Superseded by the source-faithful LightMap mockup module loaded by index.html.
+if (false) {
+const lightOrbitCanvas = document.querySelector("#lightOrbitCanvas");
+const lightOrbitStatus = document.querySelector("#lightOrbitStatus");
+const lightState = { azimuth: Math.PI, elevation: 0, x: 0, y: 0, z: -1, intensity: .8, ambient: .2, shadow: .65, exposure: 0, rim: 0, color: "Neutral" };
+let lightDrag = null;
+let lightViewYaw = 0;
+let lightViewPitch = .42;
+let lightMockEnabled = true;
+
+function updateLightVector() {
+  const horizontal = Math.cos(lightState.elevation);
+  lightState.x = horizontal * Math.sin(lightState.azimuth);
+  lightState.y = Math.sin(lightState.elevation);
+  lightState.z = horizontal * Math.cos(lightState.azimuth);
+  syncLightMockControls();
+}
+
+function syncLightMockControls() {
+  for (const [key, sliderId, numberId] of [
+    ["x", "lightXSlider", "lightX"], ["y", "lightYSlider", "lightY"], ["z", "lightZSlider", "lightZ"],
+    ["intensity", "lightIntensitySlider", "lightIntensity"], ["ambient", "lightAmbientSlider", "lightAmbient"],
+    ["shadow", "lightShadowSlider", "lightShadow"], ["exposure", "lightExposureSlider", "lightExposure"],
+    ["rim", "lightRimSlider", "lightRim"]
+  ]) {
+    document.querySelector(`#${sliderId}`).value = lightState[key];
+    document.querySelector(`#${numberId}`).value = Number(lightState[key]).toFixed(2);
+  }
+  document.querySelector("#lightColor").value = lightState.color;
+}
+
+function lightDirectionName() {
+  const { x, y, z } = lightState;
+  const axes = [
+    [Math.abs(x), x >= 0 ? "왼쪽" : "오른쪽"],
+    [Math.abs(y), y >= 0 ? "상단" : "하단"],
+    [Math.abs(z), z >= 0 ? "정면" : "후면"]
+  ];
+  return axes.sort((a, b) => b[0] - a[0])[0][1];
+}
+
+function drawLightOrbit() {
+  const rect = lightOrbitCanvas.getBoundingClientRect();
+  if (!rect.width || !rect.height) return;
+  const ratio = Math.min(window.devicePixelRatio || 1, 2);
+  const width = Math.round(rect.width);
+  const height = Math.round(rect.height);
+  const pixelWidth = Math.round(width * ratio);
+  const pixelHeight = Math.round(height * ratio);
+  if (lightOrbitCanvas.width !== pixelWidth || lightOrbitCanvas.height !== pixelHeight) {
+    lightOrbitCanvas.width = pixelWidth;
+    lightOrbitCanvas.height = pixelHeight;
+  }
+  const ctx = lightOrbitCanvas.getContext("2d");
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  ctx.clearRect(0, 0, width, height);
+  const cx = width / 2;
+  const cy = height / 2 - 3;
+  const radius = Math.min(width * .34, height * .36);
+
+  const project = (x, y, z) => {
+    const cosYaw = Math.cos(lightViewYaw);
+    const sinYaw = Math.sin(lightViewYaw);
+    const horizontal = x * cosYaw + z * sinYaw;
+    const depth = -x * sinYaw + z * cosYaw;
+    return {
+      x: cx + horizontal * radius,
+      y: cy - y * radius * Math.cos(lightViewPitch) + depth * radius * Math.sin(lightViewPitch),
+      depth: depth * Math.cos(lightViewPitch) + y * Math.sin(lightViewPitch)
+    };
+  };
+  const ring = (pointAt, color) => {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.2;
+    ctx.setLineDash([4,5]);
+    ctx.beginPath();
+    for (let index = 0; index <= 96; index += 1) {
+      const point = project(...pointAt(index / 96 * Math.PI * 2));
+      index ? ctx.lineTo(point.x, point.y) : ctx.moveTo(point.x, point.y);
+    }
+    ctx.stroke();
+  };
+  ring(angle => [Math.sin(angle),0,Math.cos(angle)], "rgba(74,201,217,.46)");
+  ring(angle => [0,Math.sin(angle),Math.cos(angle)], "rgba(255,151,83,.34)");
+  ring(angle => [Math.sin(angle),Math.cos(angle),0], "rgba(111,215,235,.23)");
+  ctx.setLineDash([]);
+  ctx.fillStyle = "#c7d7e5";
+  ctx.font = "700 9px Consolas,monospace";
+  ctx.textAlign = "center";
+  for (const [label, vector] of [["R",[-1,0,0]],["L",[1,0,0]],["B",[0,0,-1]],["F",[0,0,1]]]) {
+    const marker = project(...vector);
+    ctx.fillText(label, marker.x, marker.y - 6);
+  }
+
+  const depthScale = .48 + .52 * ((lightState.z + 1) / 2);
+  const knobPoint = project(lightState.x, lightState.y, lightState.z);
+  const knobX = knobPoint.x;
+  const knobY = knobPoint.y;
+  const line = ctx.createLinearGradient(cx, cy, knobX, knobY);
+  line.addColorStop(0, "rgba(120,211,229,.18)");
+  line.addColorStop(1, "rgba(255,210,103,.78)");
+  ctx.strokeStyle = line;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(knobX, knobY);
+  ctx.stroke();
+
+  const subjectGlow = ctx.createRadialGradient(cx - 3, cy - 4, 2, cx, cy, 15);
+  subjectGlow.addColorStop(0, "#d9ffff");
+  subjectGlow.addColorStop(1, "#348a96");
+  ctx.fillStyle = subjectGlow;
+  ctx.beginPath();
+  ctx.arc(cx, cy, 13, 0, Math.PI * 2);
+  ctx.fill();
+
+  const knobRadius = 8 + depthScale * 3;
+  const glow = ctx.createRadialGradient(knobX - 3, knobY - 4, 1, knobX, knobY, knobRadius * 2.3);
+  glow.addColorStop(0, "#fffbe0");
+  glow.addColorStop(.35, "#ffd267");
+  glow.addColorStop(1, "rgba(255,190,67,0)");
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(knobX, knobY, knobRadius * 2.3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.save();
+  ctx.translate(knobX, knobY);
+  ctx.strokeStyle = "#ffd267";
+  ctx.lineWidth = 1.5;
+  for (let index = 0; index < 8; index += 1) {
+    ctx.rotate(Math.PI / 4);
+    ctx.beginPath();
+    ctx.moveTo(0, -knobRadius - 4);
+    ctx.lineTo(0, -knobRadius - 8);
+    ctx.stroke();
+  }
+  ctx.rotate(Math.PI / 4);
+  ctx.fillStyle = "#ffd267";
+  ctx.strokeStyle = "#fff7cf";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(0, -knobRadius);
+  ctx.lineTo(knobRadius * .78, 0);
+  ctx.lineTo(0, knobRadius);
+  ctx.lineTo(-knobRadius * .78, 0);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = "#fffbe0";
+  ctx.beginPath();
+  ctx.arc(0, 0, 2.6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  lightOrbitStatus.textContent = `${lightDirectionName()} · X ${lightState.x.toFixed(2)} Y ${lightState.y.toFixed(2)} Z ${lightState.z.toFixed(2)}`;
+}
+
+lightOrbitCanvas.addEventListener("pointerdown", event => {
+  event.preventDefault();
+  lightOrbitCanvas.setPointerCapture(event.pointerId);
+  lightDrag = { mode: event.button === 2 || event.altKey ? "view" : "light", pointerId: event.pointerId, x: event.clientX, y: event.clientY, azimuth: lightState.azimuth, elevation: lightState.elevation, viewYaw: lightViewYaw, viewPitch: lightViewPitch };
+});
+lightOrbitCanvas.addEventListener("pointermove", event => {
+  if (!lightDrag || lightDrag.pointerId !== event.pointerId) return;
+  const rect = lightOrbitCanvas.getBoundingClientRect();
+  if (lightDrag.mode === "view") {
+    lightViewYaw = lightDrag.viewYaw - (event.clientX - lightDrag.x) / Math.max(rect.width, 1) * Math.PI * 2;
+    lightViewPitch = Math.max(.12, Math.min(1.15, lightDrag.viewPitch + (event.clientY - lightDrag.y) / Math.max(rect.height, 1) * 1.5));
+  } else {
+    lightState.azimuth = lightDrag.azimuth + (event.clientX - lightDrag.x) / Math.max(rect.width, 1) * Math.PI * 2;
+    lightState.elevation = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, lightDrag.elevation - (event.clientY - lightDrag.y) / Math.max(rect.height, 1) * Math.PI));
+    updateLightVector();
+  }
+  drawLightOrbit();
+});
+function stopLightDrag(event) {
+  if (!lightDrag || lightDrag.pointerId !== event.pointerId) return;
+  lightDrag = null;
+}
+lightOrbitCanvas.addEventListener("pointerup", stopLightDrag);
+lightOrbitCanvas.addEventListener("pointercancel", stopLightDrag);
+lightOrbitCanvas.addEventListener("contextmenu", event => event.preventDefault());
+lightOrbitCanvas.addEventListener("keydown", event => {
+  const delta = event.shiftKey ? .15 : .04;
+  if (event.key === "ArrowLeft") lightState.azimuth -= delta;
+  else if (event.key === "ArrowRight") lightState.azimuth += delta;
+  else if (event.key === "ArrowUp") lightState.elevation = Math.min(Math.PI / 2, lightState.elevation + delta);
+  else if (event.key === "ArrowDown") lightState.elevation = Math.max(-Math.PI / 2, lightState.elevation - delta);
+  else return;
+  event.preventDefault();
+  updateLightVector();
+  drawLightOrbit();
+});
+for (const [key, sliderId, numberId] of [
+  ["x", "lightXSlider", "lightX"], ["y", "lightYSlider", "lightY"], ["z", "lightZSlider", "lightZ"],
+  ["intensity", "lightIntensitySlider", "lightIntensity"], ["ambient", "lightAmbientSlider", "lightAmbient"],
+  ["shadow", "lightShadowSlider", "lightShadow"], ["exposure", "lightExposureSlider", "lightExposure"],
+  ["rim", "lightRimSlider", "lightRim"]
+]) {
+  const apply = event => {
+    lightState[key] = Number(event.target.value);
+    if (["x", "y", "z"].includes(key)) {
+      const length = Math.hypot(lightState.x, lightState.y, lightState.z) || 1;
+      lightState.azimuth = Math.atan2(lightState.x / length, lightState.z / length);
+      lightState.elevation = Math.asin(Math.max(-1, Math.min(1, lightState.y / length)));
+    }
+    syncLightMockControls();
+    drawLightOrbit();
+  };
+  document.querySelector(`#${sliderId}`).addEventListener("input", apply);
+  document.querySelector(`#${numberId}`).addEventListener("change", apply);
+}
+document.querySelector("#lightColor").addEventListener("change", event => {
+  lightState.color = event.target.value;
+});
+document.querySelector("#lightMockToggle").addEventListener("click", event => {
+  lightMockEnabled = !lightMockEnabled;
+  event.currentTarget.classList.toggle("on", lightMockEnabled);
+  event.currentTarget.setAttribute("aria-pressed", String(lightMockEnabled));
+  event.currentTarget.setAttribute("aria-label", `광원 설정 목업 ${lightMockEnabled ? "끄기" : "켜기"}`);
+  document.querySelector("#lightMockControls").classList.toggle("is-disabled", !lightMockEnabled);
+});
+document.querySelector("#lightMockReset").addEventListener("click", () => {
+  Object.assign(lightState, { azimuth: Math.PI, elevation: 0, x: 0, y: 0, z: -1, intensity: .8, ambient: .2, shadow: .65, exposure: 0, rim: 0, color: "Neutral" });
+  lightViewYaw = 0;
+  lightViewPitch = .42;
+  syncLightMockControls();
+  drawLightOrbit();
+});
+new ResizeObserver(drawLightOrbit).observe(lightOrbitCanvas);
+updateLightVector();
+drawLightOrbit();
+}
+
+for (const [id,key] of [["cameraX","x"],["cameraY","y"],["cameraZ","z"],["cameraRoll","roll"]]) {
+  document.querySelector(`#${id}`).addEventListener("change", event => {
+    state.camera[key] = clamp(event.target.value);
+    renderCamera();
+  });
+}
+document.querySelector("#frameYInput").addEventListener("change", event => {
+  state.camera.frame_y = clamp(event.target.value);
+  renderCamera();
+});
+for (const [id,key] of [["cameraXSlider","x"],["cameraYSlider","y"],["cameraZSlider","z"],["frameYSlider","frame_y"],["cameraRollSlider","roll"]]) {
+  document.querySelector(`#${id}`).addEventListener("input", event => {
+    state.camera[key] = clamp(event.target.value);
+    renderCamera();
+  });
+}
+
+const cameraPresets = {
+  front:{x:0,y:0,z:0,roll:0,frame_y:0},
+  left:{x:.5,y:0,z:0,roll:0,frame_y:0},
+  center:{x:0,y:.35,z:-.45,roll:0,frame_y:0},
+  right:{x:-.5,y:0,z:0,roll:0,frame_y:0},
+  rear:{x:1,y:0,z:0,roll:0,frame_y:0}
+};
+document.querySelectorAll("[data-camera-preset]").forEach(button => button.addEventListener("click", () => {
+  state.camera = {...cameraPresets[button.dataset.cameraPreset]};
+  document.querySelectorAll("[data-camera-preset]").forEach(item => item.classList.toggle("active", item === button));
+  renderCamera();
+}));
+document.querySelector("#cameraReset").addEventListener("click", () => {
+  state.camera = {...cameraPresets.center};
+  document.querySelectorAll("[data-camera-preset]").forEach(item => item.classList.toggle("active", item.dataset.cameraPreset === "center"));
+  renderCamera();
+});
+
+document.querySelector("#compositionToggle").addEventListener("click", event => {
+  state.composition_enabled = !state.composition_enabled;
+  event.currentTarget.classList.toggle("on", state.composition_enabled);
+  event.currentTarget.setAttribute("aria-pressed", String(state.composition_enabled));
+  event.currentTarget.setAttribute("aria-label", `구도 설정 ${state.composition_enabled ? "끄기" : "켜기"}`);
+  document.querySelector("#compositionControls").classList.toggle("is-disabled", !state.composition_enabled);
+});
+
+document.querySelector("#outputFolderButton").addEventListener("click", async () => {
+  const button = document.querySelector("#outputFolderButton");
+  try {
+    const response = await fetch("/api/open-output-folder", { method: "POST" });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  } catch (error) {
+    button.title = "LAKIS Desktop Bridge가 실행 중이 아닙니다";
+    console.error("Could not open output folder through LAKIS Desktop Bridge", error);
+  }
+});
+
+document.querySelector("#workflowButton").addEventListener("click", async () => {
+  const workflowWindow = window.open("about:blank", "_blank");
+  try {
+    const response = await fetch("/api/open-workflow", { method: "POST" });
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.error || `HTTP ${response.status}`);
+    if (workflowWindow) workflowWindow.location.replace(result.comfy_url || "http://127.0.0.1:8189/");
+    else window.open(result.comfy_url || "http://127.0.0.1:8189/", "_blank", "noopener");
+  } catch (error) {
+    workflowWindow?.close();
+    showGenerationError(error.message || "LAKIS 워크플로를 열지 못했어요.");
+  }
+});
+
+let latestSystemStatus = null;
+const gib = bytes => bytes ? bytes / (1024 ** 3) : 0;
+function setMeter(id, used, total) {
+  document.querySelector(`#${id}`).style.width = `${total ? Math.min(100, used / total * 100) : 0}%`;
+}
+async function refreshSystemStatus() {
+  try {
+    const response = await fetch("/api/status", { cache: "no-store" });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const status = await response.json();
+    latestSystemStatus = status;
+    document.querySelector("#workflowVersion").textContent = `v${status.lakis_version || status.workflow_version}`;
+    document.querySelector("#comfyStatusText").textContent = status.comfyui_running ? "실행 중" : "연결 안 됨";
+    document.querySelector("#comfyStatusDot").className = `footer-dot ${status.comfyui_running ? "online" : "offline"}`;
+    const vramUsed = Math.max(0, status.vram_total - status.vram_free);
+    const ramUsed = Math.max(0, status.ram_total - status.ram_free);
+    document.querySelector("#vramText").textContent = status.vram_total ? `${gib(vramUsed).toFixed(1)} / ${gib(status.vram_total).toFixed(0)} GB` : "-- / -- GB";
+    document.querySelector("#ramText").textContent = status.ram_total ? `${gib(ramUsed).toFixed(1)} / ${gib(status.ram_total).toFixed(0)} GB` : "-- / -- GB";
+    document.querySelector("#cpuText").textContent = status.cpu_percent == null ? "--%" : `${status.cpu_percent.toFixed(0)}%`;
+    setMeter("vramMeter", vramUsed, status.vram_total);
+    setMeter("ramMeter", ramUsed, status.ram_total);
+  } catch (_) {
+    document.querySelector("#comfyStatusText").textContent = "브리지 연결 안 됨";
+    document.querySelector("#comfyStatusDot").className = "footer-dot offline";
+  }
+}
+document.querySelector("#systemInfoButton").addEventListener("click", () => {
+  if (!latestSystemStatus) return;
+  const status = latestSystemStatus;
+  alert(`LAKIS v${status.lakis_version || status.workflow_version}\nComfyUI: ${status.comfyui_running ? "실행 중" : "연결 안 됨"}\nVRAM: ${document.querySelector("#vramText").textContent}\nRAM: ${document.querySelector("#ramText").textContent}\nCPU: ${document.querySelector("#cpuText").textContent}`);
+});
+refreshSystemStatus();
+setInterval(refreshSystemStatus, 3000);
+
+document.querySelectorAll("[data-prompt-panel]").forEach(button => {
+  button.addEventListener("click", () => {
+    const panel = document.querySelector(`#${button.dataset.promptPanel}`);
+    if (!panel.hidden) return;
+    const group = button.closest("[data-prompt-group]");
+    group.querySelectorAll("[data-prompt-panel]").forEach(item => {
+      item.classList.remove("active");
+      item.setAttribute("aria-expanded", "false");
+      document.querySelector(`#${item.dataset.promptPanel}`).hidden = true;
+    });
+    panel.hidden = false;
+    button.classList.add("active");
+    button.setAttribute("aria-expanded", "true");
+    panel.querySelector("textarea")?.focus();
+  });
+});
+const promptInputBindings = [
+  ["fixedPromptInput", "fixed"], ["generalPromptInput", "general"],
+  ["qualityPromptInput", "quality"], ["artistPromptInput", "artist"],
+  ["triggerPromptInput", "trigger"],
+  ["negativeFixedPromptInput", "negative_fixed"],
+  ["negativeQualityPromptInput", "negative_quality"],
+  ["negativeArtistPromptInput", "negative_artist"],
+  ["negativePrompt", "negative"],
+];
+
+function syncPromptStateFromInputs() {
+  for (const [id, key] of promptInputBindings) {
+    state.prompt[key] = document.querySelector(`#${id}`).value;
+  }
+}
+
+function loadLocalPromptState() {
+  try {
+    const value = JSON.parse(localStorage.getItem(PROMPT_STORAGE_KEY) || "null");
+    return value && typeof value === "object" ? value : {};
+  } catch (_) {
+    return {};
+  }
+}
+
+function saveLocalPromptState() {
+  try {
+    localStorage.setItem(PROMPT_STORAGE_KEY, JSON.stringify(state.prompt));
+  } catch (error) {
+    console.error("Could not persist browser-local prompt state", error);
+  }
+}
+
+let promptSaveTimer = null;
+function schedulePromptStateSave() {
+  clearTimeout(promptSaveTimer);
+  promptSaveTimer = setTimeout(async () => {
+    syncPromptStateFromInputs();
+    saveLocalPromptState();
+    try {
+      await fetch("/api/prompt-state", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: state.prompt }),
+      });
+    } catch (error) {
+      console.error("Could not persist LAKIS prompt state", error);
+    }
+  }, 250);
+}
+
+for (const [id, key] of promptInputBindings) {
+  document.querySelector(`#${id}`).addEventListener("input", event => {
+    state.prompt[key] = event.target.value;
+    schedulePromptStateSave();
+  });
+}
+
+for (const [id,key] of [["checkpointSelect","checkpoint"],["vaeSelect","vae"],
+  ["clipSelect","clip"],["samplerSelect","sampler"],["schedulerSelect","scheduler"],
+  ["stepsInput","steps"],["cfgInput","cfg"]]) {
+  document.querySelector(`#${id}`).addEventListener("change", event => {
+    state.model[key] = ["steps", "cfg"].includes(key) ? Number(event.target.value) : event.target.value;
+    scheduleGenerationStateSave();
+  });
+}
+
+function populateWorkflowSelect(id, configKey, config) {
+  const select = document.querySelector(`#${id}`);
+  select.replaceChildren(...config.options.map(value => {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = value;
+    return option;
+  }));
+  select.value = config.current;
+  state.model[configKey] = config.current;
+  select.title = `${config.loader_class} · ${config.options.length} models`;
+}
+
+async function refreshWorkflowConfiguration() {
+  try {
+    const response = await fetch("/api/workflow-config", { cache: "no-store" });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const config = await response.json();
+    populateWorkflowSelect("checkpointSelect", "checkpoint", config.checkpoint);
+    populateWorkflowSelect("vaeSelect", "vae", config.vae);
+    populateWorkflowSelect("clipSelect", "clip", config.clip);
+    const savedGeneration = config.generation_state || {};
+    Object.assign(state.model, savedGeneration.model || {});
+    Object.assign(state.output, savedGeneration.output || {});
+    for (const [id, key] of [["samplerSelect", "sampler"], ["schedulerSelect", "scheduler"],
+      ["stepsInput", "steps"], ["cfgInput", "cfg"]]) {
+      document.querySelector(`#${id}`).value = state.model[key];
+    }
+    for (const [id, key] of [["imageWidth", "width"], ["imageHeight", "height"], ["seedInput", "seed"]]) {
+      document.querySelector(`#${id}`).value = state.output[key];
+    }
+    document.querySelectorAll("[data-seed-mode]").forEach(button => {
+      button.classList.toggle("active", button.dataset.seedMode === state.output.seed_mode);
+    });
+    loraOptions = Array.isArray(config.lora?.options) ? config.lora.options : [];
+    state.lora_enabled = config.lora?.enabled !== false;
+    const allLorasToggle = document.querySelector("#allLorasToggle");
+    allLorasToggle.classList.toggle("on", state.lora_enabled);
+    allLorasToggle.setAttribute("aria-pressed", String(state.lora_enabled));
+    document.querySelector("#loraList").classList.toggle("all-disabled", !state.lora_enabled);
+    state.loras = Array.isArray(config.lora?.current)
+      ? config.lora.current.map(item => ({
+          name: String(item.name || ""),
+          enabled: Boolean(item.enabled),
+          strength: Number(item.strength ?? 1),
+        }))
+      : [];
+    renderLoras();
+    const promptInputs = {
+      general: "generalPromptInput", quality: "qualityPromptInput",
+      artist: "artistPromptInput", trigger: "triggerPromptInput", fixed: "fixedPromptInput",
+      negative: "negativePrompt", negative_quality: "negativeQualityPromptInput",
+      negative_artist: "negativeArtistPromptInput", negative_fixed: "negativeFixedPromptInput",
+    };
+    const localPrompt = loadLocalPromptState();
+    for (const [key, id] of Object.entries(promptInputs)) {
+      const source = Object.prototype.hasOwnProperty.call(localPrompt, key)
+        ? localPrompt[key]
+        : config.prompt?.[key];
+      const value = String(source || "");
+      state.prompt[key] = value;
+      document.querySelector(`#${id}`).value = value;
+    }
+    window.dispatchEvent(new CustomEvent("lakis-prompt-state-loaded"));
+  } catch (error) {
+    console.error("Could not load ComfyUI workflow model configuration", error);
+  }
+}
+refreshWorkflowConfiguration();
+
+function syncOutputStateFromInputs() {
+  for (const [id, key] of [["imageWidth", "width"], ["imageHeight", "height"], ["seedInput", "seed"]]) {
+    const value = Number(document.querySelector(`#${id}`).value);
+    if (Number.isFinite(value)) state.output[key] = value;
+  }
+}
+
+for (const [id,key] of [["imageWidth","width"],["imageHeight","height"],["seedInput","seed"]]) {
+  document.querySelector(`#${id}`).addEventListener("input", event => {
+    const value = Number(event.target.value);
+    if (!Number.isFinite(value)) return;
+    state.output[key] = value;
+    scheduleGenerationStateSave();
+  });
+}
+document.querySelectorAll("[data-seed-mode]").forEach(button => button.addEventListener("click", () => {
+  state.output.seed_mode = button.dataset.seedMode;
+  document.querySelectorAll("[data-seed-mode]").forEach(item => item.classList.toggle("active", item === button));
+  document.querySelector("#seedInput").classList.toggle("seed-locked", state.output.seed_mode === "current");
+  scheduleGenerationStateSave();
+}));
+
+document.querySelector(".history-strip").addEventListener("click", event => {
+  const button = event.target.closest(".history-thumb");
+  if (!button) return;
+  document.querySelectorAll(".history-thumb").forEach(item => item.classList.remove("selected"));
+  button.classList.add("selected");
+  document.querySelector("#previewImage").src = button.querySelector("img").src;
+  if (button.dataset.mode) {
+    document.querySelector("#previewMode").textContent = button.dataset.mode.toUpperCase();
+  }
+  if (button.dataset.seed) {
+    document.querySelector("#previewSeed").textContent = `SEED ${button.dataset.seed}`;
+  }
+  const durationBadge = document.querySelector("#previewDuration");
+  if (button.dataset.duration) {
+    durationBadge.textContent = `${Number(button.dataset.duration).toFixed(1)}초`;
+    durationBadge.hidden = false;
+  } else {
+    durationBadge.hidden = true;
+  }
+  if (state.output.seed_mode === "current" && button.dataset.seed) {
+    state.output.seed = Number(button.dataset.seed);
+    document.querySelector("#seedInput").value = state.output.seed;
+  }
+});
+
+const generateButton = document.querySelector("#generateButton");
+const generateButtonLabel = generateButton.querySelector("span");
+const generateButtonHint = document.querySelector("#generateHint");
+const errorDialog = document.querySelector("#errorDialog");
+const errorDialogMessage = document.querySelector("#errorDialogMessage");
+let generationActive = false;
+let generationCancelRequested = false;
+let lastPreviewRevision = 0;
+let previewObjectUrl = null;
+
+async function refreshGenerationPreview(revision) {
+  if (!revision || revision === lastPreviewRevision) return;
+  const response = await fetch(`/api/generation-preview?r=${revision}`, { cache: "no-store" });
+  lastPreviewRevision = revision;
+  if (response.status === 204 || !response.ok) return;
+  const blob = await response.blob();
+  const nextUrl = URL.createObjectURL(blob);
+  document.querySelector("#previewImage").src = nextUrl;
+  if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
+  previewObjectUrl = nextUrl;
+}
+
+function setGenerationProgress(percent, stage = "최종 이미지 생성 중") {
+  const progress = Math.max(0, Math.min(100, Number(percent) || 0));
+  const phase = String(stage || "")
+    .replace(/^생성 중\s*·\s*/, "")
+    .replace(/^생성 중$/, "준비")
+    .trim() || "처리";
+  generationActive = progress < 100;
+  generateButton.style.setProperty("--generation-progress", `${progress}%`);
+  generateButton.classList.toggle("is-generating", progress < 100);
+  generateButton.classList.toggle("is-complete", progress >= 100);
+  generateButtonLabel.textContent = progress >= 100 ? "완료" : "제작 중";
+  generateButtonHint.textContent = progress >= 100 ? "100%" : `${phase} · ${Math.round(progress)}%`;
+}
+
+function resetGenerationButton() {
+  generationActive = false;
+  generationCancelRequested = false;
+  generateButton.style.setProperty("--generation-progress", "0%");
+  generateButton.classList.remove("is-generating", "is-complete", "is-cancelling");
+  generateButtonLabel.textContent = "제작하기";
+  generateButtonHint.textContent = `${state.generation.mode === "detail" ? "DETAIL" : "FAST"} · COMPOSITION READY`;
+}
+
+function showGenerationError(message) {
+  resetGenerationButton();
+  errorDialogMessage.textContent = message || "생성 중 오류가 발생했어요.";
+  errorDialog.hidden = false;
+  document.querySelector("#errorDialogClose").focus();
+}
+
+function closeGenerationError() {
+  errorDialog.hidden = true;
+  generateButton.focus();
+}
+
+document.querySelector("#errorDialogClose").addEventListener("click", closeGenerationError);
+errorDialog.addEventListener("click", event => {
+  if (event.target === errorDialog) closeGenerationError();
+});
+document.addEventListener("keydown", event => {
+  if (event.key === "Escape" && !errorDialog.hidden) closeGenerationError();
+});
+
+window.addEventListener("lakis:generation-progress", event => {
+  setGenerationProgress(event.detail?.percent, event.detail?.stage);
+});
+window.addEventListener("lakis:generation-complete", () => {
+  setGenerationProgress(100, "완료");
+  setTimeout(resetGenerationButton, 1400);
+});
+window.addEventListener("lakis:generation-error", resetGenerationButton);
+window.addEventListener("lakis:generation-cancelled", resetGenerationButton);
+window.LAKISGenerationProgress = setGenerationProgress;
+
+let lastGenerationState = "idle";
+async function pollGenerationStatus() {
+  try {
+    const response = await fetch("/api/generation-status", { cache: "no-store" });
+    if (!response.ok) return;
+    const status = await response.json();
+    if (["preparing", "running"].includes(status.state)) {
+      setGenerationProgress(status.percent, status.stage || "생성 중");
+      refreshGenerationPreview(status.preview_revision).catch(() => {});
+    } else if (status.state === "cancelling") {
+      generationActive = true;
+      generationCancelRequested = true;
+      generateButton.classList.add("is-generating", "is-cancelling");
+      generateButtonLabel.textContent = "중지 중";
+      generateButtonHint.textContent = "현재 작업 종료 요청됨";
+    } else if (status.state === "complete" && lastGenerationState !== "complete") {
+      if (status.output_url) {
+        const imageUrl = `${status.output_url}&lakis=${Date.now()}`;
+        document.querySelector("#previewImage").src = imageUrl;
+        if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
+        previewObjectUrl = null;
+        const thumb = document.createElement("button");
+        thumb.className = "history-thumb selected";
+        thumb.dataset.seed = String(status.seed ?? state.output.seed);
+        thumb.dataset.mode = status.mode === "detail" ? "detail" : "fast";
+        const durationSeconds = Math.max(0, Number(status.finished_at || 0) - Number(status.started_at || 0));
+        thumb.dataset.duration = durationSeconds.toFixed(3);
+        thumb.innerHTML = `<img src="${imageUrl}" alt="LAKIS generated image">`;
+        document.querySelectorAll(".history-thumb").forEach(item => item.classList.remove("selected"));
+        const historyStrip = document.querySelector(".history-strip");
+        historyStrip.prepend(thumb);
+        historyStrip.scrollLeft = 0;
+        document.querySelector("#previewMode").textContent = thumb.dataset.mode.toUpperCase();
+        document.querySelector("#previewSeed").textContent = `SEED ${thumb.dataset.seed}`;
+        document.querySelector("#previewDuration").textContent = `${durationSeconds.toFixed(1)}초`;
+        document.querySelector("#previewDuration").hidden = false;
+      }
+      window.dispatchEvent(new CustomEvent("lakis:generation-complete"));
+    } else if (status.state === "cancelled" && lastGenerationState !== "cancelled") {
+      window.dispatchEvent(new CustomEvent("lakis:generation-cancelled"));
+    } else if (status.state === "error" && lastGenerationState !== "error") {
+      showGenerationError(status.error);
+    }
+    lastGenerationState = status.state;
+  } catch (_) {
+    // Main status polling already displays bridge connectivity.
+  }
+}
+setInterval(pollGenerationStatus, 500);
+
+generateButton.addEventListener("click", () => {
+  if (generationActive) {
+    if (generationCancelRequested) return;
+    generationCancelRequested = true;
+    generateButton.classList.add("is-cancelling");
+    generateButtonLabel.textContent = "중지 중";
+    generateButtonHint.textContent = "현재 작업 종료 요청됨";
+    window.dispatchEvent(new CustomEvent("lakis:generation-cancel-request"));
+    return;
+  }
+
+  // Number inputs do not always dispatch `change` before a nearby button is
+  // activated (notably with spinner/IME interaction). Read the visible size
+  // again so every generation uses the ratio currently shown in the UI.
+  syncOutputStateFromInputs();
+  if (state.output.seed_mode === "random") {
+    state.output.seed = Math.floor(Math.random() * (COMFYUI_SEED_MAX + 1));
+    document.querySelector("#seedInput").value = state.output.seed;
+  }
+  // Read the visible controls again at submission time. This prevents a stale
+  // startup/default state from replacing text the user has just entered.
+  syncPromptStateFromInputs();
+  saveLocalPromptState();
+  document.querySelector("#previewMode").textContent = state.generation.mode === "detail" ? "DETAIL" : "FAST";
+  document.querySelector("#previewSeed").textContent = `SEED ${state.output.seed}`;
+  document.querySelector("#previewDuration").hidden = true;
+  // A zoom chosen for the previous aspect ratio must not make the next image
+  // appear cropped or locked to that ratio.
+  setPreviewZoom(100);
+  window.dispatchEvent(new CustomEvent("lakis:generate", { detail: structuredClone(state) }));
+  lastPreviewRevision = 0;
+  setGenerationProgress(0, "생성 중");
+});
+
+window.addEventListener("lakis:generate", async event => {
+  try {
+    const response = await fetch("/api/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(event.detail)
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.error || `HTTP ${response.status}`);
+    lastGenerationState = "preparing";
+  } catch (error) {
+    showGenerationError(error.message);
+  }
+});
+
+window.addEventListener("lakis:generation-cancel-request", async () => {
+  try {
+    const response = await fetch("/api/cancel", { method: "POST" });
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.error || result.reason || "중지 실패");
+  } catch (error) {
+    generationCancelRequested = false;
+    showGenerationError(`생성 중지 요청에 실패했어요.\n${error.message}`);
+  }
+});
+
+render();

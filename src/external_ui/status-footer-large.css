@@ -1,0 +1,2 @@
+.system-footer{height:48px;padding:0 12px;font-size:10px}.footer-left,.footer-right{gap:13px}.footer-left>i{height:16px}.footer-dot{width:8px;height:8px;margin-left:6px}.meter{width:92px;height:6px}.footer-right button{padding:8px 14px;font-size:9px;border-radius:7px}
+@media(min-width:801px){.workspace{height:calc(100vh - 102px)}.system-footer{height:48px}}

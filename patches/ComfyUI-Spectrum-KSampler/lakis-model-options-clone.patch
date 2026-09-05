@@ -1,0 +1,66 @@
+diff --git a/nodes.py b/nodes.py
+index 6df2f43..1ae969d 100644
+--- a/nodes.py
++++ b/nodes.py
+@@ -1,6 +1,5 @@
+ """ComfyUI node definitions for Spectrum inference acceleration."""
+ 
+-import copy
+ import json
+ import logging
+ import math
+@@ -728,14 +727,9 @@ _FSG_INPUTS = {
+ 
+ def _clone_model_options(model):
+     """Copy model_options so model patch nodes do not mutate the input MODEL."""
+-    try:
+-        model.model_options = copy.deepcopy(model.model_options)
+-    except Exception as e:
+-        logger.warning(
+-            "DiT model patch: deepcopy(model_options) failed (%s); using a shallow copy.",
+-            e,
+-        )
+-        model.model_options = dict(model.model_options)
++    # Match ModelPatcher.clone(): recursively isolate dict/list containers but
++    # never deepcopy tensors or AIMDO/VBAR-owned runtime objects.
++    model.model_options = comfy.utils.deepcopy_list_dict(model.model_options)
+ 
+ 
+ def _missing_option_error(feature_name, missing, *, hint):
+diff --git a/spectrum.py b/spectrum.py
+index e95a549..f845342 100644
+--- a/spectrum.py
++++ b/spectrum.py
+@@ -2,7 +2,6 @@
+ 
+ from __future__ import annotations
+ 
+-import copy
+ import inspect
+ import logging
+ import math
+@@ -1035,15 +1034,15 @@ def _require_dit_spectrum_components(model):
+ 
+ 
+ def _clone_model_options(model):
+-    try:
+-        model.model_options = copy.deepcopy(model.model_options)
+-    except Exception as e:
+-        logger.warning(
+-            "DiT Spectrum Patch: deepcopy(model_options) failed (%s); using a "
+-            "shallow copy for wrapper isolation.",
+-            e,
+-        )
+-        model.model_options = dict(model.model_options)
++    """Clone option containers without copying CUDA/AIMDO-backed objects.
++
++    ``ModelPatcher.clone()`` already uses this ComfyUI helper.  Spectrum needs
++    independent nested dict/list containers for its run-local wrapper state,
++    but an ordinary ``copy.deepcopy`` can traverse AIMDO VBAR objects after a
++    prior run and trigger an invalid CUDA access.  Keep tensors, callables and
++    backend-owned objects shared exactly as ComfyUI's own clone contract does.
++    """
++    model.model_options = comfy.utils.deepcopy_list_dict(model.model_options)
+ 
+ 
+ def _normalize_cond_or_uncond(args, batch_size: int):

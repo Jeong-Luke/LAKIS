@@ -1,0 +1,100 @@
+.generation-action-row {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.8fr) minmax(220px, 1.2fr);
+  gap: 8px;
+  align-items: stretch;
+  flex: 0 0 auto;
+}
+
+.generation-action-row .compact-mode-panel {
+  height: 100%;
+  margin: 0;
+}
+
+.generation-action-row.mode-fast .mode-option.active {
+  background: linear-gradient(135deg, #1668d8, #248df4);
+  box-shadow: 0 8px 22px rgba(26, 119, 226, 0.38);
+}
+
+.generation-action-row.mode-fast .generate-button:not(.is-generating):not(.is-cancelling) {
+  background: linear-gradient(120deg, #176bdc 0%, #2587f0 52%, #43a4ff 100%);
+  box-shadow: 0 12px 30px rgba(28, 120, 226, 0.34);
+}
+
+.generation-action-row.mode-detail .mode-option.active {
+  background: linear-gradient(135deg, #7055e6, #4432ae);
+  box-shadow: 0 8px 22px #654fe544;
+}
+
+.generation-action-row .generate-button {
+  --generation-progress: 0%;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+  min-height: 82px;
+  margin: 0;
+}
+
+.generation-action-row .generate-button::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset: 0 auto 0 0;
+  width: var(--generation-progress);
+  background: linear-gradient(90deg, #593be0 0%, #805aff 72%, #579cff 100%);
+  box-shadow: 5px 0 18px rgba(122, 95, 255, 0.72);
+  transition: width 420ms cubic-bezier(.22, .8, .3, 1);
+}
+
+.generation-action-row.mode-fast .generate-button::before {
+  background: linear-gradient(90deg, #135ec7 0%, #2386ed 62%, #54b4ff 100%);
+  box-shadow: 5px 0 18px rgba(42, 146, 247, 0.66);
+}
+
+.generation-action-row .generate-button.is-generating {
+  background: #171b28;
+  cursor: pointer;
+}
+
+.generation-action-row .generate-button.is-generating:hover {
+  box-shadow: inset 0 0 0 1px rgba(255, 117, 137, 0.6), 0 12px 30px #634ee84d;
+}
+
+.generation-action-row .generate-button.is-cancelling {
+  cursor: wait;
+  background: #39232b;
+}
+
+.generation-action-row .generate-button.is-cancelling::before {
+  background: linear-gradient(90deg, #83364b, #d65b70);
+  box-shadow: 12px 0 30px rgba(214, 91, 112, 0.35);
+}
+
+.generation-action-row .generate-button.is-complete::before {
+  box-shadow: 0 0 34px rgba(95, 218, 175, 0.55);
+}
+
+.generation-action-row .generate-button span {
+  position: relative;
+  z-index: 1;
+  font-size: 17px;
+}
+
+.generation-action-row .generate-button small {
+  position: relative;
+  z-index: 1;
+  margin-top: 5px;
+  font-size: 8px;
+}
+
+@media (max-width: 1350px) {
+  .generation-action-row {
+    grid-template-columns: 1fr;
+  }
+
+  .generation-action-row .generate-button {
+    min-height: 58px;
+  }
+}
