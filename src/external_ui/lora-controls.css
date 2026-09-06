@@ -7,6 +7,8 @@
 .lora-row select,.lora-row input{min-width:0;height:27px;border:1px solid #272d39;background:#11151d;color:#c8ced9;border-radius:5px;font-size:9px}
 .lora-row select{padding:0 24px 0 7px;overflow:hidden;text-overflow:ellipsis}
 .lora-row input{padding:4px;text-align:center;font-variant-numeric:tabular-nums}
+.lora-row input.lora-select{padding:0 7px;text-align:left;font-variant-numeric:normal;text-overflow:ellipsis}
+.lora-row input.lora-select::-webkit-search-cancel-button{cursor:pointer}
 .lora-switch{width:25px;height:14px;padding:0;border:0;border-radius:10px;background:#353c49;position:relative;cursor:pointer}
 .lora-switch:after{content:"";position:absolute;width:10px;height:10px;left:2px;top:2px;border-radius:50%;background:#9299a6;transition:left .14s ease,background .14s ease}
 .lora-switch.on{background:#3f70d9}

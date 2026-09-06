@@ -191,24 +191,47 @@ function renderLoras() {
     const row = document.createElement("div");
     row.className = "lora-row";
 
-    const select = document.createElement("select");
+    const select = document.createElement("input");
+    select.type = "search";
     select.className = "lora-select";
+    select.placeholder = "로라 검색 또는 선택";
+    select.autocomplete = "off";
+    select.spellcheck = false;
+    const optionList = document.createElement("datalist");
+    optionList.id = `loraOptions${index}`;
+    select.setAttribute("list", optionList.id);
     const choices = loraOptions.includes(lora.name) ? loraOptions : [lora.name, ...loraOptions];
     for (const name of choices) {
       const option = document.createElement("option");
       option.value = name;
-      option.textContent = name || "로라 선택";
-      if (name === lora.name && !loraOptions.includes(name)) option.textContent += " (없음)";
-      select.append(option);
+      optionList.append(option);
     }
     select.value = lora.name;
-    select.title = lora.name;
-    select.addEventListener("change", event => {
-      state.loras[index].name = event.target.value;
-      if (event.target.value) state.loras[index].enabled = true;
-      event.target.title = event.target.value;
+    select.title = loraOptions.includes(lora.name) ? lora.name : `${lora.name} (파일 없음)`;
+    select.addEventListener("focus", event => event.target.select());
+    const commitLoraSelection = () => {
+      const selectedName = select.value.trim();
+      if (!loraOptions.includes(selectedName)) {
+        select.value = state.loras[index].name;
+        return false;
+      }
+      if (selectedName === state.loras[index].name) return true;
+      state.loras[index].name = selectedName;
+      state.loras[index].enabled = true;
+      select.title = selectedName;
       scheduleGenerationStateSave();
       renderLoras();
+      return true;
+    };
+    select.addEventListener("change", commitLoraSelection);
+    select.addEventListener("keydown", event => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        commitLoraSelection();
+      } else if (event.key === "Escape") {
+        select.value = state.loras[index].name;
+        select.blur();
+      }
     });
 
     const strength = document.createElement("input");
@@ -281,7 +304,7 @@ function renderLoras() {
     rowActions.className = "lora-row-actions";
     rowActions.append(remove, orderControls);
 
-    row.append(rowActions, select, strength, toggle);
+    row.append(rowActions, select, optionList, strength, toggle);
     list.append(row);
   });
   count.textContent = `(${state.loras.length})`;
