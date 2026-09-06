@@ -183,6 +183,59 @@ previewStage.addEventListener("dblclick", () => {
 window.addEventListener("resize", applyPreviewTransform);
 setPreviewZoom(100);
 
+const loraSearchMenu = document.createElement("div");
+loraSearchMenu.className = "lora-search-menu";
+loraSearchMenu.hidden = true;
+document.body.append(loraSearchMenu);
+let activeLoraSearchInput = null;
+
+function closeLoraSearchMenu() {
+  loraSearchMenu.hidden = true;
+  loraSearchMenu.replaceChildren();
+  activeLoraSearchInput = null;
+}
+
+function updateLoraSearchMenu(input, onSelect) {
+  const query = input.value.trim().toLocaleLowerCase();
+  const matches = loraOptions.filter(name => name.toLocaleLowerCase().includes(query));
+  loraSearchMenu.replaceChildren();
+  for (const name of matches) {
+    const option = document.createElement("button");
+    option.type = "button";
+    option.className = "lora-search-option";
+    option.textContent = name;
+    option.title = name;
+    option.addEventListener("mousedown", event => event.preventDefault());
+    option.addEventListener("click", () => onSelect(name));
+    loraSearchMenu.append(option);
+  }
+  if (!matches.length) {
+    const empty = document.createElement("div");
+    empty.className = "lora-search-empty";
+    empty.textContent = "일치하는 LoRA가 없습니다.";
+    loraSearchMenu.append(empty);
+  }
+  const rect = input.getBoundingClientRect();
+  const availableBelow = window.innerHeight - rect.bottom - 8;
+  const availableAbove = rect.top - 8;
+  const menuHeight = Math.min(260, Math.max(80, Math.max(availableBelow, availableAbove)));
+  const openAbove = availableBelow < 140 && availableAbove > availableBelow;
+  loraSearchMenu.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - rect.width - 8))}px`;
+  loraSearchMenu.style.width = `${rect.width}px`;
+  loraSearchMenu.style.maxHeight = `${menuHeight}px`;
+  loraSearchMenu.style.top = openAbove ? "auto" : `${rect.bottom + 3}px`;
+  loraSearchMenu.style.bottom = openAbove ? `${window.innerHeight - rect.top + 3}px` : "auto";
+  loraSearchMenu.hidden = false;
+  activeLoraSearchInput = input;
+}
+
+document.addEventListener("mousedown", event => {
+  if (!loraSearchMenu.hidden && event.target !== activeLoraSearchInput && !loraSearchMenu.contains(event.target)) {
+    closeLoraSearchMenu();
+  }
+});
+window.addEventListener("resize", closeLoraSearchMenu);
+
 function renderLoras() {
   const list = document.querySelector("#loraList");
   const count = document.querySelector("#loraCount");
@@ -197,24 +250,24 @@ function renderLoras() {
     select.placeholder = "로라 검색 또는 선택";
     select.autocomplete = "off";
     select.spellcheck = false;
-    const optionList = document.createElement("datalist");
-    optionList.id = `loraOptions${index}`;
-    select.setAttribute("list", optionList.id);
-    const choices = loraOptions.includes(lora.name) ? loraOptions : [lora.name, ...loraOptions];
-    for (const name of choices) {
-      const option = document.createElement("option");
-      option.value = name;
-      optionList.append(option);
-    }
     select.value = lora.name;
     select.title = loraOptions.includes(lora.name) ? lora.name : `${lora.name} (파일 없음)`;
     select.addEventListener("focus", () => {
       select.dataset.searching = "true";
       select.value = "";
       select.placeholder = lora.name || "로라 검색 또는 선택";
+      updateLoraSearchMenu(select, name => {
+        select.value = name;
+        commitLoraSelection();
+        closeLoraSearchMenu();
+      });
     });
-    select.addEventListener("click", () => {
-      try { select.showPicker?.(); } catch (_) {}
+    select.addEventListener("input", () => {
+      updateLoraSearchMenu(select, name => {
+        select.value = name;
+        commitLoraSelection();
+        closeLoraSearchMenu();
+      });
     });
     const commitLoraSelection = () => {
       const selectedName = select.value.trim();
@@ -232,12 +285,12 @@ function renderLoras() {
     };
     select.addEventListener("change", commitLoraSelection);
     select.addEventListener("blur", () => {
-      // A datalist selection may dispatch change immediately before blur.
       // Restore the existing value only when no valid option was committed.
       setTimeout(() => {
         if (document.body.contains(select) && !loraOptions.includes(select.value.trim())) {
           select.value = state.loras[index]?.name || "";
         }
+        if (activeLoraSearchInput === select) closeLoraSearchMenu();
         delete select.dataset.searching;
       }, 0);
     });
@@ -247,6 +300,7 @@ function renderLoras() {
         commitLoraSelection();
       } else if (event.key === "Escape") {
         select.value = state.loras[index].name;
+        closeLoraSearchMenu();
         select.blur();
       }
     });
@@ -321,7 +375,7 @@ function renderLoras() {
     rowActions.className = "lora-row-actions";
     rowActions.append(remove, orderControls);
 
-    row.append(rowActions, select, optionList, strength, toggle);
+    row.append(rowActions, select, strength, toggle);
     list.append(row);
   });
   count.textContent = `(${state.loras.length})`;
