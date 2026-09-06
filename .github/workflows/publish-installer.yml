@@ -46,8 +46,9 @@ jobs:
           }
           $complete = $false
           if ([version]$version -eq [version]([string]$published.version)) {
-            $releaseJson = gh release view $env:RELEASE_TAG --json isDraft 2>$null
-            if ($LASTEXITCODE -eq 0 -and -not (($releaseJson | ConvertFrom-Json).isDraft)) { $complete = $true }
+            $releaseJson = $null
+            try { $releaseJson = gh release view $env:RELEASE_TAG --json isDraft 2>$null } catch { $releaseJson = $null }
+            if ($releaseJson -and -not (($releaseJson | ConvertFrom-Json).isDraft)) { $complete = $true }
             else { throw "Manifest $version is public, but its matching public GitHub release is missing." }
           }
           [System.IO.File]::AppendAllText($env:GITHUB_OUTPUT, "complete=$($complete.ToString().ToLowerInvariant())`n", [System.Text.UTF8Encoding]::new($false))
@@ -75,8 +76,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
         run: |
-          $releaseJson = gh release view $env:RELEASE_TAG --json isDraft 2>$null
-          if ($LASTEXITCODE -ne 0) {
+          $releaseJson = $null
+          try { $releaseJson = gh release view $env:RELEASE_TAG --json isDraft 2>$null } catch { $releaseJson = $null }
+          if (-not $releaseJson) {
             gh release create $env:RELEASE_TAG --draft --title "LAKIS $env:RELEASE_TAG" --notes-file .\NEXT_RELEASE.md
             if ($LASTEXITCODE -ne 0) { throw "Failed to create draft release $env:RELEASE_TAG" }
           } elseif (-not (($releaseJson | ConvertFrom-Json).isDraft)) {
