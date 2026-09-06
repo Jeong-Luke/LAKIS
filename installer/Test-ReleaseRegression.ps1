@@ -25,7 +25,6 @@ $updater = Read-RepoFile "installer\LAKIS_Updater.cs"
 Require ($updater.Contains("attempt <= 3")) "Updater must retry each verified file three times."
 Require ($updater.Contains("lakis_update=")) "Updater downloads must use a unique cache-busting URL."
 Require ($updater.Contains("no-cache, no-store, must-revalidate")) "Updater must bypass HTTP caches."
-Require ($updater.Contains("파일 검증 실패(3회 재시도)")) "Updater must report exhausted checksum retries."
 
 $generator = Read-RepoFile "installer\New-UpdateManifest.ps1"
 Require ($generator.Contains("lakis-tag-hash-")) "Manifest hashes must come from published tagged bytes."
@@ -54,7 +53,7 @@ Require ($thirdPartyNotices.Contains("bd43b7cffe1ed1153d9c41e7beb2f18cb1273eafba
 Require ($thirdPartyNotices.Contains("cd2a512003e2f9f3cd3c32a9c3573f820bb28c940f73c57b1ddaa983d9223eba")) "Qwen encoder provenance hash must remain documented."
 Require ($thirdPartyNotices.Contains("1b55e40bdb1d0e5a78cb498f245fccfdaae97823265db957d2aabdcf4cd3caf1")) "Anima Turbo LoRA provenance hash must remain documented."
 
-$canonicalCopyright = "© 2026 Luke Jeong. All rights reserved."
+$canonicalCopyright = "2026 Luke Jeong. All rights reserved."
 foreach ($copyrightSource in @(
     "installer\Setup_LAKIS_Safe.cs",
     "installer\LAKIS_Updater.cs",

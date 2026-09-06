@@ -122,7 +122,7 @@ foreach ($runtimeName in @(
 
 $manifest = [ordered]@{
     version = $Version
-    release_notes = "LAKIS $Version 업데이트"
+    release_notes = "LAKIS $Version update"
     files = $files
     delete = @()
 }
