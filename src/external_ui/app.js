@@ -828,9 +828,6 @@ window.addEventListener("focus", () => refreshLoraInventory());
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden) refreshLoraInventory();
 });
-setInterval(() => {
-  if (!document.hidden) refreshLoraInventory();
-}, 10000);
 
 document.querySelector("#compositionToggle").addEventListener("click", () => {
   setCompositionEnabled(!state.composition_enabled);
