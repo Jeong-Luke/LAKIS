@@ -45,8 +45,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
         run: |
-          gh release view $env:RELEASE_TAG 2>$null
-          if ($LASTEXITCODE -ne 0) { gh release create $env:RELEASE_TAG --title "LAKIS $env:RELEASE_TAG" --notes-file .\NEXT_RELEASE.md }
+          gh release create $env:RELEASE_TAG --title "LAKIS $env:RELEASE_TAG" --notes-file .\NEXT_RELEASE.md
           gh release upload $env:RELEASE_TAG ".\dist\LAKIS_Setup.exe#LAKIS_Setup.exe" ".\dist\LAKIS.exe#LAKIS.exe" ".\dist\LAKIS_Patcher.exe#LAKIS_Patcher.exe" ".\dist\LAKIS_Desktop.exe#LAKIS_Desktop.exe" ".\dist\Uninstall_LAKIS.exe#Uninstall_LAKIS.exe" ".\dist\Microsoft.Web.WebView2.Core.dll#Microsoft.Web.WebView2.Core.dll" ".\dist\Microsoft.Web.WebView2.WinForms.dll#Microsoft.Web.WebView2.WinForms.dll" ".\dist\WebView2Loader.dll#WebView2Loader.dll" --clobber
       - name: Build and verify update manifest from published bytes
         shell: powershell
