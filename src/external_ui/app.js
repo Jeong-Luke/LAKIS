@@ -208,7 +208,14 @@ function renderLoras() {
     }
     select.value = lora.name;
     select.title = loraOptions.includes(lora.name) ? lora.name : `${lora.name} (파일 없음)`;
-    select.addEventListener("focus", event => event.target.select());
+    select.addEventListener("focus", () => {
+      select.dataset.searching = "true";
+      select.value = "";
+      select.placeholder = lora.name || "로라 검색 또는 선택";
+    });
+    select.addEventListener("click", () => {
+      try { select.showPicker?.(); } catch (_) {}
+    });
     const commitLoraSelection = () => {
       const selectedName = select.value.trim();
       if (!loraOptions.includes(selectedName)) {
@@ -224,6 +231,16 @@ function renderLoras() {
       return true;
     };
     select.addEventListener("change", commitLoraSelection);
+    select.addEventListener("blur", () => {
+      // A datalist selection may dispatch change immediately before blur.
+      // Restore the existing value only when no valid option was committed.
+      setTimeout(() => {
+        if (document.body.contains(select) && !loraOptions.includes(select.value.trim())) {
+          select.value = state.loras[index]?.name || "";
+        }
+        delete select.dataset.searching;
+      }, 0);
+    });
     select.addEventListener("keydown", event => {
       if (event.key === "Enter") {
         event.preventDefault();
