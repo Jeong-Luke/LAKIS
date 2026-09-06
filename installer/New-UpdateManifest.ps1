@@ -1,13 +1,18 @@
 param(
     [Parameter(Mandatory = $true)][string]$Version,
     [string]$Repository = "Jeong-Luke/LAKIS",
+    [string]$DistDirectory = "",
     [switch]$UseLocalWorkingTreeHashes
 )
 
 $ErrorActionPreference = "Stop"
 $repo = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $workspace = (Resolve-Path (Join-Path $repo "..\..")).Path
-$dist = Join-Path $workspace "dist"
+$dist = if ([string]::IsNullOrWhiteSpace($DistDirectory)) {
+    Join-Path $workspace "dist"
+} else {
+    [System.IO.Path]::GetFullPath($DistDirectory)
+}
 $tag = "v$Version"
 $releaseBase = "https://github.com/$Repository/releases/download/$tag"
 $rawBase = "https://raw.githubusercontent.com/$Repository/$tag"

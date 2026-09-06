@@ -46,6 +46,7 @@ function scheduleGenerationStateSave() {
           output: state.output,
           loras: state.loras,
           lora_enabled: state.lora_enabled,
+          node_overrides: state.node_overrides,
         }),
       });
     } catch (error) {
@@ -1021,6 +1022,9 @@ async function refreshWorkflowConfiguration() {
     const savedGeneration = config.generation_state || {};
     Object.assign(state.model, savedGeneration.model || {});
     Object.assign(state.output, savedGeneration.output || {});
+    state.node_overrides = savedGeneration.node_overrides && typeof savedGeneration.node_overrides === "object"
+      ? structuredClone(savedGeneration.node_overrides)
+      : {};
     for (const [id, key] of [["samplerSelect", "sampler"], ["schedulerSelect", "scheduler"],
       ["stepsInput", "steps"], ["cfgInput", "cfg"]]) {
       document.querySelector(`#${id}`).value = state.model[key];

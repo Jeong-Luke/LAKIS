@@ -1,5 +1,5 @@
 .advanced-settings-host{position:relative}
-.advanced-settings-button{display:grid;place-items:center;width:25px;height:25px;padding:0;border:1px solid #303749;border-radius:7px;background:#111622;color:#aeb7ce;cursor:pointer;flex:0 0 auto}
+.advanced-settings-button{position:relative;z-index:8;display:grid;place-items:center;width:25px;height:25px;padding:0;border:1px solid #303749;border-radius:7px;background:#111622;color:#aeb7ce;cursor:pointer;flex:0 0 auto}
 .advanced-settings-button:hover,.advanced-settings-button[aria-expanded="true"]{border-color:#8069f1;color:#fff;background:#282148;box-shadow:0 0 14px #735cf044}
 .advanced-settings-button svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:1.8}
 .advanced-settings-title-group{display:flex!important;align-items:center!important;justify-content:flex-start!important;gap:7px!important}

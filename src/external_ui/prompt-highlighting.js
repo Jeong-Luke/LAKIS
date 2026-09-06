@@ -164,6 +164,14 @@ function install(textarea) {
     timer = setTimeout(classify, 180);
     scheduleSuggestions();
   };
+  const refreshWithoutSuggestions = () => {
+    clearTimeout(timer);
+    clearTimeout(suggestionTimer);
+    suggestionSequence += 1;
+    closeSuggestions();
+    paint();
+    timer = setTimeout(classify, 180);
+  };
   const currentFragment = () => {
     const end = textarea.selectionStart ?? textarea.value.length;
     const start = Math.max(textarea.value.lastIndexOf(",", end - 1), textarea.value.lastIndexOf("\n", end - 1)) + 1;
@@ -262,7 +270,7 @@ function install(textarea) {
   });
   textarea.addEventListener("blur", () => setTimeout(closeSuggestions, 120));
   textarea.addEventListener("input", schedule);
-  textarea.addEventListener("change", schedule);
+  textarea.addEventListener("change", refreshWithoutSuggestions);
   textarea.addEventListener("scroll", syncScroll, { passive: true });
   let resizeStartY = 0;
   let resizeStartHeight = 0;

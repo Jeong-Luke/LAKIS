@@ -40,6 +40,7 @@
 
   function saveValue(nodeId, name, value) {
     (state.node_overrides[nodeId] ||= {})[name] = value;
+    scheduleGenerationStateSave();
   }
 
   function makeField(nodeId, field) {
@@ -130,6 +131,26 @@
     overlay.style.height = `${height}px`;
   }
 
+  function closeOverlay(overlay, button) {
+    overlay.hidden = true;
+    button?.setAttribute("aria-expanded", "false");
+  }
+
+  function toggleOverlay(button) {
+    const group = button.dataset.advancedGroup;
+    const overlay = document.querySelector(`.advanced-settings-overlay[data-advanced-group="${group}"]`);
+    if (!group || !overlay) return;
+    const opening = overlay.hidden;
+    document.querySelectorAll(".advanced-settings-overlay:not([hidden])").forEach(item => { item.hidden = true; });
+    document.querySelectorAll(".advanced-settings-button[aria-expanded='true']").forEach(item => item.setAttribute("aria-expanded", "false"));
+    if (opening) {
+      render(group, overlay.querySelector(".advanced-settings-body"));
+      if (overlay.classList.contains("generation-advanced-overlay")) placeGenerationOverlay(overlay);
+      overlay.hidden = false;
+      button.setAttribute("aria-expanded", "true");
+    }
+  }
+
   function install(group, selector, title, floating = false) {
     const panel = document.querySelector(selector);
     if (!panel) return;
@@ -137,6 +158,7 @@
     const button = document.createElement("button");
     button.type = "button";
     button.className = "advanced-settings-button";
+    button.dataset.advancedGroup = group;
     button.setAttribute("aria-label", `${title} 세부설정`);
     button.setAttribute("aria-expanded", "false");
     button.innerHTML = icon;
@@ -163,29 +185,34 @@
 
     const overlay = document.createElement("section");
     overlay.className = "advanced-settings-overlay";
+    overlay.dataset.advancedGroup = group;
     if (floating) overlay.classList.add("generation-advanced-overlay");
     overlay.hidden = true;
     overlay.innerHTML = `<header class="advanced-settings-header"><div><h3></h3><span>연결된 ComfyUI 노드의 전체 입력 설정</span></div><button class="advanced-settings-close" type="button" aria-label="닫기">×</button></header><div class="advanced-settings-body"></div>`;
     overlay.querySelector("h3").textContent = `${title} · 노드 설정`;
     (floating ? document.body : panel).append(overlay);
-    const close = () => { overlay.hidden = true; button.setAttribute("aria-expanded", "false"); };
-    button.addEventListener("click", () => {
-      const opening = overlay.hidden;
-      document.querySelectorAll(".advanced-settings-overlay:not([hidden])").forEach(item => { item.hidden = true; });
-      document.querySelectorAll(".advanced-settings-button[aria-expanded='true']").forEach(item => item.setAttribute("aria-expanded", "false"));
-      if (opening) {
-        render(group, overlay.querySelector(".advanced-settings-body"));
-        if (floating) placeGenerationOverlay(overlay);
-        overlay.hidden = false;
-        button.setAttribute("aria-expanded", "true");
-      }
-    });
-    overlay.querySelector(".advanced-settings-close").addEventListener("click", close);
     if (floating) window.addEventListener("resize", () => { if (!overlay.hidden) placeGenerationOverlay(overlay); });
   }
 
   async function initialize() {
     groups.forEach(args => install(...args));
+    // Prompt panels are rebuilt when their saved state is restored. Delegated
+    // events keep both the magnifier and close button operational even when
+    // those elements have been replaced after this module initialized.
+    document.addEventListener("click", event => {
+      const button = event.target.closest(".advanced-settings-button");
+      if (button) {
+        tooltip.hidden = true;
+        toggleOverlay(button);
+        return;
+      }
+      const closeButton = event.target.closest(".advanced-settings-close");
+      if (closeButton) {
+        const overlay = closeButton.closest(".advanced-settings-overlay");
+        const owner = document.querySelector(`.advanced-settings-button[data-advanced-group="${overlay?.dataset.advancedGroup}"]`);
+        if (overlay) closeOverlay(overlay, owner);
+      }
+    }, true);
     document.querySelectorAll(".mode-option[data-mode]").forEach(button => {
       button.addEventListener("click", () => queueMicrotask(syncGenerationModeSwitches));
     });

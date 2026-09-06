@@ -48,7 +48,9 @@ if not SAVED_WORKFLOW.is_file():
         "LAKIS_custom_v*.json"
     ), reverse=True)), SAVED_WORKFLOW)
 AUDIT_PATH = DEV_ROOT / "external_ui_bridge_audit.jsonl"
-UI_STATE_PATH = DEV_ROOT / "external_ui_user_state.json"
+LEGACY_UI_STATE_PATH = DEV_ROOT / "external_ui_user_state.json"
+USER_STATE_ROOT = Path(os.environ.get("LOCALAPPDATA", str(DEV_ROOT))) / "LAKIS Studio"
+UI_STATE_PATH = USER_STATE_ROOT / "external_ui_user_state.json"
 CAMERA_SOURCE = COMFY_ROOT / "custom_nodes" / "ComfyUI-KR-Camera-Control" / "camera_control.py"
 MODEL_EXTENSIONS = {".safetensors", ".ckpt", ".pt", ".pth", ".bin"}
 COMFYUI_SEED_MAX = 1125899906842624
@@ -59,6 +61,12 @@ PROMPT_STATE_KEYS = {
 MODEL_STATE_KEYS = {"checkpoint", "vae", "clip", "sampler", "scheduler", "steps", "cfg"}
 OUTPUT_STATE_KEYS = {"width", "height", "seed", "seed_mode", "aspect_locked"}
 DEFAULT_CHECKPOINT = "anima_baseV10.safetensors"
+ADVANCED_FLOAT_FIELD_NAMES = {
+    "cfg", "pos_x", "pos_y", "pos_z", "roll", "frame_y",
+    "alpha_l", "alpha_h", "smc_lambda", "smc_k", "rdc_tau",
+    "rdc_alpha_ll", "rdc_alpha_hh", "crop_factor", "denoise",
+    "seam_fix_denoise",
+}
 
 ADVANCED_NODE_GROUPS = {
     "model": ("890:1365", "890:159", "890:164", "890:905"),
@@ -111,7 +119,7 @@ def advanced_node_configuration(template: dict[str, Any] | None = None) -> dict[
                 field_type = "json" if isinstance(value, (dict, list)) else (
                     "boolean" if isinstance(value, bool) else
                     "number" if isinstance(value, (int, float)) or numeric_string else
-                    "json" if isinstance(value, str) and value[:1] in "[{" else "text"
+                    "json" if isinstance(value, str) and value.startswith(("[", "{")) else "text"
                 )
                 fields.append({
                     "name": name, "type": field_type, "value": value,
@@ -148,9 +156,18 @@ def _apply_advanced_node_overrides(prompt: dict[str, Any], requested: Any) -> No
             elif isinstance(original, (int, float)) and not isinstance(original, bool):
                 if not isinstance(value, (int, float)) or not math.isfinite(float(value)):
                     raise ValueError(f"{node_id}.{name} must be a finite number")
-                value = int(value) if isinstance(original, int) else float(value)
-            elif isinstance(original, str) and re.fullmatch(r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)", original.strip()):
-                if not isinstance(value, (int, float)) or not math.isfinite(float(value)):
+                if isinstance(original, float) or name in ADVANCED_FLOAT_FIELD_NAMES:
+                    value = float(value)
+                else:
+                    if not float(value).is_integer():
+                        raise ValueError(f"{node_id}.{name} must be an integer")
+                    value = int(value)
+            elif isinstance(original, str) and isinstance(value, (int, float)) and not isinstance(value, bool):
+                # Some ComfyUI enum-like inputs are numeric strings in the
+                # template (for example Prompt Studio resolution_bucket), but
+                # friendly UI preparation may temporarily replace them with a
+                # label such as "Custom" before this final override pass.
+                if not math.isfinite(float(value)):
                     raise ValueError(f"{node_id}.{name} must be a finite number")
                 value = str(value)
             elif isinstance(original, (dict, list)):
@@ -159,6 +176,38 @@ def _apply_advanced_node_overrides(prompt: dict[str, Any], requested: Any) -> No
             elif not isinstance(value, str):
                 raise ValueError(f"{node_id}.{name} must be text")
             inputs[name] = value
+
+
+def _clean_advanced_node_overrides(requested: Any) -> dict[str, dict[str, Any]]:
+    """Validate and retain only editable node fields for restart persistence."""
+    if requested in (None, {}):
+        return {}
+    if not isinstance(requested, dict):
+        raise ValueError("advanced node settings must be an object")
+    if len(requested) > sum(len(ids) for ids in ADVANCED_NODE_GROUPS.values()):
+        raise ValueError("too many advanced node settings")
+    encoded = json.dumps(requested, ensure_ascii=False)
+    if len(encoded.encode("utf-8")) > 2_000_000:
+        raise ValueError("advanced node settings are too large")
+    template = json.loads(TEMPLATE.read_text(encoding="utf-8"))
+    validated = deepcopy(template)
+    _apply_advanced_node_overrides(validated, requested)
+    allowed = {node_id for node_ids in ADVANCED_NODE_GROUPS.values() for node_id in node_ids}
+    clean: dict[str, dict[str, Any]] = {}
+    for node_id, fields in requested.items():
+        if node_id not in allowed or node_id not in template or not isinstance(fields, dict):
+            continue
+        editable = {
+            name for name, original in template[node_id].get("inputs", {}).items()
+            if not _is_node_link(original)
+        }
+        selected = {
+            name: deepcopy(validated[node_id]["inputs"][name])
+            for name in fields if name in editable
+        }
+        if selected:
+            clean[node_id] = selected
+    return clean
 FIRST_RUN_PROMPT = {
     "general": (
         "natsume iroha, iroha (swimsuit) (blue archive), 1girl, solo, halo, long dark red hair, blue eyes, "
@@ -212,16 +261,18 @@ def save_external_prompt_state(prompt: Any) -> dict[str, str]:
 
 
 def _load_external_ui_payload() -> dict[str, Any]:
-    if not UI_STATE_PATH.is_file():
+    source = UI_STATE_PATH if UI_STATE_PATH.is_file() else LEGACY_UI_STATE_PATH
+    if not source.is_file():
         return {}
     try:
-        payload = json.loads(UI_STATE_PATH.read_text(encoding="utf-8"))
+        payload = json.loads(source.read_text(encoding="utf-8"))
     except (OSError, ValueError, json.JSONDecodeError):
         return {}
     return payload if isinstance(payload, dict) else {}
 
 
 def _write_external_ui_payload(payload: dict[str, Any]) -> None:
+    UI_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
     temporary = UI_STATE_PATH.with_suffix(".tmp")
     temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     os.replace(temporary, UI_STATE_PATH)
@@ -231,14 +282,20 @@ def load_external_generation_state() -> dict[str, Any]:
     payload = _load_external_ui_payload()
     model = payload.get("model", {})
     output = payload.get("output", {})
+    try:
+        node_overrides = _clean_advanced_node_overrides(payload.get("node_overrides", {}))
+    except (TypeError, ValueError, OSError, json.JSONDecodeError):
+        node_overrides = {}
     return {
         "model": {key: model[key] for key in MODEL_STATE_KEYS if isinstance(model, dict) and key in model},
         "output": {key: output[key] for key in OUTPUT_STATE_KEYS if isinstance(output, dict) and key in output},
+        "node_overrides": node_overrides,
     }
 
 
 def save_external_generation_state(
-    model: Any, output: Any, loras: Any = None, lora_enabled: Any = True
+    model: Any, output: Any, loras: Any = None, lora_enabled: Any = True,
+    node_overrides: Any = None,
 ) -> dict[str, Any]:
     if not isinstance(model, dict) or not isinstance(output, dict):
         raise ValueError("model and output state must be objects")
@@ -257,16 +314,21 @@ def save_external_generation_state(
             "enabled": bool(item.get("enabled", False)),
             "strength": max(-20.0, min(20.0, float(item.get("strength", 1.0)))),
         })
+    clean_overrides = _clean_advanced_node_overrides(node_overrides or {})
     payload = _load_external_ui_payload()
     payload.update({
         "version": 2,
         "model": clean_model,
         "output": clean_output,
         "lora": {"current": clean_loras, "enabled": bool(lora_enabled)},
+        "node_overrides": clean_overrides,
         "updated_at": time.time(),
     })
     _write_external_ui_payload(payload)
-    return {"model": clean_model, "output": clean_output, "lora": payload["lora"]}
+    return {
+        "model": clean_model, "output": clean_output, "lora": payload["lora"],
+        "node_overrides": clean_overrides,
+    }
 
 
 def _model_files(folder: str) -> list[str]:
@@ -333,6 +395,7 @@ def workflow_configuration() -> dict[str, Any]:
                 "seed_mode": str(saved_output.get("seed_mode", "random")),
                 "aspect_locked": bool(saved_output.get("aspect_locked", False)),
             },
+            "node_overrides": saved.get("node_overrides", {}),
         },
     }
 
@@ -683,6 +746,14 @@ def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dic
                            ("roll", "roll"), ("frame_y", "frame_y")):
         camera_inputs[target] = float(camera.get(source, camera_inputs.get(target, 0)))
 
+    # Camera-control node values must be applied after the friendly controls
+    # but before its generated text is embedded in Prompt Studio. Applying
+    # these only with the final advanced pass changes a node that dependency
+    # closure later removes and therefore has no effect on the generated image.
+    requested_overrides = application_state.get("node_overrides")
+    if isinstance(requested_overrides, dict) and "2135" in requested_overrides:
+        _apply_advanced_node_overrides(prompt, {"2135": requested_overrides["2135"]})
+
     composition_enabled = bool(application_state.get("composition_enabled", True))
     camera_prompt = _camera_prompt(camera_inputs) if composition_enabled else ""
     _replace_camera_field(prompt, camera_prompt)
@@ -733,7 +804,7 @@ def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dic
 
     # Advanced-panel values intentionally run after the friendly controls so
     # an explicit node-level edit is the final authority for this generation.
-    _apply_advanced_node_overrides(prompt, application_state.get("node_overrides"))
+    _apply_advanced_node_overrides(prompt, requested_overrides)
 
     prompt = _final_only(prompt)
     # i2i and t2i must share the exact same positive/negative conditioning

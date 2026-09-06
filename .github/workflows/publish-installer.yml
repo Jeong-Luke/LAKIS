@@ -1,12 +1,14 @@
 name: Publish installer
 
 on:
+  push:
+    tags:
+      - "v*"
   workflow_dispatch:
     inputs:
       tag:
         description: Existing release tag to update
         required: true
-        default: v7.1.2
 
 permissions:
   contents: write
@@ -16,6 +18,22 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref_name }}
+          fetch-depth: 0
+      - name: Verify release identity
+        shell: powershell
+        env:
+          RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          $version = $env:RELEASE_TAG -replace '^v', ''
+          $sourceVersion = (Get-Content -Raw .\VERSION).Trim()
+          if ($version -ne $sourceVersion) { throw "Tag $env:RELEASE_TAG does not match VERSION $sourceVersion" }
+          $publishedUrl = "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/main/manifests/update-latest.json?prepublish=" + [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+          $published = Invoke-RestMethod -Headers @{ "User-Agent" = "LAKIS-Release-Guard/$version" } -Uri $publishedUrl
+          if ([version]$version -le [version]([string]$published.version)) {
+            throw "Refusing to overwrite an existing release line: candidate=$version published=$($published.version)"
+          }
       - name: Build verified installer
         shell: powershell
         run: |
@@ -25,5 +43,31 @@ jobs:
         shell: powershell
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ inputs.tag }}
-        run: gh release upload $env:RELEASE_TAG ".\dist\LAKIS_Setup.exe#LAKIS_Setup.exe" ".\dist\LAKIS.exe#LAKIS.exe" ".\dist\LAKIS_Patcher.exe#LAKIS_Patcher.exe" ".\dist\LAKIS_Desktop.exe#LAKIS_Desktop.exe" ".\dist\Microsoft.Web.WebView2.Core.dll#Microsoft.Web.WebView2.Core.dll" ".\dist\Microsoft.Web.WebView2.WinForms.dll#Microsoft.Web.WebView2.WinForms.dll" ".\dist\WebView2Loader.dll#WebView2Loader.dll" --clobber
+          RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          gh release view $env:RELEASE_TAG 2>$null
+          if ($LASTEXITCODE -ne 0) { gh release create $env:RELEASE_TAG --title "LAKIS $env:RELEASE_TAG" --notes-file .\NEXT_RELEASE.md }
+          gh release upload $env:RELEASE_TAG ".\dist\LAKIS_Setup.exe#LAKIS_Setup.exe" ".\dist\LAKIS.exe#LAKIS.exe" ".\dist\LAKIS_Patcher.exe#LAKIS_Patcher.exe" ".\dist\LAKIS_Desktop.exe#LAKIS_Desktop.exe" ".\dist\Uninstall_LAKIS.exe#Uninstall_LAKIS.exe" ".\dist\Microsoft.Web.WebView2.Core.dll#Microsoft.Web.WebView2.Core.dll" ".\dist\Microsoft.Web.WebView2.WinForms.dll#Microsoft.Web.WebView2.WinForms.dll" ".\dist\WebView2Loader.dll#WebView2Loader.dll" --clobber
+      - name: Build and verify update manifest from published bytes
+        shell: powershell
+        env:
+          RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          $version = $env:RELEASE_TAG -replace '^v', ''
+          .\installer\New-UpdateManifest.ps1 -Version $version -DistDirectory (Join-Path $env:GITHUB_WORKSPACE "dist")
+          .\installer\Test-UpdateManifest.ps1 -ExpectedVersion $version -VerifyRemote
+          Copy-Item .\manifests\update-latest.json (Join-Path $env:RUNNER_TEMP "update-latest.json") -Force
+      - name: Publish only the verified manifest
+        shell: powershell
+        env:
+          RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          git restore .\manifests\update-latest.json
+          git checkout main
+          Copy-Item (Join-Path $env:RUNNER_TEMP "update-latest.json") .\manifests\update-latest.json -Force
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .\manifests\update-latest.json
+          if (git diff --cached --quiet) { Write-Output "Manifest is already current"; exit 0 }
+          git commit -m "release: publish verified $env:RELEASE_TAG update manifest"
+          git push origin main

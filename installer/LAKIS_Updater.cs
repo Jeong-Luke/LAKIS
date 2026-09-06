@@ -200,7 +200,7 @@ internal sealed class UpdaterForm : Form
             try
             {
                 var request = (HttpWebRequest)WebRequest.Create(url + "?t=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-                request.UserAgent = "LAKIS-Updater/7.2.2";
+                request.UserAgent = "LAKIS-Updater/7.2.3";
                 request.Timeout = 20000;
                 request.ReadWriteTimeout = 20000;
                 request.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
@@ -236,8 +236,7 @@ internal sealed class UpdaterForm : Form
                 SetStatus("다운로드 중: " + relative, index, manifest.files.Count * 2);
                 string staged = SafeCombine(stage, relative);
                 Directory.CreateDirectory(Path.GetDirectoryName(staged));
-                DownloadFile(item.url, staged);
-                if (!HashEquals(staged, item.sha256)) throw new InvalidDataException("파일 검증 실패: " + relative);
+                DownloadVerifiedFile(item.url, staged, item.sha256, relative);
             }
             StopInstalledProcesses();
             for (int index = 0; index < manifest.files.Count; index++)
@@ -350,13 +349,29 @@ internal sealed class UpdaterForm : Form
         return result;
     }
 
-    private static void DownloadFile(string url, string output)
+    private static void DownloadVerifiedFile(string url, string output, string expectedHash, string relativePath)
     {
-        using (var client = new WebClient())
+        Exception last = null;
+        for (int attempt = 1; attempt <= 3; attempt++)
         {
-            client.Headers.Add(HttpRequestHeader.UserAgent, "LAKIS-Updater/7.2.2");
-            client.DownloadFile(url, output);
+            try
+            {
+                if (File.Exists(output)) File.Delete(output);
+                string separator = url.Contains("?") ? "&" : "?";
+                string requestUrl = url + separator + "lakis_update=" + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + "_" + attempt;
+                using (var client = new WebClient())
+                {
+                    client.Headers.Add(HttpRequestHeader.UserAgent, "LAKIS-Updater/7.2.3");
+                    client.Headers.Add(HttpRequestHeader.CacheControl, "no-cache, no-store, must-revalidate");
+                    client.DownloadFile(requestUrl, output);
+                }
+                if (HashEquals(output, expectedHash)) return;
+                last = new InvalidDataException("SHA-256 mismatch on attempt " + attempt);
+            }
+            catch (Exception error) { last = error; }
         }
+        if (File.Exists(output)) File.Delete(output);
+        throw new InvalidDataException("파일 검증 실패(3회 재시도): " + relativePath, last);
     }
 
     private static void RestoreTree(string source, string destinationRoot)

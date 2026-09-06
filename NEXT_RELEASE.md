@@ -1,5 +1,21 @@
 # Release notes
 
+## v7.2.3
+
+### Open beta update reliability and UI state fixes
+
+- Prompt autocomplete now remains hidden after startup, state restoration, and
+  tab changes; suggestions appear only while the user is actively typing.
+- Advanced node settings persist outside the application directory and survive
+  a full LAKIS restart.
+- Advanced-settings panels stay inside their assigned category without
+  horizontal page overflow.
+- Update downloads bypass stale caches and retry a failed or mismatched file up
+  to three times before safely aborting.
+- The release workflow refuses to overwrite an existing version, verifies all
+  published files byte-for-byte, and publishes the update manifest only after
+  every SHA-256 check passes.
+
 ## v7.2.2
 
 ### Clean-install workflow launcher fix

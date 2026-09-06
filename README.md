@@ -4,14 +4,14 @@ LAKIS Studio is an external user interface and curated workflow environment for 
 
 ## Download
 
-**[Download LAKIS Studio v7.2.2 for Windows](https://github.com/Jeong-Luke/LAKIS/releases/download/v7.2.2/LAKIS_Setup.exe)**
+**[Download LAKIS Studio v7.2.3 for Windows](https://github.com/Jeong-Luke/LAKIS/releases/download/v7.2.3/LAKIS_Setup.exe)**
 
 Run `LAKIS_Setup.exe` to install or repair LAKIS. You can also view the
-[v7.2.2 release notes and individual files](https://github.com/Jeong-Luke/LAKIS/releases/tag/v7.2.2).
+[v7.2.3 release notes and individual files](https://github.com/Jeong-Luke/LAKIS/releases/tag/v7.2.3).
 
 ## Stable baseline
 
-This repository contains the stable LAKIS distribution line. The current prepared baseline is `v7.2.2`. Earlier development packages and workflows are maintained separately and are not distributed to new users.
+This repository contains the stable LAKIS distribution line. The current prepared baseline is `v7.2.3`. Earlier development packages and workflows are maintained separately and are not distributed to new users.
 
 ## Distribution policy
 
