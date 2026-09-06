@@ -195,9 +195,9 @@ function closeLoraSearchMenu() {
   activeLoraSearchInput = null;
 }
 
-function updateLoraSearchMenu(input, onSelect) {
+function updateLoraSearchMenu(input, onSelect, availableOptions = loraOptions) {
   const query = input.value.trim().toLocaleLowerCase();
-  const matches = loraOptions.filter(name => name.toLocaleLowerCase().includes(query));
+  const matches = availableOptions.filter(name => name.toLocaleLowerCase().includes(query));
   loraSearchMenu.replaceChildren();
   for (const name of matches) {
     const option = document.createElement("button");
@@ -250,6 +250,10 @@ function renderLoras() {
     select.spellcheck = false;
     select.value = lora.name;
     select.title = loraOptions.includes(lora.name) ? lora.name : `${lora.name} (파일 없음)`;
+    const unregisteredLoraOptions = () => {
+      const registered = new Set(state.loras.map(item => String(item.name || "")).filter(Boolean));
+      return loraOptions.filter(name => !registered.has(name));
+    };
     select.addEventListener("focus", () => {
       select.dataset.searching = "true";
       select.value = "";
@@ -258,14 +262,14 @@ function renderLoras() {
         select.value = name;
         commitLoraSelection();
         closeLoraSearchMenu();
-      });
+      }, unregisteredLoraOptions());
     });
     select.addEventListener("input", () => {
       updateLoraSearchMenu(select, name => {
         select.value = name;
         commitLoraSelection();
         closeLoraSearchMenu();
-      });
+      }, unregisteredLoraOptions());
     });
     const commitLoraSelection = () => {
       const selectedName = select.value.trim();
