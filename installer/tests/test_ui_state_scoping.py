@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import sys
 import tempfile
+import types
 import unittest
 from unittest.mock import patch
 
@@ -11,6 +12,14 @@ from unittest.mock import patch
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 EXTERNAL_UI_ROOT = REPOSITORY_ROOT / "src" / "external_ui"
 sys.path.insert(0, str(EXTERNAL_UI_ROOT))
+
+# This unit test exercises only the state-path helpers. GitHub's clean Python
+# runner does not include the runtime-only aiohttp dependency, so provide an
+# inert import stub rather than downloading application dependencies in CI.
+try:
+    import aiohttp  # noqa: F401
+except ModuleNotFoundError:
+    sys.modules["aiohttp"] = types.ModuleType("aiohttp")
 
 import workflow_bridge  # noqa: E402
 
