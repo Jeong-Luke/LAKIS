@@ -28,7 +28,8 @@ import uuid
 import aiohttp
 
 
-COMFY_SERVER = "http://127.0.0.1:8189"
+COMFY_PORT = 8190 if os.environ.get("LAKIS_DEVELOPMENT") == "1" else 8189
+COMFY_SERVER = f"http://127.0.0.1:{COMFY_PORT}"
 FINAL_NODE = "775"
 DEV_ROOT = Path(__file__).resolve().parent.parent
 COMFY_ROOT = DEV_ROOT.parent
@@ -50,8 +51,12 @@ if not SAVED_WORKFLOW.is_file():
     ), reverse=True)), SAVED_WORKFLOW)
 AUDIT_PATH = DEV_ROOT / "external_ui_bridge_audit.jsonl"
 LEGACY_UI_STATE_PATH = DEV_ROOT / "external_ui_user_state.json"
-USER_STATE_ROOT = Path(os.environ.get("LOCALAPPDATA", str(DEV_ROOT))) / "LAKIS Studio"
+USER_STATE_ROOT = Path(os.environ.get("LOCALAPPDATA", str(DEV_ROOT))) / (
+    "LAKIS Studio DEV" if os.environ.get("LAKIS_DEVELOPMENT") == "1" else "LAKIS Studio"
+)
 UNSCOPED_UI_STATE_PATH = USER_STATE_ROOT / "external_ui_user_state.json"
+GENERATION_JOURNAL_PATH = USER_STATE_ROOT / "generation-runtime-journal.json"
+GENERATION_STALL_SECONDS = 300
 
 
 def _ui_state_path_for_install(install_root: Path, user_state_root: Path = USER_STATE_ROOT) -> Path:
@@ -355,42 +360,55 @@ def _apply_advanced_node_overrides(prompt: dict[str, Any], requested: Any) -> No
                 _installed_upscaler_options() if node_id == "1541:1536" and name == "model_name" else ()
             )
             options = _enum_options(class_type, name, fallback, object_info)
+            constraints = _input_constraints(class_type, name, object_info)
+            declaration = {key: constraints[key] for key in ("min", "max", "step") if key in constraints}
+            if options:
+                declaration["options"] = list(options[:100])
+                if len(options) > 100:
+                    declaration["options_truncated"] = len(options) - 100
+
+            def fail(reason: str) -> None:
+                raise SettingsValidationError(
+                    reason, node_id=node_id, node_type=class_type,
+                    setting_name=name, received_value=value,
+                    node_declaration=declaration,
+                )
+
             if options and value not in options:
-                raise ValueError(f"{node_id}.{name} is not a supported option")
+                fail(f"{node_id}.{name} is not a supported option")
             boolean_string = isinstance(original, str) and original.strip().lower() in {"true", "false"}
             if schema_type == "BOOLEAN" or boolean_string:
                 if not isinstance(value, bool):
-                    raise ValueError(f"{node_id}.{name} must be true or false")
+                    fail(f"{node_id}.{name} must be true or false")
             elif isinstance(original, bool):
                 if not isinstance(value, bool):
-                    raise ValueError(f"{node_id}.{name} must be true or false")
+                    fail(f"{node_id}.{name} must be true or false")
             elif isinstance(original, (int, float)) and not isinstance(original, bool):
                 if not isinstance(value, (int, float)) or not math.isfinite(float(value)):
-                    raise ValueError(f"{node_id}.{name} must be a finite number")
+                    fail(f"{node_id}.{name} must be a finite number")
                 if isinstance(original, float) or name in ADVANCED_FLOAT_FIELD_NAMES:
                     value = float(value)
                 else:
                     if not float(value).is_integer():
-                        raise ValueError(f"{node_id}.{name} must be an integer")
+                        fail(f"{node_id}.{name} must be an integer")
                     value = int(value)
-                constraints = _input_constraints(str(prompt[node_id].get("class_type") or ""), name, object_info)
                 if "min" in constraints and value < constraints["min"]:
-                    raise ValueError(f"{node_id}.{name} is below the supported minimum")
+                    fail(f"{node_id}.{name} is below the supported minimum")
                 if "max" in constraints and value > constraints["max"]:
-                    raise ValueError(f"{node_id}.{name} exceeds the supported maximum")
+                    fail(f"{node_id}.{name} exceeds the supported maximum")
             elif isinstance(original, str) and isinstance(value, (int, float)) and not isinstance(value, bool):
                 # Some ComfyUI enum-like inputs are numeric strings in the
                 # template (for example Prompt Studio resolution_bucket), but
                 # friendly UI preparation may temporarily replace them with a
                 # label such as "Custom" before this final override pass.
                 if not math.isfinite(float(value)):
-                    raise ValueError(f"{node_id}.{name} must be a finite number")
+                    fail(f"{node_id}.{name} must be a finite number")
                 value = str(value)
             elif isinstance(original, (dict, list)):
                 if not isinstance(value, type(original)):
-                    raise ValueError(f"{node_id}.{name} has an invalid JSON type")
+                    fail(f"{node_id}.{name} has an invalid JSON type")
             elif not isinstance(value, str):
-                raise ValueError(f"{node_id}.{name} must be text")
+                fail(f"{node_id}.{name} must be text")
             inputs[name] = value
 
 
@@ -1157,6 +1175,74 @@ NODE_LABELS = {
     "1541:1538": "Upscale", FINAL_NODE: "Final Save",
 }
 
+NODE_ERROR_CODES = {
+    "890:1365": ("LKS-MOD-1001", "체크포인트를 불러오지 못했어요."),
+    "890:159": ("LKS-MOD-1002", "VAE를 불러오지 못했어요."),
+    "890:164": ("LKS-MOD-1003", "CLIP 텍스트 인코더를 불러오지 못했어요."),
+    "2133": ("LKS-GEN-1201", "프롬프트를 인코딩하지 못했어요."),
+    "1744": ("LKS-I2I-1001", "i2i 입력 이미지를 불러오지 못했어요."),
+    "1736:1741": ("LKS-I2I-1002", "i2i 입력 이미지 크기를 변환하지 못했어요."),
+    "1634:1622": ("LKS-GEN-1301", "Initial 샘플링 단계에서 오류가 발생했어요."),
+    "1635": ("LKS-GEN-1302", "Initial 이미지 디코딩 단계에서 오류가 발생했어요."),
+    "1633:1794": ("LKS-GEN-1401", "HighRez 이미지 인코딩 단계에서 오류가 발생했어요."),
+    "1633:1612": ("LKS-GEN-1402", "HighRez 샘플링 단계에서 오류가 발생했어요."),
+    "1633:1790": ("LKS-GEN-1403", "HighRez 이미지 디코딩 단계에서 오류가 발생했어요."),
+    "1633:1611": ("LKS-GEN-1403", "HighRez 이미지 디코딩 단계에서 오류가 발생했어요."),
+    "1530:1826": ("LKS-GEN-1501", "얼굴 디테일 처리 중 오류가 발생했어요."),
+    "1836:2069": ("LKS-GEN-1502", "눈 디테일 처리 중 오류가 발생했어요."),
+    "1541:1538": ("LKS-GEN-1601", "업스케일 단계에서 오류가 발생했어요."),
+    "775": ("LKS-GEN-1701", "완성된 이미지를 저장하지 못했어요."),
+}
+
+
+class SettingsValidationError(ValueError):
+    def __init__(self, message: str, *, node_id: str, node_type: str,
+                 setting_name: str, received_value: Any,
+                 node_declaration: dict[str, Any]) -> None:
+        super().__init__(message)
+        self.node_id = node_id
+        self.node_type = node_type
+        self.setting_name = setting_name
+        self.received_value = received_value
+        self.node_declaration = node_declaration
+        self.internal_reason = message
+
+    def diagnostic(self) -> dict[str, Any]:
+        return {
+            "setting_node_id": self.node_id,
+            "setting_node_type": self.node_type,
+            "setting_name": self.setting_name,
+            "received_value": self.received_value,
+            "node_declaration": self.node_declaration,
+            "internal_reason": self.internal_reason,
+        }
+
+
+class GenerationExecutionError(RuntimeError):
+    """Structured ComfyUI failure preserved for support diagnostics."""
+
+    def __init__(self, payload: dict[str, Any], *, node_id: str | None,
+                 node_type: str | None, failure_stage: str) -> None:
+        self.payload = payload if isinstance(payload, dict) else {}
+        self.node_id = node_id
+        self.node_type = node_type
+        self.failure_stage = failure_stage
+        self.exception_type = str(self.payload.get("exception_type") or "ComfyUIExecutionError")
+        message = str(self.payload.get("exception_message") or "ComfyUI execution failed")
+        super().__init__(message + " | " + json.dumps(self.payload, ensure_ascii=False)[:3500])
+
+
+class GenerationStallError(TimeoutError):
+    def __init__(self, *, node_id: str | None, node_type: str | None,
+                 failure_stage: str, inactive_seconds: float) -> None:
+        self.node_id = node_id
+        self.node_type = node_type
+        self.failure_stage = failure_stage
+        self.exception_type = type(self).__name__
+        self.inactive_seconds = round(inactive_seconds, 1)
+        super().__init__(f"ComfyUI activity stopped for {self.inactive_seconds}s at node "
+                         f"{node_id or 'unknown'} ({node_type or 'unknown'})")
+
 
 @dataclass
 class GenerationState:
@@ -1168,6 +1254,12 @@ class GenerationState:
     error: str | None = None
     error_code: str | None = None
     error_detail: str | None = None
+    error_stage: str | None = None
+    error_node_id: str | None = None
+    error_node_type: str | None = None
+    error_exception_type: str | None = None
+    request_id: str | None = None
+    diagnostic_context: dict[str, Any] = field(default_factory=dict)
     mode: str | None = None
     i2i_enabled: bool = False
     prompt_used: dict[str, Any] = field(default_factory=dict)
@@ -1179,6 +1271,10 @@ class GenerationState:
     preview_revision: int = 0
     preview_frames: int = 0
     preview_mime: str | None = None
+    last_node_id: str | None = None
+    last_node_type: str | None = None
+    last_activity_at: float | None = None
+    last_node_started_at: float | None = None
     lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
     def snapshot(self) -> dict[str, Any]:
@@ -1199,6 +1295,59 @@ class WorkflowBridge:
         self._preview_lock = threading.Lock()
         self._preview_bytes: bytes | None = None
         self._preview_mime = "image/jpeg"
+        self._recover_interrupted_generation()
+
+    def _write_generation_journal(self) -> None:
+        snapshot = self.status.snapshot()
+        if snapshot.get("state") not in {"preparing", "running", "cancelling"}:
+            self._clear_generation_journal()
+            return
+        GENERATION_JOURNAL_PATH.parent.mkdir(parents=True, exist_ok=True)
+        temporary = GENERATION_JOURNAL_PATH.with_suffix(".tmp")
+        safe = {key: snapshot.get(key) for key in (
+            "state", "request_id", "prompt_id", "stage", "mode", "i2i_enabled",
+            "started_at", "last_activity_at", "last_node_started_at",
+            "last_node_id", "last_node_type", "diagnostic_context",
+        )}
+        temporary.write_text(json.dumps(safe, ensure_ascii=False, indent=2), encoding="utf-8")
+        os.replace(temporary, GENERATION_JOURNAL_PATH)
+
+    @staticmethod
+    def _clear_generation_journal() -> None:
+        try:
+            GENERATION_JOURNAL_PATH.unlink(missing_ok=True)
+        except OSError as error:
+            _audit("external_ui_generation_journal_clear_failed", error=repr(error))
+
+    def _recover_interrupted_generation(self) -> None:
+        if not GENERATION_JOURNAL_PATH.is_file():
+            return
+        try:
+            saved = json.loads(GENERATION_JOURNAL_PATH.read_text(encoding="utf-8"))
+            if not isinstance(saved, dict):
+                raise ValueError("generation journal is not an object")
+            node_id = str(saved.get("last_node_id") or "") or None
+            node_type = str(saved.get("last_node_type") or "") or None
+            self.status.update(
+                state="error", error="이전 생성 중 ComfyUI 또는 LAKIS가 비정상 종료됐어요.",
+                error_code="LKS-GEN-1008", error_detail="Recovered an unfinished generation journal",
+                error_stage=saved.get("stage") or "비정상 종료 복구",
+                error_node_id=node_id, error_node_type=node_type,
+                error_exception_type="RecoveredInterruptedGeneration",
+                request_id=saved.get("request_id"), prompt_id=saved.get("prompt_id"),
+                diagnostic_context=saved.get("diagnostic_context") or {},
+                mode=saved.get("mode"), i2i_enabled=bool(saved.get("i2i_enabled")),
+                started_at=saved.get("started_at"), finished_at=time.time(),
+                last_activity_at=saved.get("last_activity_at"),
+                last_node_started_at=saved.get("last_node_started_at"),
+                last_node_id=node_id, last_node_type=node_type, stage="오류",
+            )
+            _audit("external_ui_interrupted_generation_recovered", request_id=saved.get("request_id"),
+                   prompt_id=saved.get("prompt_id"), node_id=node_id, node_type=node_type)
+        except Exception as error:
+            _audit("external_ui_generation_journal_recovery_failed", error=repr(error))
+        finally:
+            self._clear_generation_journal()
 
     def preview_snapshot(self) -> tuple[bytes | None, str, int]:
         with self._preview_lock:
@@ -1232,15 +1381,21 @@ class WorkflowBridge:
         token = {"request_id": uuid.uuid4().hex, "created_at": time.time(), "source": "external_ui_click"}
         with ALLOW_FILE.open("x", encoding="utf-8") as stream:
             json.dump(token, stream)
+        diagnostic_context = self._diagnostic_context(application_state)
         self.status.update(state="preparing", percent=0.0, stage="생성 중", prompt_id=None,
                            preview_frames=0, preview_mime=None,
                            output_url=None, error=None, error_code=None, error_detail=None,
+                           error_stage=None, error_node_id=None, error_node_type=None,
+                           error_exception_type=None, request_id=token["request_id"],
+                           diagnostic_context=diagnostic_context,
                            mode=application_state["generation"]["mode"],
                            i2i_enabled=bool(application_state.get("i2i", {}).get("enabled", False)),
                            prompt_used=prompt_used,
                            seed=int(application_state["output"]["seed"]),
                            started_at=time.time(), finished_at=None, cancel_requested=False,
-                           prompt_requests=0)
+                           prompt_requests=0, last_node_id=None, last_node_type=None,
+                           last_activity_at=time.time(), last_node_started_at=None)
+        self._write_generation_journal()
         self._worker = threading.Thread(
             target=self._thread_main, args=(prompt, preflight, token),
             name="lakis-external-ui-generation", daemon=True,
@@ -1248,14 +1403,58 @@ class WorkflowBridge:
         self._worker.start()
         return {"ok": True, "request_id": token["request_id"], "preflight": preflight}
 
+    @staticmethod
+    def _diagnostic_context(application_state: dict[str, Any]) -> dict[str, Any]:
+        """Copy only reproducibility settings; never prompt text, images, or paths."""
+        model = application_state.get("model", {})
+        output = application_state.get("output", {})
+        generation = application_state.get("generation", {})
+        camera = application_state.get("camera", {})
+        i2i = application_state.get("i2i", {})
+        loras = application_state.get("loras", [])
+        return {
+            "generation": {key: generation.get(key) for key in ("mode",)},
+            "model": {key: model.get(key) for key in (
+                "checkpoint", "vae", "clip", "sampler", "scheduler", "steps", "cfg"
+            )},
+            "output": {key: output.get(key) for key in ("width", "height", "aspect_locked")},
+            "loras_enabled": bool(application_state.get("lora_enabled", True)),
+            "loras": [
+                {key: item.get(key) for key in ("name", "strength", "enabled")}
+                for item in loras[:64] if isinstance(item, dict)
+            ],
+            "camera": {key: camera.get(key) for key in (
+                "enabled", "pos_x", "pos_y", "pos_z", "roll", "frame_y"
+            )},
+            "i2i": {
+                "enabled": bool(i2i.get("enabled", False)),
+                "denoise": i2i.get("denoise"),
+                "source_size_enabled": bool(i2i.get("source_size_enabled", False)),
+            },
+            "advanced_node_settings": deepcopy(application_state.get("node_overrides", {})),
+        }
+
     def _thread_main(self, prompt: dict[str, Any], preflight: dict[str, Any], token: dict[str, Any]) -> None:
         try:
             asyncio.run(self._run(prompt, preflight, token))
         except Exception as error:
             error_code, public_message = self._public_error(error)
+            node_id = getattr(error, "node_id", None)
+            node_type = getattr(error, "node_type", None)
+            exception_type = getattr(error, "exception_type", type(error).__name__)
+            failure_stage = getattr(error, "failure_stage", None) or self.status.stage or "생성 준비"
             self.status.update(state="error", error=public_message, error_code=error_code,
-                               error_detail=str(error)[:4000], stage="오류", finished_at=time.time())
-            _audit("external_ui_generation_failed", error=repr(error), prompt_requests=self.status.prompt_requests)
+                               error_detail=str(error)[:4000], error_stage=failure_stage,
+                               error_node_id=node_id, error_node_type=node_type,
+                               error_exception_type=exception_type,
+                               stage="오류", finished_at=time.time())
+            _audit(
+                "external_ui_generation_failed", error_code=error_code,
+                request_id=token["request_id"], prompt_id=self.status.prompt_id,
+                failure_stage=failure_stage, node_id=node_id, node_type=node_type,
+                exception_type=exception_type, error=repr(error),
+                prompt_requests=self.status.prompt_requests,
+            )
         finally:
             if self.status.prompt_requests:
                 self._request_runtime_reset()
@@ -1263,26 +1462,56 @@ class WorkflowBridge:
                 ALLOW_FILE.unlink()
             if self._consumed_allowance and self._consumed_allowance.exists():
                 self._consumed_allowance.unlink()
+            self._clear_generation_journal()
 
     @staticmethod
     def _public_error(error: Exception) -> tuple[str, str]:
         detail = str(error)
         lowered = detail.lower()
+        node_id = getattr(error, "node_id", None)
+        if isinstance(error, SettingsValidationError):
+            return "LKS-CFG-1103", "세부 설정값이 해당 ComfyUI 노드의 입력 규격과 맞지 않아요."
         if "fault failed: 2" in lowered or "vram allocation failed" in lowered:
             return (
-                "MODEL_MEMORY_STATE_FAILED",
+                "LKS-GEN-1004",
                 "GPU 모델 메모리 상태가 불안정해 생성이 중단됐어요. "
                 "ComfyUI가 종료됐다면 LAKIS를 다시 실행한 뒤 재시도해 주세요.",
             )
+        if "out of memory" in lowered or "cuda error: memory" in lowered:
+            return "LKS-GEN-1005", "GPU 메모리가 부족해 생성이 중단됐어요. 해상도나 LoRA 수를 줄여 주세요."
+        if "nan" in lowered or "inf values" in lowered:
+            return "LKS-GEN-1006", "계산값이 불안정해 생성이 중단됐어요. CFG나 태그 가중치를 낮춰 주세요."
+        if isinstance(error, GenerationStallError):
+            return "LKS-GEN-1009", "ComfyUI 작업이 진행되지 않아 생성을 중단했어요. 오류 정보를 복사해 전달해 주세요."
+        if isinstance(error, (TimeoutError, asyncio.TimeoutError)) or "timed out" in lowered:
+            return "LKS-GEN-1007", "생성 단계가 제한 시간 안에 응답하지 않았어요."
         if "connection refused" in lowered or "cannot connect" in lowered or "connect call failed" in lowered:
-            return "COMFYUI_NOT_AVAILABLE", "ComfyUI 연결이 끊어졌어요. LAKIS를 다시 실행해 주세요."
+            return "LKS-GEN-1002", "ComfyUI 연결이 끊어졌어요. LAKIS를 다시 실행해 주세요."
         if "queue is not empty" in lowered:
-            return "COMFYUI_QUEUE_BUSY", "ComfyUI에서 다른 작업이 실행 중이에요. 완료 후 다시 시도해 주세요."
+            return "LKS-GEN-1003", "ComfyUI에서 다른 작업이 실행 중이에요. 완료 후 다시 시도해 주세요."
         if "value_bigger_than_max" in lowered or "seed must be between" in lowered:
-            return "INVALID_SEED", f"시드는 0부터 {COMFYUI_SEED_MAX} 사이여야 해요."
+            return "LKS-GEN-1101", f"시드는 0부터 {COMFYUI_SEED_MAX} 사이여야 해요."
         if "unknown lora" in lowered:
-            return "UNKNOWN_LORA", "선택한 LoRA 파일을 찾을 수 없어요. LoRA 목록을 새로 확인해 주세요."
-        return "GENERATION_FAILED", "생성 중 오류가 발생했어요. 자세한 내용은 LAKIS 로그에 저장했어요."
+            return "LKS-MOD-1201", "선택한 LoRA 파일을 찾을 수 없어요. LoRA 목록을 새로 확인해 주세요."
+        if "unknown diffusion model" in lowered:
+            return "LKS-MOD-1101", "선택한 체크포인트 파일을 찾을 수 없어요."
+        if "requires an anima-compatible" in lowered:
+            return "LKS-MOD-1102", "선택한 체크포인트는 현재 LAKIS 생성 경로와 호환되지 않아요."
+        if "unknown vae" in lowered:
+            return "LKS-MOD-1103", "선택한 VAE 파일을 찾을 수 없어요."
+        if "unknown clip" in lowered:
+            return "LKS-MOD-1104", "선택한 CLIP 파일을 찾을 수 없어요."
+        if "i2i 입력 이미지를 다시 선택" in detail:
+            return "LKS-I2I-1101", "i2i 입력 이미지를 다시 선택해 주세요."
+        if "unsupported sampler" in lowered:
+            return "LKS-CFG-1101", "지원하지 않는 샘플러가 선택됐어요."
+        if "unsupported scheduler" in lowered:
+            return "LKS-CFG-1102", "지원하지 않는 스케줄러가 선택됐어요."
+        if "advanced node settings" in lowered or "node settings" in lowered:
+            return "LKS-CFG-1103", "세부 설정값이 올바르지 않아요."
+        if node_id in NODE_ERROR_CODES:
+            return NODE_ERROR_CODES[node_id]
+        return "LKS-GEN-1001", "생성 중 오류가 발생했어요. 자세한 내용은 LAKIS 로그에 저장했어요."
 
     def _request_runtime_reset(self) -> None:
         """Reset ComfyUI execution/model caches between isolated LAKIS jobs."""
@@ -1314,7 +1543,7 @@ class WorkflowBridge:
             consumed = DEV_ROOT / f".ALLOW_ONE_GENERATION.consumed.{token['request_id']}"
             os.replace(ALLOW_FILE, consumed)
             self._consumed_allowance = consumed
-            websocket_url = f"ws://127.0.0.1:8189/ws?clientId={client_id}"
+            websocket_url = f"ws://127.0.0.1:{COMFY_PORT}/ws?clientId={client_id}"
             async with session.ws_connect(websocket_url, max_msg_size=16 * 1024 * 1024) as ws:
                 payload = {
                     "prompt": prompt,
@@ -1335,6 +1564,7 @@ class WorkflowBridge:
                 if not prompt_id:
                     raise RuntimeError(f"ComfyUI returned no prompt_id: {body}")
                 self.status.update(state="running", prompt_id=prompt_id, stage="생성 중")
+                self._write_generation_journal()
                 _audit("external_ui_prompt_queued", prompt_id=prompt_id, preflight=preflight,
                        prompt_requests=1, retries=0)
                 completed = await self._observe(ws, prompt_id, prompt)
@@ -1356,9 +1586,19 @@ class WorkflowBridge:
         current: str | None = None
         current_fraction = 0.0
         while True:
-            message = await ws.receive(timeout=1800)
+            try:
+                message = await ws.receive(timeout=GENERATION_STALL_SECONDS)
+            except asyncio.TimeoutError as error:
+                snapshot = self.status.snapshot()
+                inactive = time.time() - float(snapshot.get("last_activity_at") or time.time())
+                raise GenerationStallError(
+                    node_id=snapshot.get("last_node_id"), node_type=snapshot.get("last_node_type"),
+                    failure_stage=snapshot.get("stage") or "ComfyUI 실행", inactive_seconds=inactive,
+                ) from error
+            self.status.update(last_activity_at=time.time())
             if message.type == aiohttp.WSMsgType.BINARY:
                 self._capture_preview_frame(bytes(message.data))
+                self._write_generation_journal()
                 continue
             if message.type != aiohttp.WSMsgType.TEXT:
                 continue
@@ -1376,16 +1616,28 @@ class WorkflowBridge:
                 current_fraction = 0.0
                 if next_node is None:
                     return True
+                node_type = str(prompt.get(current, {}).get("class_type") or "") or None
+                self.status.update(last_node_id=current, last_node_type=node_type,
+                                   last_node_started_at=time.time())
+                self._write_generation_journal()
                 self._set_weighted_progress(weights, completed, total, current, 0.0)
             elif event == "progress" and current:
                 maximum = float(data.get("max") or 1)
                 current_fraction = min(1.0, float(data.get("value") or 0) / maximum)
                 self._set_weighted_progress(weights, completed, total, current, current_fraction)
+                self._write_generation_journal()
             elif event in {"execution_error", "execution_interrupted"}:
                 if event == "execution_interrupted" and self.status.cancel_requested:
                     self.status.update(state="cancelled", stage="중지됨", finished_at=time.time())
                     return False
-                raise RuntimeError(json.dumps(data, ensure_ascii=False)[:2000])
+                failed_node_id = str(data.get("node_id") or current or "") or None
+                failed_node_type = str(data.get("node_type") or "") or (
+                    str(prompt.get(failed_node_id, {}).get("class_type") or "") if failed_node_id else ""
+                ) or None
+                raise GenerationExecutionError(
+                    data, node_id=failed_node_id, node_type=failed_node_type,
+                    failure_stage=NODE_LABELS.get(failed_node_id, self.status.stage or "ComfyUI 실행"),
+                )
             elif event == "execution_success":
                 return True
 

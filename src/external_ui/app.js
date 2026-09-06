@@ -1399,9 +1399,31 @@ function resetGenerationButton() {
   generateButtonHint.textContent = `${state.generation.mode === "detail" ? "DETAIL" : "FAST"} · COMPOSITION READY`;
 }
 
-function showGenerationError(message) {
+let lastErrorReport = null;
+
+function showGenerationError(message, errorCode = "", context = {}) {
   resetGenerationButton();
-  errorDialogMessage.textContent = message || "생성 중 오류가 발생했어요.";
+  const code = String(errorCode || "").trim();
+  const details = [];
+  if (code) details.push(`오류 코드: ${code}`);
+  if (context.stage) details.push(`실패 단계: ${context.stage}`);
+  if (context.nodeType || context.nodeId) details.push(`실패 노드: ${context.nodeType || "알 수 없음"}${context.nodeId ? ` (${context.nodeId})` : ""}`);
+  if (context.requestId) details.push(`추적 ID: ${String(context.requestId).slice(0, 12)}`);
+  errorDialogMessage.textContent = `${message || "생성 중 오류가 발생했어요."}${details.length ? `\n\n${details.join("\n")}` : ""}`;
+  lastErrorReport = {
+    error_code: code || "LKS-GEN-1001",
+    message: message || "생성 중 오류가 발생했어요.",
+    failure_stage: context.stage || null,
+    node_id: context.nodeId || null,
+    node_type: context.nodeType || null,
+    exception_type: context.exceptionType || null,
+    request_id: context.requestId || null,
+    prompt_id: context.promptId || null,
+    occurred_at: new Date().toISOString(),
+    settings: context.diagnostics || null,
+    setting_diagnostic: context.settingDiagnostic || null,
+    runtime_trace: context.runtimeTrace || null,
+  };
   errorDialog.hidden = false;
   document.querySelector("#errorDialogClose").focus();
 }
@@ -1412,6 +1434,34 @@ function closeGenerationError() {
 }
 
 document.querySelector("#errorDialogClose").addEventListener("click", closeGenerationError);
+document.querySelector("#errorDialogCopy").addEventListener("click", async event => {
+  if (!lastErrorReport) return;
+  const button = event.currentTarget;
+  button.disabled = true;
+  button.textContent = "복사 중...";
+  let version = "unknown";
+  try {
+    const response = await fetch("/api/launcher-identity", { cache: "no-store" });
+    if (response.ok) version = String((await response.json()).version || version);
+  } catch (_) {}
+  const report = `LAKIS 오류 보고\n버전: ${version}\n${JSON.stringify(lastErrorReport, null, 2)}`;
+  let copied = false;
+  try {
+    await navigator.clipboard.writeText(report);
+    copied = true;
+  } catch (_) {
+    try {
+      const field = document.createElement("textarea");
+      field.value = report; field.style.position = "fixed"; field.style.opacity = "0";
+      document.body.append(field); field.select(); copied = document.execCommand("copy"); field.remove();
+    } catch (_) {}
+  }
+  button.textContent = copied ? "복사 완료" : "복사 실패";
+  setTimeout(() => {
+    button.textContent = "오류 정보 복사하기";
+    button.disabled = false;
+  }, 1800);
+});
 errorDialog.addEventListener("click", event => {
   if (event.target === errorDialog) closeGenerationError();
 });
@@ -1432,6 +1482,18 @@ window.addEventListener("lakis:generation-complete", () => {
 window.addEventListener("lakis:generation-error", resetGenerationButton);
 window.addEventListener("lakis:generation-cancelled", resetGenerationButton);
 window.LAKISGenerationProgress = setGenerationProgress;
+
+window.LAKISDevTriggerError = payload => {
+  if (!payload || typeof payload !== "object") return false;
+  showGenerationError(payload.message, payload.error_code, {
+    stage: payload.error_stage, nodeId: payload.error_node_id,
+    nodeType: payload.error_node_type, exceptionType: payload.error_exception_type,
+    requestId: payload.request_id, promptId: payload.prompt_id,
+    diagnostics: payload.diagnostic_context,
+    settingDiagnostic: payload.setting_diagnostic,
+  });
+  return true;
+};
 
 let lastGenerationState = "idle";
 async function pollGenerationStatus() {
@@ -1484,7 +1546,18 @@ async function pollGenerationStatus() {
     } else if (status.state === "cancelled" && lastGenerationState !== "cancelled") {
       window.dispatchEvent(new CustomEvent("lakis:generation-cancelled"));
     } else if (status.state === "error" && lastGenerationState !== "error") {
-      showGenerationError(status.error);
+      showGenerationError(status.error, status.error_code, {
+        stage: status.error_stage, nodeId: status.error_node_id,
+        nodeType: status.error_node_type, exceptionType: status.error_exception_type,
+        requestId: status.request_id, promptId: status.prompt_id,
+        diagnostics: status.diagnostic_context,
+        runtimeTrace: {
+          last_node_id: status.last_node_id || null,
+          last_node_type: status.last_node_type || null,
+          last_activity_at: status.last_activity_at || null,
+          last_node_started_at: status.last_node_started_at || null,
+        },
+      });
     }
     lastGenerationState = status.state;
   } catch (_) {
@@ -1560,10 +1633,19 @@ window.addEventListener("lakis:generate", async event => {
       body: JSON.stringify(event.detail)
     });
     const result = await response.json();
-    if (!response.ok || !result.ok) throw new Error(result.error || `HTTP ${response.status}`);
+    if (!response.ok || !result.ok) {
+      const failure = new Error(result.error || `HTTP ${response.status}`);
+      failure.lakis = result;
+      throw failure;
+    }
     lastGenerationState = "preparing";
   } catch (error) {
-    showGenerationError(error.message);
+    showGenerationError(error.message, error.lakis?.error_code, {
+      stage: error.lakis?.error_stage || "요청 검증",
+      nodeId: error.lakis?.error_node_id, nodeType: error.lakis?.error_node_type,
+      requestId: error.lakis?.request_id,
+      settingDiagnostic: error.lakis?.setting_diagnostic,
+    });
   } finally {
     generationSubmissionPending = false;
   }

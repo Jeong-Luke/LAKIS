@@ -5,3 +5,5 @@
 .error-dialog-card h2{margin:0;color:#f7f8fb;font-size:21px;letter-spacing:-.02em}
 .error-dialog-card p{margin:13px 0 22px;color:#aeb6c7;font-size:13px;line-height:1.65;white-space:pre-line;overflow-wrap:anywhere}
 .error-dialog-card button{min-width:112px;padding:10px 22px;border:0;border-radius:9px;background:linear-gradient(135deg,#6b4ee7,#4d8ef7);color:white;font-weight:800;cursor:pointer}
+.error-dialog-actions{display:flex;justify-content:center;gap:10px;flex-wrap:wrap}
+.error-dialog-actions #errorDialogCopy{background:#2a3040;color:#dce3f4;border:1px solid #46506a}

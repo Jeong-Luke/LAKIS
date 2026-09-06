@@ -42,7 +42,10 @@ except ImportError:  # optional in prototype runtime
 
 COMFY_ROOT = UI_ROOT.parents[1].resolve()
 INSTALL_ROOT = COMFY_ROOT.parent.resolve()
-USER_STATE_ROOT = Path(os.environ.get("LOCALAPPDATA", str(INSTALL_ROOT))) / "LAKIS Studio"
+DEVELOPMENT = os.environ.get("LAKIS_DEVELOPMENT") == "1"
+USER_STATE_ROOT = Path(os.environ.get("LOCALAPPDATA", str(INSTALL_ROOT))) / (
+    "LAKIS Studio DEV" if DEVELOPMENT else "LAKIS Studio"
+)
 UPSCALER_CHOICE_PATH = USER_STATE_ROOT / "upscaler-license-choice.json"
 LEGACY_UPSCALER_CHOICE_PATH = INSTALL_ROOT / ".lakis" / "upscaler-license-choice.json"
 REALESRGAN_MODEL = "RealESRGAN_x4plus_anime_6B.pth"
@@ -50,13 +53,15 @@ REALESRGAN_URL = "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.
 REALESRGAN_SHA256 = "F872D837D3C90ED2E05227BED711AF5671A6FD1C9F7D7E91C911A61F155E99DA"
 REALESRGAN_BYTES = 17_938_799
 ANIMESHARP_MODEL = "2x-AnimeSharpV4_Fast_RCAN_PU.safetensors"
-LAKIS_VERSION_PATH = COMFY_ROOT.parent / "VERSION"
+LAKIS_VERSION_PATH = (
+    UI_ROOT.parent / "DEV_VERSION" if DEVELOPMENT else COMFY_ROOT.parent / "VERSION"
+)
 OUTPUT_ROOT = (COMFY_ROOT / "output").resolve()
 INPUT_ROOT = (COMFY_ROOT / "input").resolve()
 AUDIT_PATH = COMFY_ROOT / "LAKIS_DEV" / "process_audit.jsonl"
 HOST = "127.0.0.1"
 PORT = 8766
-COMFY_SERVER = "http://127.0.0.1:8189"
+COMFY_SERVER = "http://127.0.0.1:8190" if DEVELOPMENT else "http://127.0.0.1:8189"
 WORKFLOW_ROOT = COMFY_ROOT / "user" / "default" / "workflows"
 PACKAGED_WORKFLOW_ROOT = COMFY_ROOT / "LAKIS" / "workflows"
 PREFERRED_LAKIS_WORKFLOW = WORKFLOW_ROOT / "LAKIS_custom_v7.1.json"
@@ -709,7 +714,14 @@ class Handler(SimpleHTTPRequestHandler):
             except Exception as error:
                 audit({"event": "external_ui_generate_rejected", "error": repr(error)})
                 error_code, public_message = GENERATION_BRIDGE._public_error(error)
-                self._send_json(409, {"ok": False, "error": public_message, "error_code": error_code})
+                self._send_json(409, {
+                    "ok": False, "error": public_message, "error_code": error_code,
+                    "error_stage": "요청 검증",
+                    "error_node_id": getattr(error, "node_id", None),
+                    "error_node_type": getattr(error, "node_type", None),
+                    "setting_diagnostic": error.diagnostic() if hasattr(error, "diagnostic") else None,
+                    "request_id": None,
+                })
             return
         if self.path == "/api/cancel":
             try:

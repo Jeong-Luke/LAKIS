@@ -16,6 +16,7 @@ from urllib.request import urlopen
 
 
 UI_ROOT = Path(__file__).resolve().parent
+DEVELOPMENT = os.environ.get("LAKIS_DEVELOPMENT") == "1"
 COMFY_ROOT = UI_ROOT.parents[1]
 PORTABLE_ROOT = COMFY_ROOT.parent
 PYTHON = PORTABLE_ROOT / "python_embeded" / "python.exe"
@@ -23,9 +24,9 @@ COMFY_MAIN = COMFY_ROOT / "main.py"
 UI_SERVER = UI_ROOT / "serve_ui.py"
 DESKTOP_HOST = Path(os.environ.get("LAKIS_DESKTOP_HOST", PORTABLE_ROOT / "LAKIS_Desktop.exe"))
 DEV_ROOT = UI_ROOT.parent
-STATE_PATH = DEV_ROOT / "lakis_launcher_state.json"
-LOG_ROOT = DEV_ROOT / "launcher_logs"
-COMFY_PORT = 8189
+STATE_PATH = DEV_ROOT / ("lakis_dev_launcher_state.json" if DEVELOPMENT else "lakis_launcher_state.json")
+LOG_ROOT = DEV_ROOT / ("launcher_logs_dev" if DEVELOPMENT else "launcher_logs")
+COMFY_PORT = 8190 if DEVELOPMENT else 8189
 COMFY_URL = f"http://127.0.0.1:{COMFY_PORT}/system_stats"
 INSTALLATION_ID = hashlib.sha256(
     os.path.normcase(str(PORTABLE_ROOT.resolve())).encode("utf-8")
@@ -200,10 +201,13 @@ def main() -> int:
         save_state(state)
         if comfy_port_in_use:
             state["classification"] = "LAKIS_COMFYUI_PORT_IN_USE_FAILED"
+            state["error_code"] = "LKS-RUN-1001"
             save_state(state)
             show_error(
-                "다른 ComfyUI 또는 이전 LAKIS 백엔드가 8189 포트를 사용 중이야.\n\n"
-                "실행 중인 LAKIS와 ComfyUI를 종료한 뒤 다시 실행해줘."
+                f"포트 {COMFY_PORT}를 사용할 수 없습니다.\n"
+                "다른 ComfyUI 인스턴스 또는 이전 LAKIS 백엔드가 해당 포트를 사용 중입니다.\n\n"
+                "실행 중인 LAKIS와 ComfyUI를 모두 종료한 후 다시 실행하십시오.\n\n"
+                "오류 코드: LKS-RUN-1001"
             )
             return 1
         if state["comfyui_source"] == "launched_by_lakis":
@@ -219,8 +223,9 @@ def main() -> int:
             save_state(state)
             if not wait_ready(COMFY_URL, comfy_process, 180):
                 state["classification"] = "COMFYUI_START_FAILED"
+                state["error_code"] = "LKS-RUN-1002"
                 save_state(state)
-                show_error("ComfyUI 백엔드를 시작하지 못했어. LAKIS launcher 로그를 확인해줘.")
+                show_error("ComfyUI 백엔드를 시작할 수 없습니다. LAKIS 런처 로그를 확인하십시오.\n\n오류 코드: LKS-RUN-1002")
                 return 1
 
         command = [
@@ -239,8 +244,9 @@ def main() -> int:
         ui_url = wait_ui_bridge_ready(ready_path, ui_process, session_token, 20)
         if ui_url is None:
             state["classification"] = "LAKIS_UI_IDENTITY_FAILED"
+            state["error_code"] = "LKS-UI-1001"
             save_state(state)
-            show_error("이 설치본의 LAKIS UI 브리지를 확인하지 못했어. launcher 로그를 확인해줘.")
+            show_error("현재 설치본의 LAKIS UI 브리지를 확인할 수 없습니다. LAKIS 런처 로그를 확인하십시오.\n\n오류 코드: LKS-UI-1001")
             return 1
 
         state["classification"] = "LAKIS_READY"
@@ -255,9 +261,10 @@ def main() -> int:
         return desktop_process.wait()
     except Exception as error:
         state["classification"] = "LAKIS_LAUNCH_FAILED"
+        state["error_code"] = "LKS-RUN-1099"
         state["error"] = repr(error)
         save_state(state)
-        show_error(f"LAKIS 실행 중 오류가 발생했어.\n\n{error}")
+        show_error(f"LAKIS 실행 중 오류가 발생했습니다.\n\n오류 코드: LKS-RUN-1099\n\n{error}")
         return 1
     finally:
         try:

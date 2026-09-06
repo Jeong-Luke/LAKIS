@@ -277,7 +277,10 @@
       <div class="error-dialog-icon" aria-hidden="true">!</div>
       <h2 id="errorDialogTitle">생성 오류</h2>
       <p id="errorDialogMessage">생성 중 오류가 발생했어요.</p>
-      <button id="errorDialogClose" type="button">확인</button>
+      <div class="error-dialog-actions">
+        <button id="errorDialogCopy" type="button">오류 정보 복사하기</button>
+        <button id="errorDialogClose" type="button">확인</button>
+      </div>
     </div>
   </div>
   <div id="i2iCompositionNotice" class="i2i-composition-notice" hidden role="status">i2i를 사용하면 구도 설정이 꺼집니다.</div>
@@ -337,7 +340,7 @@
       <small>© 2026 Luke Jeong. All rights reserved. · Built on NVIDIA Cosmos.</small>
     </section>
   </div>
-  <script src="app.js?v=20260906-advanced-persistence"></script>
+  <script src="app.js?v=20260906-generation-watchdog"></script>
   <script src="advanced-node-settings.js?v=20260906-advanced-audit"></script>
   <script type="module" src="lightmap-knob-mockup.js?v=20260904-source-port"></script>
   <script type="module" src="prompt-highlighting.js?v=20260906-paste-caret-sync"></script>

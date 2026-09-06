@@ -16,6 +16,17 @@ using System.Web.Script.Serialization;
 
 internal static class LakisLauncher
 {
+#if LAKIS_DEV
+    private const bool DevelopmentBuild = true;
+    private const string ProductTitle = "LAKIS Studio DEV";
+    private const string DesktopMutexName = "Local\\LAKIS-Studio-DEV-Desktop";
+    private const string StartupMutexName = "Local\\LAKIS-Studio-DEV-Startup";
+#else
+    private const bool DevelopmentBuild = false;
+    private const string ProductTitle = "LAKIS Studio";
+    private const string DesktopMutexName = "Local\\LAKIS-Studio-Desktop";
+    private const string StartupMutexName = "Local\\LAKIS-Studio-Startup";
+#endif
     private static readonly string[] ManifestUrls = {
         "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/main/manifests/update-latest.json",
         "https://cdn.jsdelivr.net/gh/Jeong-Luke/LAKIS@main/manifests/update-latest.json"
@@ -37,7 +48,7 @@ internal static class LakisLauncher
         internal StartupForm(string installRoot)
         {
             root = installRoot;
-            Text = "LAKIS Studio";
+            Text = ProductTitle;
             ClientSize = new Size(760, 430);
             StartPosition = FormStartPosition.CenterScreen;
             FormBorderStyle = FormBorderStyle.None;
@@ -74,7 +85,7 @@ internal static class LakisLauncher
             title.MouseDown += DragWindow;
             var subtitle = new Label {
                 Left = 114, Top = 78, Width = 260, Height = 25,
-                Text = "Studio", Font = new Font("Segoe UI", 11F, FontStyle.Bold),
+                Text = DevelopmentBuild ? "Studio · DEVELOPMENT" : "Studio", Font = new Font("Segoe UI", 11F, FontStyle.Bold),
                 ForeColor = Color.FromArgb(171, 178, 203)
             };
             subtitle.MouseDown += DragWindow;
@@ -135,7 +146,13 @@ internal static class LakisLauncher
 
         private static string ReadVersion(string installRoot)
         {
-            try { return "v" + File.ReadAllText(Path.Combine(installRoot, "VERSION")).Trim(); }
+            try
+            {
+                string path = DevelopmentBuild
+                    ? Path.Combine(installRoot, "ComfyUI", "LAKIS_DEV", "DEV_VERSION")
+                    : Path.Combine(installRoot, "VERSION");
+                return "v" + File.ReadAllText(path).Trim();
+            }
             catch { return "LAKIS Studio"; }
         }
 
@@ -156,14 +173,14 @@ internal static class LakisLauncher
             }
             try
             {
-                SetStatus("업데이트 확인 중");
+                SetStatus(DevelopmentBuild ? "개발판 시작 중 · 자동 업데이트 꺼짐" : "업데이트 확인 중");
                 string patcher = Path.Combine(root, "LAKIS_Patcher.exe");
                 string updater = File.Exists(patcher) ? patcher : Path.Combine(root, "LAKIS_Updater.exe");
                 string currentText = File.Exists(Path.Combine(root, "VERSION"))
                     ? File.ReadAllText(Path.Combine(root, "VERSION")).Trim() : "0.0.0";
                 Version current;
                 if (!Version.TryParse(currentText, out current)) current = new Version(0, 0, 0);
-                var check = await Task.Run(() => {
+                var check = DevelopmentBuild ? Tuple.Create(true, current, "") : await Task.Run(() => {
                     Version latest; string failure;
                     bool ok = TryGetLatestVersion(out latest, out failure);
                     return Tuple.Create(ok, latest, failure);
@@ -188,11 +205,18 @@ internal static class LakisLauncher
                     FileName = python, Arguments = "-s \"" + launcher + "\"",
                     WorkingDirectory = root, UseShellExecute = false, CreateNoWindow = true,
                 };
+                if (DevelopmentBuild)
+                {
+                    startInfo.EnvironmentVariables["LAKIS_DEVELOPMENT"] = "1";
+                    startInfo.EnvironmentVariables["LAKIS_DESKTOP_HOST"] =
+                        Path.Combine(root, "LAKIS_DEV_Desktop.exe");
+                }
                 startInfo.EnvironmentVariables["LORA_MANAGER_SETTINGS_DIR"] =
                     Path.Combine(root, "ComfyUI", "user", "default", "lora-manager");
                 Process process = Process.Start(startInfo);
                 startupProcess = process;
-                string launcherState = Path.Combine(root, "ComfyUI", "LAKIS_DEV", "lakis_launcher_state.json");
+                string launcherState = Path.Combine(root, "ComfyUI", "LAKIS_DEV",
+                    DevelopmentBuild ? "lakis_dev_launcher_state.json" : "lakis_launcher_state.json");
                 bool ready = await Task.Run(() => WaitForLauncherReady(process, launcherState, 180));
                 if (userCancelled || IsDisposed) return;
                 if (!ready)
@@ -417,20 +441,20 @@ internal static class LakisLauncher
         string root = AppDomain.CurrentDomain.BaseDirectory;
         try
         {
-            using (Mutex.OpenExisting("Local\\LAKIS-Studio-Desktop"))
+            using (Mutex.OpenExisting(DesktopMutexName))
             {
-                MessageBox.Show("LAKIS가 이미 실행 중입니다.", "LAKIS Studio",
+                MessageBox.Show("LAKIS가 이미 실행 중입니다.", ProductTitle,
                     MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
         }
         catch (WaitHandleCannotBeOpenedException) { }
         bool ownsStartup;
-        using (var mutex = new Mutex(true, "Local\\LAKIS-Studio-Startup", out ownsStartup))
+        using (var mutex = new Mutex(true, StartupMutexName, out ownsStartup))
         {
             if (!ownsStartup)
             {
-                MessageBox.Show("LAKIS가 이미 시작 중입니다.", "LAKIS Studio",
+                MessageBox.Show("LAKIS가 이미 시작 중입니다.", ProductTitle,
                     MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
