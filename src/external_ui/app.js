@@ -216,15 +216,13 @@ function updateLoraSearchMenu(input, onSelect) {
     loraSearchMenu.append(empty);
   }
   const rect = input.getBoundingClientRect();
-  const availableBelow = window.innerHeight - rect.bottom - 8;
   const availableAbove = rect.top - 8;
-  const menuHeight = Math.min(260, Math.max(80, Math.max(availableBelow, availableAbove)));
-  const openAbove = availableBelow < 140 && availableAbove > availableBelow;
+  const menuHeight = Math.max(80, availableAbove);
   loraSearchMenu.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - rect.width - 8))}px`;
   loraSearchMenu.style.width = `${rect.width}px`;
   loraSearchMenu.style.maxHeight = `${menuHeight}px`;
-  loraSearchMenu.style.top = openAbove ? "auto" : `${rect.bottom + 3}px`;
-  loraSearchMenu.style.bottom = openAbove ? `${window.innerHeight - rect.top + 3}px` : "auto";
+  loraSearchMenu.style.top = "auto";
+  loraSearchMenu.style.bottom = `${window.innerHeight - rect.top + 3}px`;
   loraSearchMenu.hidden = false;
   activeLoraSearchInput = input;
 }
