@@ -12,6 +12,9 @@
   horizontal page overflow.
 - Update downloads bypass stale caches and retry a failed or mismatched file up
   to three times before safely aborting.
+- Clean installation now copies extracted components across drive boundaries,
+  so custom locations such as `D:\AI\LAKIS` no longer fail with a
+  source/destination root mismatch.
 - The release workflow refuses to overwrite an existing version, verifies all
   published files byte-for-byte, and publishes the update manifest only after
   every SHA-256 check passes.
