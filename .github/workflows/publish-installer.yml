@@ -32,7 +32,15 @@ jobs:
           $sourceVersion = (Get-Content -Raw .\VERSION).Trim()
           if ($version -ne $sourceVersion) { throw "Tag $env:RELEASE_TAG does not match VERSION $sourceVersion" }
           $publishedUrl = "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/main/manifests/update-latest.json?prepublish=" + [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
-          $published = Invoke-RestMethod -Headers @{ "User-Agent" = "LAKIS-Release-Guard/$version" } -Uri $publishedUrl
+          $publishedResponse = Invoke-RestMethod -Headers @{ "User-Agent" = "LAKIS-Release-Guard/$version" } -Uri $publishedUrl
+          # raw.githubusercontent.com serves the manifest as text/plain, so
+          # PowerShell can return the JSON document as a string instead of an
+          # object.  Normalize both response forms and strip a possible BOM.
+          if ($publishedResponse -is [string]) {
+            $published = ($publishedResponse.TrimStart([char]0xFEFF) | ConvertFrom-Json)
+          } else {
+            $published = $publishedResponse
+          }
           if ([version]$version -lt [version]([string]$published.version)) {
             throw "Refusing to overwrite an existing release line: candidate=$version published=$($published.version)"
           }

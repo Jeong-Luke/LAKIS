@@ -76,6 +76,7 @@ Require ($workflow.Contains("-VerifyRemote -Passes 3")) "Release workflow must r
 Require ($workflow.Contains("gh release create `$env:RELEASE_TAG --draft")) "Release assets must be staged in a draft release."
 Require ($workflow.Contains("-DraftReleaseTag `$env:RELEASE_TAG")) "Draft release assets must be authenticated and hash-verified before publish."
 Require ($workflow.Contains("Test-InstallerDataSafety.ps1 -InstallerPath `$env:LAKIS_INSTALLER_OUTPUT")) "Built Setup artifact must pass the destructive-install regression test."
+Require ($workflow.Contains("publishedResponse.TrimStart([char]0xFEFF) | ConvertFrom-Json")) "Release identity guard must parse the text/plain GitHub manifest and strip its BOM."
 $verifyIndex = $workflow.IndexOf("-VerifyRemote -Passes 3", [System.StringComparison]::Ordinal)
 $releasePublishIndex = $workflow.IndexOf("Publish the fully verified release", [System.StringComparison]::Ordinal)
 $publishIndex = $workflow.IndexOf("Publish only the verified manifest", [System.StringComparison]::Ordinal)
