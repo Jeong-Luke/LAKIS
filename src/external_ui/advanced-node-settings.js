@@ -52,23 +52,47 @@
     row.append(name);
     const value = currentValue(nodeId, field);
     if (field.type === "boolean") {
+      const mappedValues = field.boolean_values;
+      const checked = mappedValues
+        ? value === mappedValues.true || value === true
+        : Boolean(value);
       const button = document.createElement("button");
       button.type = "button";
-      button.className = `advanced-field-switch${value ? " on" : ""}`;
-      button.setAttribute("aria-pressed", String(Boolean(value)));
+      button.className = `advanced-field-switch${checked ? " on" : ""}`;
+      button.setAttribute("aria-pressed", String(checked));
       button.addEventListener("click", () => {
         const next = button.getAttribute("aria-pressed") !== "true";
         button.setAttribute("aria-pressed", String(next));
         button.classList.toggle("on", next);
-        saveValue(nodeId, field.name, next);
+        saveValue(nodeId, field.name, mappedValues ? mappedValues[String(next)] : next);
       });
       row.append(button);
+      return row;
+    }
+    if (Array.isArray(field.options) && field.options.length) {
+      const select = document.createElement("select");
+      for (const optionValue of field.options) {
+        const option = document.createElement("option");
+        option.value = optionValue;
+        option.textContent = optionValue;
+        select.append(option);
+      }
+      select.value = String(value ?? "");
+      select.addEventListener("change", () => {
+        const next = field.type === "number" ? Number(select.value) : select.value;
+        saveValue(nodeId, field.name, next);
+      });
+      row.append(select);
       return row;
     }
     const longValue = field.type === "json" || String(value ?? "").length > 70;
     const input = document.createElement(longValue ? "textarea" : "input");
     if (!longValue) input.type = field.type === "number" ? "number" : "text";
-    if (field.type === "number") input.step = "any";
+    if (field.type === "number") {
+      input.step = field.step ?? "any";
+      if (Number.isFinite(field.min)) input.min = field.min;
+      if (Number.isFinite(field.max)) input.max = field.max;
+    }
     input.value = field.type === "json" && !field.encoded_json
       ? JSON.stringify(value, null, 2) : String(value ?? "");
     const commit = () => {
@@ -106,6 +130,7 @@
     for (const node of nodes) {
       const card = document.createElement("section");
       card.className = "advanced-node-card";
+      if (node.id === "1541:1536") card.classList.add("advanced-node-card-upscaler");
       const heading = document.createElement("div");
       heading.className = "advanced-node-title";
       heading.innerHTML = `<span></span><small></small>`;
@@ -194,6 +219,26 @@
     if (floating) window.addEventListener("resize", () => { if (!overlay.hidden) placeGenerationOverlay(overlay); });
   }
 
+  async function loadConfiguration(attempt = 0) {
+    try {
+      const response = await fetch("/api/workflow-config", { cache: "no-store" });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const payload = await response.json();
+      configuration = payload.advanced_nodes || {};
+      const hasSchemaOptions = Object.values(configuration).some(nodes =>
+        nodes.some(node => node.fields.some(field => Array.isArray(field.options) && field.options.length))
+      );
+      // ComfyUI may still be starting when the desktop shell appears. Retry in
+      // the background so enum inputs never silently fall back to free text.
+      if (!hasSchemaOptions && attempt < 5) {
+        setTimeout(() => loadConfiguration(attempt + 1), 1500);
+      }
+    } catch (error) {
+      if (attempt < 5) setTimeout(() => loadConfiguration(attempt + 1), 1500);
+      else console.error("Could not load advanced node settings", error);
+    }
+  }
+
   async function initialize() {
     groups.forEach(args => install(...args));
     // Prompt panels are rebuilt when their saved state is restored. Delegated
@@ -216,13 +261,7 @@
     document.querySelectorAll(".mode-option[data-mode]").forEach(button => {
       button.addEventListener("click", () => queueMicrotask(syncGenerationModeSwitches));
     });
-    try {
-      const response = await fetch("/api/workflow-config", { cache: "no-store" });
-      const payload = await response.json();
-      configuration = payload.advanced_nodes || {};
-    } catch (error) {
-      console.error("Could not load advanced node settings", error);
-    }
+    await loadConfiguration();
   }
   initialize();
 })();

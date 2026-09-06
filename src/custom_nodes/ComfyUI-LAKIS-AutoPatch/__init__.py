@@ -1,3 +1,4 @@
+# SPDX-FileCopyrightText: 2026 Luke Jeong
 # SPDX-License-Identifier: MIT
 # LAKIS AutoPatch Bridge
 #

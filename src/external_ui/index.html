@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="prompt-width.css?v=20260905-ratio-1-1-25-15">
   <link rel="stylesheet" href="generation-actions.css?v=20260905-responsive-action">
   <link rel="stylesheet" href="prompt-categories.css?v=20260906-equal-prompt-halves">
-  <link rel="stylesheet" href="prompt-highlighting.css?v=20260906-bounded-inner-resize">
+  <link rel="stylesheet" href="prompt-highlighting.css?v=20260906-paste-caret-sync">
   <link rel="stylesheet" href="lora-controls.css?v=20260906-lora-order">
   <link rel="stylesheet" href="preview-zoom.css?v=20260905-empty-preview">
   <link rel="stylesheet" href="prompt-inspector.css?v=20260906-generated-prompt">
@@ -35,6 +35,8 @@
   <link rel="stylesheet" href="i2i-preview-contain.css?v=20260906-auto-size-option">
   <link rel="stylesheet" href="advanced-node-settings.css?v=20260906-advanced-audit">
   <link rel="stylesheet" href="horizontal-overflow-fix.css?v=20260906-fixed-prompt-column">
+  <link rel="stylesheet" href="upscaler-license-migration.css?v=20260906-first-run">
+  <link rel="stylesheet" href="system-info-dialog.css?v=20260906-licenses">
 </head>
 <body>
   <div class="app-shell">
@@ -258,7 +260,7 @@
       <footer class="system-footer">
         <div class="footer-left">
           <span>LAKIS <b id="workflowVersion">확인 중</b></span><i></i>
-          <span class="footer-copyright">ⓒ 2026. Luke_Jeong All rights reserved.</span><i></i>
+          <span class="footer-copyright">© 2026 Luke Jeong. All rights reserved.</span><i></i>
           <span>ComfyUI <b id="comfyStatusText">확인 중</b> <em id="comfyStatusDot" class="footer-dot"></em></span>
         </div>
         <div class="footer-right">
@@ -292,9 +294,54 @@
       <label class="prompt-inspector-field">네거티브 프롬프트<textarea id="usedNegativePrompt" readonly></textarea></label>
     </div>
   </div>
+  <div id="upscalerMigration" class="upscaler-migration" hidden role="dialog" aria-modal="true" aria-labelledby="upscalerMigrationTitle">
+    <section class="upscaler-migration-card">
+      <span class="upscaler-migration-kicker">LAKIS 업데이트 안내</span>
+      <h2 id="upscalerMigrationTitle">기본 업스케일러를 선택해 주세요</h2>
+      <p>이전 버전의 AnimeSharp는 비상업 조건이 적용됩니다. 용도에 맞는 기본 모델을 한 번 선택하면 다음 실행부터 이 안내는 표시되지 않습니다.</p>
+      <label class="upscaler-choice selected">
+        <input type="radio" name="upscalerChoice" value="realesrgan" checked>
+        <img src="assets/upscaler/realesrgan-anime-6b-preview.png" alt="RealESRGAN Anime 6B 적용 예시">
+        <span><strong>RealESRGAN Anime 6B <em>권장</em></strong><small>BSD 3-Clause · 상업적 사용 가능</small></span>
+      </label>
+      <label class="upscaler-choice">
+        <input type="radio" name="upscalerChoice" value="animesharp">
+        <img src="assets/upscaler/animesharp-v4-fast-preview.png" alt="AnimeSharp V4 Fast 적용 예시">
+        <span><strong>AnimeSharp V4 Fast</strong><small>CC BY-NC-SA 4.0 · 비상업적 사용만 가능</small></span>
+      </label>
+      <label id="animeSharpAcknowledgement" class="upscaler-ack" hidden>
+        <span>AnimeSharp를 비상업적 용도로만 사용한다는 조건을 확인했습니다.</span>
+        <input id="animeSharpAck" type="checkbox">
+      </label>
+      <p id="upscalerMigrationError" class="upscaler-migration-error" hidden></p>
+      <button id="upscalerMigrationConfirm" type="button">선택 적용하기</button>
+      <small class="upscaler-migration-footnote">기존 모델 파일과 사용자가 편집한 워크플로는 삭제하거나 변경하지 않습니다.</small>
+    </section>
+  </div>
+  <div id="systemInfoDialog" class="system-info-dialog" hidden role="dialog" aria-modal="true" aria-labelledby="systemInfoTitle">
+    <section class="system-info-card">
+      <header><div><span>LAKIS</span><h2 id="systemInfoTitle">시스템 정보</h2></div><button id="systemInfoClose" type="button" aria-label="닫기">×</button></header>
+      <dl>
+        <div><dt>버전</dt><dd id="systemInfoVersion">확인 중</dd></div>
+        <div><dt>ComfyUI</dt><dd id="systemInfoComfy">확인 중</dd></div>
+        <div><dt>VRAM</dt><dd id="systemInfoVram">-- / -- GB</dd></div>
+        <div><dt>RAM</dt><dd id="systemInfoRam">-- / -- GB</dd></div>
+        <div><dt>CPU</dt><dd id="systemInfoCpu">--%</dd></div>
+      </dl>
+      <div class="system-info-legal">
+        <h3>라이선스 및 외부 구성요소</h3>
+        <p>LAKIS 저작권과 함께 사용되는 오픈소스·모델의 출처 및 이용 조건을 확인할 수 있습니다.</p>
+        <div><button type="button" data-legal-document="license">LAKIS 라이선스</button><button type="button" data-legal-document="third-party">외부 구성요소 고지</button></div>
+        <p id="systemInfoLegalError" class="system-info-error" hidden></p>
+      </div>
+      <small>© 2026 Luke Jeong. All rights reserved. · Built on NVIDIA Cosmos.</small>
+    </section>
+  </div>
   <script src="app.js?v=20260906-advanced-persistence"></script>
   <script src="advanced-node-settings.js?v=20260906-advanced-audit"></script>
   <script type="module" src="lightmap-knob-mockup.js?v=20260904-source-port"></script>
-  <script type="module" src="prompt-highlighting.js?v=20260906-bounded-panel-resize"></script>
+  <script type="module" src="prompt-highlighting.js?v=20260906-paste-caret-sync"></script>
+  <script src="upscaler-license-migration.js?v=20260906-first-run"></script>
+  <script src="system-info-dialog.js?v=20260906-licenses"></script>
 </body>
 </html>

@@ -93,6 +93,11 @@ function copyTextMetrics(textarea, overlay) {
     "fontFamily", "fontSize", "fontStyle", "fontWeight", "letterSpacing", "lineHeight",
     "paddingTop", "paddingRight", "paddingBottom", "paddingLeft", "textAlign", "tabSize"
   ]) overlay.style[property] = style[property];
+
+  // A native textarea loses usable line width when its vertical scrollbar
+  // appears. Reserve the same gutter in the highlight layer so pasted long
+  // prompts wrap at exactly the same positions as the real caret.
+  overlay.style.overflowY = textarea.scrollHeight > textarea.clientHeight ? "scroll" : "hidden";
 }
 
 function install(textarea) {
@@ -100,6 +105,7 @@ function install(textarea) {
   textarea.dataset.promptHighlight = "true";
   textarea.spellcheck = false;
   textarea.setAttribute("spellcheck", "false");
+  textarea.setAttribute("wrap", "soft");
   const host = document.createElement("div");
   host.className = "prompt-highlight-host";
   const overlay = document.createElement("pre");
@@ -270,6 +276,15 @@ function install(textarea) {
   });
   textarea.addEventListener("blur", () => setTimeout(closeSuggestions, 120));
   textarea.addEventListener("input", schedule);
+  textarea.addEventListener("paste", () => {
+    // Chromium can retain a transient horizontal offset after inserting a
+    // large clipboard payload. Prompts are soft-wrapped, so horizontal
+    // scrolling is never useful and would desynchronise the caret overlay.
+    requestAnimationFrame(() => {
+      textarea.scrollLeft = 0;
+      paint();
+    });
+  });
   textarea.addEventListener("change", refreshWithoutSuggestions);
   textarea.addEventListener("scroll", syncScroll, { passive: true });
   let resizeStartY = 0;

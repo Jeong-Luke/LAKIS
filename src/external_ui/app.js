@@ -875,11 +875,6 @@ async function refreshSystemStatus() {
     document.querySelector("#comfyStatusDot").className = "footer-dot offline";
   }
 }
-document.querySelector("#systemInfoButton").addEventListener("click", () => {
-  if (!latestSystemStatus) return;
-  const status = latestSystemStatus;
-  alert(`LAKIS v${status.lakis_version || status.workflow_version}\nComfyUI: ${status.comfyui_running ? "실행 중" : "연결 안 됨"}\nVRAM: ${document.querySelector("#vramText").textContent}\nRAM: ${document.querySelector("#ramText").textContent}\nCPU: ${document.querySelector("#cpuText").textContent}`);
-});
 refreshSystemStatus();
 setInterval(refreshSystemStatus, 3000);
 
@@ -1008,7 +1003,7 @@ function populateWorkflowSelect(id, configKey, config) {
   }));
   select.value = config.current;
   state.model[configKey] = config.current;
-  select.title = `${config.loader_class} · ${config.options.length} models`;
+  select.title = `${config.loader_class} · ${config.options.length} options`;
 }
 
 async function refreshWorkflowConfiguration() {
@@ -1019,6 +1014,8 @@ async function refreshWorkflowConfiguration() {
     populateWorkflowSelect("checkpointSelect", "checkpoint", config.checkpoint);
     populateWorkflowSelect("vaeSelect", "vae", config.vae);
     populateWorkflowSelect("clipSelect", "clip", config.clip);
+    populateWorkflowSelect("samplerSelect", "sampler", config.sampler);
+    populateWorkflowSelect("schedulerSelect", "scheduler", config.scheduler);
     const savedGeneration = config.generation_state || {};
     Object.assign(state.model, savedGeneration.model || {});
     Object.assign(state.output, savedGeneration.output || {});

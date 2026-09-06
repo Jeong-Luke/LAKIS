@@ -1,0 +1,20 @@
+.upscaler-migration{position:fixed;inset:0;z-index:10000;display:grid;place-items:center;padding:24px;background:rgba(2,5,12,.78);backdrop-filter:blur(8px)}
+.upscaler-migration[hidden]{display:none}
+.upscaler-migration-card{box-sizing:border-box;width:min(720px,100%);max-height:calc(100vh - 32px);overflow:auto;padding:30px;border:1px solid #36405a;border-radius:20px;background:#111621;color:#e9edf8;box-shadow:0 28px 90px rgba(0,0,0,.65)}
+.upscaler-migration-kicker{color:#8b6cff;font-weight:800;font-size:13px;letter-spacing:.08em}
+.upscaler-migration h2{margin:8px 0 10px;font-size:25px}
+.upscaler-migration p{margin:0 0 20px;color:#aeb7ca;line-height:1.65}
+.upscaler-choice{display:grid;grid-template-columns:auto minmax(210px,290px) 1fr;align-items:center;gap:16px;margin:10px 0;padding:12px 14px;border:1px solid #30394d;border-radius:13px;background:#0b1019;cursor:pointer}
+.upscaler-choice.selected{border-color:#8063f5;background:#17152a;box-shadow:0 0 0 1px rgba(128,99,245,.25)}
+.upscaler-choice input{accent-color:#8063f5}
+.upscaler-choice>img{display:block;width:100%;height:128px;object-fit:cover;object-position:center;border:1px solid #36405a;border-radius:9px;background:#05070c}
+.upscaler-choice span{display:grid;gap:5px}.upscaler-choice strong{font-size:16px}.upscaler-choice small{color:#97a2b8}
+.upscaler-choice em{margin-left:7px;padding:3px 7px;border-radius:6px;background:#6846df;color:#fff;font-size:11px;font-style:normal}
+.upscaler-ack{display:flex;align-items:center;justify-content:space-between;gap:20px;margin:12px 0;padding:12px 14px;border-radius:10px;background:#251523;color:#f1b9d6;font-size:13px;line-height:1.45}
+.upscaler-ack[hidden]{display:none}
+.upscaler-ack input{width:19px;height:19px;flex:0 0 auto;accent-color:#e0539d}
+.upscaler-migration-error{margin:12px 0!important;color:#ff91a6!important;font-size:13px}
+#upscalerMigrationConfirm{width:100%;margin-top:10px;padding:13px;border:0;border-radius:11px;background:linear-gradient(90deg,#7350ed,#4e83fa);color:#fff;font-weight:800;font-size:15px;cursor:pointer}
+#upscalerMigrationConfirm:disabled{opacity:.45;cursor:not-allowed}
+.upscaler-migration-footnote{display:block;margin-top:13px;text-align:center;color:#7f899e;line-height:1.45}
+@media (max-width:620px){.upscaler-migration{padding:10px}.upscaler-migration-card{padding:20px}.upscaler-choice{grid-template-columns:auto 1fr}.upscaler-choice>img{grid-column:2;height:105px}.upscaler-choice>span{grid-column:2}}

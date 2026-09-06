@@ -22,8 +22,10 @@ jobs:
           ref: ${{ github.event.inputs.tag || github.ref_name }}
           fetch-depth: 0
       - name: Verify release identity
+        id: identity
         shell: powershell
         env:
+          GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
         run: |
           $version = $env:RELEASE_TAG -replace '^v', ''
@@ -31,38 +33,84 @@ jobs:
           if ($version -ne $sourceVersion) { throw "Tag $env:RELEASE_TAG does not match VERSION $sourceVersion" }
           $publishedUrl = "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/main/manifests/update-latest.json?prepublish=" + [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
           $published = Invoke-RestMethod -Headers @{ "User-Agent" = "LAKIS-Release-Guard/$version" } -Uri $publishedUrl
-          if ([version]$version -le [version]([string]$published.version)) {
+          if ([version]$version -lt [version]([string]$published.version)) {
             throw "Refusing to overwrite an existing release line: candidate=$version published=$($published.version)"
           }
-      - name: Build verified installer
+          $complete = $false
+          if ([version]$version -eq [version]([string]$published.version)) {
+            $releaseJson = gh release view $env:RELEASE_TAG --json isDraft 2>$null
+            if ($LASTEXITCODE -eq 0 -and -not (($releaseJson | ConvertFrom-Json).isDraft)) { $complete = $true }
+            else { throw "Manifest $version is public, but its matching public GitHub release is missing." }
+          }
+          [System.IO.File]::AppendAllText($env:GITHUB_OUTPUT, "complete=$($complete.ToString().ToLowerInvariant())`n", [System.Text.UTF8Encoding]::new($false))
+      - name: Re-verify an already published release
+        if: steps.identity.outputs.complete == 'true'
         shell: powershell
+        env:
+          RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
         run: |
+          .\installer\Test-UpdateManifest.ps1 -ExpectedVersion (($env:RELEASE_TAG) -replace '^v', '') -VerifyRemote -Passes 3
+      - name: Build verified installer
+        if: steps.identity.outputs.complete != 'true'
+        shell: powershell
+        env:
+          RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          .\installer\Test-ReleaseRegression.ps1 -ExpectedVersion (($env:RELEASE_TAG) -replace '^v', '')
           $env:LAKIS_INSTALLER_OUTPUT = Join-Path $env:GITHUB_WORKSPACE "dist\LAKIS_Setup.exe"
           .\installer\build_safe_installer.ps1
-      - name: Upload installer to release
+          .\installer\Test-InstallerDataSafety.ps1 -InstallerPath $env:LAKIS_INSTALLER_OUTPUT
+      - name: Create or restore draft release and upload assets
+        if: steps.identity.outputs.complete != 'true'
         shell: powershell
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
         run: |
-          gh release create $env:RELEASE_TAG --title "LAKIS $env:RELEASE_TAG" --notes-file .\NEXT_RELEASE.md
-          gh release upload $env:RELEASE_TAG ".\dist\LAKIS_Setup.exe#LAKIS_Setup.exe" ".\dist\LAKIS.exe#LAKIS.exe" ".\dist\LAKIS_Patcher.exe#LAKIS_Patcher.exe" ".\dist\LAKIS_Desktop.exe#LAKIS_Desktop.exe" ".\dist\Uninstall_LAKIS.exe#Uninstall_LAKIS.exe" ".\dist\Microsoft.Web.WebView2.Core.dll#Microsoft.Web.WebView2.Core.dll" ".\dist\Microsoft.Web.WebView2.WinForms.dll#Microsoft.Web.WebView2.WinForms.dll" ".\dist\WebView2Loader.dll#WebView2Loader.dll" --clobber
+          $releaseJson = gh release view $env:RELEASE_TAG --json isDraft 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $env:RELEASE_TAG --draft --title "LAKIS $env:RELEASE_TAG" --notes-file .\NEXT_RELEASE.md
+            if ($LASTEXITCODE -ne 0) { throw "Failed to create draft release $env:RELEASE_TAG" }
+          } elseif (-not (($releaseJson | ConvertFrom-Json).isDraft)) {
+            # A previous attempt may have stopped after publishing but before
+            # advancing the manifest. Return it to draft so a retry cannot
+            # leave GitHub latest ahead of the updater manifest.
+            gh release edit $env:RELEASE_TAG --draft
+            if ($LASTEXITCODE -ne 0) { throw "Failed to restore $env:RELEASE_TAG to draft state" }
+          }
+          gh release upload $env:RELEASE_TAG ".\dist\LAKIS_Setup.exe#LAKIS_Setup.exe" ".\dist\LAKIS.exe#LAKIS.exe" ".\dist\LAKIS_Patcher.exe#LAKIS_Patcher.exe" ".\dist\LAKIS_Updater.exe#LAKIS_Updater.exe" ".\dist\LAKIS_Desktop.exe#LAKIS_Desktop.exe" ".\dist\LAKIS_Model_Importer.exe#LAKIS_Model_Importer.exe" ".\dist\Uninstall_LAKIS.exe#Uninstall_LAKIS.exe" ".\dist\Microsoft.Web.WebView2.Core.dll#Microsoft.Web.WebView2.Core.dll" ".\dist\Microsoft.Web.WebView2.WinForms.dll#Microsoft.Web.WebView2.WinForms.dll" ".\dist\WebView2Loader.dll#WebView2Loader.dll" --clobber
+          if ($LASTEXITCODE -ne 0) { throw "Failed to upload one or more release assets" }
       - name: Build and verify update manifest from published bytes
+        if: steps.identity.outputs.complete != 'true'
         shell: powershell
         env:
+          GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
         run: |
           $version = $env:RELEASE_TAG -replace '^v', ''
           .\installer\New-UpdateManifest.ps1 -Version $version -DistDirectory (Join-Path $env:GITHUB_WORKSPACE "dist")
-          .\installer\Test-UpdateManifest.ps1 -ExpectedVersion $version -VerifyRemote
+          # Every staged byte, including external_ui/app.js, must match the
+          # manifest three independent times while the release is still draft.
+          .\installer\Test-UpdateManifest.ps1 -ExpectedVersion $version -VerifyRemote -Passes 3 -DraftReleaseTag $env:RELEASE_TAG
           Copy-Item .\manifests\update-latest.json (Join-Path $env:RUNNER_TEMP "update-latest.json") -Force
+      - name: Publish the fully verified release
+        if: steps.identity.outputs.complete != 'true'
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          gh release edit $env:RELEASE_TAG --draft=false --latest
+          if ($LASTEXITCODE -ne 0) { throw "Failed to publish verified release $env:RELEASE_TAG" }
       - name: Publish only the verified manifest
+        if: steps.identity.outputs.complete != 'true'
         shell: powershell
         env:
           RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
         run: |
           git restore .\manifests\update-latest.json
-          git checkout main
+          git fetch origin main
+          git checkout -B main origin/main
           Copy-Item (Join-Path $env:RUNNER_TEMP "update-latest.json") .\manifests\update-latest.json -Force
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

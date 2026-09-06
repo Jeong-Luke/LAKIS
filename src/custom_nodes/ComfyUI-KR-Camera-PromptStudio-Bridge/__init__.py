@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Luke Jeong
+# SPDX-License-Identifier: MIT
 """Frontend-only bridge for KR Camera Control and EasyUse Anima Prompt Studio."""
 
 WEB_DIRECTORY = "./web"

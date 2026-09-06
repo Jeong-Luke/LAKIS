@@ -89,7 +89,7 @@ internal static class LakisLauncher
             close.Click += (_, __) => CancelStartup();
             var copyright = new Label {
                 Left = 43, Top = 399, Width = 335, Height = 18,
-                Text = "ⓒ 2026. Luke_Jeong All rights reserved. · LAKIS " + ReadVersion(installRoot),
+                Text = "© 2026 Luke Jeong. All rights reserved. · LAKIS " + ReadVersion(installRoot),
                 ForeColor = Color.FromArgb(104, 112, 137), Font = new Font("Segoe UI", 8F)
             };
             status.Left = 43; status.Top = 287; status.Width = 315; status.Height = 25;
@@ -192,7 +192,8 @@ internal static class LakisLauncher
                     Path.Combine(root, "ComfyUI", "user", "default", "lora-manager");
                 Process process = Process.Start(startInfo);
                 startupProcess = process;
-                bool ready = await Task.Run(() => WaitForUi(process, 180));
+                string launcherState = Path.Combine(root, "ComfyUI", "LAKIS_DEV", "lakis_launcher_state.json");
+                bool ready = await Task.Run(() => WaitForLauncherReady(process, launcherState, 180));
                 if (userCancelled || IsDisposed) return;
                 if (!ready)
                 {
@@ -202,7 +203,7 @@ internal static class LakisLauncher
                     return;
                 }
                 SetStatus("LAKIS Studio 화면 준비 중");
-                bool desktopReady = await Task.Run(() => WaitForDesktopWindow(process, 45));
+                bool desktopReady = await Task.Run(() => WaitForDesktopWindow(process, launcherState, 45));
                 if (userCancelled || IsDisposed) return;
                 if (!desktopReady)
                 {
@@ -234,34 +235,74 @@ internal static class LakisLauncher
         private const int HTCAPTION = 2;
     }
 
-    private static bool WaitForUi(Process process, int timeoutSeconds)
+    private static bool TryReadLauncherState(
+        string statePath, int expectedLauncherPid,
+        out Dictionary<string, object> state)
+    {
+        state = null;
+        try
+        {
+            string json;
+            using (var stream = new FileStream(statePath, FileMode.Open, FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete))
+            using (var reader = new StreamReader(stream, Encoding.UTF8, true))
+                json = reader.ReadToEnd();
+            var parsed = new JavaScriptSerializer().Deserialize<Dictionary<string, object>>(json);
+            object pidValue;
+            int launcherPid;
+            if (parsed == null || !parsed.TryGetValue("launcher_pid", out pidValue) ||
+                !Int32.TryParse(Convert.ToString(pidValue), out launcherPid) ||
+                launcherPid != expectedLauncherPid)
+                return false;
+            state = parsed;
+            return true;
+        }
+        catch { return false; }
+    }
+
+    private static bool WaitForLauncherReady(Process process, string statePath, int timeoutSeconds)
     {
         DateTime deadline = DateTime.UtcNow.AddSeconds(timeoutSeconds);
         while (DateTime.UtcNow < deadline)
         {
-            if (UiResponds()) return true;
             if (process == null || process.HasExited) return false;
+            Dictionary<string, object> state;
+            if (TryReadLauncherState(statePath, process.Id, out state))
+            {
+                object value;
+                string classification = state.TryGetValue("classification", out value)
+                    ? Convert.ToString(value) : "";
+                if (classification == "LAKIS_READY") return true;
+                if (classification.StartsWith("LAKIS_") && classification.EndsWith("_FAILED"))
+                    return false;
+            }
             Thread.Sleep(350);
         }
         return false;
     }
 
-    private static bool WaitForDesktopWindow(Process startupProcess, int timeoutSeconds)
+    private static bool WaitForDesktopWindow(
+        Process startupProcess, string statePath, int timeoutSeconds)
     {
         DateTime deadline = DateTime.UtcNow.AddSeconds(timeoutSeconds);
         while (DateTime.UtcNow < deadline)
         {
             try
             {
-                foreach (Process desktop in Process.GetProcessesByName("LAKIS_Desktop"))
+                Dictionary<string, object> state;
+                object pidValue;
+                int desktopPid;
+                if (startupProcess != null &&
+                    TryReadLauncherState(statePath, startupProcess.Id, out state) &&
+                    state.TryGetValue("desktop_pid", out pidValue) &&
+                    Int32.TryParse(Convert.ToString(pidValue), out desktopPid) && desktopPid > 0)
                 {
-                    try
+                    using (Process desktop = Process.GetProcessById(desktopPid))
                     {
                         desktop.Refresh();
                         if (!desktop.HasExited && desktop.MainWindowHandle != IntPtr.Zero)
                             return true;
                     }
-                    finally { desktop.Dispose(); }
                 }
                 if (startupProcess == null || startupProcess.HasExited) return false;
             }
@@ -269,18 +310,6 @@ internal static class LakisLauncher
             Thread.Sleep(250);
         }
         return false;
-    }
-
-    private static bool UiResponds()
-    {
-        try
-        {
-            var request = (HttpWebRequest)WebRequest.Create("http://127.0.0.1:8766/");
-            request.Timeout = 500; request.ReadWriteTimeout = 500;
-            using (var response = (HttpWebResponse)request.GetResponse())
-                return (int)response.StatusCode < 500;
-        }
-        catch { return false; }
     }
 
     private static bool TryGetLatestVersion(out Version latest, out string failure)
@@ -293,7 +322,7 @@ internal static class LakisLauncher
             try
             {
                 var request = (HttpWebRequest)WebRequest.Create(url + "?t=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-                request.UserAgent = "LAKIS-Launcher/7.2.3";
+                request.UserAgent = "LAKIS-Launcher/7.2.4";
                 request.Timeout = 12000;
                 request.ReadWriteTimeout = 12000;
                 request.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
@@ -314,7 +343,7 @@ internal static class LakisLauncher
         try
         {
             var request = (HttpWebRequest)WebRequest.Create(LatestReleaseApiUrl + "?t=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-            request.UserAgent = "LAKIS-Launcher/7.2.3";
+            request.UserAgent = "LAKIS-Launcher/7.2.4";
             request.Accept = "application/vnd.github+json";
             request.Timeout = 12000;
             request.ReadWriteTimeout = 12000;
@@ -336,7 +365,7 @@ internal static class LakisLauncher
         try
         {
             var request = (HttpWebRequest)WebRequest.Create(LatestReleaseApiUrl + "?t=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-            request.UserAgent = "LAKIS-Launcher/7.2.3";
+            request.UserAgent = "LAKIS-Launcher/7.2.4";
             request.Accept = "application/vnd.github+json";
             request.Timeout = 12000; request.ReadWriteTimeout = 12000;
             request.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;

@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2026 灰暗x
+// SPDX-FileCopyrightText: 2026 Luke Jeong
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // LAKIS Light Control - LightMap v0.3.19
 // Mouse/orbit interaction adapted from the existing LAKIS camera-style light controller.
@@ -805,7 +807,7 @@ function installLightUI(node) {
     const [vx, vy, vz] = lightVector(posX, posY);
     vectorBox.innerHTML =
       `LIGHT VECTOR&nbsp;&nbsp;X ${vx.toFixed(3)}&nbsp;&nbsp;Y ${vy.toFixed(3)}&nbsp;&nbsp;Z ${vz.toFixed(3)}<br>` +
-      `좌표: DSINE X/Y 반전 · Z 유지\n` +
+      `좌표: 화면 기준 X/Y/Z\n` +
       `후면광: Depth 실루엣 + Normal 림 자동 보정\n` +
       `출력: LAKIS_LIGHT → Relight`;
   }

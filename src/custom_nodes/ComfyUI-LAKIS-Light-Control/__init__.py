@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 灰暗x
+# SPDX-FileCopyrightText: 2026 Luke Jeong
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # LAKIS Light Control - LightMap v0.3.19 + production/debug execution settings
 #
@@ -8,7 +10,6 @@
 from __future__ import annotations
 
 import math
-import importlib
 from typing import Optional
 
 import torch
@@ -585,7 +586,7 @@ def _mask_validity(mask_bhw1: torch.Tensor, require_ground_contact: bool = False
 
 def _normal_variation_score(normal_map: torch.Tensor, target_h: int, target_w: int):
     """
-    DSINE walls are broad nearly-uniform normal fields.
+    Planar walls are broad nearly-uniform normal fields.
     A character has much higher local normal variation because face/hair/clothes/
     limbs turn through many orientations.
 
@@ -646,7 +647,7 @@ def _subject_seed_score(d: torch.Tensor, normal_map=None) -> torch.Tensor:
     Pick the SEED from a central, non-planar object.
 
     The 7.0.14 failure happened because Depth-only objectness could prefer a room
-    plane/corner. DSINE normal variation now dominates seed selection.
+    plane/corner. Normal-map variation now dominates seed selection.
     """
     b, h, w = d.shape
     device = d.device
@@ -673,7 +674,7 @@ def _subject_seed_score(d: torch.Tensor, normal_map=None) -> torch.Tensor:
     border[:, :, -bx:] = 0.0
 
     if normal_var is not None:
-        # DSINE normal variation is the primary discriminator between a person
+        # Normal-map variation is the primary discriminator between a person
         # and large planar room surfaces.
         score = (
             0.72 * normal_var
@@ -690,7 +691,7 @@ def _subject_seed_score(d: torch.Tensor, normal_map=None) -> torch.Tensor:
 def _depth_subject_mask(depth: torch.Tensor, normal_map=None) -> torch.Tensor:
     """
     v0.3.13:
-      DSINE normal variation selects the subject seed;
+      normal-map variation selects the subject seed;
       Depth continuity grows the connected subject.
 
     No global background-depth assumption is used.
@@ -746,7 +747,7 @@ def _depth_subject_mask(depth: torch.Tensor, normal_map=None) -> torch.Tensor:
 
         candidate = (depth_close & continuous).float().unsqueeze(1)
 
-        # If DSINE exists, suppress broad planar regions weakly, but don't
+        # If a normal map exists, suppress broad planar regions weakly, but don't
         # require variation everywhere because shirt/legs can be locally smooth.
         if normal_var is not None:
             nv = normal_var.unsqueeze(1)
@@ -1933,7 +1934,7 @@ class LAKISRelight:
         # -----------------------------------------------------------------
         # Automatic rear-light approximation
         # -----------------------------------------------------------------
-        # Visible DSINE normals describe only the camera-facing surface.
+        # Visible normal maps describe only the camera-facing surface.
         # For a pure rear light, ordinary max(N·L,0) therefore goes to zero.
         # Instead of pretending the hidden backside is known, use a stable
         # screen-space approximation:
@@ -1998,438 +1999,9 @@ class LAKISRelight:
 
 
 
-# ---------------------------------------------------------------------
-# Dedicated surface-normal estimator: DSINE
-# ---------------------------------------------------------------------
-#
-# Important:
-# The current upstream DSINE main branch has a torch-hub mismatch:
-# hubconf.py calls models.dsine.DSINE(), while the actual CVPR model
-# implementation is models/dsine/v02.py -> DSINE_v02.
-#
-# LAKIS therefore uses torch-hub only as a downloader/cache bootstrap,
-# then imports DSINE_v02 directly with the official exp001_cvpr2024 config.
-# This also avoids false "internet access" errors after the files were
-# successfully downloaded.
-#
-_DSINE_PREDICTOR = None
-_DSINE_REPO = "baegwangbin/DSINE"
-_DSINE_WEIGHT_URL = "https://huggingface.co/camenduru/DSINE/resolve/main/dsine.pt"
 
-
-def _dsine_repo_dir():
-    from pathlib import Path
-    return Path(torch.hub.get_dir()) / "baegwangbin_DSINE_main"
-
-
-def _dsine_weight_path():
-    from pathlib import Path
-    return Path(torch.hub.get_dir()) / "checkpoints" / "dsine.pt"
-
-
-def _ensure_dsine_files(force_reload=False):
-    """
-    Ensure the official repo and dsine.pt are present.
-
-    Upstream torch-hub currently fails *after* downloading because its
-    hubconf.py entrypoint is out of sync with the repository layout.
-    We deliberately tolerate that specific load failure and use the
-    downloaded cache directly.
-    """
-    import shutil
-
-    repo_dir = _dsine_repo_dir()
-    weight_path = _dsine_weight_path()
-
-    if bool(force_reload) and repo_dir.exists():
-        try:
-            shutil.rmtree(repo_dir)
-        except Exception:
-            pass
-
-    if not repo_dir.exists():
-        # This is intentionally allowed to fail after the download.
-        try:
-            torch.hub.load(
-                _DSINE_REPO,
-                "DSINE",
-                trust_repo=True,
-                force_reload=bool(force_reload),
-                skip_validation=True,
-            )
-        except Exception:
-            pass
-
-    if not repo_dir.exists():
-        raise RuntimeError(
-            "DSINE repository cache was not created. "
-            "Check GitHub connectivity and try again."
-        )
-
-    if not weight_path.exists():
-        weight_path.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            torch.hub.download_url_to_file(
-                _DSINE_WEIGHT_URL,
-                str(weight_path),
-                progress=True,
-            )
-        except Exception as e:
-            raise RuntimeError(
-                "Could not download DSINE dsine.pt from Hugging Face."
-            ) from e
-
-    return repo_dir, weight_path
-
-
-def _build_dsine_v02(repo_dir, weight_path):
-    from pathlib import Path
-    """
-    Load DSINE_v02 from the downloaded upstream repository.
-
-    ComfyUI has several unrelated top-level modules named `utils` and
-    `models`. DSINE itself imports absolute names such as
-    `utils.rotation` and `models.dsine.v02`.
-
-    v0.3.2 explicitly creates temporary package namespaces whose
-    __path__ points at the DSINE repo's own `utils/` and `models/`
-    directories. This prevents Python from resolving an unrelated
-    `utils.py` module and producing:
-        'utils' is not a package
-    """
-    import sys
-    import types
-    from types import SimpleNamespace
-
-    repo_dir = Path(repo_dir)
-    models_dir = repo_dir / "models"
-    utils_dir = repo_dir / "utils"
-
-    if not models_dir.is_dir():
-        raise RuntimeError(f"DSINE models directory not found: {models_dir}")
-    if not utils_dir.is_dir():
-        raise RuntimeError(f"DSINE utils directory not found: {utils_dir}")
-
-    args = SimpleNamespace(
-        NNET_architecture="v02",
-        NNET_output_dim=3,
-        NNET_output_type="R",
-        NNET_feature_dim=64,
-        NNET_hidden_dim=64,
-        NNET_encoder_B=5,
-        NNET_decoder_NF=2048,
-        NNET_decoder_BN=False,
-        NNET_decoder_down=8,
-        NNET_learned_upsampling=True,
-        NRN_prop_ps=5,
-        NRN_num_iter_train=5,
-        NRN_num_iter_test=5,
-        NRN_ray_relu=True,
-    )
-
-    prefixes = ("models", "utils")
-
-    # Preserve every existing module in these namespaces.
-    saved_modules = {
-        k: v for k, v in list(sys.modules.items())
-        if any(k == p or k.startswith(p + ".") for p in prefixes)
-    }
-
-    # Remove them before installing DSINE-local package namespaces.
-    for k in list(saved_modules.keys()):
-        sys.modules.pop(k, None)
-
-    def install_namespace(name, directory):
-        pkg = types.ModuleType(name)
-        pkg.__file__ = str(directory / "__init__.py")
-        pkg.__package__ = name
-        pkg.__path__ = [str(directory)]
-        pkg.__spec__ = importlib.machinery.ModuleSpec(
-            name=name,
-            loader=None,
-            is_package=True,
-        )
-        pkg.__spec__.submodule_search_locations = [str(directory)]
-        sys.modules[name] = pkg
-        return pkg
-
-    imported_keys = []
-    try:
-        # Explicit package roots remove ambiguity with ComfyUI's utils/models.
-        install_namespace("models", models_dir)
-        install_namespace("utils", utils_dir)
-
-        from models.dsine.v02 import DSINE_v02
-
-        imported_keys = [
-            k for k in list(sys.modules.keys())
-            if any(k == p or k.startswith(p + ".") for p in prefixes)
-        ]
-
-        model = DSINE_v02(args)
-
-        try:
-            checkpoint = torch.load(
-                str(weight_path),
-                map_location=torch.device("cpu"),
-                weights_only=False,
-            )
-        except TypeError:
-            checkpoint = torch.load(
-                str(weight_path),
-                map_location=torch.device("cpu"),
-            )
-
-        state_dict = (
-            checkpoint["model"]
-            if isinstance(checkpoint, dict) and "model" in checkpoint
-            else checkpoint
-        )
-        model.load_state_dict(state_dict, strict=True)
-
-    finally:
-        # Remove DSINE's temporary global namespaces, then restore ComfyUI's.
-        for k in list(sys.modules.keys()):
-            if any(k == p or k.startswith(p + ".") for p in prefixes):
-                sys.modules.pop(k, None)
-
-        for k, v in saved_modules.items():
-            sys.modules[k] = v
-
-    return model
-
-
-def _dsine_padding(h, w):
-    if w % 32 == 0:
-        l = r = 0
-    else:
-        new_w = 32 * ((w // 32) + 1)
-        l = (new_w - w) // 2
-        r = (new_w - w) - l
-
-    if h % 32 == 0:
-        t = b = 0
-    else:
-        new_h = 32 * ((h // 32) + 1)
-        t = (new_h - h) // 2
-        b = (new_h - h) - t
-
-    return l, r, t, b
-
-
-def _dsine_intrinsics_from_fov(fov_deg, h, w, device, dtype=torch.float32):
-    import math
-
-    f = (max(h, w) / 2.0) / math.tan(math.radians(float(fov_deg) / 2.0))
-    cx = (w / 2.0) - 0.5
-    cy = (h / 2.0) - 0.5
-
-    return torch.tensor(
-        [[f, 0.0, cx],
-         [0.0, f, cy],
-         [0.0, 0.0, 1.0]],
-        dtype=dtype,
-        device=device,
-    )
-
-
-class _LAKISDSINEPredictor:
-    def __init__(self, model, device):
-        self.model = model
-        self.device = device
-        self.mean = torch.tensor(
-            [0.485, 0.456, 0.406],
-            dtype=torch.float32,
-            device=device,
-        ).view(1, 3, 1, 1)
-        self.std = torch.tensor(
-            [0.229, 0.224, 0.225],
-            dtype=torch.float32,
-            device=device,
-        ).view(1, 3, 1, 1)
-
-    def infer_pil(self, pil_img):
-        import numpy as np
-
-        arr = np.asarray(pil_img.convert("RGB"), dtype=np.float32) / 255.0
-        img = torch.from_numpy(arr).permute(2, 0, 1).unsqueeze(0).to(
-            self.device, dtype=torch.float32
-        )
-
-        _, _, orig_h, orig_w = img.shape
-        l, r, t, b = _dsine_padding(orig_h, orig_w)
-
-        img = F.pad(img, (l, r, t, b), mode="constant", value=0.0)
-        img = (img - self.mean) / self.std
-
-        intrins = _dsine_intrinsics_from_fov(
-            60.0, orig_h, orig_w, self.device, torch.float32
-        ).unsqueeze(0)
-        intrins[:, 0, 2] += l
-        intrins[:, 1, 2] += t
-
-        with torch.inference_mode():
-            pred = self.model(img, intrins=intrins)[-1]
-            pred = pred[:, :, t:t + orig_h, l:l + orig_w]
-            pred = F.normalize(pred.float(), dim=1, eps=1e-6)
-
-        return pred
-
-
-def _load_dsine(force_reload=False):
-    global _DSINE_PREDICTOR
-
-    if _DSINE_PREDICTOR is not None and not bool(force_reload):
-        return _DSINE_PREDICTOR
-
-    if not torch.cuda.is_available():
-        raise RuntimeError(
-            "LAKIS DSINE Normal Estimator currently requires an NVIDIA/CUDA GPU."
-        )
-
-    try:
-        import geffnet  # noqa: F401
-    except Exception as e:
-        raise RuntimeError(
-            "LAKIS DSINE Normal Estimator requires 'geffnet'. "
-            "Run INSTALL_REQUIREMENTS.bat inside ComfyUI-LAKIS-Light-Control, "
-            "then restart ComfyUI."
-        ) from e
-
-    repo_dir, weight_path = _ensure_dsine_files(bool(force_reload))
-    device = _get_comfy_device()
-
-    try:
-        model = _build_dsine_v02(repo_dir, weight_path)
-        model = model.eval().to(device)
-
-        if hasattr(model, "pixel_coords"):
-            model.pixel_coords = model.pixel_coords.to(device)
-
-        predictor = _LAKISDSINEPredictor(model, device)
-
-    except Exception as e:
-        raise RuntimeError(
-            "DSINE files are present, but DSINE_v02 initialization failed. "
-            f"Underlying error: {type(e).__name__}: {e}"
-        ) from e
-
-    _DSINE_PREDICTOR = predictor
-    return predictor
-
-
-def _release_dsine():
-    global _DSINE_PREDICTOR
-
-    pred = _DSINE_PREDICTOR
-    _DSINE_PREDICTOR = None
-
-    if pred is not None:
-        try:
-            pred.model.to("cpu")
-        except Exception:
-            pass
-        try:
-            if hasattr(pred.model, "pixel_coords"):
-                pred.model.pixel_coords = pred.model.pixel_coords.to("cpu")
-        except Exception:
-            pass
-
-    try:
-        import comfy.model_management as mm
-        mm.soft_empty_cache()
-    except Exception:
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-
-
-class LAKISNormalEstimatorDSINE:
-    """
-    Dedicated monocular surface-normal estimation using DSINE.
-
-    DSINE native camera coordinates:
-      +X = right, +Y = down, +Z = front.
-
-    LAKIS screen-light convention used by the controller:
-      +X normal contribution = screen-left-facing surface,
-      +Y = up,
-      +Z = front.
-
-    Therefore this node flips both DSINE X and Y once:
-      X -> -X
-      Y -> -Y
-      Z unchanged
-    """
-
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "image": ("IMAGE",),
-                "keep_model_loaded": ("BOOLEAN", {"default": True}),
-                "force_reload": ("BOOLEAN", {"default": False}),
-                "strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 2.0, "step": 0.01}),
-            }
-        }
-
-    RETURN_TYPES = ("IMAGE",)
-    RETURN_NAMES = ("NORMAL_MAP",)
-    FUNCTION = "estimate"
-    CATEGORY = "LAKIS/Light"
-
-    def estimate(self, image, keep_model_loaded, force_reload, strength):
-        image = image[..., :3].clamp(0.0, 1.0)
-        b, h, w, _ = image.shape
-
-        predictor = _load_dsine(bool(force_reload))
-        pil_images = _image_tensor_to_pil_list(image)
-
-        all_normals = []
-        with torch.inference_mode():
-            for pil_img in pil_images:
-                pred = predictor.infer_pil(pil_img)
-                if isinstance(pred, (list, tuple)):
-                    pred = pred[-1]
-                if pred.ndim == 3:
-                    pred = pred.unsqueeze(0)
-
-                pred = pred.float()
-
-                if pred.shape[-2:] != (h, w):
-                    pred = F.interpolate(
-                        pred,
-                        size=(h, w),
-                        mode="bilinear",
-                        align_corners=False,
-                    )
-
-                pred = F.normalize(pred, dim=1, eps=1e-6)
-
-                # DSINE -> LAKIS coordinate conversion.
-                # Actual LightMap validation showed left/right was mirrored
-                # when only Y was flipped.  Flip both horizontal and vertical
-                # axes once, keep Z/front unchanged.
-                pred = pred.clone()
-                pred[:, 0] = -pred[:, 0]
-                pred[:, 1] = -pred[:, 1]
-
-                s = float(strength)
-                if abs(s - 1.0) > 1e-6:
-                    pred[:, 0] *= s
-                    pred[:, 1] *= s
-                    pred = F.normalize(pred, dim=1, eps=1e-6)
-
-                all_normals.append(pred[0].detach().to("cpu"))
-
-        normals = torch.stack(all_normals, dim=0)
-        normal_rgb = ((normals.permute(0, 2, 3, 1) + 1.0) * 0.5).clamp(0.0, 1.0)
-        normal_rgb = normal_rgb.to(image.device, image.dtype)
-
-        if not bool(keep_model_loaded):
-            _release_dsine()
-
-        return (normal_rgb,)
-
+# Surface-normal estimation is intentionally unavailable in this release.
+# The lighting UI remains locked until a replacement with suitable terms is selected.
 
 class LAKISMaskToImage:
     @classmethod
@@ -2494,7 +2066,6 @@ class LAKISExecutionSettings:
 NODE_CLASS_MAPPINGS = {
     "LAKIS_LightControl": LAKISLightControl,
     "LAKIS_GeometryEstimator": LAKISGeometryEstimator,
-    "LAKIS_NormalEstimatorDSINE": LAKISNormalEstimatorDSINE,
     "LAKIS_Relight": LAKISRelight,
     "LAKIS_ShadowCleanup": LAKISShadowCleanup,
     "LAKIS_ShadowCleanupSwitch": LAKISShadowCleanupSwitch,
@@ -2506,7 +2077,6 @@ NODE_CLASS_MAPPINGS = {
 NODE_DISPLAY_NAME_MAPPINGS = {
     "LAKIS_LightControl": "LAKIS Light Control",
     "LAKIS_GeometryEstimator": "LAKIS Depth Estimator (Depth Anything V2)",
-    "LAKIS_NormalEstimatorDSINE": "LAKIS Normal Estimator (DSINE)",
     "LAKIS_Relight": "LAKIS Relight (LightMap)",
     "LAKIS_ShadowCleanup": "LAKIS Existing Shadow Cleanup",
     "LAKIS_ShadowCleanupSwitch": "LAKIS Existing Shadow Cleanup Switch",

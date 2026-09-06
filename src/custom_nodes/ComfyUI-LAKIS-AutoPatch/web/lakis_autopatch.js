@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2026 Luke Jeong
+// SPDX-License-Identifier: MIT
 // LAKIS AutoPatch Bridge
 // Loads the workflow marker once after ComfyUI has finished starting.
 

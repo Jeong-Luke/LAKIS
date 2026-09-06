@@ -18,6 +18,9 @@
   max-width: 100% !important;
   height: 100% !important;
   resize: none !important;
+  overflow-x: hidden !important;
+  overflow-wrap: anywhere !important;
+  word-break: break-word !important;
 }
 
 
@@ -34,14 +37,22 @@
   box-sizing: border-box;
   margin: 0;
   overflow: hidden;
+  overflow-x: hidden !important;
   pointer-events: none;
   white-space: pre-wrap;
-  overflow-wrap: break-word;
-  word-break: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   color: #cbd5e1;
   background: #0d1017;
   border: 1px solid #30384d;
   border-radius: 9px;
+  scrollbar-color: transparent transparent;
+}
+
+.prompt-highlight-layer::-webkit-scrollbar,
+.prompt-highlight-layer::-webkit-scrollbar-track,
+.prompt-highlight-layer::-webkit-scrollbar-thumb {
+  background: transparent;
 }
 
 .prompt-highlight-token {

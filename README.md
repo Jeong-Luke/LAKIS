@@ -2,16 +2,26 @@
 
 LAKIS Studio is an external user interface and curated workflow environment for ComfyUI.
 
+Copyright © 2026 Luke Jeong. All rights reserved. Original LAKIS material and
+third-party components are licensed separately; see [LICENSE.md](LICENSE.md) and
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+LAKIS application, user-interface, installer, updater, workflow, brand, and
+documentation material may not be copied, modified, or redistributed without
+permission. Separately marked LAKIS custom nodes are published under their own
+open-source licences: original utility nodes use MIT, while components derived
+from AGPL software remain AGPL-3.0-or-later.
+
 ## Download
 
-**[Download LAKIS Studio v7.2.3 for Windows](https://github.com/Jeong-Luke/LAKIS/releases/download/v7.2.3/LAKIS_Setup.exe)**
+**[Download LAKIS Studio v7.2.4 for Windows](https://github.com/Jeong-Luke/LAKIS/releases/download/v7.2.4/LAKIS_Setup.exe)**
 
 Run `LAKIS_Setup.exe` to install or repair LAKIS. You can also view the
-[v7.2.3 release notes and individual files](https://github.com/Jeong-Luke/LAKIS/releases/tag/v7.2.3).
+[v7.2.4 release notes and individual files](https://github.com/Jeong-Luke/LAKIS/releases/tag/v7.2.4).
 
 ## Stable baseline
 
-This repository contains the stable LAKIS distribution line. The current prepared baseline is `v7.2.3`. Earlier development packages and workflows are maintained separately and are not distributed to new users.
+This repository contains the stable LAKIS distribution line. The current prepared baseline is `v7.2.4`. Earlier development packages and workflows are maintained separately and are not distributed to new users.
 
 ## Distribution policy
 

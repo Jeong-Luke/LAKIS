@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 from copy import deepcopy
 from dataclasses import dataclass, field
+import hashlib
 import importlib.util
 import json
 import math
@@ -50,7 +51,31 @@ if not SAVED_WORKFLOW.is_file():
 AUDIT_PATH = DEV_ROOT / "external_ui_bridge_audit.jsonl"
 LEGACY_UI_STATE_PATH = DEV_ROOT / "external_ui_user_state.json"
 USER_STATE_ROOT = Path(os.environ.get("LOCALAPPDATA", str(DEV_ROOT))) / "LAKIS Studio"
-UI_STATE_PATH = USER_STATE_ROOT / "external_ui_user_state.json"
+UNSCOPED_UI_STATE_PATH = USER_STATE_ROOT / "external_ui_user_state.json"
+
+
+def _ui_state_path_for_install(install_root: Path, user_state_root: Path = USER_STATE_ROOT) -> Path:
+    """Return a stable per-install state path without exposing the install path."""
+    try:
+        resolved = install_root.resolve()
+    except OSError:
+        resolved = install_root.absolute()
+    normalized = os.path.normcase(os.path.normpath(str(resolved))).rstrip("\\/")
+    scope = hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:24]
+    return user_state_root / "installations" / scope / "external_ui_user_state.json"
+
+
+UI_STATE_PATH = _ui_state_path_for_install(COMFY_ROOT.parent)
+UPSCALER_CHOICE_PATH = USER_STATE_ROOT / "upscaler-license-choice.json"
+LEGACY_UPSCALER_CHOICE_PATH = COMFY_ROOT.parent / ".lakis" / "upscaler-license-choice.json"
+REALESRGAN_MODEL = "RealESRGAN_x4plus_anime_6B.pth"
+ANIMESHARP_MODEL = "2x-AnimeSharpV4_Fast_RCAN_PU.safetensors"
+UPSCALER_MODELS = {
+    "realesrgan": REALESRGAN_MODEL,
+    "animesharp": ANIMESHARP_MODEL,
+}
+UPSCALER_NODE_ID = "1541:1536"
+UPSCALER_FIELD_NAME = "model_name"
 CAMERA_SOURCE = COMFY_ROOT / "custom_nodes" / "ComfyUI-KR-Camera-Control" / "camera_control.py"
 MODEL_EXTENSIONS = {".safetensors", ".ckpt", ".pt", ".pth", ".bin"}
 COMFYUI_SEED_MAX = 1125899906842624
@@ -61,6 +86,23 @@ PROMPT_STATE_KEYS = {
 MODEL_STATE_KEYS = {"checkpoint", "vae", "clip", "sampler", "scheduler", "steps", "cfg"}
 OUTPUT_STATE_KEYS = {"width", "height", "seed", "seed_mode", "aspect_locked"}
 DEFAULT_CHECKPOINT = "anima_baseV10.safetensors"
+SAMPLER_OPTIONS = (
+    "euler", "euler_cfg_pp", "euler_ancestral", "euler_ancestral_cfg_pp", "heun", "heunpp2",
+    "exp_heun_2_x0", "exp_heun_2_x0_sde", "dpm_2", "dpm_2_ancestral", "lms", "dpm_fast",
+    "dpm_adaptive", "dpmpp_2s_ancestral", "dpmpp_2s_ancestral_cfg_pp", "dpmpp_sde",
+    "dpmpp_sde_gpu", "dpmpp_2m", "dpmpp_2m_cfg_pp", "dpmpp_2m_sde", "dpmpp_2m_sde_gpu",
+    "dpmpp_2m_sde_heun", "dpmpp_2m_sde_heun_gpu", "dpmpp_3m_sde", "dpmpp_3m_sde_gpu",
+    "ddpm", "lcm", "ipndm", "ipndm_v", "deis", "res_multistep", "res_multistep_cfg_pp",
+    "res_multistep_ancestral", "res_multistep_ancestral_cfg_pp", "gradient_estimation",
+    "gradient_estimation_cfg_pp", "er_sde", "seeds_2", "seeds_3", "sa_solver", "sa_solver_pece",
+    "ddim", "uni_pc", "uni_pc_bh2", "er_sde_cns",
+)
+SCHEDULER_OPTIONS = (
+    "simple", "sgm_uniform", "karras", "exponential", "ddim_uniform", "beta", "normal",
+    "linear_quadratic", "kl_optimal",
+)
+_OBJECT_INFO_CACHE: dict[str, Any] = {}
+_OBJECT_INFO_CACHE_AT = 0.0
 ADVANCED_FLOAT_FIELD_NAMES = {
     "cfg", "pos_x", "pos_y", "pos_z", "roll", "frame_y",
     "alpha_l", "alpha_h", "smc_lambda", "smc_k", "rdc_tau",
@@ -75,10 +117,10 @@ ADVANCED_NODE_GROUPS = {
     "i2i": ("1744", "1736:1737", "1634:1760"),
     "prompt": ("2133",),
     "generation": (
-        "2138", "2139", "2140",
+        "2138", "2139", "2140", "1541:1536",
         "1530:2051", "1530:1824", "1530:1827", "1530:1832", "1530:1835", "1530:1834", "1530:2060", "1530:1826",
         "1836:2076", "1836:2067", "1836:2077", "1836:2074", "1836:2078", "1836:2079", "1836:2080", "1836:2069",
-        "1541:1535", "1541:1534", "1541:1533", "1541:1532", "1541:1536", "1541:1540", "1541:1542", "1541:1837", "1541:1838", "1541:1538",
+        "1541:1535", "1541:1534", "1541:1533", "1541:1532", "1541:1540", "1541:1542", "1541:1837", "1541:1838", "1541:1538",
     ),
 }
 
@@ -101,9 +143,133 @@ def _is_node_link(value: Any) -> bool:
     return isinstance(value, list) and len(value) == 2 and isinstance(value[0], (str, int)) and isinstance(value[1], int)
 
 
+def upscaler_choice_status() -> dict[str, Any]:
+    """Return only a usable and licence-valid persisted upscaler choice.
+
+    The per-user record is authoritative once it exists.  An invalid/stale
+    per-user record must not silently fall back to an older installation
+    record because doing so can reactivate a choice the user already changed.
+    """
+    model_root = COMFY_ROOT / "models" / "upscale_models"
+    installed = {
+        "realesrgan_installed": (model_root / REALESRGAN_MODEL).is_file(),
+        "animesharp_installed": (model_root / ANIMESHARP_MODEL).is_file(),
+    }
+    choice_path = next(
+        (path for path in (UPSCALER_CHOICE_PATH, LEGACY_UPSCALER_CHOICE_PATH) if path.is_file()),
+        None,
+    )
+    if choice_path is None:
+        return {"ok": True, "required": True, "reason": "missing_record", **installed}
+    try:
+        saved = json.loads(choice_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError, TypeError):
+        return {"ok": True, "required": True, "reason": "invalid_record", **installed}
+    if not isinstance(saved, dict):
+        return {"ok": True, "required": True, "reason": "invalid_record", **installed}
+
+    choice = saved.get("choice")
+    selected = UPSCALER_MODELS.get(choice)
+    if selected is None or saved.get("model") != selected:
+        return {"ok": True, "required": True, "reason": "invalid_record", **installed}
+    if choice == "animesharp" and saved.get("noncommercial_acknowledged") is not True:
+        return {"ok": True, "required": True, "reason": "licence_acknowledgement_required", **installed}
+    if not (model_root / selected).is_file():
+        return {"ok": True, "required": True, "reason": "selected_model_missing", **installed}
+    return {
+        "ok": True,
+        "required": False,
+        "choice": choice,
+        "model": selected,
+        **installed,
+    }
+
+
+def _preferred_upscaler() -> str | None:
+    status = upscaler_choice_status()
+    return status.get("model") if status.get("required") is False else None
+
+
+def _comfy_object_info() -> dict[str, Any]:
+    """Return live ComfyUI input schemas, retaining the last successful snapshot."""
+    global _OBJECT_INFO_CACHE, _OBJECT_INFO_CACHE_AT
+    if _OBJECT_INFO_CACHE and time.time() - _OBJECT_INFO_CACHE_AT < 300:
+        return _OBJECT_INFO_CACHE
+    try:
+        with urlopen(COMFY_SERVER + "/object_info", timeout=3) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        if isinstance(payload, dict) and payload:
+            _OBJECT_INFO_CACHE = payload
+            _OBJECT_INFO_CACHE_AT = time.time()
+    except Exception:
+        pass
+    return _OBJECT_INFO_CACHE
+
+
+def _enum_options(class_type: str, name: str, fallback: tuple[Any, ...] = (),
+                  object_info: dict[str, Any] | None = None) -> list[Any]:
+    info = object_info if object_info is not None else _comfy_object_info()
+    node = info.get(class_type, {}) if isinstance(info, dict) else {}
+    inputs = node.get("input", {}) if isinstance(node, dict) else {}
+    for section in ("required", "optional"):
+        fields = inputs.get(section, {}) if isinstance(inputs, dict) else {}
+        spec = fields.get(name) if isinstance(fields, dict) else None
+        if isinstance(spec, list) and spec:
+            metadata = spec[1] if len(spec) > 1 and isinstance(spec[1], dict) else {}
+            raw_values = spec[0] if isinstance(spec[0], list) else metadata.get("options")
+            values = [value for value in raw_values or () if isinstance(value, (str, int, float)) and not isinstance(value, bool)]
+            if values:
+                values.extend(value for value in fallback if value not in values)
+                return values
+    return list(fallback)
+
+
+def _input_schema_type(class_type: str, name: str,
+                       object_info: dict[str, Any] | None = None) -> str | None:
+    info = object_info if object_info is not None else _comfy_object_info()
+    node = info.get(class_type, {}) if isinstance(info, dict) else {}
+    inputs = node.get("input", {}) if isinstance(node, dict) else {}
+    for section in ("required", "optional"):
+        fields = inputs.get(section, {}) if isinstance(inputs, dict) else {}
+        spec = fields.get(name) if isinstance(fields, dict) else None
+        if isinstance(spec, list) and spec and isinstance(spec[0], str):
+            return spec[0]
+    return None
+
+
+def _installed_upscaler_options() -> tuple[str, ...]:
+    folder = COMFY_ROOT / "models" / "upscale_models"
+    if not folder.is_dir():
+        return ()
+    return tuple(sorted(
+        path.name for path in folder.iterdir()
+        if path.is_file() and path.suffix.lower() in MODEL_EXTENSIONS
+    ))
+
+
+def _input_constraints(class_type: str, name: str,
+                       object_info: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Return safe numeric UI/validation constraints from a live node schema."""
+    info = object_info if object_info is not None else _comfy_object_info()
+    node = info.get(class_type, {}) if isinstance(info, dict) else {}
+    inputs = node.get("input", {}) if isinstance(node, dict) else {}
+    for section in ("required", "optional"):
+        fields = inputs.get(section, {}) if isinstance(inputs, dict) else {}
+        spec = fields.get(name) if isinstance(fields, dict) else None
+        metadata = spec[1] if isinstance(spec, list) and len(spec) > 1 and isinstance(spec[1], dict) else {}
+        constraints = {}
+        for key in ("min", "max", "step"):
+            value = metadata.get(key)
+            if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(float(value)):
+                constraints[key] = value
+        return constraints
+    return {}
+
+
 def advanced_node_configuration(template: dict[str, Any] | None = None) -> dict[str, Any]:
     """Return editable primitive/JSON inputs for the five LAKIS control groups."""
     graph = template or json.loads(TEMPLATE.read_text(encoding="utf-8"))
+    object_info = _comfy_object_info()
     groups: dict[str, list[dict[str, Any]]] = {}
     for group, node_ids in ADVANCED_NODE_GROUPS.items():
         nodes: list[dict[str, Any]] = []
@@ -115,17 +281,43 @@ def advanced_node_configuration(template: dict[str, Any] | None = None) -> dict[
             for name, value in node.get("inputs", {}).items():
                 if _is_node_link(value):
                     continue
+                if node_id == "1541:1536" and name == "model_name":
+                    value = _preferred_upscaler() or value
+                class_type = str(node.get("class_type") or "")
+                schema_type = _input_schema_type(class_type, name, object_info)
                 numeric_string = isinstance(value, str) and re.fullmatch(r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)", value.strip()) is not None
-                field_type = "json" if isinstance(value, (dict, list)) else (
+                boolean_string = isinstance(value, str) and value.strip().lower() in {"true", "false"}
+                boolean_value = value if isinstance(value, bool) else str(value).strip().lower() == "true"
+                field_type = "boolean" if schema_type == "BOOLEAN" or boolean_string else "json" if isinstance(value, (dict, list)) else (
                     "boolean" if isinstance(value, bool) else
                     "number" if isinstance(value, (int, float)) or numeric_string else
                     "json" if isinstance(value, str) and value.startswith(("[", "{")) else "text"
                 )
-                fields.append({
+                if field_type == "boolean":
+                    value = boolean_value
+                fallback = SAMPLER_OPTIONS if name == "sampler_name" else SCHEDULER_OPTIONS if name == "scheduler" else (
+                    _installed_upscaler_options() if node_id == "1541:1536" and name == "model_name" else ()
+                )
+                options = _enum_options(class_type, name, fallback, object_info)
+                boolean_values = None
+                if len(options) == 2:
+                    normalized = {str(option).strip().lower(): option for option in options}
+                    for positive, negative in (("on", "off"), ("enabled", "disabled"), ("yes", "no"), ("true", "false")):
+                        if set(normalized) == {positive, negative}:
+                            boolean_values = {"true": normalized[positive], "false": normalized[negative]}
+                            field_type = "boolean"
+                            value = str(value).strip().lower() == positive
+                            break
+                field = {
                     "name": name, "type": field_type, "value": value,
                     "encoded_json": field_type == "json" and isinstance(value, str),
                     "encoded_number": numeric_string,
-                })
+                    "options": options or None,
+                    "boolean_values": boolean_values,
+                }
+                if field_type == "number" and not options:
+                    field.update(_input_constraints(class_type, name, object_info))
+                fields.append(field)
             nodes.append({
                 "id": node_id,
                 "title": ADVANCED_NODE_TITLES.get(node_id, str(node.get("_meta", {}).get("title") or node.get("class_type") or node_id)),
@@ -142,6 +334,7 @@ def _apply_advanced_node_overrides(prompt: dict[str, Any], requested: Any) -> No
     if not isinstance(requested, dict):
         raise ValueError("advanced node settings must be an object")
     allowed = {node_id for node_ids in ADVANCED_NODE_GROUPS.values() for node_id in node_ids}
+    object_info = _comfy_object_info()
     for node_id, fields in requested.items():
         if node_id not in allowed or node_id not in prompt or not isinstance(fields, dict):
             continue
@@ -149,8 +342,26 @@ def _apply_advanced_node_overrides(prompt: dict[str, Any], requested: Any) -> No
         for name, value in fields.items():
             if name not in inputs or _is_node_link(inputs[name]):
                 continue
+            # The licence choice is the sole authority for the bundled
+            # upscaler.  A stale advanced-settings value must never switch a
+            # RealESRGAN user back to AnimeSharp without acknowledgement (or
+            # override the user's acknowledged AnimeSharp choice).
+            if node_id == UPSCALER_NODE_ID and name == UPSCALER_FIELD_NAME:
+                continue
             original = inputs[name]
-            if isinstance(original, bool):
+            class_type = str(prompt[node_id].get("class_type") or "")
+            schema_type = _input_schema_type(class_type, name, object_info)
+            fallback = SAMPLER_OPTIONS if name == "sampler_name" else SCHEDULER_OPTIONS if name == "scheduler" else (
+                _installed_upscaler_options() if node_id == "1541:1536" and name == "model_name" else ()
+            )
+            options = _enum_options(class_type, name, fallback, object_info)
+            if options and value not in options:
+                raise ValueError(f"{node_id}.{name} is not a supported option")
+            boolean_string = isinstance(original, str) and original.strip().lower() in {"true", "false"}
+            if schema_type == "BOOLEAN" or boolean_string:
+                if not isinstance(value, bool):
+                    raise ValueError(f"{node_id}.{name} must be true or false")
+            elif isinstance(original, bool):
                 if not isinstance(value, bool):
                     raise ValueError(f"{node_id}.{name} must be true or false")
             elif isinstance(original, (int, float)) and not isinstance(original, bool):
@@ -162,6 +373,11 @@ def _apply_advanced_node_overrides(prompt: dict[str, Any], requested: Any) -> No
                     if not float(value).is_integer():
                         raise ValueError(f"{node_id}.{name} must be an integer")
                     value = int(value)
+                constraints = _input_constraints(str(prompt[node_id].get("class_type") or ""), name, object_info)
+                if "min" in constraints and value < constraints["min"]:
+                    raise ValueError(f"{node_id}.{name} is below the supported minimum")
+                if "max" in constraints and value > constraints["max"]:
+                    raise ValueError(f"{node_id}.{name} exceeds the supported maximum")
             elif isinstance(original, str) and isinstance(value, (int, float)) and not isinstance(value, bool):
                 # Some ComfyUI enum-like inputs are numeric strings in the
                 # template (for example Prompt Studio resolution_bucket), but
@@ -203,7 +419,9 @@ def _clean_advanced_node_overrides(requested: Any) -> dict[str, dict[str, Any]]:
         }
         selected = {
             name: deepcopy(validated[node_id]["inputs"][name])
-            for name in fields if name in editable
+            for name in fields
+            if name in editable
+            and not (node_id == UPSCALER_NODE_ID and name == UPSCALER_FIELD_NAME)
         }
         if selected:
             clean[node_id] = selected
@@ -234,12 +452,7 @@ FIRST_RUN_PROMPT = {
 
 
 def load_external_prompt_state() -> dict[str, str]:
-    if not UI_STATE_PATH.is_file():
-        return {}
-    try:
-        payload = json.loads(UI_STATE_PATH.read_text(encoding="utf-8"))
-    except (OSError, ValueError, json.JSONDecodeError):
-        return {}
+    payload = _load_external_ui_payload()
     prompt = payload.get("prompt", {}) if isinstance(payload, dict) else {}
     if not isinstance(prompt, dict):
         return {}
@@ -261,21 +474,62 @@ def save_external_prompt_state(prompt: Any) -> dict[str, str]:
 
 
 def _load_external_ui_payload() -> dict[str, Any]:
-    source = UI_STATE_PATH if UI_STATE_PATH.is_file() else LEGACY_UI_STATE_PATH
-    if not source.is_file():
+    if UI_STATE_PATH.is_file():
+        source = UI_STATE_PATH
+    elif LEGACY_UI_STATE_PATH.is_file():
+        # The installation-local legacy state belongs to this exact LAKIS
+        # copy, so it must win over an unscoped LocalAppData file that may
+        # have been written by a clean/test installation.
+        source = LEGACY_UI_STATE_PATH
+    elif UNSCOPED_UI_STATE_PATH.is_file():
+        # Preserve settings for installations that already migrated to the
+        # former global path but never had an installation-local legacy file.
+        source = UNSCOPED_UI_STATE_PATH
+    else:
         return {}
     try:
         payload = json.loads(source.read_text(encoding="utf-8"))
     except (OSError, ValueError, json.JSONDecodeError):
         return {}
-    return payload if isinstance(payload, dict) else {}
+    if not isinstance(payload, dict):
+        return {}
+    if source != UI_STATE_PATH and not UI_STATE_PATH.is_file():
+        # First scoped launch: copy the chosen source without modifying or
+        # deleting it.  Failure is non-fatal; this session still uses the
+        # source payload and can retry migration on a later save/launch.
+        try:
+            _write_external_ui_payload(payload)
+        except OSError:
+            pass
+    return payload
 
 
 def _write_external_ui_payload(payload: dict[str, Any]) -> None:
     UI_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    temporary = UI_STATE_PATH.with_suffix(".tmp")
-    temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    os.replace(temporary, UI_STATE_PATH)
+    temporary = UI_STATE_PATH.with_name(f".{UI_STATE_PATH.name}.{uuid.uuid4().hex}.tmp")
+    try:
+        temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        os.replace(temporary, UI_STATE_PATH)
+    finally:
+        try:
+            temporary.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
+def remove_persisted_upscaler_override() -> bool:
+    """Remove the legacy advanced override now governed by licence choice."""
+    payload = _load_external_ui_payload()
+    overrides = payload.get("node_overrides") if isinstance(payload, dict) else None
+    node = overrides.get(UPSCALER_NODE_ID) if isinstance(overrides, dict) else None
+    if not isinstance(node, dict) or UPSCALER_FIELD_NAME not in node:
+        return False
+    del node[UPSCALER_FIELD_NAME]
+    if not node:
+        del overrides[UPSCALER_NODE_ID]
+    payload["updated_at"] = time.time()
+    _write_external_ui_payload(payload)
+    return True
 
 
 def load_external_generation_state() -> dict[str, Any]:
@@ -300,6 +554,10 @@ def save_external_generation_state(
     if not isinstance(model, dict) or not isinstance(output, dict):
         raise ValueError("model and output state must be objects")
     clean_model = {key: model[key] for key in MODEL_STATE_KEYS if key in model}
+    if str(clean_model.get("sampler", "euler_ancestral")) not in _enum_options("KSampler", "sampler_name", SAMPLER_OPTIONS):
+        raise ValueError("Unsupported sampler")
+    if str(clean_model.get("scheduler", "normal")) not in _enum_options("KSampler", "scheduler", SCHEDULER_OPTIONS):
+        raise ValueError("Unsupported scheduler")
     clean_output = {key: output[key] for key in OUTPUT_STATE_KEYS if key in output}
     if not isinstance(loras, list):
         loras = []
@@ -342,6 +600,7 @@ def _model_files(folder: str) -> list[str]:
 
 def workflow_configuration() -> dict[str, Any]:
     template = json.loads(TEMPLATE.read_text(encoding="utf-8"))
+    object_info = _comfy_object_info()
     prompt_defaults = dict(FIRST_RUN_PROMPT)
     prompt_defaults.update(load_external_prompt_state())
     checkpoint_options = _model_files("diffusion_models")
@@ -362,6 +621,14 @@ def workflow_configuration() -> dict[str, Any]:
     clip = saved_model.get("clip", clip_default)
     if clip not in clip_options:
         clip = clip_default
+    sampler_options = _enum_options("KSampler", "sampler_name", SAMPLER_OPTIONS, object_info)
+    scheduler_options = _enum_options("KSampler", "scheduler", SCHEDULER_OPTIONS, object_info)
+    sampler = str(saved_model.get("sampler", "euler_ancestral"))
+    if sampler not in sampler_options:
+        sampler = "euler_ancestral"
+    scheduler = str(saved_model.get("scheduler", "normal"))
+    if scheduler not in scheduler_options:
+        scheduler = "normal"
     return {
         "checkpoint": {
             "current": checkpoint,
@@ -378,13 +645,15 @@ def workflow_configuration() -> dict[str, Any]:
             "options": clip_options,
             "loader_class": template["890:164"]["class_type"],
         },
+        "sampler": {"current": sampler, "options": sampler_options, "loader_class": "KSampler"},
+        "scheduler": {"current": scheduler, "options": scheduler_options, "loader_class": "KSampler"},
         "lora": _saved_lora_configuration(),
         "prompt": prompt_defaults,
         "advanced_nodes": advanced_node_configuration(template),
         "generation_state": {
             "model": {
-                "sampler": str(saved_model.get("sampler", "euler_ancestral")),
-                "scheduler": str(saved_model.get("scheduler", "normal")),
+                "sampler": sampler,
+                "scheduler": scheduler,
                 "steps": int(saved_model.get("steps", 30)),
                 "cfg": float(saved_model.get("cfg", 5.0)),
             },
@@ -480,8 +749,13 @@ def _saved_prompt_defaults() -> dict[str, str]:
 
 def _audit(event: str, **details: Any) -> None:
     record = {"timestamp": time.time(), "event": event, **details}
-    with AUDIT_PATH.open("a", encoding="utf-8") as stream:
-        stream.write(json.dumps(record, ensure_ascii=False) + "\n")
+    try:
+        with AUDIT_PATH.open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps(record, ensure_ascii=False) + "\n")
+    except OSError:
+        # Diagnostics must never turn a successful generation into a failure
+        # on a protected or read-only installation.
+        pass
 
 
 def _dependencies(prompt: dict[str, Any], node_id: str) -> set[str]:
@@ -622,6 +896,16 @@ def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dic
     if not TEMPLATE.is_file():
         raise RuntimeError(f"Validated API prompt template is missing: {TEMPLATE}")
     prompt = json.loads(TEMPLATE.read_text(encoding="utf-8"))
+    # Apply the persisted user choice in memory. This remains effective even
+    # when LAKIS is installed in a location where packaged workflows are
+    # read-only for the desktop process.
+    selected_upscaler = _preferred_upscaler()
+    if selected_upscaler:
+        for node in prompt.values():
+            if node.get("class_type") == "UpscaleModelLoader":
+                inputs = node.get("inputs", {})
+                if inputs.get("model_name") in {REALESRGAN_MODEL, ANIMESHARP_MODEL}:
+                    inputs["model_name"] = selected_upscaler
     required = {FINAL_NODE, "1925", "890:1281", "2133", "2135", "2138", "2139", "2140",
                 "1744", "1736:1737", "1634:1760",
                 "1736:1987",
@@ -865,7 +1149,7 @@ NODE_WEIGHTS = {
 }
 NODE_LABELS = {
     "1634:1622": "Initial", "1635": "Decode", "2158": "SAM3",
-    "2142": "Depth", "2148": "DSINE", "2143": "Relight",
+    "2142": "Depth", "2143": "Relight",
     "2151": "Cast Shadow", "2150": "VAE Encode",
     "1633:1790": "HighRez Decode", "1633:1794": "HighRez Encode",
     "1633:1612": "HighRez", "1633:1611": "HighRez Decode",

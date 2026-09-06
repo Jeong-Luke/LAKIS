@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Luke Jeong
+// SPDX-License-Identifier: MIT
+
 import { app } from "../../scripts/app.js";
 
 const CAMERA_NODE_TYPE = "KR_CameraControl";

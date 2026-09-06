@@ -1,0 +1,9 @@
+Licensed by NVIDIA Corporation under the NVIDIA Open Model License
+
+Built on NVIDIA Cosmos
+
+The complete NVIDIA Open Model License Agreement dated October 24, 2025 is
+included beside this notice as NVIDIA-Open-Model-License-2025-10-24.pdf.
+
+Official licence page:
+https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-open-model-license/
