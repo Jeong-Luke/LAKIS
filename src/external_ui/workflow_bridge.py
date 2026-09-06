@@ -616,6 +616,13 @@ def _model_files(folder: str) -> list[str]:
     )
 
 
+def lora_inventory() -> dict[str, Any]:
+    """Return the live LoRA inventory without touching persisted UI state."""
+    options = _model_files("loras")
+    signature = hashlib.sha256("\n".join(options).encode("utf-8")).hexdigest()
+    return {"options": options, "signature": signature, "count": len(options)}
+
+
 def workflow_configuration() -> dict[str, Any]:
     template = json.loads(TEMPLATE.read_text(encoding="utf-8"))
     object_info = _comfy_object_info()
@@ -648,6 +655,7 @@ def workflow_configuration() -> dict[str, Any]:
     if scheduler not in scheduler_options:
         scheduler = "normal"
     return {
+        "comfy_port": COMFY_PORT,
         "checkpoint": {
             "current": checkpoint,
             "options": checkpoint_options,

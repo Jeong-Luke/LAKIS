@@ -98,6 +98,22 @@ class ErrorCodeTests(unittest.TestCase):
         self.assertEqual(125.0, report["received_value"])
         self.assertEqual(100.0, report["node_declaration"]["max"])
 
+    def test_lora_inventory_detects_nested_files_without_changing_state(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            nested = root / "models" / "loras" / "characters"
+            nested.mkdir(parents=True)
+            (nested / "new_lora.safetensors").write_bytes(b"test")
+            (nested / "ignore.txt").write_text("ignored", encoding="utf-8")
+            with patch.object(workflow_bridge, "COMFY_ROOT", root):
+                first = workflow_bridge.lora_inventory()
+                (root / "models" / "loras" / "style.pt").write_bytes(b"next")
+                second = workflow_bridge.lora_inventory()
+        self.assertEqual(["characters\\new_lora.safetensors"], first["options"])
+        self.assertEqual(1, first["count"])
+        self.assertEqual(2, second["count"])
+        self.assertNotEqual(first["signature"], second["signature"])
+
 
 if __name__ == "__main__":
     unittest.main()

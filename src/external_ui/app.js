@@ -26,12 +26,13 @@ const state = {
 // The packaged application owns a dedicated ComfyUI port so it never opens a
 // different portable installation that happens to be running on port 8188.
 const loraManagerLink = document.querySelector('a[aria-label="LoRA Manager"]');
-if (loraManagerLink) loraManagerLink.href = "http://127.0.0.1:8189/loras";
 
 const COMFYUI_SEED_MAX = 1125899906842624;
 const PROMPT_STORAGE_KEY = "lakis.prompt-state.v2";
 const TRANSLATION_STORAGE_KEY = "lakis.prompt-translation-enabled.v1";
 let loraOptions = [];
+let loraInventorySignature = "";
+let loraInventoryRefreshActive = false;
 let generationStateSaveTimer = null;
 
 function scheduleGenerationStateSave() {
@@ -801,6 +802,36 @@ function setCompositionEnabled(enabled) {
   document.querySelector("#compositionControls").classList.toggle("is-disabled", !state.composition_enabled);
 }
 
+async function refreshLoraInventory() {
+  if (loraInventoryRefreshActive) return false;
+  loraInventoryRefreshActive = true;
+  try {
+    const response = await fetch("/api/lora-options", { cache: "no-store" });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const inventory = await response.json();
+    const options = Array.isArray(inventory.options) ? inventory.options.map(String) : [];
+    const signature = String(inventory.signature || JSON.stringify(options));
+    if (signature === loraInventorySignature) return false;
+    loraInventorySignature = signature;
+    loraOptions = options;
+    renderLoras();
+    return true;
+  } catch (error) {
+    console.error("Could not refresh LoRA inventory", error);
+    return false;
+  } finally {
+    loraInventoryRefreshActive = false;
+  }
+}
+
+window.addEventListener("focus", () => refreshLoraInventory());
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) refreshLoraInventory();
+});
+setInterval(() => {
+  if (!document.hidden) refreshLoraInventory();
+}, 10000);
+
 document.querySelector("#compositionToggle").addEventListener("click", () => {
   setCompositionEnabled(!state.composition_enabled);
 });
@@ -1011,6 +1042,9 @@ async function refreshWorkflowConfiguration() {
     const response = await fetch("/api/workflow-config", { cache: "no-store" });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const config = await response.json();
+    if (loraManagerLink && Number(config.comfy_port)) {
+      loraManagerLink.href = `http://127.0.0.1:${Number(config.comfy_port)}/loras`;
+    }
     populateWorkflowSelect("checkpointSelect", "checkpoint", config.checkpoint);
     populateWorkflowSelect("vaeSelect", "vae", config.vae);
     populateWorkflowSelect("clipSelect", "clip", config.clip);
@@ -1035,6 +1069,7 @@ async function refreshWorkflowConfiguration() {
       button.classList.toggle("active", button.dataset.seedMode === state.output.seed_mode);
     });
     loraOptions = Array.isArray(config.lora?.options) ? config.lora.options : [];
+    loraInventorySignature = "";
     state.lora_enabled = config.lora?.enabled !== false;
     const allLorasToggle = document.querySelector("#allLorasToggle");
     allLorasToggle.classList.toggle("on", state.lora_enabled);
@@ -1048,6 +1083,7 @@ async function refreshWorkflowConfiguration() {
         }))
       : [];
     renderLoras();
+    refreshLoraInventory();
     const promptInputs = {
       general: "generalPromptInput", quality: "qualityPromptInput",
       artist: "artistPromptInput", trigger: "triggerPromptInput", fixed: "fixedPromptInput",

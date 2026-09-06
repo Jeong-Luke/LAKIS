@@ -27,6 +27,7 @@ if str(UI_ROOT) not in sys.path:
 
 from workflow_bridge import (
     WorkflowBridge,
+    lora_inventory,
     remove_persisted_upscaler_override,
     save_external_generation_state,
     save_external_prompt_state,
@@ -581,6 +582,9 @@ class Handler(SimpleHTTPRequestHandler):
             return
         if self.path == "/api/workflow-config":
             self._send_json(200, workflow_configuration())
+            return
+        if self.path == "/api/lora-options":
+            self._send_json(200, lora_inventory())
             return
         if self.path == "/api/generation-status":
             self._send_json(200, GENERATION_BRIDGE.status.snapshot())
