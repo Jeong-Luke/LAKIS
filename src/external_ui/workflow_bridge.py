@@ -28,7 +28,24 @@ import uuid
 import aiohttp
 
 
-COMFY_PORT = 8190 if os.environ.get("LAKIS_DEVELOPMENT") == "1" else 8189
+DEVELOPMENT = os.environ.get("LAKIS_DEVELOPMENT") == "1"
+COMFY_PORT = 8190 if DEVELOPMENT else 8189
+FULL_TURBO_EXPERIMENT = (
+    os.environ.get("LAKIS_DEVELOPMENT") == "1"
+    and os.environ.get("LAKIS_FULL_TURBO_EXPERIMENT") == "1"
+)
+HALF_RES_FAST_EXPERIMENT = (
+    os.environ.get("LAKIS_DEVELOPMENT") == "1"
+    and os.environ.get("LAKIS_HALF_RES_FAST_EXPERIMENT", "0") == "1"
+)
+SPEED_FAST_EXPERIMENT = (
+    os.environ.get("LAKIS_DEVELOPMENT") == "1"
+    and os.environ.get("LAKIS_SPEED_FAST_EXPERIMENT", "1") == "1"
+)
+LIGHT_EXPERIMENT = (
+    os.environ.get("LAKIS_DEVELOPMENT") == "1"
+    and os.environ.get("LAKIS_LIGHT_EXPERIMENT", "1") == "1"
+)
 COMFY_SERVER = f"http://127.0.0.1:{COMFY_PORT}"
 FINAL_NODE = "775"
 DEV_ROOT = Path(__file__).resolve().parent.parent
@@ -90,6 +107,12 @@ PROMPT_STATE_KEYS = {
 }
 MODEL_STATE_KEYS = {"checkpoint", "vae", "clip", "sampler", "scheduler", "steps", "cfg"}
 OUTPUT_STATE_KEYS = {"width", "height", "seed", "seed_mode", "aspect_locked"}
+DEV_UPSCALE_ENGINES = {
+    "allinone_ultimate", "ultimate", "lakis_scope", "lakis_scope_quality",
+}
+RELEASE_UPSCALE_ENGINES = {"ultimate", "lakis_scope"}
+DEFAULT_UPSCALE_ENGINE = "ultimate"
+GENERATION_STATE_VERSION = 4
 DEFAULT_CHECKPOINT = "anima_baseV10.safetensors"
 SAMPLER_OPTIONS = (
     "euler", "euler_cfg_pp", "euler_ancestral", "euler_ancestral_cfg_pp", "heun", "heunpp2",
@@ -122,7 +145,7 @@ ADVANCED_NODE_GROUPS = {
     "i2i": ("1744", "1736:1737", "1634:1760"),
     "prompt": ("2133",),
     "generation": (
-        "2138", "2139", "2140", "1541:1536",
+        "1541:1536", "2140", "2138", "2139",
         "1530:2051", "1530:1824", "1530:1827", "1530:1832", "1530:1835", "1530:1834", "1530:2060", "1530:1826",
         "1836:2076", "1836:2067", "1836:2077", "1836:2074", "1836:2078", "1836:2079", "1836:2080", "1836:2069",
         "1541:1535", "1541:1534", "1541:1533", "1541:1532", "1541:1540", "1541:1542", "1541:1837", "1541:1838", "1541:1538",
@@ -138,7 +161,7 @@ ADVANCED_NODE_TITLES = {
     "1836:2074": "눈 DCW 스위치", "1836:2078": "눈 DCW", "1836:2079": "눈 Spectrum",
     "1836:2080": "눈 정렬 Hook", "1836:2069": "눈 디테일러",
     "1541:1535": "USDU 배율", "1541:1534": "USDU 타일 분할", "1541:1533": "USDU 가로 타일 계산",
-    "1541:1532": "USDU 세로 타일 계산", "1541:1536": "USDU 업스케일 모델", "1541:1540": "USDU DCW",
+    "1541:1532": "USDU 세로 타일 계산", "1541:1536": "업스케일러 모델", "1541:1540": "USDU DCW",
     "1541:1542": "USDU DCW 스위치", "1541:1837": "USDU Spectrum", "1541:1838": "USDU 스텝",
     "1541:1538": "Ultimate SD Upscale",
 }
@@ -343,6 +366,10 @@ def _apply_advanced_node_overrides(prompt: dict[str, Any], requested: Any) -> No
     for node_id, fields in requested.items():
         if node_id not in allowed or node_id not in prompt or not isinstance(fields, dict):
             continue
+        # These switches are derived exclusively from FAST/DETAIL mode. Old
+        # persisted values must not silently bypass detailers or upscaling.
+        if node_id in {"2138", "2139", "2140"}:
+            continue
         inputs = prompt[node_id].get("inputs", {})
         for name, value in fields.items():
             if name not in inputs or _is_node_link(inputs[name]):
@@ -439,6 +466,7 @@ def _clean_advanced_node_overrides(requested: Any) -> dict[str, dict[str, Any]]:
             name: deepcopy(validated[node_id]["inputs"][name])
             for name in fields
             if name in editable
+            and node_id not in {"2138", "2139", "2140"}
             and not (node_id == UPSCALER_NODE_ID and name == UPSCALER_FIELD_NAME)
         }
         if selected:
@@ -554,6 +582,13 @@ def load_external_generation_state() -> dict[str, Any]:
     payload = _load_external_ui_payload()
     model = payload.get("model", {})
     output = payload.get("output", {})
+    generation = payload.get("generation", {})
+    saved_engine = generation.get("upscale_engine") if isinstance(generation, dict) else None
+    # v4 introduces SCOPE as an explicit release option while retaining
+    # Ultimate as the default. Legacy aliases are normalized once.
+    if int(payload.get("version", 0) or 0) < GENERATION_STATE_VERSION:
+        if saved_engine in {None, "lakis_fast"}:
+            saved_engine = DEFAULT_UPSCALE_ENGINE
     try:
         node_overrides = _clean_advanced_node_overrides(payload.get("node_overrides", {}))
     except (TypeError, ValueError, OSError, json.JSONDecodeError):
@@ -561,13 +596,18 @@ def load_external_generation_state() -> dict[str, Any]:
     return {
         "model": {key: model[key] for key in MODEL_STATE_KEYS if isinstance(model, dict) and key in model},
         "output": {key: output[key] for key in OUTPUT_STATE_KEYS if isinstance(output, dict) and key in output},
+        "generation": {
+            "upscale_engine": saved_engine
+            if saved_engine in ((DEV_UPSCALE_ENGINES if DEVELOPMENT else RELEASE_UPSCALE_ENGINES) | {"lakis_fast"})
+            else DEFAULT_UPSCALE_ENGINE
+        },
         "node_overrides": node_overrides,
     }
 
 
 def save_external_generation_state(
     model: Any, output: Any, loras: Any = None, lora_enabled: Any = True,
-    node_overrides: Any = None,
+    node_overrides: Any = None, generation: Any = None,
 ) -> dict[str, Any]:
     if not isinstance(model, dict) or not isinstance(output, dict):
         raise ValueError("model and output state must be objects")
@@ -591,19 +631,27 @@ def save_external_generation_state(
             "strength": max(-20.0, min(20.0, float(item.get("strength", 1.0)))),
         })
     clean_overrides = _clean_advanced_node_overrides(node_overrides or {})
+    upscale_engine = generation.get("upscale_engine", DEFAULT_UPSCALE_ENGINE) if isinstance(generation, dict) else DEFAULT_UPSCALE_ENGINE
+    if upscale_engine == "lakis_fast":
+        upscale_engine = "lakis_scope"
+    allowed_engines = DEV_UPSCALE_ENGINES if DEVELOPMENT else RELEASE_UPSCALE_ENGINES
+    if upscale_engine not in allowed_engines:
+        raise ValueError("Unsupported upscale engine")
     payload = _load_external_ui_payload()
     payload.update({
-        "version": 2,
+        "version": GENERATION_STATE_VERSION,
         "model": clean_model,
         "output": clean_output,
         "lora": {"current": clean_loras, "enabled": bool(lora_enabled)},
         "node_overrides": clean_overrides,
+        "generation": {"upscale_engine": upscale_engine},
         "updated_at": time.time(),
     })
     _write_external_ui_payload(payload)
     return {
         "model": clean_model, "output": clean_output, "lora": payload["lora"],
         "node_overrides": clean_overrides,
+        "generation": payload["generation"],
     }
 
 
@@ -614,6 +662,48 @@ def _model_files(folder: str) -> list[str]:
         for path in root.rglob("*")
         if path.is_file() and path.suffix.lower() in MODEL_EXTENSIONS
     )
+
+
+def _is_anima_checkpoint(checkpoint: str) -> bool:
+    """Identify Anima derivatives without relying only on their filename."""
+    if "anima" in checkpoint.lower():
+        return True
+    model_path = COMFY_ROOT / "models" / "diffusion_models" / checkpoint
+    for metadata_path in (
+        model_path.with_suffix(".metadata.json"),
+        model_path.with_suffix(".civitai.info"),
+    ):
+        try:
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError, TypeError):
+            continue
+        base_model = metadata.get("base_model") or metadata.get("baseModel")
+        if not base_model and isinstance(metadata.get("civitai"), dict):
+            base_model = metadata["civitai"].get("baseModel")
+        air = metadata.get("air")
+        if not air and isinstance(metadata.get("civitai"), dict):
+            air = metadata["civitai"].get("air")
+        if "anima" in str(base_model or "").lower() or "urn:air:anima:" in str(air or "").lower():
+            return True
+    return False
+
+
+def model_inventory() -> dict[str, Any]:
+    """Return live model lists without modifying the user's saved selections."""
+    inventories = {
+        "checkpoint": _model_files("diffusion_models"),
+        "vae": _model_files("vae"),
+        "clip": _model_files("text_encoders"),
+    }
+    signature_source = "\n".join(
+        f"{kind}:{value}"
+        for kind, values in inventories.items()
+        for value in values
+    )
+    return {
+        **inventories,
+        "signature": hashlib.sha256(signature_source.encode("utf-8")).hexdigest(),
+    }
 
 
 def lora_inventory() -> dict[str, Any]:
@@ -655,6 +745,7 @@ def workflow_configuration() -> dict[str, Any]:
     if scheduler not in scheduler_options:
         scheduler = "normal"
     return {
+        "development": DEVELOPMENT,
         "comfy_port": COMFY_PORT,
         "checkpoint": {
             "current": checkpoint,
@@ -677,6 +768,7 @@ def workflow_configuration() -> dict[str, Any]:
         "prompt": prompt_defaults,
         "advanced_nodes": advanced_node_configuration(template),
         "generation_state": {
+            "generation": saved.get("generation", {"upscale_engine": DEFAULT_UPSCALE_ENGINE}),
             "model": {
                 "sampler": sampler,
                 "scheduler": scheduler,
@@ -922,6 +1014,14 @@ def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dic
     if not TEMPLATE.is_file():
         raise RuntimeError(f"Validated API prompt template is missing: {TEMPLATE}")
     prompt = json.loads(TEMPLATE.read_text(encoding="utf-8"))
+    # SAM3 legitimately returns an empty [0,H,W] mask batch when it cannot
+    # detect the requested face/eye. WAS Masks Combine Batch raises on that
+    # input. Use the LAKIS-compatible combiner so a missed detection skips the
+    # detailer instead of aborting the whole image generation.
+    for node in prompt.values():
+        if node.get("class_type") == "Masks Combine Batch":
+            node["class_type"] = "LAKIS_SafeMasksCombineBatch"
+            node.setdefault("_meta", {})["title"] = "LAKIS Safe Masks Combine Batch"
     # Apply the persisted user choice in memory. This remains effective even
     # when LAKIS is installed in a location where packaged workflows are
     # read-only for the desktop process.
@@ -956,6 +1056,85 @@ def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dic
     for node_id in ("2138", "2139", "2140"):
         prompt[node_id]["inputs"]["value"] = detail
 
+    # Hidden DEV benchmark contract: preserve the complete generation path but
+    # skip both detailers so repeated upscale-engine measurements are quick.
+    if DEVELOPMENT and bool(generation.get("upscale_benchmark", False)):
+        prompt["2138"]["inputs"]["value"] = False
+        prompt["2139"]["inputs"]["value"] = False
+        prompt["2140"]["inputs"]["value"] = True
+
+    requested_upscale_engine = generation.get("upscale_engine", DEFAULT_UPSCALE_ENGINE)
+    if requested_upscale_engine == "lakis_fast":
+        requested_upscale_engine = "lakis_scope"
+    allowed_engines = DEV_UPSCALE_ENGINES if DEVELOPMENT else RELEASE_UPSCALE_ENGINES
+    if requested_upscale_engine not in allowed_engines:
+        raise ValueError("generation.upscale_engine must be ultimate or lakis_scope")
+    use_allinone_ultimate = requested_upscale_engine == "allinone_ultimate"
+    scope_quality = requested_upscale_engine == "lakis_scope_quality"
+    upscale_engine = "lakis_scope" if requested_upscale_engine in {"lakis_scope", "lakis_scope_quality"} else "ultimate"
+    # Hidden DEV comparison contract.  These are the exact Ultimate SD Upscale
+    # values from the user-provided animaAllInOne_v61 workflow.  Keep this
+    # opt-in so normal UI presets and persisted user settings are untouched.
+    if (
+        upscale_engine == "ultimate"
+        and DEVELOPMENT
+        and (use_allinone_ultimate or bool(generation.get("allinone_ultimate_benchmark", False)))
+    ):
+        ultimate_inputs = prompt["1541:1538"]["inputs"]
+        ultimate_inputs.update({
+            "upscale_by": 2.0,
+            "steps": 15,
+            "cfg": 8.0,
+            "sampler_name": "euler",
+            "scheduler": "sgm_uniform",
+            "denoise": 0.11,
+            "mode_type": "Chess",
+            "tile_width": 512,
+            "tile_height": 512,
+            "mask_blur": 8,
+            "tile_padding": 128,
+            "seam_fix_mode": "None",
+            "seam_fix_denoise": 1.0,
+            "seam_fix_width": 64,
+            "seam_fix_mask_blur": 8,
+            "seam_fix_padding": 16,
+            "force_uniform_tiles": True,
+            "tiled_decode": False,
+            "batch_size": 1,
+        })
+    if upscale_engine == "lakis_scope":
+        old_inputs = prompt["1541:1538"]["inputs"]
+        if bool(generation.get("allinone_scope_geometry_benchmark", False)):
+            old_inputs.update({
+                "upscale_by": 2.0,
+                "tile_width": 512,
+                "tile_height": 512,
+                "tile_padding": 128,
+            })
+        prompt["1541:1538"] = {
+            "class_type": "LAKIS_SCOPE",
+            "_meta": {"title": "LAKIS_SCOPE"},
+            "inputs": {
+                "image": old_inputs["image"],
+                "model": old_inputs["model"],
+                "positive": old_inputs["positive"],
+                "negative": old_inputs["negative"],
+                "vae": old_inputs["vae"],
+                "upscale_model": old_inputs["upscale_model"],
+                "upscale_by": old_inputs["upscale_by"],
+                "seed": old_inputs["seed"],
+                "steps": old_inputs["steps"],
+                "cfg": old_inputs["cfg"],
+                "sampler_name": old_inputs["sampler_name"],
+                "scheduler": old_inputs["scheduler"],
+                "denoise": old_inputs["denoise"],
+                "tile_size": old_inputs["tile_width"],
+                "overlap": old_inputs["tile_padding"],
+                "tile_batch_size": 2,
+                "quality_mode": scope_quality or bool(generation.get("scope_quality_benchmark", False)),
+            },
+        }
+
     seed = int(output.get("seed", 0))
     if not 0 <= seed <= COMFYUI_SEED_MAX:
         raise ValueError(f"Seed must be between 0 and {COMFYUI_SEED_MAX}")
@@ -965,6 +1144,7 @@ def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dic
     # is padded to 92 in one path, causing a 91-vs-92 KSampler mismatch.
     width = round(max(256, min(4096, int(output.get("width", 1024)))) / 16) * 16
     height = round(max(256, min(4096, int(output.get("height", 1536)))) / 16) * 16
+    target_width, target_height = width, height
     prompt["890:1864"]["inputs"]["seed"] = seed
     i2i_enabled = bool(i2i.get("enabled", False))
     i2i_denoise = max(0.0, min(1.0, float(i2i.get("denoise", 0.5))))
@@ -990,6 +1170,13 @@ def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dic
             "class_type": "ImageScale",
             "_meta": {"title": "i2i 입력을 출력 해상도에 맞춤"},
         }
+    half_res_fast = HALF_RES_FAST_EXPERIMENT and mode == "fast" and not i2i_enabled
+    if half_res_fast:
+        # DEV experiment based on the reviewed 0.5x -> 2x workflow: generate
+        # one quarter of the target pixel count, then reconstruct at the exact
+        # requested canvas in the existing HighRez stage.
+        width = max(256, round((target_width * 0.5) / 16) * 16)
+        height = max(256, round((target_height * 0.5) / 16) * 16)
     prompt["1736:1737"]["inputs"]["value"] = i2i_enabled
     prompt["1634:1760"]["inputs"]["value"] = i2i_denoise
     checkpoint = str(model.get("checkpoint", prompt["890:1365"]["inputs"]["model_name"]))
@@ -998,7 +1185,7 @@ def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dic
     available = workflow_configuration()
     if checkpoint not in available["checkpoint"]["options"]:
         raise ValueError(f"Unknown diffusion model: {checkpoint}")
-    if "anima" not in checkpoint.lower():
+    if not _is_anima_checkpoint(checkpoint):
         raise ValueError("FAST workflow requires an Anima-compatible diffusion model")
     if vae not in available["vae"]["options"]:
         raise ValueError(f"Unknown VAE: {vae}")
@@ -1073,7 +1260,9 @@ def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dic
         prompt, lora_state, bool(application_state.get("lora_enabled", True))
     )
 
-    # Accepted S1R2 Initial Spectrum: one patch, Initial only.
+    # Accepted S1R2 Initial Spectrum: one patch, Initial only.  The DEV SPEED
+    # experiment replaces this path below; the two optimizers must not be
+    # stacked until SPEED has an independently measured baseline.
     spectrum = prompt["1634:1721"]["inputs"]
     spectrum.update({"enabled": True, "one_sampler_only": True, "verbose": False})
     prompt["1633:1723"]["inputs"].update(
@@ -1081,11 +1270,133 @@ def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dic
     )
     prompt["1633:1612"]["inputs"]["model"] = ["1633:1619", 0]
 
-    # The public prototype does not expose the unfinished Light Control yet.
-    # Route the Initial latent directly into HighRez so none of the LAKIS
-    # light/geometry stages are scheduled by Final-only dependency closure.
-    prompt["1633:1616"]["inputs"]["on_false"] = ["1634:1622", 0]
-    prompt["1633:1790"]["inputs"]["samples"] = ["1634:1622", 0]
+    # DEV comparison: SPEED is a FAST-only experiment. DETAIL keeps the
+    # original Initial sampler because repeated benchmarks showed no speedup.
+    speed_fast = SPEED_FAST_EXPERIMENT and mode == "fast" and not i2i_enabled
+    if speed_fast:
+        spectrum.update({"enabled": False, "one_sampler_only": False, "verbose": False})
+        speed_sampler_id = "lakis_dev_speed_sampler"
+        speed_noise_id = "lakis_dev_speed_noise"
+        speed_guider_id = "lakis_dev_speed_guider"
+        speed_scheduler_id = "lakis_dev_speed_scheduler"
+        prompt[speed_sampler_id] = {
+            "class_type": "SamplerSPEED",
+            "inputs": {
+                "base_sampler": str(sampler_config["sampler_name"]),
+                "transform": "dct",
+                "mode": "manual",
+                "model_preset": "custom",
+                "scales": "0.5,1.0",
+                "delta": 0.01,
+                "manual_sigmas": "0.7",
+                "spectrum_A": 203.615097,
+                "spectrum_beta": 1.915461,
+                "seed": seed % (2**31),
+            },
+            "_meta": {"title": "LAKIS DEV - SPEED sampler"},
+        }
+        prompt[speed_noise_id] = {
+            "class_type": "RandomNoise",
+            "inputs": {"noise_seed": seed},
+            "_meta": {"title": "LAKIS DEV - SPEED noise"},
+        }
+        prompt[speed_guider_id] = {
+            "class_type": "CFGGuider",
+            "inputs": {
+                "model": ["1634:1626", 0],
+                "positive": ["1634:1624", 4],
+                "negative": ["1634:1624", 5],
+                "cfg": float(sampler_config["cfg"]),
+            },
+            "_meta": {"title": "LAKIS DEV - SPEED guider"},
+        }
+        prompt[speed_scheduler_id] = {
+            "class_type": "BasicScheduler",
+            "inputs": {
+                "model": ["1634:1626", 0],
+                "scheduler": str(sampler_config["scheduler"]),
+                "steps": int(sampler_config["steps_total"]),
+                "denoise": 1.0,
+            },
+            "_meta": {"title": "LAKIS DEV - SPEED scheduler"},
+        }
+        prompt["1634:1622"] = {
+            "class_type": "SamplerCustomAdvanced",
+            "inputs": {
+                "noise": [speed_noise_id, 0],
+                "guider": [speed_guider_id, 0],
+                "sampler": [speed_sampler_id, 0],
+                "sigmas": [speed_scheduler_id, 0],
+                "latent_image": ["1634:1624", 6],
+            },
+            "_meta": {"title": "Initial - SPEED experiment"},
+        }
+
+    # DEV-only benchmark path for the official Anima Turbo v0.2 contract.
+    # The LoRA is distilled for CFG 1 and 8-12 steps; applying it only to the
+    # three-step HighRez pass leaves the expensive Initial pass unaccelerated.
+    # Keep this opt-in until timing and image-quality gates are satisfied.
+    if FULL_TURBO_EXPERIMENT and not i2i_enabled:
+        initial_turbo_id = "lakis_external_turbo_initial"
+        prompt[initial_turbo_id] = {
+            "class_type": "LoraLoaderModelOnly",
+            "inputs": {
+                "model": ["1634:1626", 0],
+                "lora_name": "anima-turbo-lora-v0.2.safetensors",
+                "strength_model": 1.0,
+            },
+            "_meta": {"title": "LAKIS DEV - Turbo Initial"},
+        }
+        spectrum["model"] = [initial_turbo_id, 0]
+        sampler_config.update({
+            "steps_total": 10,
+            "refiner_step": min(8, int(sampler_config.get("refiner_step", 8))),
+            "cfg": 1.0,
+            "sampler_name": "euler",
+            "scheduler": "normal",
+        })
+
+    # DEV-only Light Control validation. Production remains bypassed until the
+    # replacement geometry path passes visual and runtime gates.
+    light_state = application_state.get("light")
+    light_enabled = bool(
+        LIGHT_EXPERIMENT
+        and isinstance(light_state, dict)
+        and light_state.get("enabled", False)
+    )
+    if light_enabled:
+        controller = prompt["2141"]["inputs"]
+        for key, default in (
+            ("pos_x", 0.0), ("pos_y", 0.0), ("pos_z", 0.15),
+            ("intensity", 0.75), ("ambient", 0.20), ("shadow", 0.35),
+            ("exposure", 0.0), ("rim", 0.06),
+        ):
+            controller[key] = float(light_state.get(key, default))
+        controller["enabled"] = True
+        controller["color_mode"] = str(light_state.get("color_mode", "Neutral"))
+        prompt["2142"]["inputs"].update({
+            "image": ["1635", 0], "normal_strength": 18.0,
+            "normal_smoothing": 5, "keep_model_loaded": True,
+        })
+        prompt["2143"]["inputs"].update({
+            "image": ["1635", 0], "light": ["2141", 0],
+            "normal_map": ["2142", 1], "depth_map": ["2142", 0],
+            "geometry_source": "Normal Map", "mix": float(light_state.get("mix", 1.0)),
+        })
+        prompt["2151"]["inputs"].update({
+            "strength": float(light_state.get("cast_strength", 0.30)),
+            "projection_length": float(light_state.get("projection_length", 0.70)),
+            "softness": float(light_state.get("softness", 0.82)),
+            "contact": float(light_state.get("contact", 0.24)),
+            "mix": float(light_state.get("cast_mix", 1.0)),
+        })
+        prompt["1633:1616"]["inputs"]["on_false"] = ["2150", 0]
+        prompt["1633:1790"]["inputs"]["samples"] = ["2150", 0]
+    else:
+        # Public/disabled path: route Initial directly into HighRez so no light
+        # or geometry nodes are scheduled by Final-only dependency closure.
+        prompt["1633:1616"]["inputs"]["on_false"] = ["1634:1622", 0]
+        prompt["1633:1790"]["inputs"]["samples"] = ["1634:1622", 0]
 
     # Validated S7 Turbo HighRez is shared by FAST and DETAIL.  The user-facing
     # mode controls only Face/Eye/USDU, not the lighting engine or sampler base.
@@ -1107,6 +1418,16 @@ def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dic
     highrez_sampler = "euler" if i2i_enabled else "gradient_estimation"
     highrez_denoise = (0.31 if detail else 0.28) if i2i_enabled else 0.2
     highrez_model = ["1633:1619", 0] if i2i_enabled else [turbo_id, 0]
+    if half_res_fast:
+        prompt["1633:2124"]["inputs"].update({
+            "scale_by": 2.0,
+            "max_long_edge": max(target_width, target_height),
+        })
+        highrez_steps = 5
+        highrez_cfg = 5.0
+        highrez_sampler = "er_sde"
+        highrez_denoise = 0.37
+        highrez_model = ["1633:1619", 0]
     prompt["1633:1612"]["inputs"].update({
         "model": highrez_model, "steps": highrez_steps, "cfg": highrez_cfg,
         "sampler_name": highrez_sampler, "scheduler": "simple", "denoise": highrez_denoise,
@@ -1120,30 +1441,44 @@ def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dic
     # i2i and t2i must share the exact same positive/negative conditioning
     # chain. Guard this contract before queueing so a workflow edit can never
     # silently produce an image while ignoring either prompt branch.
+    initial_conditioning_node = (
+        prompt.get("lakis_dev_speed_guider", {}).get("inputs", {})
+        if speed_fast else prompt.get("1634:1622", {}).get("inputs", {})
+    )
     prompt_contract = {
         "positive_text": prompt.get("890:903", {}).get("inputs", {}).get("text") == ["890:2012", 0],
         "negative_text": prompt.get("890:904", {}).get("inputs", {}).get("text") == ["890:2013", 0],
-        "initial_positive": prompt.get("1634:1622", {}).get("inputs", {}).get("positive") == ["1634:1624", 4],
-        "initial_negative": prompt.get("1634:1622", {}).get("inputs", {}).get("negative") == ["1634:1624", 5],
+        "initial_positive": initial_conditioning_node.get("positive") == ["1634:1624", 4],
+        "initial_negative": initial_conditioning_node.get("negative") == ["1634:1624", 5],
         "highrez_positive": prompt.get("1633:1612", {}).get("inputs", {}).get("positive") == ["1633:1618", 4],
         "highrez_negative": prompt.get("1633:1612", {}).get("inputs", {}).get("negative") == ["1633:1618", 5],
     }
     if not all(prompt_contract.values()):
         raise RuntimeError(f"Prompt conditioning contract is disconnected: {prompt_contract}")
-    light_nodes = {"2158", "2142", "2148", "2143", "2151", "2150"}
+    light_nodes = {"2158", "2142", "2143", "2151", "2150"}
     assertions = {
         "final_only": FINAL_NODE in prompt,
         "cleanup_absent": "2154" not in prompt,
         "semantic_shadow_absent": "2161" not in prompt,
-        "initial_spectrum": prompt["1634:1721"]["inputs"]["enabled"] is True,
+        "initial_spectrum": (
+            prompt.get("1634:1721", {}).get("inputs", {}).get("enabled") is True
+            if not speed_fast else "1634:1721" not in prompt
+        ),
+        "speed_fast_experiment": speed_fast,
         "highrez_spectrum_absent": "1633:1723" not in prompt,
-        "prototype_light_disabled": not (light_nodes & set(prompt)),
+        "prototype_light_contract": (
+            light_nodes.issubset(set(prompt)) if light_enabled
+            else not (light_nodes & set(prompt))
+        ),
+        "light_experiment_enabled": light_enabled,
         "detail_enabled": detail,
         "node_count": len(prompt),
         "camera_prompt": camera_prompt,
         "composition_enabled": composition_enabled,
         "lora_stack_node": prompt["890:1281"]["inputs"].get("lora_stack") == ["1925", 1],
-        "resolution": f"{width}x{height}",
+        "resolution": f"{target_width}x{target_height}",
+        "initial_resolution": f"{width}x{height}",
+        "half_res_fast_experiment": half_res_fast,
         "i2i_enabled": i2i_enabled,
         "i2i_denoise": i2i_denoise,
         "highrez_steps": highrez_steps,
@@ -1158,6 +1493,8 @@ def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dic
     ignored_assertions = {"detail_enabled", "node_count", "lora_count", "enabled_lora_count",
                           "loras_globally_enabled", "lora_profile_index", "composition_enabled",
                           "camera_prompt", "resolution", "resolution_nodes", "latent_nodes",
+                          "initial_resolution", "half_res_fast_experiment",
+                          "speed_fast_experiment", "light_experiment_enabled",
                           "i2i_enabled", "i2i_denoise", "highrez_steps", "highrez_cfg",
                           "highrez_sampler", "highrez_denoise"}
     ignored_assertions.add("prompt_contract")
@@ -1179,7 +1516,9 @@ NODE_LABELS = {
     "2151": "Cast Shadow", "2150": "VAE Encode",
     "1633:1790": "HighRez Decode", "1633:1794": "HighRez Encode",
     "1633:1612": "HighRez", "1633:1611": "HighRez Decode",
+    "1530:1824": "Face Detection", "1530:1823": "Face Mask",
     "1530:1826": "Face Detail", "1836:2069": "Eye Detail",
+    "1836:2067": "Eye Detection", "1836:2066": "Eye Mask",
     "1541:1538": "Upscale", FINAL_NODE: "Final Save",
 }
 
@@ -1197,7 +1536,11 @@ NODE_ERROR_CODES = {
     "1633:1790": ("LKS-GEN-1403", "HighRez 이미지 디코딩 단계에서 오류가 발생했어요."),
     "1633:1611": ("LKS-GEN-1403", "HighRez 이미지 디코딩 단계에서 오류가 발생했어요."),
     "1530:1826": ("LKS-GEN-1501", "얼굴 디테일 처리 중 오류가 발생했어요."),
+    "1530:1824": ("LKS-GEN-1501", "얼굴 감지 단계에서 오류가 발생했어요."),
+    "1530:1823": ("LKS-GEN-1501", "얼굴 마스크 처리 중 오류가 발생했어요."),
     "1836:2069": ("LKS-GEN-1502", "눈 디테일 처리 중 오류가 발생했어요."),
+    "1836:2067": ("LKS-GEN-1502", "눈 감지 단계에서 오류가 발생했어요."),
+    "1836:2066": ("LKS-GEN-1502", "눈 마스크 처리 중 오류가 발생했어요."),
     "1541:1538": ("LKS-GEN-1601", "업스케일 단계에서 오류가 발생했어요."),
     "775": ("LKS-GEN-1701", "완성된 이미지를 저장하지 못했어요."),
 }
@@ -1304,6 +1647,17 @@ class WorkflowBridge:
         self._preview_bytes: bytes | None = None
         self._preview_mime = "image/jpeg"
         self._recover_interrupted_generation()
+        # The allowance is owned by a worker in this bridge process. If the
+        # previous DEV process was force-closed before its finally block ran,
+        # an unconsumed file can survive and reject the first click after a
+        # restart. No worker exists yet during construction, so it is always
+        # safe to remove that stale allowance here.
+        if ALLOW_FILE.is_file():
+            try:
+                ALLOW_FILE.unlink()
+                _audit("external_ui_stale_allowance_cleared")
+            except OSError as error:
+                _audit("external_ui_stale_allowance_clear_failed", error=repr(error))
 
     def _write_generation_journal(self) -> None:
         snapshot = self.status.snapshot()
@@ -1464,7 +1818,11 @@ class WorkflowBridge:
                 prompt_requests=self.status.prompt_requests,
             )
         finally:
-            if self.status.prompt_requests:
+            # Keep successfully loaded models resident.  The unconditional
+            # development reset used for cold benchmarks made every ordinary
+            # generation pay model-load cost again and could race the next
+            # request.  Failed/cancelled jobs still get the defensive reset.
+            if self.status.prompt_requests and self.status.snapshot().get("state") != "complete":
                 self._request_runtime_reset()
             if ALLOW_FILE.exists():
                 ALLOW_FILE.unlink()
@@ -1592,6 +1950,7 @@ class WorkflowBridge:
         total = sum(weights.values()) or 1.0
         completed: set[str] = set()
         current: str | None = None
+        current_started_at: float | None = None
         current_fraction = 0.0
         while True:
             try:
@@ -1620,7 +1979,16 @@ class WorkflowBridge:
                 next_node = data.get("node")
                 if current and current in prompt:
                     completed.add(current)
+                    if DEVELOPMENT and current_started_at is not None:
+                        _audit(
+                            "external_ui_node_complete",
+                            prompt_id=prompt_id,
+                            node_id=current,
+                            node_type=str(prompt.get(current, {}).get("class_type") or "") or None,
+                            elapsed_seconds=round(time.time() - current_started_at, 4),
+                        )
                 current = str(next_node) if next_node is not None else None
+                current_started_at = time.time() if current is not None else None
                 current_fraction = 0.0
                 if next_node is None:
                     return True

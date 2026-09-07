@@ -28,6 +28,7 @@ if str(UI_ROOT) not in sys.path:
 from workflow_bridge import (
     WorkflowBridge,
     lora_inventory,
+    model_inventory,
     remove_persisted_upscaler_override,
     save_external_generation_state,
     save_external_prompt_state,
@@ -59,7 +60,7 @@ LAKIS_VERSION_PATH = (
 )
 OUTPUT_ROOT = (COMFY_ROOT / "output").resolve()
 INPUT_ROOT = (COMFY_ROOT / "input").resolve()
-AUDIT_PATH = COMFY_ROOT / "LAKIS_DEV" / "process_audit.jsonl"
+AUDIT_PATH = UI_ROOT.parent / "process_audit.jsonl"
 HOST = "127.0.0.1"
 PORT = 8766
 COMFY_SERVER = "http://127.0.0.1:8190" if DEVELOPMENT else "http://127.0.0.1:8189"
@@ -111,7 +112,7 @@ def write_ready_file(path: Path) -> None:
 
 
 @lru_cache(maxsize=1)
-def load_csv_autocomplete() -> tuple[tuple[str, str, int, str], ...]:
+def load_csv_autocomplete() -> tuple[tuple[str, str, int, str, str], ...]:
     """Load the bundled, popularity-sorted LAKIS tag dictionary once."""
     entries: list[tuple[str, str, int, str]] = []
     if not AUTOCOMPLETE_CSV.is_file():
@@ -120,25 +121,42 @@ def load_csv_autocomplete() -> tuple[tuple[str, str, int, str], ...]:
         for row in csv.reader(stream):
             if len(row) < 4 or not row[0].strip():
                 continue
-            tag, _tag_type, count_text, description = row[:4]
-            label_match = re.match(r"^\[[^\]]+\]\s*([^:/]{1,48}?)\s*:", description)
-            korean_label = label_match.group(1).strip() if label_match else ""
+            tag, tag_type, count_text, description = row[:4]
+            # The 2026-09-07 dictionary uses a prose description followed by
+            # `키워드: <분류>, 실제 검색어, ...`. Parse this before the legacy
+            # `한글 표시명:` form so the keyword marker itself cannot be
+            # mistaken for a display label.
+            keyword_match = re.search(r"키워드:\s*(?:<[^>]+>\s*,?\s*)?([^,]+)", description)
+            if keyword_match:
+                korean_label = keyword_match.group(1).strip()
+            else:
+                label_match = re.match(r"^\[[^\]]+\]\s*([^:/]{1,48}?)\s*:", description)
+                korean_label = label_match.group(1).strip() if label_match else ""
             try:
                 count = int(count_text)
             except ValueError:
                 count = 0
-            entries.append((tag.strip(), korean_label, count, description.strip()))
+            section = {"0": "general", "1": "artist", "3": "copyright", "4": "character", "5": "meta"}.get(
+                tag_type.strip(), "general"
+            )
+            entries.append((tag.strip(), korean_label, count, description.strip(), section))
     return tuple(entries)
 
 
 @lru_cache(maxsize=512)
 def csv_tag_suggestions(query: str, limit: int = 12) -> tuple[dict, ...]:
-    normalized = query.strip().casefold().replace(" ", "_")
-    if len(normalized) < 2:
+    normalized_text = query.strip().casefold()
+    normalized_tag_query = normalized_text.replace(" ", "_")
+    if len(normalized_text) < 2:
         return tuple()
     matches = []
-    for tag, korean_label, count, description in load_csv_autocomplete():
-        if tag.casefold().startswith(normalized):
+    korean_query = bool(KOREAN_PATTERN.search(query))
+    for tag, korean_label, count, description, _section in load_csv_autocomplete():
+        normalized_tag = normalized_tag_identity(tag)
+        matched = normalized_tag.startswith(normalized_tag_identity(normalized_tag_query))
+        if korean_query:
+            matched = normalized_text in korean_label.casefold() or normalized_text in description.casefold()
+        if matched:
             matches.append({
                 "tag": tag,
                 "ko": korean_label,
@@ -149,6 +167,17 @@ def csv_tag_suggestions(query: str, limit: int = 12) -> tuple[dict, ...]:
             if len(matches) >= limit:
                 break
     return tuple(matches)
+
+
+def normalized_tag_identity(value: object) -> str:
+    """Treat spaces, underscores, repeated whitespace and case as one tag."""
+    unescaped = re.sub(r"\\([()\[\]{}])", r"\1", str(value or ""))
+    return "_".join(unescaped.strip().casefold().replace("_", " ").split())
+
+
+@lru_cache(maxsize=1)
+def csv_tag_lookup() -> dict[str, tuple[str, str, int, str, str]]:
+    return {normalized_tag_identity(row[0]): row for row in load_csv_autocomplete()}
 
 try:
     EASYUSE_ANIMA_ROOT = COMFY_ROOT / "custom_nodes" / "comfyui-easyuse-anima"
@@ -189,7 +218,7 @@ def translate_korean_text(value: str) -> str:
                     "https://translate.googleapis.com/translate_a/single"
                     f"?client=gtx&sl=auto&tl=en&dt=t&q={quote(source_text)}"
                 )
-                request = Request(endpoint, headers={"User-Agent": "LAKIS/7.2.4"})
+                request = Request(endpoint, headers={"User-Agent": "LAKIS/7.3.1"})
                 with urlopen(request, timeout=10.0) as response:
                     payload = json.loads(response.read().decode("utf-8"))
                 translated_body = "".join(
@@ -256,7 +285,7 @@ def _ensure_realesrgan_model() -> Path:
         request = Request(
             REALESRGAN_URL + "?lakis_model=" + str(time.time_ns()),
             headers={
-                "User-Agent": "LAKIS/7.2.4",
+                "User-Agent": "LAKIS/7.3.1",
                 "Cache-Control": "no-cache, no-store, must-revalidate",
                 "Pragma": "no-cache",
             },
@@ -570,11 +599,16 @@ class Handler(SimpleHTTPRequestHandler):
                 ) as response:
                     payload = json.loads(response.read().decode("utf-8"))
                 remote_results = payload.get("results", payload.get("items", []))
-                known = {item["tag"] for item in csv_results}
-                suggestions = csv_results + [
-                    item for item in remote_results
-                    if isinstance(item, dict) and item.get("tag") not in known
-                ]
+                suggestions = []
+                known = set()
+                for item in csv_results + list(remote_results):
+                    if not isinstance(item, dict) or not item.get("tag"):
+                        continue
+                    identity = normalized_tag_identity(item["tag"])
+                    if not identity or identity in known:
+                        continue
+                    known.add(identity)
+                    suggestions.append(item)
                 self._send_json(200, {"ok": True, "suggestions": suggestions[:12], "source": "lakis_csv"})
             except Exception as error:
                 audit({"event": "external_ui_autocomplete_failed", "error": repr(error)})
@@ -585,6 +619,9 @@ class Handler(SimpleHTTPRequestHandler):
             return
         if self.path == "/api/lora-options":
             self._send_json(200, lora_inventory())
+            return
+        if self.path == "/api/model-options":
+            self._send_json(200, model_inventory())
             return
         if self.path == "/api/generation-status":
             self._send_json(200, GENERATION_BRIDGE.status.snapshot())
@@ -669,9 +706,28 @@ class Handler(SimpleHTTPRequestHandler):
                 )
                 with urlopen(request, timeout=5.0) as response:
                     result = json.loads(response.read().decode("utf-8"))
+                tokens = result.get("tokens", []) if isinstance(result, dict) else []
+                lookup = csv_tag_lookup()
+                for token in tokens:
+                    if not isinstance(token, dict) or token.get("section") not in {None, "", "unknown"}:
+                        continue
+                    identity = normalized_tag_identity(token.get("base") or token.get("token"))
+                    match = lookup.get(identity)
+                    if not match:
+                        continue
+                    tag, korean_label, count, description, section = match
+                    token.update({
+                        "base": re.sub(r"\\([()\[\]{}])", r"\1", tag),
+                        "section": section,
+                        "label": korean_label or section,
+                        "learned": True,
+                        "count": count,
+                        "description": description,
+                        "source": "lakis_csv",
+                    })
                 self._send_json(200, {
                     "ok": True,
-                    "tokens": result.get("tokens", []) if isinstance(result, dict) else [],
+                    "tokens": tokens,
                 })
             except Exception as error:
                 audit({"event": "external_ui_prompt_classify_failed", "error": repr(error)})
@@ -703,6 +759,7 @@ class Handler(SimpleHTTPRequestHandler):
                     incoming.get("model"), incoming.get("output"),
                     incoming.get("loras"), incoming.get("lora_enabled", True),
                     incoming.get("node_overrides"),
+                    incoming.get("generation"),
                 )
                 self._send_json(200, {"ok": True, **saved})
             except Exception as error:
@@ -710,11 +767,23 @@ class Handler(SimpleHTTPRequestHandler):
                 self._send_json(400, {"ok": False, "error": "모델 설정을 저장하지 못했어요."})
             return
         if self.path == "/api/generate":
+            incoming = self._read_json()
             try:
-                result = GENERATION_BRIDGE.start(self._read_json())
+                result = GENERATION_BRIDGE.start(incoming)
                 self._send_json(202, result)
-            except FileExistsError:
-                self._send_json(409, {"ok": False, "error": "One-shot authorization already exists"})
+            except FileExistsError as error:
+                audit({"event": "external_ui_generate_allowance_conflict", "error": repr(error)})
+                self._send_json(409, {
+                    "ok": False,
+                    "error": "다른 생성 요청이 준비 중입니다. 잠시 후 다시 시도해 주세요.",
+                    "error_code": "LKS-GEN-1010",
+                    "error_stage": "생성 요청 준비",
+                    "error_node_id": None,
+                    "error_node_type": None,
+                    "setting_diagnostic": None,
+                    "diagnostic_context": GENERATION_BRIDGE._diagnostic_context(incoming),
+                    "request_id": None,
+                })
             except Exception as error:
                 audit({"event": "external_ui_generate_rejected", "error": repr(error)})
                 error_code, public_message = GENERATION_BRIDGE._public_error(error)
@@ -724,6 +793,7 @@ class Handler(SimpleHTTPRequestHandler):
                     "error_node_id": getattr(error, "node_id", None),
                     "error_node_type": getattr(error, "node_type", None),
                     "setting_diagnostic": error.diagnostic() if hasattr(error, "diagnostic") else None,
+                    "diagnostic_context": GENERATION_BRIDGE._diagnostic_context(incoming),
                     "request_id": None,
                 })
             return

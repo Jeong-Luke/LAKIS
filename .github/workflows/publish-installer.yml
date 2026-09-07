@@ -79,7 +79,7 @@ jobs:
           $releaseJson = $null
           try { $releaseJson = gh release view $env:RELEASE_TAG --json isDraft 2>$null } catch { $releaseJson = $null }
           if (-not $releaseJson) {
-            gh release create $env:RELEASE_TAG --draft --title "LAKIS $env:RELEASE_TAG" --notes-file .\NEXT_RELEASE.md
+            gh release create $env:RELEASE_TAG --draft --title "LAKIS $env:RELEASE_TAG" --notes-file .\RELEASE_NOTES.md
             if ($LASTEXITCODE -ne 0) { throw "Failed to create draft release $env:RELEASE_TAG" }
           } elseif (-not (($releaseJson | ConvertFrom-Json).isDraft)) {
             # A previous attempt may have stopped after publishing but before

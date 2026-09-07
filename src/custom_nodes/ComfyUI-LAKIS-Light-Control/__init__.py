@@ -1923,6 +1923,25 @@ class LAKISRelight:
 
         ndotl = (normals * l_field).sum(dim=-1, keepdim=True).clamp(0.0, 1.0)
 
+        # Depth-derived normals are intentionally smooth and camera-facing.
+        # On illustrations that makes a lateral light technically correct but
+        # visually too subtle. Blend in a broad screen-space key-light field
+        # according to the lateral/elevation component, while retaining the
+        # normal response for local form and front/rear lighting.
+        screen_bias = None
+        if dm is not None:
+            screen_key = (
+                0.5
+                + 0.34 * float(base_l[0].item()) * xx
+                + 0.34 * float(base_l[1].item()) * yy
+            ).clamp(0.0, 1.0).unsqueeze(-1)
+            directional_weight = min(
+                0.62,
+                0.62 * math.sqrt(float(base_l[0].item()) ** 2 + float(base_l[1].item()) ** 2),
+            )
+            ndotl = ndotl * (1.0 - directional_weight) + screen_key * directional_weight
+            screen_bias = (screen_key - 0.5) * directional_weight
+
         # 'shadow' now means how strongly unilluminated surfaces separate from lit ones.
         gamma = 1.0 + shadow * 2.5
         direct = ndotl.pow(gamma) * attenuation
@@ -1962,22 +1981,28 @@ class LAKISRelight:
 
         rear_mask = (rear_mask * backness).clamp(0.0, 1.0)
 
-        direct_rgb = direct * color
-        rim_rgb = rim * color
-        rear_rgb = rear_mask * color
+        # Exposure-preserving relight.  The former absolute Lambertian multiply
+        # treated every surface not facing the synthetic light as almost black,
+        # even though the source image already contains a complete illumination
+        # solution.  Centre the synthetic illumination around its per-image mean
+        # and apply it as a relative gain instead.  This retains the source
+        # exposure while still separating the lit and unlit sides.
+        spatial_mean = direct.mean(dim=(1, 2), keepdim=True)
+        positive = (direct - spatial_mean).clamp_min(0.0)
+        negative = (spatial_mean - direct).clamp_min(0.0)
+        fill = 1.0 - ambient * 0.72
+        highlight_gain = intensity * (2.15 + 0.55 * shadow) * fill
+        shadow_gain = intensity * (0.95 + 1.05 * shadow) * fill
+        scalar_gain = 1.0 + highlight_gain * positive - shadow_gain * negative
+        if screen_bias is not None:
+            scalar_gain = scalar_gain + screen_bias * intensity * 1.35
 
-        # Normalize so fully lit neutral surfaces stay near original exposure.
-        # Rear light is deliberately an extra rim contribution: the front-facing
-        # interior remains dark while silhouettes can reach near-normal exposure.
-        denom = max(1e-4, ambient + intensity)
-        rear_gain = intensity * 1.35
-        light_rgb = (
-            ambient
-            + intensity * direct_rgb
-            + 0.45 * rim_rgb
-            + rear_gain * rear_rgb
-        ) / denom
-        light_rgb = light_rgb.clamp(0.02, 2.5)
+        # Colour affects added light, not the entire source image.  Neutral stays
+        # exactly neutral; warm/cool modes tint only highlights and rims.
+        tint = positive * intensity * 1.25 + rim * 0.45 + rear_mask * intensity * 1.10
+        light_rgb = scalar_gain + tint * (color - 1.0)
+        light_rgb = light_rgb + rim * 0.30 + rear_mask * intensity * 0.90
+        light_rgb = light_rgb.clamp(0.18, 2.5)
 
         exposure_gain = 2.0 ** (exposure * 2.0)
         light_rgb = light_rgb * exposure_gain

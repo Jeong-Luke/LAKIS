@@ -1,5 +1,51 @@
 # Release notes
 
+## v7.3.1
+
+### Diagnostics, LoRA workflow, autocomplete, and LAKIS_SCOPE
+
+- Expanded generation error reports with failure-stage, node, model, LoRA,
+  output, i2i, composition, advanced-setting, and runtime-trace diagnostics.
+- Fixed Nova Anime and other metadata-confirmed Anima-derived checkpoints
+  being rejected solely because their filenames did not contain `Anima`.
+- Refresh the LoRA catalogue when returning from LoRA Manager; added keyboard
+  search, live filtering, registered-LoRA exclusion, and a larger upward list.
+- Updated autocomplete to the 2026-09-07 Korean Danbooru dataset and fixed
+  duplicate suggestions, space/underscore matching, Korean lookup, and escaped
+  compound tags such as character names containing parentheses.
+- Added the independent MIT-licensed `LAKIS_SCOPE` refinement node and exposed
+  Ultimate/SCOPE processing as separate workflow paths; Ultimate remains the
+  default and SCOPE is user-selectable.
+- Updated both packaged workflows: the monitor icon opens the expanded runtime
+  workflow and the person icon opens the validated clean editable workflow.
+- Moved the production external UI from the legacy `LAKIS_DEV` directory to
+  `LAKIS`, and removed the development-only simulated-error hook from shipped
+  production JavaScript.
+- Kept the unfinished lighting feature disabled and DSINE-free.
+
+## v7.3-dev4
+
+### Nova Anime compatibility and complete validation diagnostics
+
+- Fixed Nova Anime and other Anima-derived checkpoints being rejected as
+  incompatible merely because their filenames did not contain the exact word
+  `Anima`.
+- Anima compatibility now also uses the downloaded checkpoint metadata
+  (`base_model` / `baseModel`) instead of relying only on the filename.
+- Fixed request-validation error reports omitting the submitted model,
+  generation, output, LoRA, composition, i2i, and advanced-setting context as
+  `settings: null`.
+- Include these changes in the next production release build and regression
+  test both a metadata-confirmed Anima derivative and an unrelated model.
+
+## Next patch — required cleanup
+
+- Remove the dormant `window.LAKISDevTriggerError` hook from the production
+  `external_ui/app.js` bundle. Keep the simulated-error UI and its trigger API
+  exclusively in development builds; verify the production desktop binary and
+  shipped JavaScript contain no `LAKISDevTriggerError`, `devtest-`, or simulated
+  error-generator entry point.
+
 ## v7.2.4
 
 ### External-component notices, upscaler choice, and UI reliability

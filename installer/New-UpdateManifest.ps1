@@ -65,7 +65,7 @@ Get-ChildItem -LiteralPath $licenceRoot -File -Recurse |
 
 # Never put a model path in the update manifest. Updaters shipped with 7.2.2
 # and 7.2.3 correctly protect the whole ComfyUI/models tree and would reject
-# the update before the new patcher could replace them. The 7.2.4 UI downloads
+# the update before the new patcher could replace them. The UI downloads
 # the permissively licensed RealESRGAN default on selection and verifies its
 # pinned SHA-256 instead.
 
@@ -77,7 +77,7 @@ Get-ChildItem -LiteralPath $externalRoot -File -Recurse |
     Sort-Object FullName |
     ForEach-Object {
         $relative = $_.FullName.Substring($externalRoot.Length).TrimStart('\').Replace('\', '/')
-        Add-UpdateFile "ComfyUI/LAKIS_DEV/external_ui/$relative" $_.FullName "$rawBase/src/external_ui/$relative"
+        Add-UpdateFile "ComfyUI/LAKIS/external_ui/$relative" $_.FullName "$rawBase/src/external_ui/$relative"
     }
 
 # Ship the DSINE-free lighting stub to existing users as well as clean
@@ -95,6 +95,18 @@ Get-ChildItem -LiteralPath $lightControlRoot -File -Recurse |
         $relative = $_.FullName.Substring($lightControlRoot.Length).TrimStart('\').Replace('\', '/')
         Add-UpdateFile "ComfyUI/custom_nodes/ComfyUI-LAKIS-Light-Control/$relative" $_.FullName `
             "$rawBase/src/custom_nodes/ComfyUI-LAKIS-Light-Control/$relative"
+    }
+
+# LAKIS_SCOPE is an independent LAKIS-owned custom node. Existing users need
+# the complete package; user models and third-party custom nodes are untouched.
+$scopeRoot = Join-Path $repo "src\custom_nodes\ComfyUI-LAKIS-Fast-Refiner"
+Get-ChildItem -LiteralPath $scopeRoot -File -Recurse |
+    Where-Object { $_.FullName -notmatch '[\\/]__pycache__[\\/]' -and $_.Extension -ne '.pyc' } |
+    Sort-Object FullName |
+    ForEach-Object {
+        $relative = $_.FullName.Substring($scopeRoot.Length).TrimStart('\').Replace('\', '/')
+        Add-UpdateFile "ComfyUI/custom_nodes/ComfyUI-LAKIS-Fast-Refiner/$relative" $_.FullName `
+            "$rawBase/src/custom_nodes/ComfyUI-LAKIS-Fast-Refiner/$relative"
     }
 
 # Keep the packaged camera-to-prompt bridge workflow synchronized without
@@ -120,9 +132,11 @@ foreach ($runtimeName in @(
         (Join-Path $repo "workflows\$runtimeName") "$rawBase/workflows/$runtimeName"
 }
 
+$releaseNotesBase64 = "7IOI66Gc7Jq0IOyXheyKpOy8gOydvCDsspjrpqwg67Cp7IudKExBS0lTX1NDT1BFKSDstpTqsIAKTEFLSVNfU0NPUEXripQg7LKY66asIOqzvOygleydhCDstZzsoIHtmZTtlZjsl6wg6riw7KG0IOuwqeyLnShVbHRpbWF0ZSBTRCBVcHNjYWxlKeqzvCDsnKDsgqztlZwg7ZKI7KeI7J2EIOycoOyngO2VmOuptOyEnCDsspjrpqwg7Iuc6rCE7J2EIOy1nOuMgCAzMCUg64uo7LaV7ZWp64uI64ukLiDsg53shLEg66qo65Oc7J2YIOyEuOu2gCDshKTsoJXsl5DshJwg65GQIOyymOumrCDrsKnsi50g7KSRIOybkO2VmOuKlCDrsKnsi53snYQg7ISg7YOd7ZWgIOyImCDsnojsnLzrqbAsIOq4sOuzuCDsspjrpqwg67Cp7Iud7J2AIOq4sOyhtCBVbHRpbWF0ZSBTRCBVcHNjYWxl66GcIOycoOyngOuQqeuLiOuLpC4KCuyymOumrCDsi5zqsITsnYAg6re4656Y7ZS97Lm065OcLCDtlbTsg4Hrj4QsIOyXheyKpOy8gOydvOufrCDrqqjrjbgg67CPIOydtOuvuOyngCDrs7XsnqHrj4Tsl5Ag65Sw6528IOuLrOudvOyniCDsiJgg7J6I7Iq164uI64ukLgoK7Jik66WYIOynhOuLqCDsoJXrs7Qg67CPIOyytO2BrO2PrOyduO2KuCDtmLjtmZjshLEg6rCc7ISgCkxvUkEg66ek64uI7KCAIOyCrOyaqSDtm4QgTEFLSVMg67O16reAIOyLnCDrqqnroZ0g7J6Q64+ZIOqwseyLoApMb1JBIOyEoO2DneywveydmCDqsoDsg4nCt+yLpOyLnOqwhCDtlYTthLDrp4HCt+ykkeuztSDsoJzsmbgg6riw64qlIOqwnOyEoA=="
+$releaseNotes = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($releaseNotesBase64)).Replace("\n", [Environment]::NewLine)
 $manifest = [ordered]@{
     version = $Version
-    release_notes = "LAKIS $Version update"
+    release_notes = $releaseNotes
     files = $files
     delete = @()
 }

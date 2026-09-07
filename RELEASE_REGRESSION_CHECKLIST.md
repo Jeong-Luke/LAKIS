@@ -12,7 +12,7 @@ item is failing or unverified.
   `Test-UpdateManifest.ps1 -VerifyRemote -Passes 3`.
 - [ ] GitHub release remains a draft while assets are uploaded and checked;
   publish it only after all three verification passes complete.
-- [ ] `ComfyUI/LAKIS_DEV/external_ui/app.js` passes all three independent
+- [ ] `ComfyUI/LAKIS/external_ui/app.js` passes all three independent
   downloads. Hashes must be calculated from GitHub's tagged bytes, never the
   Windows working-tree copy (LF/CRLF may differ).
 - [ ] The release asset set includes Launcher, Patcher, fallback Updater, Desktop host, Model

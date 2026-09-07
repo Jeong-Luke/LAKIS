@@ -245,6 +245,9 @@ function install(textarea) {
     suggestions.hidden = items.length === 0;
     if (items.length) positionSuggestions();
   };
+  const suggestionIdentity = item => String(item?.tag || "")
+    .replace(/\\([()[\]{}])/g, "$1")
+    .trim().toLocaleLowerCase().replace(/_/g, " ").replace(/\s+/g, " ");
   const scheduleSuggestions = () => {
     clearTimeout(suggestionTimer);
     const fragment = currentFragment();
@@ -260,7 +263,13 @@ function install(textarea) {
         remote = Array.isArray(result.suggestions) ? result.suggestions : [];
       } catch {}
       if (requestSequence !== suggestionSequence || currentFragment().query !== fragment.query) return;
-      const merged = [...local, ...remote].filter((item, index, all) => item?.tag && all.findIndex(other => other?.tag === item.tag) === index).slice(0, 3);
+      const seen = new Set();
+      const merged = [...local, ...remote].filter(item => {
+        const identity = suggestionIdentity(item);
+        if (!identity || seen.has(identity)) return false;
+        seen.add(identity);
+        return true;
+      }).slice(0, 3);
       activeSuggestion = 0; renderSuggestions(merged);
     }, 120);
   };

@@ -22,11 +22,11 @@
   }
 
   function currentValue(nodeId, field) {
-    if (Object.prototype.hasOwnProperty.call(state.node_overrides[nodeId] || {}, field.name)) {
-      return state.node_overrides[nodeId][field.name];
-    }
     if (generationModeSwitches.has(nodeId) && field.name === "value") {
       return state.generation.mode === "detail";
+    }
+    if (Object.prototype.hasOwnProperty.call(state.node_overrides[nodeId] || {}, field.name)) {
+      return state.node_overrides[nodeId][field.name];
     }
     return cloneValue(field.value);
   }
@@ -119,7 +119,49 @@
 
   function render(group, body) {
     body.replaceChildren();
-    const nodes = configuration[group] || [];
+    if (group === "generation") {
+      const card = document.createElement("section");
+      card.className = "advanced-node-card advanced-node-card-upscaler";
+      const heading = document.createElement("div");
+      heading.className = "advanced-node-title";
+      heading.innerHTML = "<span>업스케일 처리 방식</span><small>LAKIS DEV</small>";
+      card.append(heading);
+      const row = document.createElement("label");
+      row.className = "advanced-field";
+      const name = document.createElement("span");
+      name.textContent = "업스케일러 노드";
+      const select = document.createElement("select");
+      const upscaleModes = [
+        ["ultimate", "Ultimate SD Upscale"],
+        ["lakis_scope", "LAKIS_SCOPE"],
+      ];
+      for (const [value, label] of upscaleModes) {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = label;
+        select.append(option);
+      }
+      const selectedEngine = state.generation.upscale_engine;
+      const supportedSelection = upscaleModes.some(([value]) => value === selectedEngine);
+      select.value = supportedSelection ? selectedEngine : "lakis_scope";
+      state.generation.upscale_engine = select.value;
+      if (!supportedSelection) scheduleGenerationStateSave();
+      select.addEventListener("change", () => {
+        state.generation.upscale_engine = select.value;
+        scheduleGenerationStateSave();
+        if (typeof render === "function") render();
+      });
+      row.append(name, select);
+      card.append(row);
+      body.append(card);
+    }
+    const nodes = [...(configuration[group] || [])];
+    if (group === "generation") {
+      nodes.sort((left, right) => {
+        const order = new Map([["1541:1536", 0], ["2140", 1], ["2138", 2], ["2139", 3]]);
+        return (order.get(left.id) ?? 100) - (order.get(right.id) ?? 100);
+      });
+    }
     if (!nodes.length) {
       const empty = document.createElement("div");
       empty.className = "advanced-settings-empty";

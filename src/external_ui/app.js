@@ -1,5 +1,5 @@
 const state = {
-  generation: { mode: "detail" },
+  generation: { mode: "detail", upscale_engine: "ultimate" },
   translation_enabled: true,
   lora_enabled: true,
   composition_enabled: true,
@@ -33,6 +33,8 @@ const TRANSLATION_STORAGE_KEY = "lakis.prompt-translation-enabled.v1";
 let loraOptions = [];
 let loraInventorySignature = "";
 let loraInventoryRefreshActive = false;
+let modelInventorySignature = "";
+let modelInventoryRefreshActive = false;
 let generationStateSaveTimer = null;
 
 function scheduleGenerationStateSave() {
@@ -48,6 +50,7 @@ function scheduleGenerationStateSave() {
           loras: state.loras,
           lora_enabled: state.lora_enabled,
           node_overrides: state.node_overrides,
+          generation: state.generation,
         }),
       });
     } catch (error) {
@@ -562,7 +565,8 @@ function render() {
   const generationActionRow = document.querySelector(".generation-action-row");
   generationActionRow.classList.toggle("mode-fast", !detail);
   generationActionRow.classList.toggle("mode-detail", detail);
-  document.querySelector("#detailContract").innerHTML = `<span class="contract-dot ${detail ? "on" : ""}"></span>Face · Eye · USDU ${detail ? "ON" : "OFF"}`;
+  const upscaleLabel = state.generation.upscale_engine === "lakis_scope" ? "SCOPE" : "USDU";
+  document.querySelector("#detailContract").innerHTML = `<span class="contract-dot ${detail ? "on" : ""}"></span>Face · Eye · ${upscaleLabel} ${detail ? "ON" : "OFF"}`;
   document.querySelector("#timeEstimate").textContent = detail ? "1분 이상" : "약 1분";
   document.querySelector("#generateHint").textContent = `${detail ? "DETAIL" : "FAST"} · COMPOSITION READY`;
   renderCamera();
@@ -921,9 +925,54 @@ async function refreshLoraInventory() {
   }
 }
 
-window.addEventListener("focus", () => refreshLoraInventory());
+function replaceModelOptions(id, configKey, options) {
+  const select = document.querySelector(`#${id}`);
+  const current = String(select.value || state.model[configKey] || "");
+  select.replaceChildren(...options.map(value => {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = value;
+    return option;
+  }));
+  if (options.includes(current)) {
+    select.value = current;
+  } else if (options.length) {
+    select.value = options[0];
+    state.model[configKey] = options[0];
+    scheduleGenerationStateSave();
+  }
+}
+
+async function refreshModelInventory() {
+  if (modelInventoryRefreshActive) return false;
+  modelInventoryRefreshActive = true;
+  try {
+    const response = await fetch("/api/model-options", { cache: "no-store" });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const inventory = await response.json();
+    const signature = String(inventory.signature || "");
+    if (signature && signature === modelInventorySignature) return false;
+    modelInventorySignature = signature;
+    replaceModelOptions("checkpointSelect", "checkpoint", Array.isArray(inventory.checkpoint) ? inventory.checkpoint.map(String) : []);
+    replaceModelOptions("vaeSelect", "vae", Array.isArray(inventory.vae) ? inventory.vae.map(String) : []);
+    replaceModelOptions("clipSelect", "clip", Array.isArray(inventory.clip) ? inventory.clip.map(String) : []);
+    return true;
+  } catch (error) {
+    console.error("Could not refresh model inventory", error);
+    return false;
+  } finally {
+    modelInventoryRefreshActive = false;
+  }
+}
+
+function refreshExternalModelInventories() {
+  refreshLoraInventory();
+  refreshModelInventory();
+}
+
+window.addEventListener("focus", refreshExternalModelInventories);
 document.addEventListener("visibilitychange", () => {
-  if (!document.hidden) refreshLoraInventory();
+  if (!document.hidden) refreshExternalModelInventories();
 });
 
 document.querySelector("#compositionToggle").addEventListener("click", () => {
@@ -1142,9 +1191,11 @@ async function refreshWorkflowConfiguration() {
     populateWorkflowSelect("checkpointSelect", "checkpoint", config.checkpoint);
     populateWorkflowSelect("vaeSelect", "vae", config.vae);
     populateWorkflowSelect("clipSelect", "clip", config.clip);
+    modelInventorySignature = "";
     populateWorkflowSelect("samplerSelect", "sampler", config.sampler);
     populateWorkflowSelect("schedulerSelect", "scheduler", config.scheduler);
     const savedGeneration = config.generation_state || {};
+    Object.assign(state.generation, savedGeneration.generation || {});
     Object.assign(state.model, savedGeneration.model || {});
     Object.assign(state.output, savedGeneration.output || {});
     state.node_overrides = savedGeneration.node_overrides && typeof savedGeneration.node_overrides === "object"
@@ -1194,6 +1245,10 @@ async function refreshWorkflowConfiguration() {
       document.querySelector(`#${id}`).value = value;
     }
     window.dispatchEvent(new CustomEvent("lakis-prompt-state-loaded"));
+    // The initial render happens before this asynchronous configuration is
+    // available. Refresh engine-dependent labels once the saved DEV engine
+    // has been restored (USDU for Ultimate, SCOPE for LAKIS_SCOPE).
+    render();
   } catch (error) {
     console.error("Could not load ComfyUI workflow model configuration", error);
   }
@@ -1613,18 +1668,6 @@ window.addEventListener("lakis:generation-error", resetGenerationButton);
 window.addEventListener("lakis:generation-cancelled", resetGenerationButton);
 window.LAKISGenerationProgress = setGenerationProgress;
 
-window.LAKISDevTriggerError = payload => {
-  if (!payload || typeof payload !== "object") return false;
-  showGenerationError(payload.message, payload.error_code, {
-    stage: payload.error_stage, nodeId: payload.error_node_id,
-    nodeType: payload.error_node_type, exceptionType: payload.error_exception_type,
-    requestId: payload.request_id, promptId: payload.prompt_id,
-    diagnostics: payload.diagnostic_context,
-    settingDiagnostic: payload.setting_diagnostic,
-  });
-  return true;
-};
-
 let lastGenerationState = "idle";
 async function pollGenerationStatus() {
   try {
@@ -1775,6 +1818,7 @@ window.addEventListener("lakis:generate", async event => {
       nodeId: error.lakis?.error_node_id, nodeType: error.lakis?.error_node_type,
       requestId: error.lakis?.request_id,
       settingDiagnostic: error.lakis?.setting_diagnostic,
+      diagnostics: error.lakis?.diagnostic_context,
     });
   } finally {
     generationSubmissionPending = false;

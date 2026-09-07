@@ -164,7 +164,8 @@ internal static class LakisLauncher
         private async Task StartAsync()
         {
             string python = Path.Combine(root, "python_embeded", "pythonw.exe");
-            string launcher = Path.Combine(root, "ComfyUI", "LAKIS_DEV", "external_ui", "launch_lakis.py");
+            string runtimeDirectory = DevelopmentBuild ? "LAKIS_DEV" : "LAKIS";
+            string launcher = Path.Combine(root, "ComfyUI", runtimeDirectory, "external_ui", "launch_lakis.py");
             if (!File.Exists(python) || !File.Exists(launcher))
             {
                 MessageBox.Show(this, "LAKIS 실행 파일을 찾을 수 없습니다. 설치를 다시 진행해 주세요.",
@@ -215,7 +216,7 @@ internal static class LakisLauncher
                     Path.Combine(root, "ComfyUI", "user", "default", "lora-manager");
                 Process process = Process.Start(startInfo);
                 startupProcess = process;
-                string launcherState = Path.Combine(root, "ComfyUI", "LAKIS_DEV",
+                string launcherState = Path.Combine(root, "ComfyUI", runtimeDirectory,
                     DevelopmentBuild ? "lakis_dev_launcher_state.json" : "lakis_launcher_state.json");
                 bool ready = await Task.Run(() => WaitForLauncherReady(process, launcherState, 180));
                 if (userCancelled || IsDisposed) return;
@@ -346,7 +347,7 @@ internal static class LakisLauncher
             try
             {
                 var request = (HttpWebRequest)WebRequest.Create(url + "?t=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-                request.UserAgent = "LAKIS-Launcher/7.2.4";
+                request.UserAgent = "LAKIS-Launcher/7.3.1";
                 request.Timeout = 12000;
                 request.ReadWriteTimeout = 12000;
                 request.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
@@ -367,7 +368,7 @@ internal static class LakisLauncher
         try
         {
             var request = (HttpWebRequest)WebRequest.Create(LatestReleaseApiUrl + "?t=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-            request.UserAgent = "LAKIS-Launcher/7.2.4";
+            request.UserAgent = "LAKIS-Launcher/7.3.1";
             request.Accept = "application/vnd.github+json";
             request.Timeout = 12000;
             request.ReadWriteTimeout = 12000;
@@ -389,7 +390,7 @@ internal static class LakisLauncher
         try
         {
             var request = (HttpWebRequest)WebRequest.Create(LatestReleaseApiUrl + "?t=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-            request.UserAgent = "LAKIS-Launcher/7.2.4";
+            request.UserAgent = "LAKIS-Launcher/7.3.1";
             request.Accept = "application/vnd.github+json";
             request.Timeout = 12000; request.ReadWriteTimeout = 12000;
             request.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;

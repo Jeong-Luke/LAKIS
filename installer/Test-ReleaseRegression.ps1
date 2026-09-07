@@ -31,6 +31,9 @@ Require ($generator.Contains("lakis-tag-hash-")) "Manifest hashes must come from
 Require ($generator.Contains("LICENSE.md")) "Existing users must receive the LAKIS licence."
 Require ($generator.Contains("THIRD_PARTY_NOTICES.md")) "Existing users must receive third-party notices."
 Require ($generator.Contains("ComfyUI-LAKIS-Light-Control")) "Existing users must receive the DSINE-free Light Control stub."
+Require ($generator.Contains("ComfyUI-LAKIS-Fast-Refiner")) "Existing users must receive the independent LAKIS_SCOPE node."
+Require ($generator.Contains('ComfyUI/LAKIS/external_ui/')) "Production external UI must use the LAKIS runtime directory."
+Require (-not $generator.Contains('ComfyUI/LAKIS_DEV/external_ui/')) "Production manifest must not expose the development runtime path."
 Require (-not $generator.Contains('path = "ComfyUI/models/')) "Legacy updaters reject model paths; models must not be in the manifest."
 
 $thirdPartyNotices = Read-RepoFile "THIRD_PARTY_NOTICES.md"
@@ -73,6 +76,7 @@ Require ($workflow.Contains("LAKIS_Model_Importer.exe#LAKIS_Model_Importer.exe")
 Require ($workflow.Contains("LAKIS_Updater.exe#LAKIS_Updater.exe")) "Fallback Updater release asset is missing."
 Require ($workflow.Contains("-VerifyRemote -Passes 3")) "Release workflow must remotely verify every file three times."
 Require ($workflow.Contains("gh release create `$env:RELEASE_TAG --draft")) "Release assets must be staged in a draft release."
+Require ($workflow.Contains("--notes-file .\RELEASE_NOTES.md")) "Public release must use the curated release notes without development details."
 Require ($workflow.Contains("-DraftReleaseTag `$env:RELEASE_TAG")) "Draft release assets must be authenticated and hash-verified before publish."
 Require ($workflow.Contains("Test-InstallerDataSafety.ps1 -InstallerPath `$env:LAKIS_INSTALLER_OUTPUT")) "Built Setup artifact must pass the destructive-install regression test."
 Require ($workflow.Contains("publishedResponse.TrimStart([char]0xFEFF) | ConvertFrom-Json")) "Release identity guard must parse the text/plain GitHub manifest and strip its BOM."
@@ -102,6 +106,9 @@ Require (-not $setup.Contains("p101111/anima")) "The unlicensed Anima mirror mus
 
 $externalLauncher = Read-RepoFile "src\external_ui\launch_lakis.py"
 $externalServer = Read-RepoFile "src\external_ui\serve_ui.py"
+$externalApp = Read-RepoFile "src\external_ui\app.js"
+$advancedSettings = Read-RepoFile "src\external_ui\advanced-node-settings.js"
+$workflowBridge = Read-RepoFile "src\external_ui\workflow_bridge.py"
 $desktopLauncher = Read-RepoFile "installer\LAKIS_Launcher.cs"
 Require ($externalLauncher.Contains('"--port", "0"')) "External UI must use an OS-assigned per-launch port."
 Require ($externalLauncher.Contains("wait_ui_bridge_ready")) "External UI must complete the identity handshake before opening Desktop."
@@ -112,6 +119,13 @@ Require ($externalServer.Contains("/api/launcher-identity")) "External UI identi
 Require ($externalServer.Contains("server.server_address[1]")) "External UI must report its actual OS-assigned port."
 Require ($desktopLauncher.Contains("WaitForLauncherReady")) "Desktop launcher must wait for its own Python launcher state."
 Require (-not $desktopLauncher.Contains("UiResponds()")) "Desktop launcher must not accept an unrelated service on port 8766."
+Require (-not $externalServer.Contains('COMFY_ROOT / "LAKIS_DEV"')) "Production server must not write runtime data into LAKIS_DEV."
+Require (-not $externalApp.Contains("LAKISDevTriggerError")) "Production JavaScript must not contain the development error trigger."
+Require ($externalApp.Contains('upscale_engine: "ultimate"')) "Ultimate must remain the default upscale processing method."
+Require (-not $externalApp.Contains('config.development !== true) state.generation.upscale_engine')) "Production UI must not force away a saved SCOPE selection."
+Require ($advancedSettings.Contains('if (group === "generation")')) "Upscale processing selection must be visible in production advanced settings."
+Require ($workflowBridge.Contains('RELEASE_UPSCALE_ENGINES = {"ultimate", "lakis_scope"}')) "Production bridge must allow Ultimate and LAKIS_SCOPE only."
+Require ($workflowBridge.Contains('if upscale_engine == "lakis_scope":')) "Production bridge must construct the independent LAKIS_SCOPE node."
 
 & (Join-Path $PSScriptRoot "Test-InstallerDataSafety.ps1")
 Require ($LASTEXITCODE -eq 0) "Installer behavioral data-safety test failed."
@@ -161,12 +175,15 @@ foreach ($jsonFile in $jsonFiles) {
 
 foreach ($required in @(
     "LICENSE.md",
+    "RELEASE_NOTES.md",
     "THIRD_PARTY_NOTICES.md",
     "third_party_licenses\Real-ESRGAN-BSD-3-Clause.txt",
     "third_party_licenses\CircleStone-Labs-Non-Commercial-License-v1.2.md",
     "third_party_licenses\NVIDIA-Open-Model-License-2025-10-24.pdf",
     "third_party_licenses\NVIDIA-Cosmos-NOTICE.txt",
     "src\custom_nodes\ComfyUI-LAKIS-AutoPatch\LICENSE",
+    "src\custom_nodes\ComfyUI-LAKIS-Fast-Refiner\LICENSE",
+    "src\custom_nodes\ComfyUI-LAKIS-Fast-Refiner\NOTICE.md",
     "src\custom_nodes\ComfyUI-KR-Camera-PromptStudio-Bridge\LICENSE",
     "src\external_ui\system-info-dialog.js",
     "src\external_ui\upscaler-license-migration.js",
