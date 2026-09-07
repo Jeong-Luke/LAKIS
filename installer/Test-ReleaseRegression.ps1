@@ -33,6 +33,7 @@ Require ($generator.Contains("THIRD_PARTY_NOTICES.md")) "Existing users must rec
 Require ($generator.Contains("ComfyUI-LAKIS-Light-Control")) "Existing users must receive the DSINE-free Light Control stub."
 Require ($generator.Contains("ComfyUI-LAKIS-Fast-Refiner")) "Existing users must receive the independent LAKIS_SCOPE node."
 Require ($generator.Contains('ComfyUI/LAKIS/external_ui/')) "Production external UI must use the LAKIS runtime directory."
+Require ($generator.Contains('ComfyUI/LAKIS/STOP_AUTOMATION')) "Existing users must receive the production safety lock after runtime migration."
 Require (-not $generator.Contains('ComfyUI/LAKIS_DEV/external_ui/')) "Production manifest must not expose the development runtime path."
 Require (-not $generator.Contains('path = "ComfyUI/models/')) "Legacy updaters reject model paths; models must not be in the manifest."
 
@@ -176,6 +177,7 @@ foreach ($jsonFile in $jsonFiles) {
 foreach ($required in @(
     "LICENSE.md",
     "RELEASE_NOTES.md",
+    "resources\STOP_AUTOMATION",
     "THIRD_PARTY_NOTICES.md",
     "third_party_licenses\Real-ESRGAN-BSD-3-Clause.txt",
     "third_party_licenses\CircleStone-Labs-Non-Commercial-License-v1.2.md",

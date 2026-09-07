@@ -1,5 +1,11 @@
 # Release notes
 
+## v7.3.2
+
+- Fixed existing installations updated from v7.3.0 to v7.3.1 missing the
+  `ComfyUI/LAKIS/STOP_AUTOMATION` safety marker after the production runtime
+  directory migration. The marker is now part of the update manifest.
+
 ## v7.3.1
 
 ### Diagnostics, LoRA workflow, autocomplete, and LAKIS_SCOPE

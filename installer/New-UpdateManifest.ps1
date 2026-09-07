@@ -79,6 +79,8 @@ Get-ChildItem -LiteralPath $externalRoot -File -Recurse |
         $relative = $_.FullName.Substring($externalRoot.Length).TrimStart('\').Replace('\', '/')
         Add-UpdateFile "ComfyUI/LAKIS/external_ui/$relative" $_.FullName "$rawBase/src/external_ui/$relative"
     }
+Add-UpdateFile "ComfyUI/LAKIS/STOP_AUTOMATION" `
+    (Join-Path $repo "resources\STOP_AUTOMATION") "$rawBase/resources/STOP_AUTOMATION"
 
 # Ship the DSINE-free lighting stub to existing users as well as clean
 # installs. The directory is LAKIS-owned; cached third-party weights and all
@@ -132,7 +134,7 @@ foreach ($runtimeName in @(
         (Join-Path $repo "workflows\$runtimeName") "$rawBase/workflows/$runtimeName"
 }
 
-$releaseNotesBase64 = "7IOI66Gc7Jq0IOyXheyKpOy8gOydvCDsspjrpqwg67Cp7IudKExBS0lTX1NDT1BFKSDstpTqsIAKTEFLSVNfU0NPUEXripQg7LKY66asIOqzvOygleydhCDstZzsoIHtmZTtlZjsl6wg6riw7KG0IOuwqeyLnShVbHRpbWF0ZSBTRCBVcHNjYWxlKeqzvCDsnKDsgqztlZwg7ZKI7KeI7J2EIOycoOyngO2VmOuptOyEnCDsspjrpqwg7Iuc6rCE7J2EIOy1nOuMgCAzMCUg64uo7LaV7ZWp64uI64ukLiDsg53shLEg66qo65Oc7J2YIOyEuOu2gCDshKTsoJXsl5DshJwg65GQIOyymOumrCDrsKnsi50g7KSRIOybkO2VmOuKlCDrsKnsi53snYQg7ISg7YOd7ZWgIOyImCDsnojsnLzrqbAsIOq4sOuzuCDsspjrpqwg67Cp7Iud7J2AIOq4sOyhtCBVbHRpbWF0ZSBTRCBVcHNjYWxl66GcIOycoOyngOuQqeuLiOuLpC4KCuyymOumrCDsi5zqsITsnYAg6re4656Y7ZS97Lm065OcLCDtlbTsg4Hrj4QsIOyXheyKpOy8gOydvOufrCDrqqjrjbgg67CPIOydtOuvuOyngCDrs7XsnqHrj4Tsl5Ag65Sw6528IOuLrOudvOyniCDsiJgg7J6I7Iq164uI64ukLgoK7Jik66WYIOynhOuLqCDsoJXrs7Qg67CPIOyytO2BrO2PrOyduO2KuCDtmLjtmZjshLEg6rCc7ISgCkxvUkEg66ek64uI7KCAIOyCrOyaqSDtm4QgTEFLSVMg67O16reAIOyLnCDrqqnroZ0g7J6Q64+ZIOqwseyLoApMb1JBIOyEoO2DneywveydmCDqsoDsg4nCt+yLpOyLnOqwhCDtlYTthLDrp4HCt+ykkeuztSDsoJzsmbgg6riw64qlIOqwnOyEoA=="
+$releaseNotesBase64 = "djcuMy4xIOyXheuNsOydtO2KuCDtm4Qg7J2066+47KeAIOyDneyEseydtCDssKjri6jrkJjrjZgg66y47KCcIOyImOyglQrsoJXsi50g7Iuk7ZaJIOqyveuhnOyXkCDtlYTsmpTtlZwg7JWI7KCEIOyeoOq4iCDtjIzsnbwg7J6Q64+ZIOuzteq1rArsgqzsmqnsnpAg66qo6424LCBMb1JBIOuwjyDshKTsoJXsnYAg67OA6rK97ZWY7KeAIOyViuyKteuLiOuLpC4="
 $releaseNotes = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($releaseNotesBase64)).Replace("\n", [Environment]::NewLine)
 $manifest = [ordered]@{
     version = $Version
