@@ -134,7 +134,7 @@ foreach ($runtimeName in @(
         (Join-Path $repo "workflows\$runtimeName") "$rawBase/workflows/$runtimeName"
 }
 
-$releaseNotesBase64 = "djcuMy4yIOyXheuNsOydtO2KuCDtm4Qg7J2867aAIO2ZmOqyveyXkOyEnCDsnbTsoIQgTEFLSVMg67Cx7JeU65Oc6rCAIOuCqOyVhCDsnqzsi6TtlonsnbQg7LCo64uo65CY642YIOusuOygnCDsiJjsoJUK7Iuc7J6RIOy3qOyGjCDrsI8g7JeF642w7J207Yq4IOyiheujjCDsi5wgTEFLSVMg7ZSE66Gc7IS47IqkIOygleumrCDqsJXtmZQK7IKs7Jqp7J6QIOuqqOuNuCwgTG9SQSDrsI8g7ISk7KCV7J2AIOuzgOqyve2VmOyngCDslYrsirXri4jri6Qu"
+$releaseNotesBase64 = "TEFLSVMg7Iuk7ZaJIOuwjyDsl4XrjbDsnbTtirgg7JWI7KCV7ISx7J2EIOqwnOyEoO2WiOyKteuLiOuLpC4K7IKs7Jqp7J6QIOuqqOuNuCwgTG9SQSDrsI8g7ISk7KCV7J2AIOuzgOqyve2VmOyngCDslYrsirXri4jri6Qu"
 $releaseNotes = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($releaseNotesBase64)).Replace("\n", [Environment]::NewLine)
 $manifest = [ordered]@{
     version = $Version
