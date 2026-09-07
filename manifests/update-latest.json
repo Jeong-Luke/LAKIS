@@ -1,6 +1,6 @@
 {
   "version": "7.3.3",
-  "release_notes": "v7.3.2 업데이트 후 일부 환경에서 이전 LAKIS 백엔드가 남아 재실행이 차단되던 문제 수정\n시작 취소 및 업데이트 종료 시 LAKIS 프로세스 정리 강화\n사용자 모델, LoRA 및 설정은 변경하지 않습니다.",
+  "release_notes": "LAKIS 실행 및 업데이트 안정성을 개선했습니다.\n사용자 모델, LoRA 및 설정은 변경하지 않습니다.",
   "files": [
     {
       "path": "LAKIS.exe",
