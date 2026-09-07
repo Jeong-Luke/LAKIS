@@ -189,7 +189,7 @@ def translate_korean_text(value: str) -> str:
                     "https://translate.googleapis.com/translate_a/single"
                     f"?client=gtx&sl=auto&tl=en&dt=t&q={quote(source_text)}"
                 )
-                request = Request(endpoint, headers={"User-Agent": "LAKIS/7.2.4"})
+                request = Request(endpoint, headers={"User-Agent": "LAKIS/7.3.0"})
                 with urlopen(request, timeout=10.0) as response:
                     payload = json.loads(response.read().decode("utf-8"))
                 translated_body = "".join(
@@ -256,7 +256,7 @@ def _ensure_realesrgan_model() -> Path:
         request = Request(
             REALESRGAN_URL + "?lakis_model=" + str(time.time_ns()),
             headers={
-                "User-Agent": "LAKIS/7.2.4",
+                "User-Agent": "LAKIS/7.3.0",
                 "Cache-Control": "no-cache, no-store, must-revalidate",
                 "Pragma": "no-cache",
             },
@@ -710,11 +710,23 @@ class Handler(SimpleHTTPRequestHandler):
                 self._send_json(400, {"ok": False, "error": "모델 설정을 저장하지 못했어요."})
             return
         if self.path == "/api/generate":
+            incoming = self._read_json()
             try:
-                result = GENERATION_BRIDGE.start(self._read_json())
+                result = GENERATION_BRIDGE.start(incoming)
                 self._send_json(202, result)
-            except FileExistsError:
-                self._send_json(409, {"ok": False, "error": "One-shot authorization already exists"})
+            except FileExistsError as error:
+                audit({"event": "external_ui_generate_allowance_conflict", "error": repr(error)})
+                self._send_json(409, {
+                    "ok": False,
+                    "error": "다른 생성 요청이 준비 중입니다. 잠시 후 다시 시도해 주세요.",
+                    "error_code": "LKS-GEN-1010",
+                    "error_stage": "생성 요청 준비",
+                    "error_node_id": None,
+                    "error_node_type": None,
+                    "setting_diagnostic": None,
+                    "diagnostic_context": GENERATION_BRIDGE._diagnostic_context(incoming),
+                    "request_id": None,
+                })
             except Exception as error:
                 audit({"event": "external_ui_generate_rejected", "error": repr(error)})
                 error_code, public_message = GENERATION_BRIDGE._public_error(error)
@@ -724,6 +736,7 @@ class Handler(SimpleHTTPRequestHandler):
                     "error_node_id": getattr(error, "node_id", None),
                     "error_node_type": getattr(error, "node_type", None),
                     "setting_diagnostic": error.diagnostic() if hasattr(error, "diagnostic") else None,
+                    "diagnostic_context": GENERATION_BRIDGE._diagnostic_context(incoming),
                     "request_id": None,
                 })
             return

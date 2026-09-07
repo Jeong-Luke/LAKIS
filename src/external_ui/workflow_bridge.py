@@ -1304,6 +1304,14 @@ class WorkflowBridge:
         self._preview_bytes: bytes | None = None
         self._preview_mime = "image/jpeg"
         self._recover_interrupted_generation()
+        # No worker exists during bridge construction. A remaining one-shot
+        # authorization therefore belongs to an interrupted previous process.
+        if ALLOW_FILE.is_file():
+            try:
+                ALLOW_FILE.unlink()
+                _audit("external_ui_stale_allowance_cleared")
+            except OSError as error:
+                _audit("external_ui_stale_allowance_clear_failed", error=repr(error))
 
     def _write_generation_journal(self) -> None:
         snapshot = self.status.snapshot()

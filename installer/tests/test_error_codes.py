@@ -61,6 +61,24 @@ class ErrorCodeTests(unittest.TestCase):
             self.assertEqual("1634:1622", snapshot["error_node_id"])
             self.assertFalse(journal.exists())
 
+    def test_stale_generation_allowance_is_removed_on_startup(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            allowance = root / "allow-next.json"
+            journal = root / "generation-runtime-journal.json"
+            allowance.write_text('{"stale": true}', encoding="utf-8")
+            with patch.object(workflow_bridge, "ALLOW_FILE", allowance), patch.object(
+                workflow_bridge, "GENERATION_JOURNAL_PATH", journal
+            ):
+                workflow_bridge.WorkflowBridge()
+            self.assertFalse(allowance.exists())
+
+    def test_generation_allowance_conflict_has_documented_code(self):
+        error_codes = (REPOSITORY_ROOT / "ERROR_CODES.md").read_text(encoding="utf-8")
+        serve_ui = (REPOSITORY_ROOT / "src" / "external_ui" / "serve_ui.py").read_text(encoding="utf-8")
+        self.assertIn("LKS-GEN-1010", error_codes)
+        self.assertIn('"error_code": "LKS-GEN-1010"', serve_ui)
+
     def test_validation_codes(self):
         cases = {
             "Unknown diffusion model: x": "LKS-MOD-1101",

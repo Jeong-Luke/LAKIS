@@ -1,5 +1,16 @@
 # Release notes
 
+## v7.3.0
+
+### Error diagnostics and LoRA workflow improvements
+
+- Added structured LAKIS error codes and stage-specific diagnostics for generation, runtime, configuration, model, LoRA, i2i, translation, update and installation failures.
+- Added an error-report copy action containing active models, LoRAs, generation settings, failing-node information, request identifiers and runtime trace when available.
+- Added recovery reporting for interrupted generations and stale one-shot generation authorization files.
+- Added automatic LoRA inventory refresh when returning to LAKIS after using LoRA Manager, without periodic background polling.
+- Added searchable LoRA selectors that show all candidates on open, filter while typing, exclude LoRAs already in the active stack and use a larger upward-opening menu.
+- Preserved existing checkpoints, diffusion models, LoRAs, workflows and saved application settings during update.
+
 ## v7.2.4
 
 ### External-component notices, upscaler choice, and UI reliability
