@@ -125,6 +125,7 @@ Require ($externalLauncher.Contains('normalized_path(COMFY_MAIN) not in normaliz
 Require ($externalServer.Contains("/api/launcher-identity")) "External UI identity endpoint is missing."
 Require ($externalServer.Contains("server.server_address[1]")) "External UI must report its actual OS-assigned port."
 Require ($desktopLauncher.Contains("WaitForLauncherReady")) "Desktop launcher must wait for its own Python launcher state."
+Require ($desktopLauncher.Contains('Replace("\n", Environment.NewLine)')) "GitHub release notes must use Windows multiline line endings."
 Require ($desktopLauncher.Contains('Arguments = "/PID " + process.Id + " /T /F"')) "Cancelling startup must terminate the owned launcher process tree."
 Require ($desktopLauncher.Contains("if (!startupCompleted) StopStartupProcessTree()")) "Every incomplete launcher close path must clean up its process tree."
 Require (-not $desktopLauncher.Contains("UiResponds()")) "Desktop launcher must not accept an unrelated service on port 8766."

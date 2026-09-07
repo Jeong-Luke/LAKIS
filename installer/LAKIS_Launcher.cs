@@ -437,6 +437,7 @@ internal static class LakisLauncher
             if (!Version.TryParse(tag, out published) || published != expected) return "업데이트 세부 내용을 불러오지 못했습니다.";
             string body = payload.ContainsKey("body") ? Convert.ToString(payload["body"]).Trim() : "";
             if (String.IsNullOrWhiteSpace(body)) return "이번 버전의 릴리스 설명이 없습니다.";
+            body = body.Replace("\r\n", "\n").Replace("\r", "\n").Replace("\n", Environment.NewLine);
             return body.Length > 1800 ? body.Substring(0, 1800) + "…" : body;
         }
         catch { return "업데이트 세부 내용을 불러오지 못했습니다."; }
