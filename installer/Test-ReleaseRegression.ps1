@@ -25,6 +25,8 @@ $updater = Read-RepoFile "installer\LAKIS_Updater.cs"
 Require ($updater.Contains("attempt <= 3")) "Updater must retry each verified file three times."
 Require ($updater.Contains("lakis_update=")) "Updater downloads must use a unique cache-busting URL."
 Require ($updater.Contains("no-cache, no-store, must-revalidate")) "Updater must bypass HTTP caches."
+Require ($updater.Contains("for (int pass = 0; pass < 4; pass++)")) "Updater must repeatedly stop orphaned installed processes."
+Require ($updater.Contains("remaining.Count > 0")) "Updater must refuse relaunch while installed processes remain."
 
 $generator = Read-RepoFile "installer\New-UpdateManifest.ps1"
 Require ($generator.Contains("lakis-tag-hash-")) "Manifest hashes must come from published tagged bytes."
@@ -116,9 +118,15 @@ Require ($externalLauncher.Contains("wait_ui_bridge_ready")) "External UI must c
 Require (-not $externalLauncher.Contains("responds(UI_URL)")) "Launcher must never reuse an arbitrary process on the legacy shared UI port."
 Require ($externalLauncher.Contains('"LAKIS_COMFYUI_PORT_IN_USE_FAILED"')) "Launcher must fail closed when another backend already owns port 8189."
 Require (-not $externalLauncher.Contains('"existing" if responds(COMFY_URL)')) "Launcher must never reuse an arbitrary ComfyUI backend."
+Require ($externalLauncher.Contains("find_owned_stale_backend")) "Launcher must recover a strictly verified same-installation orphan backend."
+Require ($externalLauncher.Contains('previous_state.get("installation_id") != INSTALLATION_ID')) "Stale backend recovery must verify installation identity."
+Require ($externalLauncher.Contains('normalized_path(process.exe()) != normalized_path(PYTHON)')) "Stale backend recovery must verify the Python executable path."
+Require ($externalLauncher.Contains('normalized_path(COMFY_MAIN) not in normalized_command')) "Stale backend recovery must verify the ComfyUI command line."
 Require ($externalServer.Contains("/api/launcher-identity")) "External UI identity endpoint is missing."
 Require ($externalServer.Contains("server.server_address[1]")) "External UI must report its actual OS-assigned port."
 Require ($desktopLauncher.Contains("WaitForLauncherReady")) "Desktop launcher must wait for its own Python launcher state."
+Require ($desktopLauncher.Contains('Arguments = "/PID " + process.Id + " /T /F"')) "Cancelling startup must terminate the owned launcher process tree."
+Require ($desktopLauncher.Contains("if (!startupCompleted) StopStartupProcessTree()")) "Every incomplete launcher close path must clean up its process tree."
 Require (-not $desktopLauncher.Contains("UiResponds()")) "Desktop launcher must not accept an unrelated service on port 8766."
 Require (-not $externalServer.Contains('COMFY_ROOT / "LAKIS_DEV"')) "Production server must not write runtime data into LAKIS_DEV."
 Require (-not $externalApp.Contains("LAKISDevTriggerError")) "Production JavaScript must not contain the development error trigger."
@@ -169,6 +177,8 @@ foreach ($pythonSource in @(
 Require ($LASTEXITCODE -eq 0) "Cross-install external UI isolation regression failed."
 & $python (Join-Path $repo "installer\tests\test_ui_state_scoping.py")
 Require ($LASTEXITCODE -eq 0) "Per-install UI-state isolation regression failed."
+& $python (Join-Path $repo "installer\tests\test_launcher_stale_backend.py")
+Require ($LASTEXITCODE -eq 0) "Stale LAKIS backend ownership regression failed."
 foreach ($jsonFile in $jsonFiles) {
     & $python -m json.tool $jsonFile 1>$null
     Require ($LASTEXITCODE -eq 0) "Invalid packaged workflow JSON: $jsonFile"
@@ -195,6 +205,7 @@ foreach ($required in @(
     "installer\Test-RepairDataSafety.ps1",
     "installer\tests\test_installation_isolation.py",
     "installer\tests\test_ui_state_scoping.py",
+    "installer\tests\test_launcher_stale_backend.py",
     "RELEASE_REGRESSION_CHECKLIST.md"
 )) {
     Require (Test-Path -LiteralPath (Join-Path $repo $required) -PathType Leaf) "Missing release component: $required"

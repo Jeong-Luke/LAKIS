@@ -134,7 +134,7 @@ foreach ($runtimeName in @(
         (Join-Path $repo "workflows\$runtimeName") "$rawBase/workflows/$runtimeName"
 }
 
-$releaseNotesBase64 = "djcuMy4xIOyXheuNsOydtO2KuCDtm4Qg7J2066+47KeAIOyDneyEseydtCDssKjri6jrkJjrjZgg66y47KCcIOyImOyglQrsoJXsi50g7Iuk7ZaJIOqyveuhnOyXkCDtlYTsmpTtlZwg7JWI7KCEIOyeoOq4iCDtjIzsnbwg7J6Q64+ZIOuzteq1rArsgqzsmqnsnpAg66qo6424LCBMb1JBIOuwjyDshKTsoJXsnYAg67OA6rK97ZWY7KeAIOyViuyKteuLiOuLpC4="
+$releaseNotesBase64 = "djcuMy4yIOyXheuNsOydtO2KuCDtm4Qg7J2867aAIO2ZmOqyveyXkOyEnCDsnbTsoIQgTEFLSVMg67Cx7JeU65Oc6rCAIOuCqOyVhCDsnqzsi6TtlonsnbQg7LCo64uo65CY642YIOusuOygnCDsiJjsoJUK7Iuc7J6RIOy3qOyGjCDrsI8g7JeF642w7J207Yq4IOyiheujjCDsi5wgTEFLSVMg7ZSE66Gc7IS47IqkIOygleumrCDqsJXtmZQK7IKs7Jqp7J6QIOuqqOuNuCwgTG9SQSDrsI8g7ISk7KCV7J2AIOuzgOqyve2VmOyngCDslYrsirXri4jri6Qu"
 $releaseNotes = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($releaseNotesBase64)).Replace("\n", [Environment]::NewLine)
 $manifest = [ordered]@{
     version = $Version

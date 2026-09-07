@@ -1,5 +1,13 @@
 # Release notes
 
+## v7.3.3
+
+- Fixed `LKS-RUN-1001` after cancelling startup by terminating the owned
+  launcher process tree instead of leaving the ComfyUI child orphaned.
+- Added strict same-installation stale-backend recovery using the recorded PID,
+  executable path, command line, port, and ComfyUI API identity.
+- Repeated and verified installed-process shutdown before updater relaunch.
+
 ## v7.3.2
 
 - Fixed existing installations updated from v7.3.0 to v7.3.1 missing the

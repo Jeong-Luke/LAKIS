@@ -200,7 +200,7 @@ internal sealed class UpdaterForm : Form
             try
             {
                 var request = (HttpWebRequest)WebRequest.Create(url + "?t=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-                request.UserAgent = "LAKIS-Updater/7.3.2";
+                request.UserAgent = "LAKIS-Updater/7.3.3";
                 request.Timeout = 20000;
                 request.ReadWriteTimeout = 20000;
                 request.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
@@ -361,7 +361,7 @@ internal sealed class UpdaterForm : Form
                 string requestUrl = url + separator + "lakis_update=" + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + "_" + attempt;
                 using (var client = new WebClient())
                 {
-                    client.Headers.Add(HttpRequestHeader.UserAgent, "LAKIS-Updater/7.3.2");
+                    client.Headers.Add(HttpRequestHeader.UserAgent, "LAKIS-Updater/7.3.3");
                     client.Headers.Add(HttpRequestHeader.CacheControl, "no-cache, no-store, must-revalidate");
                     client.DownloadFile(requestUrl, output);
                 }
@@ -409,12 +409,44 @@ internal sealed class UpdaterForm : Form
     private void StopInstalledProcesses()
     {
         string prefix = targetRoot.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        // A killed Python launcher can leave its ComfyUI child alive.  Repeat
+        // the exact-install-path scan so late/orphaned children are also
+        // stopped before files are replaced and LAKIS is restarted.
+        for (int pass = 0; pass < 4; pass++)
+        {
+            bool found = false;
+            foreach (Process process in Process.GetProcesses())
+            {
+                try
+                {
+                    if (process.Id == Process.GetCurrentProcess().Id) continue;
+                    string executable = process.MainModule.FileName;
+                    if (!executable.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) continue;
+                    found = true;
+                    process.Kill();
+                    process.WaitForExit(5000);
+                }
+                catch { }
+                finally { process.Dispose(); }
+            }
+            if (!found) return;
+            System.Threading.Thread.Sleep(350);
+        }
+
+        var remaining = new List<int>();
         foreach (Process process in Process.GetProcesses())
         {
-            try { if (process.Id != Process.GetCurrentProcess().Id && process.MainModule.FileName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) { process.Kill(); process.WaitForExit(5000); } }
+            try
+            {
+                if (process.Id != Process.GetCurrentProcess().Id &&
+                    process.MainModule.FileName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                    remaining.Add(process.Id);
+            }
             catch { }
             finally { process.Dispose(); }
         }
+        if (remaining.Count > 0)
+            throw new IOException("실행 중인 LAKIS 프로세스를 종료하지 못했습니다. LAKIS를 모두 종료한 후 다시 업데이트해 주세요. PID: " + String.Join(", ", remaining));
     }
 
     private void SetStatus(string text, int current, int total)

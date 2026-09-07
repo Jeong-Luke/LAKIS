@@ -40,6 +40,7 @@ internal static class LakisLauncher
         private readonly string root;
         private Process startupProcess;
         private bool userCancelled;
+        private bool startupCompleted;
         private readonly CenterCropPictureBox artwork = new CenterCropPictureBox();
         private readonly List<Image> artworkFrames = new List<Image>();
         private readonly System.Windows.Forms.Timer artworkTimer = new System.Windows.Forms.Timer();
@@ -111,6 +112,9 @@ internal static class LakisLauncher
             Controls.AddRange(new Control[] { artwork, logo, title, subtitle, copyright, status, progress, close });
             close.BringToFront();
             Shown += async (_, __) => await StartAsync();
+            FormClosing += (_, __) => {
+                if (!startupCompleted) StopStartupProcessTree();
+            };
             FormClosed += (_, __) => { artworkTimer.Stop(); foreach (Image frame in artworkFrames) frame.Dispose(); };
         }
 
@@ -132,9 +136,38 @@ internal static class LakisLauncher
         private void CancelStartup()
         {
             userCancelled = true;
-            try { if (startupProcess != null && !startupProcess.HasExited) startupProcess.Kill(); }
-            catch { }
+            StopStartupProcessTree();
             Close();
+        }
+
+        private void StopStartupProcessTree()
+        {
+            Process process = startupProcess;
+            if (process == null) return;
+            try
+            {
+                if (process.HasExited) return;
+                string taskkill = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.System), "taskkill.exe");
+                var info = new ProcessStartInfo {
+                    FileName = taskkill,
+                    Arguments = "/PID " + process.Id + " /T /F",
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    WindowStyle = ProcessWindowStyle.Hidden,
+                };
+                using (Process killer = Process.Start(info))
+                    if (killer != null) killer.WaitForExit(10000);
+                try { if (!process.HasExited) process.Kill(); }
+                catch { }
+                try { process.WaitForExit(10000); }
+                catch { }
+            }
+            catch
+            {
+                try { if (!process.HasExited) { process.Kill(); process.WaitForExit(10000); } }
+                catch { }
+            }
         }
 
         protected override void OnPaint(PaintEventArgs e)
@@ -240,6 +273,7 @@ internal static class LakisLauncher
                 }
                 SetStatus("LAKIS Studio 실행 완료");
                 await Task.Delay(750);
+                startupCompleted = true;
                 Close();
             }
             catch (Exception error)
@@ -347,7 +381,7 @@ internal static class LakisLauncher
             try
             {
                 var request = (HttpWebRequest)WebRequest.Create(url + "?t=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-                request.UserAgent = "LAKIS-Launcher/7.3.2";
+                request.UserAgent = "LAKIS-Launcher/7.3.3";
                 request.Timeout = 12000;
                 request.ReadWriteTimeout = 12000;
                 request.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
@@ -368,7 +402,7 @@ internal static class LakisLauncher
         try
         {
             var request = (HttpWebRequest)WebRequest.Create(LatestReleaseApiUrl + "?t=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-            request.UserAgent = "LAKIS-Launcher/7.3.2";
+            request.UserAgent = "LAKIS-Launcher/7.3.3";
             request.Accept = "application/vnd.github+json";
             request.Timeout = 12000;
             request.ReadWriteTimeout = 12000;
@@ -390,7 +424,7 @@ internal static class LakisLauncher
         try
         {
             var request = (HttpWebRequest)WebRequest.Create(LatestReleaseApiUrl + "?t=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-            request.UserAgent = "LAKIS-Launcher/7.3.2";
+            request.UserAgent = "LAKIS-Launcher/7.3.3";
             request.Accept = "application/vnd.github+json";
             request.Timeout = 12000; request.ReadWriteTimeout = 12000;
             request.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;

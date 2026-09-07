@@ -14,6 +14,11 @@ import time
 from urllib.error import URLError
 from urllib.request import urlopen
 
+try:
+    import psutil
+except ImportError:  # ComfyUI portable normally includes psutil.
+    psutil = None
+
 
 UI_ROOT = Path(__file__).resolve().parent
 DEVELOPMENT = os.environ.get("LAKIS_DEVELOPMENT") == "1"
@@ -61,6 +66,107 @@ def fetch_json(url: str, timeout: float = 1.0) -> dict | None:
             return payload if isinstance(payload, dict) else None
     except (OSError, URLError, UnicodeError, json.JSONDecodeError):
         return None
+
+
+def load_previous_state() -> dict | None:
+    try:
+        payload = json.loads(STATE_PATH.read_text(encoding="utf-8"))
+        return payload if isinstance(payload, dict) else None
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return None
+
+
+def normalized_path(value: object) -> str:
+    try:
+        return os.path.normcase(str(Path(str(value)).resolve()))
+    except (OSError, TypeError, ValueError):
+        return ""
+
+
+def find_owned_stale_backend(previous_state: dict | None):
+    """Return only a listener previously launched by this exact installation."""
+    if psutil is None or not isinstance(previous_state, dict):
+        return None
+    if previous_state.get("installation_id") != INSTALLATION_ID:
+        return None
+    if previous_state.get("comfyui_started_by_lakis") is not True:
+        return None
+    try:
+        expected_pid = int(previous_state.get("comfyui_owned_pid", 0))
+    except (TypeError, ValueError):
+        return None
+    if expected_pid <= 0:
+        return None
+
+    stats = fetch_json(COMFY_URL, timeout=1.5)
+    argv = stats.get("system", {}).get("argv", []) if isinstance(stats, dict) else []
+    if not isinstance(argv, list) or not argv or normalized_path(argv[0]) != normalized_path(COMFY_MAIN):
+        return None
+
+    try:
+        listener_pid = None
+        for connection in psutil.net_connections(kind="tcp"):
+            local = connection.laddr
+            local_port = getattr(local, "port", None)
+            if local_port is None:
+                try:
+                    local_port = local[1]
+                except (IndexError, TypeError):
+                    local_port = 0
+            if connection.status == psutil.CONN_LISTEN and local_port == COMFY_PORT:
+                listener_pid = connection.pid
+                break
+        if listener_pid != expected_pid:
+            return None
+        process = psutil.Process(expected_pid)
+        if normalized_path(process.exe()) != normalized_path(PYTHON):
+            return None
+        command = process.cmdline()
+        normalized_command = [normalized_path(value) for value in command]
+        if normalized_path(COMFY_MAIN) not in normalized_command:
+            return None
+        try:
+            port_index = command.index("--port")
+            if int(command[port_index + 1]) != COMFY_PORT:
+                return None
+        except (ValueError, IndexError, TypeError):
+            return None
+        return process
+    except (OSError, psutil.Error):
+        return None
+
+
+def wait_port_release(timeout: float) -> bool:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if not responds(COMFY_URL, timeout=0.35):
+            return True
+        time.sleep(0.2)
+    return not responds(COMFY_URL, timeout=0.35)
+
+
+def terminate_owned_backend(process) -> bool:
+    """Terminate an already identity-checked LAKIS process tree."""
+    if psutil is None or process is None:
+        return False
+    try:
+        processes = process.children(recursive=True) + [process]
+        for item in reversed(processes):
+            try:
+                item.terminate()
+            except psutil.Error:
+                pass
+        _, alive = psutil.wait_procs(processes, timeout=6)
+        for item in alive:
+            try:
+                item.kill()
+            except psutil.Error:
+                pass
+        if alive:
+            psutil.wait_procs(alive, timeout=4)
+        return wait_port_release(3)
+    except (OSError, psutil.Error):
+        return False
 
 
 def bridge_identity_matches(
@@ -177,7 +283,21 @@ def show_error(message: str) -> None:
 def main() -> int:
     session_token = secrets.token_hex(32)
     ready_path = DEV_ROOT / f"ui_bridge_ready_{os.getpid()}_{session_token[:12]}.json"
+    previous_state = load_previous_state()
     comfy_port_in_use = responds(COMFY_URL)
+    recovered_stale_pid = None
+    if comfy_port_in_use:
+        # A normal close may need a moment to release the socket.  If it does
+        # not, recover only a process recorded as owned by this installation
+        # and independently verified by PID, executable, command line and API.
+        if wait_port_release(3):
+            comfy_port_in_use = False
+        else:
+            stale_backend = find_owned_stale_backend(previous_state)
+            if stale_backend is not None:
+                recovered_stale_pid = stale_backend.pid
+                if terminate_owned_backend(stale_backend):
+                    comfy_port_in_use = False
     state = {
         "launcher_started_at": datetime.now().isoformat(timespec="seconds"),
         "launcher_pid": os.getpid(),
@@ -194,6 +314,7 @@ def main() -> int:
         "ui_bridge_started_by_lakis": False,
         "ui_bridge_owned_pid": None,
         "desktop_target": None,
+        "recovered_stale_comfyui_pid": recovered_stale_pid,
     }
     comfy_process = None
     ui_process = None
