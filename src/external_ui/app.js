@@ -56,6 +56,8 @@ function scheduleGenerationStateSave() {
           lora_enabled: state.lora_enabled,
           node_overrides: state.node_overrides,
           generation: state.generation,
+          camera: state.camera,
+          composition_enabled: state.composition_enabled,
         }),
       });
     } catch (error) {
@@ -630,7 +632,7 @@ cameraCanvas.addEventListener("pointermove", event => {
   }
   renderCamera();
 });
-function stopCameraDrag(event){if(!cameraDrag||cameraDrag.pointerId!==event.pointerId)return;cameraDrag=null;cameraCanvas.style.cursor="crosshair";}
+function stopCameraDrag(event){if(!cameraDrag||cameraDrag.pointerId!==event.pointerId)return;cameraDrag=null;cameraCanvas.style.cursor="crosshair";scheduleGenerationStateSave();}
 cameraCanvas.addEventListener("pointerup",stopCameraDrag);
 cameraCanvas.addEventListener("pointercancel",stopCameraDrag);
 cameraCanvas.addEventListener("contextmenu",event=>event.preventDefault());
@@ -640,8 +642,9 @@ cameraCanvas.addEventListener("wheel", event => {
   if(event.shiftKey)state.camera.roll=clamp(state.camera.roll-amount*3);
   else state.camera.z=clamp(state.camera.z-amount);
   renderCamera();
+  scheduleGenerationStateSave();
 }, { passive:false });
-cameraCanvas.addEventListener("dblclick",event=>{if(event.shiftKey){viewYaw=0;viewPitch=.42;}else{state.camera.x=0;state.camera.y=0;}renderCamera();});
+cameraCanvas.addEventListener("dblclick",event=>{if(event.shiftKey){viewYaw=0;viewPitch=.42;}else{state.camera.x=0;state.camera.y=0;}renderCamera();scheduleGenerationStateSave();});
 cameraCanvas.addEventListener("keydown", event => {
   const delta = event.shiftKey ? .1 : .02;
   if (["ArrowLeft","ArrowRight","ArrowUp","ArrowDown"].includes(event.key)) event.preventDefault();
@@ -650,6 +653,7 @@ cameraCanvas.addEventListener("keydown", event => {
   if (event.key === "ArrowUp") state.camera.y = clamp(state.camera.y + delta);
   if (event.key === "ArrowDown") state.camera.y = clamp(state.camera.y - delta);
   renderCamera();
+  scheduleGenerationStateSave();
 });
 
 // Superseded by the source-faithful LightMap mockup module loaded by index.html.
@@ -890,16 +894,19 @@ for (const [id,key] of [["cameraX","x"],["cameraY","y"],["cameraZ","z"],["camera
   document.querySelector(`#${id}`).addEventListener("change", event => {
     state.camera[key] = clamp(event.target.value);
     renderCamera();
+    scheduleGenerationStateSave();
   });
 }
 document.querySelector("#frameYInput").addEventListener("change", event => {
   state.camera.frame_y = clamp(event.target.value);
   renderCamera();
+  scheduleGenerationStateSave();
 });
 for (const [id,key] of [["cameraXSlider","x"],["cameraYSlider","y"],["cameraZSlider","z"],["frameYSlider","frame_y"],["cameraRollSlider","roll"]]) {
   document.querySelector(`#${id}`).addEventListener("input", event => {
     state.camera[key] = clamp(event.target.value);
     renderCamera();
+    scheduleGenerationStateSave();
   });
 }
 
@@ -914,11 +921,13 @@ document.querySelectorAll("[data-camera-preset]").forEach(button => button.addEv
   state.camera = {...cameraPresets[button.dataset.cameraPreset]};
   document.querySelectorAll("[data-camera-preset]").forEach(item => item.classList.toggle("active", item === button));
   renderCamera();
+  scheduleGenerationStateSave();
 }));
 document.querySelector("#cameraReset").addEventListener("click", () => {
   state.camera = {...cameraPresets.center};
   document.querySelectorAll("[data-camera-preset]").forEach(item => item.classList.toggle("active", item.dataset.cameraPreset === "center"));
   renderCamera();
+  scheduleGenerationStateSave();
 });
 
 function setCompositionEnabled(enabled) {
@@ -1004,6 +1013,7 @@ document.addEventListener("visibilitychange", () => {
 
 document.querySelector("#compositionToggle").addEventListener("click", () => {
   setCompositionEnabled(!state.composition_enabled);
+  scheduleGenerationStateSave();
 });
 
 document.querySelector("#outputFolderButton").addEventListener("click", async () => {
@@ -1252,6 +1262,8 @@ async function refreshWorkflowConfiguration() {
     Object.assign(state.generation, savedGeneration.generation || {});
     Object.assign(state.model, savedGeneration.model || {});
     Object.assign(state.output, savedGeneration.output || {});
+    Object.assign(state.camera, savedGeneration.camera || {});
+    state.composition_enabled = savedGeneration.composition_enabled !== false;
     state.node_overrides = savedGeneration.node_overrides && typeof savedGeneration.node_overrides === "object"
       ? structuredClone(savedGeneration.node_overrides)
       : {};
@@ -1263,6 +1275,7 @@ async function refreshWorkflowConfiguration() {
       document.querySelector(`#${id}`).value = state.output[key];
     }
     document.querySelector("#aspectRatioLock").checked = state.output.aspect_locked === true;
+    setCompositionEnabled(state.composition_enabled);
     lockedAspectRatio = clampImageDimension(state.output.width) / clampImageDimension(state.output.height);
     document.querySelectorAll("[data-seed-mode]").forEach(button => {
       button.classList.toggle("active", button.dataset.seedMode === state.output.seed_mode);

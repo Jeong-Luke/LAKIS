@@ -595,6 +595,7 @@ def load_external_generation_state() -> dict[str, Any]:
     model = payload.get("model", {})
     output = payload.get("output", {})
     generation = payload.get("generation", {})
+    camera = payload.get("camera", {})
     saved_engine = generation.get("upscale_engine") if isinstance(generation, dict) else None
     saved_lakis_mode = bool(generation.get("lakis_mode", False)) if isinstance(generation, dict) else False
     # v4 introduces SCOPE as an explicit release option while retaining
@@ -615,6 +616,12 @@ def load_external_generation_state() -> dict[str, Any]:
             if saved_engine in ((DEV_UPSCALE_ENGINES if DEVELOPMENT else RELEASE_UPSCALE_ENGINES) | {"lakis_fast"})
             else DEFAULT_UPSCALE_ENGINE
         },
+        "camera": {
+            key: max(-1.0, min(1.0, float(camera[key])))
+            for key in ("x", "y", "z", "roll", "frame_y")
+            if isinstance(camera, dict) and key in camera
+        },
+        "composition_enabled": bool(payload.get("composition_enabled", True)),
         "node_overrides": node_overrides,
     }
 
@@ -622,6 +629,7 @@ def load_external_generation_state() -> dict[str, Any]:
 def save_external_generation_state(
     model: Any, output: Any, loras: Any = None, lora_enabled: Any = True,
     node_overrides: Any = None, generation: Any = None,
+    camera: Any = None, composition_enabled: Any = True,
 ) -> dict[str, Any]:
     if not isinstance(model, dict) or not isinstance(output, dict):
         raise ValueError("model and output state must be objects")
@@ -645,6 +653,11 @@ def save_external_generation_state(
             "strength": max(-20.0, min(20.0, float(item.get("strength", 1.0)))),
         })
     clean_overrides = _clean_advanced_node_overrides(node_overrides or {})
+    clean_camera = {
+        key: max(-1.0, min(1.0, float(camera[key])))
+        for key in ("x", "y", "z", "roll", "frame_y")
+        if isinstance(camera, dict) and key in camera
+    }
     upscale_engine = generation.get("upscale_engine", DEFAULT_UPSCALE_ENGINE) if isinstance(generation, dict) else DEFAULT_UPSCALE_ENGINE
     if upscale_engine == "lakis_fast":
         upscale_engine = "lakis_scope"
@@ -662,6 +675,8 @@ def save_external_generation_state(
             "lakis_mode": bool(generation.get("lakis_mode", False)) if isinstance(generation, dict) else False,
             "upscale_engine": upscale_engine,
         },
+        "camera": clean_camera,
+        "composition_enabled": bool(composition_enabled),
         "updated_at": time.time(),
     })
     _write_external_ui_payload(payload)
@@ -669,6 +684,8 @@ def save_external_generation_state(
         "model": clean_model, "output": clean_output, "lora": payload["lora"],
         "node_overrides": clean_overrides,
         "generation": payload["generation"],
+        "camera": clean_camera,
+        "composition_enabled": payload["composition_enabled"],
     }
 
 

@@ -780,6 +780,8 @@ class Handler(SimpleHTTPRequestHandler):
                     incoming.get("loras"), incoming.get("lora_enabled", True),
                     incoming.get("node_overrides"),
                     incoming.get("generation"),
+                    incoming.get("camera"),
+                    incoming.get("composition_enabled", True),
                 )
                 self._send_json(200, {"ok": True, **saved})
             except Exception as error:
