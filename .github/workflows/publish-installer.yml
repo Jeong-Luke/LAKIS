@@ -118,13 +118,23 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
         run: |
-          git restore .\manifests\update-latest.json
           git fetch origin main
-          git checkout -B main origin/main
-          Copy-Item (Join-Path $env:RUNNER_TEMP "update-latest.json") .\manifests\update-latest.json -Force
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .\manifests\update-latest.json
-          if (git diff --cached --quiet) { Write-Output "Manifest is already current"; exit 0 }
-          git commit -m "release: publish verified $env:RELEASE_TAG update manifest"
-          git push origin main
+          # Build outputs modify tracked dist files and add new binaries. Do not
+          # switch the runner's dirty checkout. Publish from an isolated worktree.
+          $publishRoot = Join-Path $env:RUNNER_TEMP "lakis-manifest-main"
+          git worktree add --detach $publishRoot origin/main
+          if ($LASTEXITCODE -ne 0) { throw "Failed to create manifest publishing worktree" }
+          Copy-Item (Join-Path $env:RUNNER_TEMP "update-latest.json") `
+            (Join-Path $publishRoot "manifests\update-latest.json") -Force
+          Push-Location $publishRoot
+          try {
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add .\manifests\update-latest.json
+            if (git diff --cached --quiet) { Write-Output "Manifest is already current"; exit 0 }
+            git commit -m "release: publish verified $env:RELEASE_TAG update manifest"
+            if ($LASTEXITCODE -ne 0) { throw "Failed to commit verified update manifest" }
+            git push origin HEAD:main
+            if ($LASTEXITCODE -ne 0) { throw "Failed to push verified update manifest" }
+          }
+          finally { Pop-Location }
