@@ -171,7 +171,10 @@ class LAKISScope:
         # the costly diffusion pass mostly reproduces structure already present
         # in the learned pixel upscaler. Preserve that result and restore detail
         # with bounded multi-scale residuals instead (no VAE round trip).
-        if int(steps) <= 2 and float(denoise) <= 0.08:
+        # Quality mode must perform a real VAE/diffusion refinement.  Letting
+        # it enter the pixel-only shortcut merely sharpens enlarged source
+        # pixels and can look blocky on flat or weakly detailed checkpoints.
+        if not quality_mode and int(steps) <= 2 and float(denoise) <= 0.08:
             base = upscaled.permute(0, 3, 1, 2)
             fine = base - F.avg_pool2d(base, 3, 1, 1)
             medium_blur = F.avg_pool2d(base, 9, 1, 4)

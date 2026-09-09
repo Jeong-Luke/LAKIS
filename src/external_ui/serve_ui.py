@@ -67,8 +67,9 @@ COMFY_SERVER = "http://127.0.0.1:8190" if DEVELOPMENT else "http://127.0.0.1:818
 WORKFLOW_ROOT = COMFY_ROOT / "user" / "default" / "workflows"
 PACKAGED_WORKFLOW_ROOT = COMFY_ROOT / "LAKIS" / "workflows"
 PREFERRED_LAKIS_WORKFLOW = WORKFLOW_ROOT / "LAKIS_custom_v7.1.json"
-RUNTIME_LAKIS_WORKFLOW = PACKAGED_WORKFLOW_ROOT / "LAKIS_runtime_visual_v7.1.json"
-EDITABLE_LAKIS_WORKFLOW = PACKAGED_WORKFLOW_ROOT / "LAKIS_custom_v7.1_editable.json"
+RUNTIME_LAKIS_WORKFLOW = PACKAGED_WORKFLOW_ROOT / "LAKIS_runtime_visual_v7.3.json"
+RUNTIME_LAKIS_SOURCE_NAME = "LAKIS_DETAIL_runtime_api_v7.3.json"
+EDITABLE_LAKIS_WORKFLOW = PACKAGED_WORKFLOW_ROOT / "LAKIS_custom_v7.3_editable.json"
 AUTOPATCH_MARKER = COMFY_ROOT / "custom_nodes" / "ComfyUI-LAKIS-AutoPatch" / "startup_workflow.json"
 GENERATION_BRIDGE = WorkflowBridge()
 KOREAN_PATTERN = re.compile(r"[\u1100-\u11ff\u3130-\u318f\uac00-\ud7af]")
@@ -218,7 +219,7 @@ def translate_korean_text(value: str) -> str:
                     "https://translate.googleapis.com/translate_a/single"
                     f"?client=gtx&sl=auto&tl=en&dt=t&q={quote(source_text)}"
                 )
-                request = Request(endpoint, headers={"User-Agent": "LAKIS/7.3.3"})
+                request = Request(endpoint, headers={"User-Agent": "LAKIS/7.3.4"})
                 with urlopen(request, timeout=10.0) as response:
                     payload = json.loads(response.read().decode("utf-8"))
                 translated_body = "".join(
@@ -285,7 +286,7 @@ def _ensure_realesrgan_model() -> Path:
         request = Request(
             REALESRGAN_URL + "?lakis_model=" + str(time.time_ns()),
             headers={
-                "User-Agent": "LAKIS/7.3.3",
+                "User-Agent": "LAKIS/7.3.4",
                 "Cache-Control": "no-cache, no-store, must-revalidate",
                 "Pragma": "no-cache",
             },
@@ -553,6 +554,12 @@ class Handler(SimpleHTTPRequestHandler):
 
     def _prepare_lakis_workflow(self, kind: str = "runtime") -> dict:
         workflow_path, workflow = resolve_lakis_workflow(kind)
+        # The runtime API graph cannot be loaded directly into ComfyUI's visual
+        # editor, so the monitor button opens its visual counterpart.  Preserve
+        # the real runtime source name for the tab title instead of presenting
+        # it as the editable custom workflow.
+        display_name = RUNTIME_LAKIS_SOURCE_NAME if kind == "runtime" else workflow_path.name
+        workflow.setdefault("extra", {})["lakis_autopatch_display_name"] = display_name
         saved_choice = upscaler_choice_status().get("choice")
         selected = REALESRGAN_MODEL if saved_choice == "realesrgan" else ANIMESHARP_MODEL if saved_choice == "animesharp" else None
         if selected:
@@ -565,6 +572,7 @@ class Handler(SimpleHTTPRequestHandler):
             "event": "external_ui_workflow_open_prepared",
             "kind": kind,
             "workflow": str(workflow_path),
+            "display_name": display_name,
             "marker": str(AUTOPATCH_MARKER),
             "node_count": len(workflow["nodes"]),
         })
@@ -572,7 +580,7 @@ class Handler(SimpleHTTPRequestHandler):
             "ok": True,
             "comfy_url": COMFY_SERVER + "/",
             "workflow_kind": kind,
-            "workflow_name": workflow_path.name,
+            "workflow_name": display_name,
             "node_count": len(workflow["nodes"]),
         }
 
@@ -662,6 +670,15 @@ class Handler(SimpleHTTPRequestHandler):
         return json.loads(self.rfile.read(size).decode("utf-8"))
 
     def do_POST(self) -> None:  # noqa: N802
+        if self.path == "/api/warmup":
+            try:
+                self._read_json()
+                self._send_json(200, GENERATION_BRIDGE.warmup())
+            except Exception as error:
+                audit({"event": "external_ui_warmup_request_failed", "error": repr(error)})
+                # Warmup is an optimization. Its failure must never prevent LAKIS startup.
+                self._send_json(200, {"ok": False, "status": "failed", "error": str(error)})
+            return
         if self.path == "/api/open-legal-document":
             try:
                 incoming = self._read_json()
@@ -746,8 +763,11 @@ class Handler(SimpleHTTPRequestHandler):
             return
         if self.path == "/api/prompt-state":
             try:
-                saved = save_external_prompt_state(self._read_json().get("prompt"))
-                self._send_json(200, {"ok": True, "prompt": saved})
+                incoming = self._read_json()
+                saved = save_external_prompt_state(
+                    incoming.get("prompt"), incoming.get("prompt_enabled")
+                )
+                self._send_json(200, {"ok": True, **saved})
             except Exception as error:
                 audit({"event": "external_ui_prompt_state_save_failed", "error": repr(error)})
                 self._send_json(400, {"ok": False, "error": "프롬프트 상태를 저장하지 못했어요."})

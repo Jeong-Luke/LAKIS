@@ -1,5 +1,22 @@
 # Release notes
 
+## v7.3.4
+
+- Added the user-selectable LAKIS optimization path: `LAKIS_DETAIL` performs
+  one face diffusion pass with lightweight eye refinement, followed by the
+  optimized `LAKIS_SCOPE` upscaler.
+- Preserved legacy FAST and DETAIL behavior when LAKIS optimization is off.
+- Added adaptive VRAM boundary diagnostics and moved cache cleanup outside the
+  executing node to prevent worker termination and false generation stalls.
+- Confirm the live ComfyUI queue and history before treating websocket silence
+  during a long LAKIS_SCOPE pass as `LKS-GEN-1009`.
+- Fixed startup warmup, LAKIS mode switching, composition controls, and prompt
+  field switches after the external UI regression.
+- Added v7.3 editable and runtime-visual workflows to the sidebar and package.
+- Changed prompt-field ON switches to the standard LAKIS blue while retaining
+  pink exclusively for the LAKIS optimization mode.
+- Retained SAM3-based detection and excluded YOLO/Ultralytics materials.
+
 ## v7.3.3
 
 - Fixed `LKS-RUN-1001` after cancelling startup by terminating the owned
@@ -32,6 +49,9 @@
   default and SCOPE is user-selectable.
 - Updated both packaged workflows: the monitor icon opens the expanded runtime
   workflow and the person icon opens the validated clean editable workflow.
+- Fixed the monitor workflow identity: AutoPatch now labels the runtime visual
+  graph as `LAKIS_DETAIL_runtime_api_v7.3.json` instead of the old hard-coded
+  `LAKIS_custom_v7.1.json` name.
 - Moved the production external UI from the legacy `LAKIS_DEV` directory to
   `LAKIS`, and removed the development-only simulated-error hook from shipped
   production JavaScript.
@@ -54,11 +74,34 @@
 
 ## Next patch — required cleanup
 
+- Completed a full direct-dependency licence pass: ship standard GPL, AGPL,
+  Apache, Meta SAM, Microsoft WebView2, 7-Zip, Real-ESRGAN, CircleStone and
+  NVIDIA texts/notices; retain component-level notices during clean install,
+  Repair, and update. Keep the transitive Python/PyTorch/CUDA inventory and the
+  re-audit transitive binaries if LAKIS begins hosting or embedding them rather
+  than retrieving the official upstream distributions. Treat the
+  Spectrum modulation-guidance projection weight as an Anima-derived artifact
+  under the CircleStone non-commercial terms, not as MIT toolkit code.
+
+- Package LAKIS_DETAIL as `GPL-3.0-only`, retaining Luke Jeong's copyright for
+  the original LAKIS implementation and the dependency notice for ComfyUI
+  Impact Pack. Ship the node's complete GPL v3 `LICENSE`, `NOTICE.md`, and
+  dependency section in `README.md` together with its source.
+- Keep YOLO/Ultralytics out of LAKIS. Do not package
+  `ComfyUI-Impact-Subpack`, Ultralytics Python packages or executables, YOLO
+  weights, provider nodes, caches, or benchmark scripts. LAKIS_DETAIL retains
+  the SAM3-based detector path.
 - Remove the dormant `window.LAKISDevTriggerError` hook from the production
   `external_ui/app.js` bundle. Keep the simulated-error UI and its trigger API
   exclusively in development builds; verify the production desktop binary and
   shipped JavaScript contain no `LAKISDevTriggerError`, `devtest-`, or simulated
   error-generator entry point.
+- Include the complete Meta SAM License as
+  `third_party_licenses/Meta-SAM-License.txt` in every installer, update
+  package, and release archive that installs or retrieves SAM3 materials.
+  Keep the existing SAM3 attribution and official source link in
+  `THIRD_PARTY_NOTICES.md`; verify the packaged licence file is the exact
+  official agreement applicable to the pinned SAM3 revision.
 
 ## v7.2.4
 
@@ -136,3 +179,17 @@
   - binaries rebuilt and the 51-file update manifest regenerated;
   - both workflow choices pass the empty-user-workflow regression test;
   - the installer compiles with both application-owned workflows included.
+# Antivirus and Windows trust hardening
+
+- The 7.3.3 installer was reported as being blocked by antivirus software.
+- The previous artifact was an unsigned self-extracting executable containing
+  multiple embedded EXEs and `7zr.exe`, which increases heuristic false-positive
+  risk even when the payload is legitimate.
+- All first-party EXEs now receive explicit company, product, copyright, and
+  version metadata during compilation.
+- Release builds must be Authenticode-signed and RFC 3161 timestamped. Developer
+  builds may remain unsigned but print a warning.
+- The release gate now validates signatures and metadata and can run a Defender
+  custom scan before publishing.
+- If a final signed build is still detected, submit that exact hash through the
+  Microsoft Security Intelligence software-developer false-positive workflow.

@@ -12,7 +12,7 @@ import secrets
 import subprocess
 import time
 from urllib.error import URLError
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
 try:
     import psutil
@@ -64,6 +64,19 @@ def fetch_json(url: str, timeout: float = 1.0) -> dict | None:
                 return None
             payload = json.loads(response.read().decode("utf-8"))
             return payload if isinstance(payload, dict) else None
+    except (OSError, URLError, UnicodeError, json.JSONDecodeError):
+        return None
+
+
+def post_json(url: str, payload: dict, timeout: float = 120.0) -> dict | None:
+    try:
+        request = Request(
+            url, data=json.dumps(payload).encode("utf-8"), method="POST",
+            headers={"Content-Type": "application/json"},
+        )
+        with urlopen(request, timeout=timeout) as response:
+            body = json.loads(response.read().decode("utf-8"))
+            return body if isinstance(body, dict) else None
     except (OSError, URLError, UnicodeError, json.JSONDecodeError):
         return None
 
@@ -370,7 +383,14 @@ def main() -> int:
             show_error("현재 설치본의 LAKIS UI 브리지를 확인할 수 없습니다. LAKIS 런처 로그를 확인하십시오.\n\n오류 코드: LKS-UI-1001")
             return 1
 
+        state["classification"] = "LAKIS_WARMING_UP"
+        state["startup_stage"] = "생성 엔진 준비 중"
+        save_state(state)
+        state["warmup"] = post_json(ui_url + "api/warmup", {}, timeout=125.0) or {
+            "ok": False, "status": "failed", "reason": "warmup_endpoint_unavailable"
+        }
         state["classification"] = "LAKIS_READY"
+        state["startup_stage"] = "LAKIS Studio 화면 준비 중"
         state["ready_at"] = datetime.now().isoformat(timespec="seconds")
         state["desktop_target"] = ui_url
         save_state(state)

@@ -56,13 +56,17 @@ Require (-not $compactRepair.Contains('foreach(varmodelinModels)')) `
     "Repair must not reinstall or overwrite the general model inventory."
 
 # Audit every recursive-destructive helper reachable directly from Repair.
-# Light Control and Fast Refiner are LAKIS-owned; uiStage is a temporary
-# extraction directory; Lora Manager is an app component below custom_nodes.
-# No other target is valid.
+# Light Control, Fast Refiner, Camera Control, Camera Bridge, and LAKIS_DETAIL
+# are release-managed source packages; uiStage is a temporary extraction
+# directory; Lora Manager is an app component below custom_nodes. No other
+# target is valid. The explicit node-name allowlist prevents this loop from
+# expanding into arbitrary user custom nodes.
 $deleteCalls = [System.Text.RegularExpressions.Regex]::Matches($compactRepair, 'DeleteTree\(([^\)]+)\)')
 $deleteTargets = @($deleteCalls | ForEach-Object { $_.Groups[1].Value } | Sort-Object)
-Require ($deleteTargets.Count -eq 2 -and $deleteTargets[0] -eq 'lightTarget' -and $deleteTargets[1] -eq 'scopeTarget') `
-    "Repair may recursively replace only the LAKIS-owned Light Control and Fast Refiner directories."
+Require ($deleteTargets.Count -eq 3 -and $deleteTargets[0] -eq 'lightTarget' -and $deleteTargets[1] -eq 'nodeTarget' -and $deleteTargets[2] -eq 'scopeTarget') `
+    "Repair may recursively replace only the explicitly allowlisted release-managed node directories."
+Require ($compactRepair.Contains('new[]{"ComfyUI-KR-Camera-Control","ComfyUI-KR-Camera-PromptStudio-Bridge","ComfyUI-LAKIS-Detail"}')) `
+    "Repair's release-managed node replacement loop must use the exact audited allowlist."
 
 $resetCalls = [System.Text.RegularExpressions.Regex]::Matches($compactRepair, 'Reset\(([^\)]+)\)')
 Require ($resetCalls.Count -eq 1 -and $resetCalls[0].Groups[1].Value -eq 'uiStage') `
@@ -73,4 +77,4 @@ Require ($installZipCalls.Count -eq 1) "Repair may replace exactly one ZIP compo
 Require ($installZipCalls[0].Groups[1].Value -eq 'LoraManager,cache,Path.Combine(custom,LoraManager.Destination),status') `
     "Repair ZIP replacement escaped the LAKIS component allowlist."
 
-Write-Output "REPAIR_DATA_SAFETY_OK protected_roots=7 model_exception=RealESRGAN destructive_targets=4"
+Write-Output "REPAIR_DATA_SAFETY_OK protected_roots=7 model_exception=RealESRGAN destructive_targets=5"

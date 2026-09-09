@@ -111,24 +111,36 @@ Get-ChildItem -LiteralPath $scopeRoot -File -Recurse |
             "$rawBase/src/custom_nodes/ComfyUI-LAKIS-Fast-Refiner/$relative"
     }
 
-# Keep the packaged camera-to-prompt bridge workflow synchronized without
-# touching any user workflow files.
-$cameraBridgeRoot = Join-Path $repo "src\custom_nodes\ComfyUI-KR-Camera-PromptStudio-Bridge"
-$cameraBridgeMatches = @(Get-ChildItem -LiteralPath $cameraBridgeRoot -File -Filter "KR_Camera_Anima_*_ONOFF.json")
-if ($cameraBridgeMatches.Count -ne 1) {
-    throw "Expected exactly one packaged KR Camera Anima bridge workflow; found $($cameraBridgeMatches.Count)."
+# Update complete LAKIS node packages so existing installations receive the
+# same source, licence, notice and documentation files as clean installs.
+foreach ($nodeName in @(
+    "ComfyUI-KR-Camera-Control",
+    "ComfyUI-KR-Camera-PromptStudio-Bridge",
+    "ComfyUI-LAKIS-Detail"
+)) {
+    $nodeRoot = Join-Path $repo "src\custom_nodes\$nodeName"
+    Get-ChildItem -LiteralPath $nodeRoot -File -Recurse |
+        Where-Object { $_.FullName -notmatch '[\\/]__pycache__[\\/]' -and $_.Extension -ne '.pyc' } |
+        Sort-Object FullName |
+        ForEach-Object {
+            $relative = $_.FullName.Substring($nodeRoot.Length).TrimStart('\').Replace('\', '/')
+            Add-UpdateFile "ComfyUI/custom_nodes/$nodeName/$relative" $_.FullName `
+                "$rawBase/src/custom_nodes/$nodeName/$relative"
+        }
 }
-$cameraBridgeFile = $cameraBridgeMatches[0].Name
-Add-UpdateFile "ComfyUI/custom_nodes/ComfyUI-KR-Camera-PromptStudio-Bridge/$cameraBridgeFile" `
-    $cameraBridgeMatches[0].FullName `
-    "$rawBase/src/custom_nodes/ComfyUI-KR-Camera-PromptStudio-Bridge/$cameraBridgeFile"
+
+# The installed Spectrum package already retains its upstream MIT LICENSE.
+# Deliver LAKIS's prominent modification notice beside the patched files.
+Add-UpdateFile "ComfyUI/custom_nodes/comfyui-spectrum-ksampler/LAKIS_MODIFICATIONS.md" `
+    (Join-Path $repo "patches\ComfyUI-Spectrum-KSampler\NOTICE.md") `
+    "$rawBase/patches/ComfyUI-Spectrum-KSampler/NOTICE.md"
 
 # This is application-owned and safe to update. The editable workflow under
 # ComfyUI/user is deliberately excluded because it contains user changes.
 foreach ($runtimeName in @(
     "LAKIS_runtime_api_v7.1.json",
-    "LAKIS_runtime_visual_v7.1.json",
-    "LAKIS_custom_v7.1_editable.json"
+    "LAKIS_runtime_visual_v7.3.json",
+    "LAKIS_custom_v7.3_editable.json"
 )) {
     Add-UpdateFile "ComfyUI/LAKIS/workflows/$runtimeName" `
         (Join-Path $repo "workflows\$runtimeName") "$rawBase/workflows/$runtimeName"

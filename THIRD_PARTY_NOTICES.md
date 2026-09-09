@@ -1,6 +1,6 @@
 # LAKIS third-party notices
 
-Last reviewed: 2026-09-06
+Last reviewed: 2026-09-09
 
 LAKIS includes, downloads, modifies, or interoperates with third-party software
 and model files. Those materials remain subject to their own copyright notices
@@ -34,7 +34,10 @@ authorship or ownership of these components.
 | ultimate-upscale-for-automatic1111 | [2322caa4](https://github.com/Coyote-A/ultimate-upscale-for-automatic1111/tree/2322caa480535b1011a1f9c18126d85ea444f146) | GPL-3.0 |
 
 GPL/AGPL-covered source, including LAKIS modifications to covered components, is
-available in this repository and through the upstream links.
+available in this repository and through the upstream links. Standard licence
+texts are included as `third_party_licenses/GNU-GPL-3.0.txt`,
+`third_party_licenses/GNU-AGPL-3.0.txt`, and
+`third_party_licenses/Apache-2.0.txt`.
 
 ## Bundled and modified code
 
@@ -43,13 +46,22 @@ available in this repository and through the upstream links.
   [Civitai page](https://civitai.red/models/2814655/bskanimacamera-control?modelVersionId=3174431)
   links to the original
   [ModelScope plugin](https://modelscope.cn/models/bskhuian/Anima_Camera_Position_Control/tree/master/Plugin).
-  LAKIS modification notices are retained in the source headers.
+  LAKIS modification notices are retained in the source headers and
+  `NOTICE.md`; the complete AGPL v3 text is included in the node directory.
 - `ComfyUI-KR-Camera-PromptStudio-Bridge` is distributed under the MIT licence
   included in its directory.
+- `ComfyUI-LAKIS-Light-Control` retains its AGPL-3.0-or-later source headers,
+  complete AGPL v3 licence, copyright attribution, and modification notice.
+- `LAKIS_DETAIL` is Copyright © 2026 Luke Jeong and is distributed under
+  GPL-3.0-only because it directly imports and calls ComfyUI Impact Pack. Its
+  source package includes the complete GPL v3 text and an Impact Pack
+  dependency/attribution notice.
 - `ComfyUI-PreviewMonitor` is Copyright © 2026 Bedovyy and distributed under
-  the MIT licence included in its directory.
+  the MIT licence included in its directory. Source:
+  [bedovyy/ComfyUI-PreviewMonitor](https://github.com/bedovyy/ComfyUI-PreviewMonitor).
 - Modified Spectrum files retain the upstream MIT terms and identify the LAKIS
-  modifications in source control.
+  modifications in `patches/ComfyUI-Spectrum-KSampler/NOTICE.md`; the complete
+  upstream MIT text is included beside the patch as `LICENSE.upstream`.
 - Original LAKIS nodes are covered by `LICENSE.md` unless their directory states
   a different licence.
 
@@ -63,8 +75,9 @@ available in this repository and through the upstream links.
 | `anima-turbo-lora-v0.2.safetensors` | [CircleStone Labs Civitai release](https://civitai.com/models/2560840/anima-turbo-lora) · [official Anima-Official-LoRAs](https://huggingface.co/circlestone-labs/Anima-Official-LoRAs/blob/main/anima-turbo-lora-v0.2.safetensors) | CircleStone Labs Non-Commercial License. Copyright CircleStone Labs LLC. The official file and LAKIS pin have SHA-256 `1b55e40bdb1d0e5a78cb498f245fccfdaae97823265db957d2aabdcf4cd3caf1`. Model/LoRA use is non-commercial and non-production; the licence separately permits commercial use of outputs subject to its terms. |
 | `qwen_3_06b_base.safetensors` | [Qwen3-0.6B](https://huggingface.co/Qwen/Qwen3-0.6B) · [official Anima copy](https://huggingface.co/circlestone-labs/Anima/blob/main/split_files/text_encoders/qwen_3_06b_base.safetensors) | Apache-2.0; Alibaba Cloud Qwen Team. The official Anima copy and LAKIS pin have SHA-256 `cd2a512003e2f9f3cd3c32a9c3573f820bb28c940f73c57b1ddaa983d9223eba`. |
 | `qwen_image_vae.safetensors` | [Comfy-Org/Qwen-Image_ComfyUI at `7beb7b64`](https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/tree/7beb7b647f04469fbe64ba8adc2bb0d7e5e9f73f) | Apache-2.0 repository; underlying Qwen model terms also apply. |
-| `sam3.1_multiplex_fp16.safetensors` | [Comfy-Org/sam3.1 at `f38cd62b`](https://huggingface.co/Comfy-Org/sam3.1/tree/f38cd62b71494b53ac2b56ca36e24f3c8d565581) | Meta SAM License; redistribution and use are subject to the [official agreement](https://github.com/facebookresearch/sam3/blob/main/LICENSE). |
-| `pooled_text_proj-0611.safetensors` | [Spectrum release 0605](https://github.com/sorryhyun/ComfyUI-Spectrum-KSampler/releases/tag/0605) | Publisher release asset associated with the MIT project; no separate asset terms were stated. |
+| `sam3.1_multiplex_fp16.safetensors` | [Comfy-Org/sam3.1 at `f38cd62b`](https://huggingface.co/Comfy-Org/sam3.1/tree/f38cd62b71494b53ac2b56ca36e24f3c8d565581) | Meta SAM License; redistribution and use are subject to the [official agreement](https://github.com/facebookresearch/sam3/blob/main/LICENSE). The complete agreement is included as `third_party_licenses/Meta-SAM-License.txt`. |
+| `pooled_text_proj-0611.safetensors` | [Spectrum release 0605](https://github.com/sorryhyun/ComfyUI-Spectrum-KSampler/releases/tag/0605) · [upstream modulation-guidance documentation](https://github.com/sorryhyun/anima_lora/blob/main/docs/inference/mod-guidance.md) | Distilled Anima `pooled_text_proj` model artifact. The upstream `anima_lora` NOTICE states that adapters and other artifacts trained or derived from CircleStone/Anima weights are derivatives governed by the CircleStone Non-Commercial License, not by the toolkit's MIT code licence. The CircleStone licence and attribution supplied with LAKIS apply. |
+| `Depth-Anything-V2-Small-hf` | [official model](https://huggingface.co/depth-anything/Depth-Anything-V2-Small-hf) · [upstream project](https://github.com/DepthAnything/Depth-Anything-V2) | Apache-2.0. Downloaded only if the optional LAKIS Light Control geometry path is used. The Apache-2.0 text is included in `third_party_licenses/Apache-2.0.txt`. |
 
 Availability through LAKIS is not a representation that every use is permitted.
 Users must review the exact model terms before commercial use, redistribution,
@@ -98,9 +111,12 @@ and `third_party_licenses/NVIDIA-Cosmos-NOTICE.txt`. Built on NVIDIA Cosmos.
 
 - The installer uses the official unmodified `7zr.exe` from
   [7-Zip](https://www.7-zip.org/). Its publisher documents GNU LGPL, BSD
-  3-Clause, and unRAR-notice portions.
+  3-Clause, and unRAR-notice portions. The publisher's combined licence notice
+  is included as `third_party_licenses/7-Zip-License.txt`.
 - Microsoft Edge WebView2 runtime and SDK files remain subject to Microsoft's
-  applicable terms.
+  applicable terms. The licence and third-party notice from the exact pinned
+  NuGet package are included as `third_party_licenses/Microsoft-WebView2-LICENSE.txt`
+  and `third_party_licenses/Microsoft-WebView2-NOTICE.txt`.
 - Python, PyTorch, CUDA libraries, and PyPI packages retain their respective
   upstream licences and notices.
 

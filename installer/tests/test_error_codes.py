@@ -13,6 +13,16 @@ import workflow_bridge
 
 
 class ErrorCodeTests(unittest.TestCase):
+    def test_queue_probe_recognizes_running_prompt_in_comfy_queue_rows(self):
+        bridge = workflow_bridge.WorkflowBridge()
+        prompt_id = "prompt-under-test"
+        queue = {
+            "queue_running": [[7, prompt_id, {"1": {"class_type": "LAKIS_SCOPE"}}, {}]],
+            "queue_pending": [],
+        }
+        self.assertTrue(bridge._queue_contains_prompt(queue, prompt_id))
+        self.assertFalse(bridge._queue_contains_prompt(queue, "different-prompt"))
+
     def structured(self, node_id, node_type="TestNode", message="boom"):
         return workflow_bridge.GenerationExecutionError(
             {"exception_type": "TestError", "exception_message": message},

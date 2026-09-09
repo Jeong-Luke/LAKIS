@@ -7,6 +7,16 @@ item is failing or unverified.
 ## Automated release gates
 
 - [ ] `installer/Test-ReleaseRegression.ps1 -ExpectedVersion <version>` passes.
+- [ ] Build with `LAKIS_RELEASE_BUILD=1`. Prefer a trusted certificate selected
+  by `LAKIS_SIGNING_THUMBPRINT` plus `LAKIS_TIMESTAMP_URL`. When no certificate
+  is available, require explicit `LAKIS_ALLOW_UNSIGNED_RELEASE=1` acknowledgement
+  instead of silently producing an unsigned release.
+- [ ] `installer/Test-BinaryTrust.ps1 -ArtifactDirectory <dist>
+  -RunDefenderScan` passes and every SHA-256 is published. Add `-RequireSigned`
+  whenever a signing certificate is configured.
+- [ ] Submit the final installer hash to Microsoft Security Intelligence as a
+  software developer if Defender or SmartScreen reports a false positive, and
+  keep the release draft until Microsoft returns a clean determination.
 - [ ] All installer executables are rebuilt from the tagged source.
 - [ ] Every manifest URL and SHA-256 passes
   `Test-UpdateManifest.ps1 -VerifyRemote -Passes 3`.
@@ -17,6 +27,27 @@ item is failing or unverified.
   Windows working-tree copy (LF/CRLF may differ).
 - [ ] The release asset set includes Launcher, Patcher, fallback Updater, Desktop host, Model
   Importer, Uninstaller, WebView2 libraries, and Setup.
+- [ ] Confirm the complete release tree contains no `ComfyUI-Impact-Subpack`,
+  Ultralytics package/executable, YOLO weight, `UltralyticsDetectorProvider`,
+  YOLO cache, or YOLO benchmark script. Confirm the LAKIS_DETAIL face path
+  still resolves through SAM3.
+- [ ] Confirm packaged LAKIS_DETAIL source uses the SPDX identifier
+  `GPL-3.0-only` and ships its complete GPL v3 `LICENSE`, `NOTICE.md`, README
+  dependency disclosure, and ComfyUI Impact Pack attribution.
+- [ ] Every installer, update package, and release archive that installs or
+  retrieves SAM3 materials contains
+  `third_party_licenses/Meta-SAM-License.txt`. Confirm its contents match the
+  official licence for the pinned SAM3 revision and that
+  `THIRD_PARTY_NOTICES.md` retains the SAM3 attribution and source link.
+- [ ] Confirm `LICENSE.md`, `THIRD_PARTY_NOTICES.md`, and every file under
+  `third_party_licenses/` are included in clean install, Repair, and update
+  delivery. Camera Control, Light Control, and LAKIS_DETAIL must retain their
+  directory-level licence and notice files; the Spectrum patch must install
+  `LAKIS_MODIFICATIONS.md` beside the patched upstream package.
+- [ ] Review every newly added or changed download URL, model, custom node,
+  runtime fetch, and binary dependency against `THIRD_PARTY_NOTICES.md` before
+  publishing. Record unresolved terms in `THIRD_PARTY_AUDIT_DRAFT.md` rather
+  than inferring a licence from a repository containing the asset.
 - [ ] No path below `ComfyUI/models`, `ComfyUI/user`, `ComfyUI/input`, or
   `ComfyUI/output` appears in the updater manifest. Optional/default models are
   installed by the installer or the hash-verifying in-app importer.
@@ -81,6 +112,11 @@ item is failing or unverified.
   user-provided/installer-provided file.
 
 ## Generation regressions
+
+Candidate-runtime evidence collected on 2026-09-09 is recorded in
+`docs/RELEASE_GENERATION_VALIDATION_2026-09-09.md`. Checks below remain open
+until they are repeated against the rebuilt release artifact and the UI-only
+badge/interaction requirements are observed in the packaged desktop host.
 
 - [ ] FAST and DETAIL text-to-image each complete once with positive and
   negative prompts demonstrably applied.

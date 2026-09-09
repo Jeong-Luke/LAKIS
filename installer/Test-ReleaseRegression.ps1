@@ -34,6 +34,8 @@ Require ($generator.Contains("LICENSE.md")) "Existing users must receive the LAK
 Require ($generator.Contains("THIRD_PARTY_NOTICES.md")) "Existing users must receive third-party notices."
 Require ($generator.Contains("ComfyUI-LAKIS-Light-Control")) "Existing users must receive the DSINE-free Light Control stub."
 Require ($generator.Contains("ComfyUI-LAKIS-Fast-Refiner")) "Existing users must receive the independent LAKIS_SCOPE node."
+Require ($generator.Contains("ComfyUI-LAKIS-Detail")) "Existing users must receive LAKIS_DETAIL with its GPL source and notices."
+Require ($generator.Contains("ComfyUI-KR-Camera-Control")) "Existing users must receive Camera Control with its AGPL source and notices."
 Require ($generator.Contains('ComfyUI/LAKIS/external_ui/')) "Production external UI must use the LAKIS runtime directory."
 Require ($generator.Contains('ComfyUI/LAKIS/STOP_AUTOMATION')) "Existing users must receive the production safety lock after runtime migration."
 Require (-not $generator.Contains('ComfyUI/LAKIS_DEV/external_ui/')) "Production manifest must not expose the development runtime path."
@@ -50,7 +52,9 @@ foreach ($noticeName in @(
     "qwen_3_06b_base.safetensors",
     "qwen_image_vae.safetensors",
     "sam3.1_multiplex_fp16.safetensors",
+    "Depth-Anything-V2-Small-hf",
     "7-Zip",
+    "Microsoft-WebView2-LICENSE.txt",
     "DSINE"
 )) {
     Require ($thirdPartyNotices.Contains($noticeName)) "Third-party notice is missing: $noticeName"
@@ -95,6 +99,8 @@ foreach ($needle in @(
     'LAKIS_Model_Importer.exe',
     'THIRD_PARTY_NOTICES.md',
     'ComfyUI-LAKIS-Light-Control',
+    'ComfyUI-LAKIS-Detail',
+    'ComfyUI-KR-Camera-Control',
     'LAKIS_runtime_api_v7.1.json',
     'RealESRGAN_x4plus_anime_6B.pth'
 )) {
@@ -144,8 +150,8 @@ Require ($LASTEXITCODE -eq 0) "Repair data-preservation audit failed."
 
 $jsonPaths = @(
     "workflows\LAKIS_runtime_api_v7.1.json",
-    "workflows\LAKIS_runtime_visual_v7.1.json",
-    "workflows\LAKIS_custom_v7.1_editable.json"
+    "workflows\LAKIS_runtime_visual_v7.3.json",
+    "workflows\LAKIS_custom_v7.3_editable.json"
 )
 $jsonFiles = @($jsonPaths | ForEach-Object {
     $path = Join-Path $repo $_
@@ -194,10 +200,26 @@ foreach ($required in @(
     "third_party_licenses\CircleStone-Labs-Non-Commercial-License-v1.2.md",
     "third_party_licenses\NVIDIA-Open-Model-License-2025-10-24.pdf",
     "third_party_licenses\NVIDIA-Cosmos-NOTICE.txt",
+    "third_party_licenses\GNU-GPL-3.0.txt",
+    "third_party_licenses\GNU-AGPL-3.0.txt",
+    "third_party_licenses\Apache-2.0.txt",
+    "third_party_licenses\Meta-SAM-License.txt",
+    "third_party_licenses\7-Zip-License.txt",
+    "third_party_licenses\Microsoft-WebView2-LICENSE.txt",
+    "third_party_licenses\Microsoft-WebView2-NOTICE.txt",
     "src\custom_nodes\ComfyUI-LAKIS-AutoPatch\LICENSE",
     "src\custom_nodes\ComfyUI-LAKIS-Fast-Refiner\LICENSE",
     "src\custom_nodes\ComfyUI-LAKIS-Fast-Refiner\NOTICE.md",
+    "src\custom_nodes\ComfyUI-LAKIS-Detail\LICENSE",
+    "src\custom_nodes\ComfyUI-LAKIS-Detail\NOTICE.md",
+    "src\custom_nodes\ComfyUI-LAKIS-Detail\README.md",
+    "src\custom_nodes\ComfyUI-KR-Camera-Control\LICENSE",
+    "src\custom_nodes\ComfyUI-KR-Camera-Control\NOTICE.md",
     "src\custom_nodes\ComfyUI-KR-Camera-PromptStudio-Bridge\LICENSE",
+    "src\custom_nodes\ComfyUI-LAKIS-Light-Control\LICENSE",
+    "src\custom_nodes\ComfyUI-LAKIS-Light-Control\NOTICE.md",
+    "patches\ComfyUI-Spectrum-KSampler\LICENSE.upstream",
+    "patches\ComfyUI-Spectrum-KSampler\NOTICE.md",
     "src\external_ui\system-info-dialog.js",
     "src\external_ui\upscaler-license-migration.js",
     "src\external_ui\assets\upscaler\realesrgan-anime-6b-preview.png",
@@ -210,6 +232,25 @@ foreach ($required in @(
     "RELEASE_REGRESSION_CHECKLIST.md"
 )) {
     Require (Test-Path -LiteralPath (Join-Path $repo $required) -PathType Leaf) "Missing release component: $required"
+}
+
+$cameraControl = Read-RepoFile "src\custom_nodes\ComfyUI-KR-Camera-Control\__init__.py"
+$lightControl = Read-RepoFile "src\custom_nodes\ComfyUI-LAKIS-Light-Control\__init__.py"
+Require ($cameraControl.Contains("SPDX-License-Identifier: AGPL-3.0-or-later")) "Camera Control must retain its AGPL SPDX identifier."
+Require ($lightControl.Contains("SPDX-License-Identifier: AGPL-3.0-or-later")) "Light Control must retain its AGPL SPDX identifier."
+
+$forbiddenYoloPatterns = @("UltralyticsDetectorProvider", "face_yolov8m.pt", "ComfyUI-Impact-Subpack")
+$forbiddenYolo = Get-ChildItem -LiteralPath $repo -Recurse -File -Include *.py,*.js,*.json,*.ps1,*.cs,*.txt | Where-Object {
+    $_.Extension -in @('.py', '.js', '.json', '.ps1', '.cs', '.txt') -and
+    $_.FullName -notmatch '[\\/]\.git[\\/]' -and
+    $_.FullName -notmatch '[\\/]docs[\\/]' -and
+    $_.Name -ne 'Test-ReleaseRegression.ps1' -and
+    (Select-String -LiteralPath $_.FullName -Quiet -SimpleMatch -Pattern $forbiddenYoloPatterns)
+}
+$forbiddenYoloCount = @($forbiddenYolo).Count
+if ($forbiddenYoloCount -ne 0) {
+    $forbiddenPaths = ($forbiddenYolo | ForEach-Object { $_.FullName }) -join ", "
+    throw "RELEASE REGRESSION GATE FAILED: YOLO/Impact-Subpack material must not enter the release tree: $forbiddenPaths"
 }
 
 Write-Output "RELEASE_REGRESSION_GATE_OK version=$ExpectedVersion"

@@ -22,7 +22,7 @@
   <link rel="stylesheet" href="status-footer-large.css?v=20260905-copyright">
   <link rel="stylesheet" href="prompt-width.css?v=20260905-ratio-1-1-25-15">
   <link rel="stylesheet" href="generation-actions.css?v=20260905-responsive-action">
-  <link rel="stylesheet" href="prompt-categories.css?v=20260906-equal-prompt-halves">
+  <link rel="stylesheet" href="prompt-categories.css?v=20260909-blue-prompt-switches">
   <link rel="stylesheet" href="prompt-highlighting.css?v=20260906-paste-caret-sync">
   <link rel="stylesheet" href="lora-controls.css?v=20260906-lora-search-150">
   <link rel="stylesheet" href="preview-zoom.css?v=20260905-empty-preview">
@@ -47,7 +47,7 @@
         <div class="workflow-launcher">
           <button id="workflowButton" class="nav-item" type="button" aria-label="ComfyUI 워크플로 선택" title="ComfyUI Workflow" aria-haspopup="menu" aria-expanded="false"><svg class="workflow-brand-icon" viewBox="0 0 204 192" aria-hidden="true"><rect width="204" height="192" rx="5" fill="#2037db"/><path fill="#efff2d" d="M105 32h45c10 0 15 7 12 17l-4 14c-2 8-8 13-17 13h-42l-12 42h37c10 0 15 7 12 17l-4 14c-2 8-8 13-17 13H75c-11 0-16-7-13-17l3-11H55c-10 0-15-7-12-17l12-43c2-9 8-14 17-14h15l5-17c2-9 7-14 13-15z"/></svg></button>
           <div id="workflowMenu" class="workflow-menu" role="menu" hidden>
-            <button type="button" role="menuitem" data-workflow-kind="runtime" data-tooltip="LAKIS 실행 워크플로" aria-label="LAKIS 실행 워크플로"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8m-4-4v4"/></svg></button>
+            <button type="button" role="menuitem" data-workflow-kind="runtime" data-tooltip="LAKIS_DETAIL 실행 워크플로" aria-label="LAKIS_DETAIL 실행 워크플로"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8m-4-4v4"/></svg></button>
             <button type="button" role="menuitem" data-workflow-kind="editable" data-tooltip="사용자 편집 워크플로" aria-label="사용자 편집 워크플로"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4.5 21c.7-4.1 3.2-6 7.5-6s6.8 1.9 7.5 6"/></svg></button>
           </div>
         </div>
@@ -245,7 +245,7 @@
 
           <div class="generation-action-row">
             <article class="panel mode-panel compact-mode-panel">
-              <div class="compact-mode-head"><h2>생성 모드</h2><span id="timeEstimate" class="estimate">1분 이상</span></div>
+              <div class="compact-mode-head"><h2>생성 모드</h2><div class="lakis-mode-control"><span>LAKIS</span><button id="lakisModeButton" class="lakis-mode-switch" type="button" role="switch" aria-checked="false" aria-label="라키스 최적화 켜기" title="라키스 최적화 켜기"><i></i></button></div></div>
               <div class="mode-switch" role="group" aria-label="Generation mode">
                 <button class="mode-option" data-mode="fast"><strong>FAST</strong></button>
                 <button class="mode-option active" data-mode="detail"><strong>DETAIL</strong></button>
@@ -340,7 +340,7 @@
       <small>© 2026 Luke Jeong. All rights reserved. · Built on NVIDIA Cosmos.</small>
     </section>
   </div>
-  <script src="app.js?v=20260907-upscale-engine-dev"></script>
+  <script src="app.js?v=20260909-release-regression-fix2"></script>
   <script src="advanced-node-settings.js?v=20260907-upscale-engine-dev"></script>
   <script type="module" src="lightmap-knob-mockup.js?v=20260904-source-port"></script>
   <script type="module" src="prompt-highlighting.js?v=20260906-paste-caret-sync"></script>

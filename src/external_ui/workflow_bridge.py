@@ -509,14 +509,26 @@ def load_external_prompt_state() -> dict[str, str]:
     }
 
 
-def save_external_prompt_state(prompt: Any) -> dict[str, str]:
+def load_external_prompt_enabled() -> dict[str, bool]:
+    payload = _load_external_ui_payload()
+    enabled = payload.get("prompt_enabled", {}) if isinstance(payload, dict) else {}
+    if not isinstance(enabled, dict):
+        enabled = {}
+    return {key: enabled.get(key, True) is not False for key in PROMPT_STATE_KEYS}
+
+
+def save_external_prompt_state(prompt: Any, prompt_enabled: Any = None) -> dict[str, Any]:
     if not isinstance(prompt, dict):
         raise ValueError("prompt state must be an object")
     clean = {key: str(prompt.get(key, ""))[:100_000] for key in PROMPT_STATE_KEYS}
+    enabled = load_external_prompt_enabled()
+    if isinstance(prompt_enabled, dict):
+        enabled = {key: prompt_enabled.get(key, True) is not False for key in PROMPT_STATE_KEYS}
     payload = _load_external_ui_payload()
-    payload.update({"version": 2, "prompt": clean, "updated_at": time.time()})
+    payload.update({"version": 3, "prompt": clean, "prompt_enabled": enabled,
+                    "updated_at": time.time()})
     _write_external_ui_payload(payload)
-    return clean
+    return {"prompt": clean, "prompt_enabled": enabled}
 
 
 def _load_external_ui_payload() -> dict[str, Any]:
@@ -584,6 +596,7 @@ def load_external_generation_state() -> dict[str, Any]:
     output = payload.get("output", {})
     generation = payload.get("generation", {})
     saved_engine = generation.get("upscale_engine") if isinstance(generation, dict) else None
+    saved_lakis_mode = bool(generation.get("lakis_mode", False)) if isinstance(generation, dict) else False
     # v4 introduces SCOPE as an explicit release option while retaining
     # Ultimate as the default. Legacy aliases are normalized once.
     if int(payload.get("version", 0) or 0) < GENERATION_STATE_VERSION:
@@ -597,6 +610,7 @@ def load_external_generation_state() -> dict[str, Any]:
         "model": {key: model[key] for key in MODEL_STATE_KEYS if isinstance(model, dict) and key in model},
         "output": {key: output[key] for key in OUTPUT_STATE_KEYS if isinstance(output, dict) and key in output},
         "generation": {
+            "lakis_mode": saved_lakis_mode,
             "upscale_engine": saved_engine
             if saved_engine in ((DEV_UPSCALE_ENGINES if DEVELOPMENT else RELEASE_UPSCALE_ENGINES) | {"lakis_fast"})
             else DEFAULT_UPSCALE_ENGINE
@@ -644,7 +658,10 @@ def save_external_generation_state(
         "output": clean_output,
         "lora": {"current": clean_loras, "enabled": bool(lora_enabled)},
         "node_overrides": clean_overrides,
-        "generation": {"upscale_engine": upscale_engine},
+        "generation": {
+            "lakis_mode": bool(generation.get("lakis_mode", False)) if isinstance(generation, dict) else False,
+            "upscale_engine": upscale_engine,
+        },
         "updated_at": time.time(),
     })
     _write_external_ui_payload(payload)
@@ -766,6 +783,7 @@ def workflow_configuration() -> dict[str, Any]:
         "scheduler": {"current": scheduler, "options": scheduler_options, "loader_class": "KSampler"},
         "lora": _saved_lora_configuration(),
         "prompt": prompt_defaults,
+        "prompt_enabled": load_external_prompt_enabled(),
         "advanced_nodes": advanced_node_configuration(template),
         "generation_state": {
             "generation": saved.get("generation", {"upscale_engine": DEFAULT_UPSCALE_ENGINE}),
@@ -902,6 +920,41 @@ def _final_only(prompt: dict[str, Any]) -> dict[str, Any]:
         keep.add(node_id)
         pending.extend(_dependencies(prompt, node_id) - keep)
     return {node_id: prompt[node_id] for node_id in prompt if node_id in keep}
+
+
+def _dependency_only(prompt: dict[str, Any], target_node: str) -> dict[str, Any]:
+    """Return the minimum executable graph needed to reach one node."""
+    keep: set[str] = set()
+    pending = [target_node]
+    while pending:
+        node_id = pending.pop()
+        if node_id in keep:
+            continue
+        if node_id not in prompt:
+            raise RuntimeError(f"Missing warmup dependency {node_id}")
+        keep.add(node_id)
+        pending.extend(_dependencies(prompt, node_id) - keep)
+    return {node_id: prompt[node_id] for node_id in prompt if node_id in keep}
+
+
+def _warmup_graph(prompt: dict[str, Any], full: bool) -> tuple[dict[str, Any], str]:
+    """Build a no-save warmup target from the validated production graph."""
+    # ComfyUI rejects partial graphs that contain no OUTPUT_NODE.  A bare
+    # KSampler or VAEDecode therefore never warmed anything.  Finish the tiny
+    # 256px/1-step graph with PreviewImage: it is an output node, exercises the
+    # real VAE decode path, and does not write a user image to disk.
+    template = json.loads(TEMPLATE.read_text(encoding="utf-8"))
+    decode_id = "lakis_startup_warmup_decode"
+    target = "lakis_startup_warmup_preview"
+    decode = deepcopy(template["1635"])
+    decode["inputs"]["samples"] = ["1634:1622", 0]
+    prompt[decode_id] = decode
+    prompt[target] = {
+        "inputs": {"images": [decode_id, 0]},
+        "class_type": "PreviewImage",
+        "_meta": {"title": "LAKIS startup warmup preview"},
+    }
+    return _dependency_only(prompt, target), target
 
 
 def _inject_prompts(prompt: dict[str, Any], prompt_state: dict[str, Any]) -> None:
@@ -1049,12 +1102,15 @@ def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dic
     model = application_state.get("model", {})
     i2i = application_state.get("i2i", {})
     mode = generation.get("mode", "fast")
-    if mode not in {"fast", "detail"}:
-        raise ValueError("generation.mode must be fast or detail")
+    if mode not in {"fast", "detail", "lakis_detail"}:
+        raise ValueError("generation.mode must be fast, detail, or lakis_detail")
 
-    detail = mode == "detail"
-    for node_id in ("2138", "2139", "2140"):
-        prompt[node_id]["inputs"]["value"] = detail
+    detail = mode in {"detail", "lakis_detail"}
+    lakis_detail = detail and (mode == "lakis_detail" or bool(generation.get("lakis_mode", False)))
+    legacy_detail = detail and not lakis_detail
+    prompt["2138"]["inputs"]["value"] = legacy_detail
+    prompt["2139"]["inputs"]["value"] = legacy_detail
+    prompt["2140"]["inputs"]["value"] = detail
 
     # Hidden DEV benchmark contract: preserve the complete generation path but
     # skip both detailers so repeated upscale-engine measurements are quick.
@@ -1064,14 +1120,51 @@ def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dic
         prompt["2140"]["inputs"]["value"] = True
 
     requested_upscale_engine = generation.get("upscale_engine", DEFAULT_UPSCALE_ENGINE)
+    if legacy_detail:
+        requested_upscale_engine = "ultimate"
+    elif lakis_detail:
+        requested_upscale_engine = "lakis_scope"
     if requested_upscale_engine == "lakis_fast":
         requested_upscale_engine = "lakis_scope"
     allowed_engines = DEV_UPSCALE_ENGINES if DEVELOPMENT else RELEASE_UPSCALE_ENGINES
     if requested_upscale_engine not in allowed_engines:
         raise ValueError("generation.upscale_engine must be ultimate or lakis_scope")
     use_allinone_ultimate = requested_upscale_engine == "allinone_ultimate"
-    scope_quality = requested_upscale_engine == "lakis_scope_quality"
+    scope_quality = lakis_detail or requested_upscale_engine == "lakis_scope_quality"
     upscale_engine = "lakis_scope" if requested_upscale_engine in {"lakis_scope", "lakis_scope_quality"} else "ultimate"
+    if lakis_detail:
+        vram_gate_id = "lakis:vram:base_to_face"
+        face_scope_id = "lakis:face_scope"
+        prompt[vram_gate_id] = {
+            "class_type": "LAKIS_VRAM_GATE",
+            "_meta": {"title": "LAKIS VRAM Gate · base to detail"},
+            "inputs": {"image": ["1633:1611", 0], "min_free_gb": 1.5, "empty_cache": True},
+        }
+        prompt[face_scope_id] = {
+            "class_type": "LAKIS_DETAIL",
+            "_meta": {"title": "LAKIS_DETAIL · single pass"},
+            "inputs": {
+                "image": [vram_gate_id, 0], "face_segs": ["1530:1827", 0],
+                "model": ["1530:1832", 0], "clip": ["1530:1833", 2],
+                "vae": ["1530:1833", 3], "positive": ["1530:1833", 4],
+                "negative": ["1530:1833", 5], "seed": ["1530:1833", 8],
+                "steps": 8, "cfg": ["1530:1833", 11],
+                "sampler_name": ["1530:1833", 13], "scheduler": ["1530:1825", 0],
+                "face_guide_size": 768, "face_max_size": 1280,
+                "face_denoise": 0.24, "face_feather": 8,
+                "eye_refine": True, "eye_strength": 0.22, "eye_y": 0.42,
+                "eye_spacing": 0.34, "eye_width": 0.24, "eye_height": 0.14,
+                "eye_radius": 2, "eye_color_preservation": 0.85,
+                "unload_after": False, "detailer_hook": ["1530:2060", 0],
+            },
+        }
+        # In LAKIS detail mode the output selector and tile-size probe must
+        # depend on the LAKIS detail image as well.  Leaving either wired to
+        # the legacy eye-detailer keeps the entire legacy face/eye branch in
+        # the executable graph even though its switches are off.
+        prompt["1541:1545"]["inputs"]["on_false"] = [face_scope_id, 0]
+        prompt["1541:1531"]["inputs"]["image"] = [face_scope_id, 0]
+        prompt["1541:1538"]["inputs"]["image"] = [face_scope_id, 0]
     # Hidden DEV comparison contract.  These are the exact Ultimate SD Upscale
     # values from the user-provided animaAllInOne_v61 workflow.  Keep this
     # opt-in so normal UI presets and persisted user settings are untouched.
@@ -1508,7 +1601,7 @@ NODE_WEIGHTS = {
     "2148": 2.0, "2143": 1.0, "2151": 1.0, "2150": 18.0,
     "1633:1790": 1.0, "1633:1794": 1.0, "1633:1612": 8.0,
     "1633:1611": 1.0, "1530:1826": 15.0, "1836:2069": 12.0,
-    "1541:1538": 24.0, FINAL_NODE: 1.0,
+    "lakis:face_scope": 15.0, "1541:1538": 24.0, FINAL_NODE: 1.0,
 }
 NODE_LABELS = {
     "1634:1622": "Initial", "1635": "Decode", "2158": "SAM3",
@@ -1519,7 +1612,7 @@ NODE_LABELS = {
     "1530:1824": "Face Detection", "1530:1823": "Face Mask",
     "1530:1826": "Face Detail", "1836:2069": "Eye Detail",
     "1836:2067": "Eye Detection", "1836:2066": "Eye Mask",
-    "1541:1538": "Upscale", FINAL_NODE: "Final Save",
+    "lakis:face_scope": "Face Scope", "1541:1538": "Upscale", FINAL_NODE: "Final Save",
 }
 
 NODE_ERROR_CODES = {
@@ -1539,6 +1632,7 @@ NODE_ERROR_CODES = {
     "1530:1824": ("LKS-GEN-1501", "얼굴 감지 단계에서 오류가 발생했어요."),
     "1530:1823": ("LKS-GEN-1501", "얼굴 마스크 처리 중 오류가 발생했어요."),
     "1836:2069": ("LKS-GEN-1502", "눈 디테일 처리 중 오류가 발생했어요."),
+    "lakis:face_scope": ("LKS-GEN-1503", "LAKIS_DETAIL 처리 중 오류가 발생했어요."),
     "1836:2067": ("LKS-GEN-1502", "눈 감지 단계에서 오류가 발생했어요."),
     "1836:2066": ("LKS-GEN-1502", "눈 마스크 처리 중 오류가 발생했어요."),
     "1541:1538": ("LKS-GEN-1601", "업스케일 단계에서 오류가 발생했어요."),
@@ -1646,6 +1740,8 @@ class WorkflowBridge:
         self._preview_lock = threading.Lock()
         self._preview_bytes: bytes | None = None
         self._preview_mime = "image/jpeg"
+        self._warmup_lock = threading.Lock()
+        self._warmup_result: dict[str, Any] | None = None
         self._recover_interrupted_generation()
         # The allowance is owned by a worker in this bridge process. If the
         # previous DEV process was force-closed before its finally block ran,
@@ -1658,6 +1754,113 @@ class WorkflowBridge:
                 _audit("external_ui_stale_allowance_cleared")
             except OSError as error:
                 _audit("external_ui_stale_allowance_clear_failed", error=repr(error))
+
+    @staticmethod
+    def _warmup_application_state() -> dict[str, Any]:
+        config = workflow_configuration()
+        return {
+            "generation": {"mode": "fast", "upscale_engine": DEFAULT_UPSCALE_ENGINE},
+            "model": {
+                "checkpoint": config["checkpoint"]["current"],
+                "vae": config["vae"]["current"],
+                "clip": config["clip"]["current"],
+                "sampler": config["sampler"]["current"],
+                "scheduler": config["scheduler"]["current"],
+                "steps": 1, "cfg": 1.0,
+            },
+            "output": {"width": 256, "height": 256, "seed": 0,
+                       "seed_mode": "fixed", "aspect_locked": False},
+            "prompt": {key: "" for key in PROMPT_STATE_KEYS},
+            "loras": [], "lora_enabled": False, "composition_enabled": False,
+            "camera": {}, "i2i": {"enabled": False, "denoise": 0.5},
+            "node_overrides": {},
+        }
+
+    @staticmethod
+    def _vram_total() -> int:
+        try:
+            with urlopen(COMFY_SERVER + "/system_stats", timeout=3) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+            devices = payload.get("devices", []) if isinstance(payload, dict) else []
+            return max((int(item.get("vram_total") or 0) for item in devices), default=0)
+        except Exception:
+            return 0
+
+    def warmup(self) -> dict[str, Any]:
+        """Warm the real generation path without saving an image."""
+        with self._warmup_lock:
+            if self._warmup_result and self._warmup_result.get("status") == "complete":
+                return dict(self._warmup_result)
+            started = time.monotonic()
+            vram_total = self._vram_total()
+            gib = 1024 ** 3
+            if vram_total and vram_total < 8 * gib:
+                result = {"ok": True, "status": "skipped", "profile": "low_memory",
+                          "reason": "vram_below_8_gib", "vram_total": vram_total,
+                          "duration_seconds": 0.0}
+                self._warmup_result = result
+                _audit("external_ui_warmup_skipped", **result)
+                return dict(result)
+            profile = "full" if vram_total >= 10 * gib else "light"
+            try:
+                prompt, _ = build_prompt(self._warmup_application_state())
+                prompt, target = _warmup_graph(prompt, profile == "full")
+                result = asyncio.run(self._run_warmup(prompt, target, timeout=120.0))
+                result.update({"profile": profile, "vram_total": vram_total,
+                               "duration_seconds": round(time.monotonic() - started, 3)})
+            except Exception as error:
+                result = {"ok": False, "status": "failed", "profile": profile,
+                          "vram_total": vram_total,
+                          "duration_seconds": round(time.monotonic() - started, 3),
+                          "error": str(error)[:1000]}
+            self._warmup_result = result
+            _audit("external_ui_warmup_finished", **result)
+            return dict(result)
+
+    async def _run_warmup(self, prompt: dict[str, Any], target: str,
+                          timeout: float) -> dict[str, Any]:
+        client_id = f"lakis-warmup-{uuid.uuid4().hex}"
+        async with aiohttp.ClientSession() as session:
+            async with session.get(COMFY_SERVER + "/queue", timeout=3) as response:
+                queue = await response.json()
+            if queue.get("queue_running") or queue.get("queue_pending"):
+                return {"ok": True, "status": "skipped", "reason": "queue_busy"}
+            websocket_url = f"ws://127.0.0.1:{COMFY_PORT}/ws?clientId={client_id}"
+            async with session.ws_connect(websocket_url, max_msg_size=2 * 1024 * 1024) as ws:
+                payload = {"prompt": prompt, "client_id": client_id,
+                           "partial_execution_targets": [target],
+                           "extra_data": {"preview_method": "none"}}
+                async with session.post(COMFY_SERVER + "/prompt", json=payload,
+                                        timeout=30) as response:
+                    body = await response.json()
+                    if response.status >= 400:
+                        raise RuntimeError(f"ComfyUI warmup rejected: {body}")
+                prompt_id = body.get("prompt_id")
+                if not prompt_id:
+                    raise RuntimeError(f"ComfyUI warmup returned no prompt_id: {body}")
+                deadline = time.monotonic() + timeout
+                while time.monotonic() < deadline:
+                    try:
+                        message = await ws.receive(
+                            timeout=min(10.0, max(0.1, deadline - time.monotonic()))
+                        )
+                    except asyncio.TimeoutError:
+                        # Model loading can legitimately be quiet for tens of seconds.
+                        # Keep the short receive interval only so the total deadline
+                        # remains enforceable and launcher cancellation stays responsive.
+                        continue
+                    if message.type != aiohttp.WSMsgType.TEXT:
+                        continue
+                    envelope = json.loads(message.data)
+                    data = envelope.get("data", {})
+                    if data.get("prompt_id") not in {None, prompt_id}:
+                        continue
+                    event = envelope.get("type")
+                    if event == "execution_success" or (event == "executing" and data.get("node") is None):
+                        return {"ok": True, "status": "complete", "prompt_id": prompt_id}
+                    if event in {"execution_error", "execution_interrupted"}:
+                        raise RuntimeError(f"ComfyUI warmup failed: {data}")
+                raise TimeoutError("ComfyUI warmup timed out")
 
     def _write_generation_journal(self) -> None:
         snapshot = self.status.snapshot()
@@ -1744,13 +1947,19 @@ class WorkflowBridge:
         with ALLOW_FILE.open("x", encoding="utf-8") as stream:
             json.dump(token, stream)
         diagnostic_context = self._diagnostic_context(application_state)
+        generation_state = application_state.get("generation", {})
+        effective_mode = (
+            "lakis_detail"
+            if generation_state.get("mode") == "detail" and bool(generation_state.get("lakis_mode", False))
+            else generation_state.get("mode", "fast")
+        )
         self.status.update(state="preparing", percent=0.0, stage="생성 중", prompt_id=None,
                            preview_frames=0, preview_mime=None,
                            output_url=None, error=None, error_code=None, error_detail=None,
                            error_stage=None, error_node_id=None, error_node_type=None,
                            error_exception_type=None, request_id=token["request_id"],
                            diagnostic_context=diagnostic_context,
-                           mode=application_state["generation"]["mode"],
+                           mode=effective_mode,
                            i2i_enabled=bool(application_state.get("i2i", {}).get("enabled", False)),
                            prompt_used=prompt_used,
                            seed=int(application_state["output"]["seed"]),
@@ -1775,7 +1984,7 @@ class WorkflowBridge:
         i2i = application_state.get("i2i", {})
         loras = application_state.get("loras", [])
         return {
-            "generation": {key: generation.get(key) for key in ("mode",)},
+            "generation": {key: generation.get(key) for key in ("mode", "lakis_mode", "upscale_engine")},
             "model": {key: model.get(key) for key in (
                 "checkpoint", "vae", "clip", "sampler", "scheduler", "steps", "cfg"
             )},
@@ -1933,7 +2142,7 @@ class WorkflowBridge:
                 self._write_generation_journal()
                 _audit("external_ui_prompt_queued", prompt_id=prompt_id, preflight=preflight,
                        prompt_requests=1, retries=0)
-                completed = await self._observe(ws, prompt_id, prompt)
+                completed = await self._observe(session, ws, prompt_id, prompt)
 
             if not completed:
                 _audit("external_ui_generation_cancelled", prompt_id=prompt_id)
@@ -1944,7 +2153,49 @@ class WorkflowBridge:
                                output_url=output_url, finished_at=time.time())
             _audit("external_ui_generation_complete", prompt_id=prompt_id, output_url=output_url)
 
-    async def _observe(self, ws: aiohttp.ClientWebSocketResponse, prompt_id: str,
+    @staticmethod
+    def _queue_contains_prompt(queue: dict[str, Any], prompt_id: str) -> bool:
+        """Recognize a prompt in either current or future ComfyUI queue shapes."""
+        def contains(value: Any) -> bool:
+            if isinstance(value, str):
+                return value == prompt_id
+            if isinstance(value, (list, tuple)):
+                return any(contains(item) for item in value)
+            if isinstance(value, dict):
+                return any(contains(item) for item in value.values())
+            return False
+
+        return contains(queue.get("queue_running", [])) or contains(queue.get("queue_pending", []))
+
+    async def _probe_prompt_state(self, session: aiohttp.ClientSession,
+                                  prompt_id: str) -> str:
+        """Confirm backend state before declaring a quiet websocket stalled."""
+        try:
+            async with session.get(f"{COMFY_SERVER}/history/{prompt_id}", timeout=10) as response:
+                if response.status < 400:
+                    history = await response.json()
+                    record = history.get(prompt_id) if isinstance(history, dict) else None
+                    if isinstance(record, dict):
+                        status = record.get("status") or {}
+                        if status.get("status_str") == "error":
+                            return "error"
+                        if status.get("completed") is True or record.get("outputs") is not None:
+                            return "complete"
+        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
+            pass
+
+        try:
+            async with session.get(COMFY_SERVER + "/queue", timeout=10) as response:
+                if response.status < 400:
+                    queue = await response.json()
+                    if isinstance(queue, dict) and self._queue_contains_prompt(queue, prompt_id):
+                        return "running"
+        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
+            return "unreachable"
+        return "missing"
+
+    async def _observe(self, session: aiohttp.ClientSession,
+                       ws: aiohttp.ClientWebSocketResponse, prompt_id: str,
                        prompt: dict[str, Any]) -> bool:
         weights = {node_id: NODE_WEIGHTS.get(node_id, 0.08) for node_id in prompt}
         total = sum(weights.values()) or 1.0
@@ -1957,6 +2208,20 @@ class WorkflowBridge:
                 message = await ws.receive(timeout=GENERATION_STALL_SECONDS)
             except asyncio.TimeoutError as error:
                 snapshot = self.status.snapshot()
+                backend_state = await self._probe_prompt_state(session, prompt_id)
+                if backend_state == "running":
+                    # Nodes such as LAKIS_SCOPE may legitimately emit no progress
+                    # event while processing a large image. The queue is the
+                    # authority; websocket silence alone is not a stall.
+                    self.status.update(last_activity_at=time.time())
+                    self._write_generation_journal()
+                    _audit("external_ui_quiet_node_still_running", prompt_id=prompt_id,
+                           node_id=snapshot.get("last_node_id"),
+                           node_type=snapshot.get("last_node_type"))
+                    continue
+                if backend_state == "complete":
+                    _audit("external_ui_completion_recovered_from_history", prompt_id=prompt_id)
+                    return True
                 inactive = time.time() - float(snapshot.get("last_activity_at") or time.time())
                 raise GenerationStallError(
                     node_id=snapshot.get("last_node_id"), node_type=snapshot.get("last_node_type"),

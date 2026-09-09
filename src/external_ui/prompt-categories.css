@@ -12,6 +12,17 @@
   color: #cbd5ec;
 }
 
+.fixed-prompt-heading > span:first-child { margin-right: auto; }
+.prompt-field-toggle { display:inline-flex;align-items:center;margin-left:7px;cursor:pointer; }
+.prompt-field-toggle input { position:absolute;opacity:0;pointer-events:none; }
+.prompt-field-toggle i { display:block;width:27px;height:15px;border-radius:999px;background:#343b49;position:relative;transition:.18s;box-shadow:inset 0 0 0 1px #4b5363; }
+.prompt-field-toggle i::after { content:"";position:absolute;width:11px;height:11px;left:2px;top:2px;border-radius:50%;background:#c9cfda;transition:.18s; }
+.prompt-field-toggle input:checked + i { background:#3f70d9;box-shadow:0 0 10px #3f70d955; }
+.prompt-field-toggle input:checked + i::after { transform:translateX(12px);background:#fff; }
+.prompt-field-toggle input:focus-visible + i { outline:2px solid #fff;outline-offset:2px; }
+.fixed-prompt-panel.prompt-field-off textarea { opacity:.38; }
+.fixed-prompt-panel.prompt-field-off .fixed-badge { opacity:.55; }
+
 .prompt-field-title {
   color: #d9deea;
   font-size: 13px;

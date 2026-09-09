@@ -6,6 +6,16 @@
   flex: 0 0 auto;
   min-width: 0;
 }
+
+.compact-mode-head .lakis-mode-control{display:flex;align-items:center;gap:6px}
+.compact-mode-head .lakis-mode-control>span{color:#8f98aa;font-size:8px;font-weight:800;letter-spacing:.08em;transition:color .18s ease}
+.compact-mode-head .lakis-mode-control:has(.lakis-mode-switch.active)>span{color:#ff83b8}
+.compact-mode-head .lakis-mode-switch{position:relative;width:34px;height:19px;padding:0;border:1px solid #3a4253;border-radius:999px;background:#343b49;cursor:pointer;transition:border-color .18s ease,background .18s ease,box-shadow .18s ease}
+.compact-mode-head .lakis-mode-switch i{position:absolute;top:2px;left:2px;width:13px;height:13px;border-radius:50%;background:#aab3c3;box-shadow:0 1px 4px #0008;transition:transform .18s ease,background .18s ease}
+.compact-mode-head .lakis-mode-switch.active{border-color:#ff6fab;background:linear-gradient(135deg,#b63876,#ec5da0);box-shadow:0 0 12px rgba(236,93,160,.3)}
+.compact-mode-head .lakis-mode-switch.active i{transform:translateX(15px);background:#fff}
+.generation-action-row.mode-detail.mode-lakis-detail .mode-option.active,.generation-action-row.mode-detail.mode-lakis-detail .generate-button:not(.is-generating):not(.is-cancelling){background:linear-gradient(135deg,#b63876 0%,#ec5da0 58%,#ff78b4 100%);box-shadow:0 10px 28px rgba(236,93,160,.34)}
+.generation-action-row.mode-detail.mode-lakis-detail .generate-button::before{background:linear-gradient(90deg,#a72e69 0%,#e44f94 64%,#ff82ba 100%);box-shadow:5px 0 18px rgba(236,93,160,.62)}
 .generation-action-row .compact-mode-panel {
   height: 100%;
   margin: 0;

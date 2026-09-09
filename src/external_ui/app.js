@@ -1,5 +1,5 @@
 const state = {
-  generation: { mode: "detail", upscale_engine: "ultimate" },
+  generation: { mode: "detail", lakis_mode: false, upscale_engine: "ultimate" },
   translation_enabled: true,
   lora_enabled: true,
   composition_enabled: true,
@@ -10,6 +10,10 @@ const state = {
   prompt: {
     negative: "", fixed: "", general: "", quality: "", artist: "", trigger: "",
     negative_fixed: "", negative_quality: "", negative_artist: ""
+  },
+  prompt_enabled: {
+    negative: true, fixed: true, general: true, quality: true, artist: true, trigger: true,
+    negative_fixed: true, negative_quality: true, negative_artist: true
   },
   model: {
     checkpoint: "anima_baseV10.safetensors",
@@ -29,6 +33,7 @@ const loraManagerLink = document.querySelector('a[aria-label="LoRA Manager"]');
 
 const COMFYUI_SEED_MAX = 1125899906842624;
 const PROMPT_STORAGE_KEY = "lakis.prompt-state.v2";
+const PROMPT_ENABLED_STORAGE_KEY = "lakis.prompt-enabled.v1";
 const TRANSLATION_STORAGE_KEY = "lakis.prompt-translation-enabled.v1";
 let loraOptions = [];
 let loraInventorySignature = "";
@@ -404,6 +409,7 @@ document.querySelector("#allLorasToggle").addEventListener("click", event => {
 });
 
 const modeButtons = [...document.querySelectorAll(".mode-option")];
+const lakisModeButton = document.querySelector("#lakisModeButton");
 const cameraCanvas = document.querySelector("#cameraCanvas");
 const cameraStatus = document.querySelector("#cameraStatus");
 const clamp = value => Math.max(-1, Math.min(1, Number(value)));
@@ -565,17 +571,38 @@ function render() {
   const generationActionRow = document.querySelector(".generation-action-row");
   generationActionRow.classList.toggle("mode-fast", !detail);
   generationActionRow.classList.toggle("mode-detail", detail);
-  const upscaleLabel = state.generation.upscale_engine === "lakis_scope" ? "SCOPE" : "USDU";
-  document.querySelector("#detailContract").innerHTML = `<span class="contract-dot ${detail ? "on" : ""}"></span>Face · Eye · ${upscaleLabel} ${detail ? "ON" : "OFF"}`;
-  document.querySelector("#timeEstimate").textContent = detail ? "1분 이상" : "약 1분";
-  document.querySelector("#generateHint").textContent = `${detail ? "DETAIL" : "FAST"} · COMPOSITION READY`;
+  const lakisDetail = detail && state.generation.lakis_mode === true;
+  generationActionRow.classList.toggle("mode-lakis-detail", lakisDetail);
+  if (lakisModeButton) {
+    lakisModeButton.classList.toggle("active", state.generation.lakis_mode === true);
+    lakisModeButton.setAttribute("aria-checked", String(state.generation.lakis_mode === true));
+  }
+  const detailContract = document.querySelector("#detailContract");
+  if (detailContract) detailContract.innerHTML = lakisDetail
+    ? `<span class="contract-dot on"></span>LAKIS_DETAIL · LAKIS_SCOPE ON`
+    : `<span class="contract-dot ${detail ? "on" : ""}"></span>Face · Eye · USDU ${detail ? "ON" : "OFF"}`;
+  const generateHint = document.querySelector("#generateHint");
+  if (generateHint) generateHint.textContent = `${generationModeLabel()} · COMPOSITION READY`;
   renderCamera();
+}
+
+function generationModeLabel(mode = state.generation.mode, lakisMode = state.generation.lakis_mode) {
+  if (mode === "lakis_detail" || (mode === "detail" && lakisMode === true)) return "LAKIS DETAIL";
+  return mode === "detail" ? "DETAIL" : "FAST";
 }
 
 modeButtons.forEach(button => button.addEventListener("click", () => {
   state.generation.mode = button.dataset.mode;
   render();
+  scheduleGenerationStateSave();
 }));
+
+lakisModeButton?.addEventListener("click", () => {
+  state.generation.lakis_mode = state.generation.lakis_mode !== true;
+  state.generation.upscale_engine = state.generation.lakis_mode ? "lakis_scope" : "ultimate";
+  render();
+  scheduleGenerationStateSave();
+});
 
 function canvasPoint(event) {
   const rect = cameraCanvas.getBoundingClientRect();
@@ -1128,6 +1155,7 @@ function loadLocalPromptState() {
 function saveLocalPromptState() {
   try {
     localStorage.setItem(PROMPT_STORAGE_KEY, JSON.stringify(state.prompt));
+    localStorage.setItem(PROMPT_ENABLED_STORAGE_KEY, JSON.stringify(state.prompt_enabled));
   } catch (error) {
     console.error("Could not persist browser-local prompt state", error);
   }
@@ -1143,7 +1171,7 @@ function schedulePromptStateSave() {
       await fetch("/api/prompt-state", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: state.prompt }),
+        body: JSON.stringify({ prompt: state.prompt, prompt_enabled: state.prompt_enabled }),
       });
     } catch (error) {
       console.error("Could not persist LAKIS prompt state", error);
@@ -1154,6 +1182,32 @@ function schedulePromptStateSave() {
 for (const [id, key] of promptInputBindings) {
   document.querySelector(`#${id}`).addEventListener("input", event => {
     state.prompt[key] = event.target.value;
+    schedulePromptStateSave();
+  });
+}
+
+const promptPanelKeys = {
+  fixedPromptPanel: "fixed", generalPromptPanel: "general",
+  qualityPromptPanel: "quality", artistPromptPanel: "artist",
+  triggerPromptPanel: "trigger", negativeFixedPromptPanel: "negative_fixed",
+  negativeQualityPromptPanel: "negative_quality",
+  negativeArtistPromptPanel: "negative_artist",
+  negativeGeneralPromptPanel: "negative",
+};
+
+for (const [panelId, key] of Object.entries(promptPanelKeys)) {
+  const panel = document.querySelector(`#${panelId}`);
+  const badge = panel?.querySelector(".fixed-badge");
+  if (!panel || !badge) continue;
+  panel.dataset.promptKey = key;
+  const control = document.createElement("label");
+  control.className = "prompt-field-toggle";
+  control.title = "이 프롬프트 칸을 생성에 적용";
+  control.innerHTML = `<input type="checkbox" checked aria-label="${badge.textContent} 프롬프트 적용"><i aria-hidden="true"></i>`;
+  badge.insertAdjacentElement("afterend", control);
+  control.querySelector("input").addEventListener("change", event => {
+    state.prompt_enabled[key] = Boolean(event.target.checked);
+    panel.classList.toggle("prompt-field-off", !state.prompt_enabled[key]);
     schedulePromptStateSave();
   });
 }
@@ -1236,6 +1290,11 @@ async function refreshWorkflowConfiguration() {
       negative_artist: "negativeArtistPromptInput", negative_fixed: "negativeFixedPromptInput",
     };
     const localPrompt = loadLocalPromptState();
+    let localPromptEnabled = {};
+    try {
+      const parsed = JSON.parse(localStorage.getItem(PROMPT_ENABLED_STORAGE_KEY) || "null");
+      if (parsed && typeof parsed === "object") localPromptEnabled = parsed;
+    } catch (_) {}
     for (const [key, id] of Object.entries(promptInputs)) {
       const source = Object.prototype.hasOwnProperty.call(localPrompt, key)
         ? localPrompt[key]
@@ -1243,6 +1302,16 @@ async function refreshWorkflowConfiguration() {
       const value = String(source || "");
       state.prompt[key] = value;
       document.querySelector(`#${id}`).value = value;
+    }
+    for (const [panelId, key] of Object.entries(promptPanelKeys)) {
+      const source = Object.prototype.hasOwnProperty.call(localPromptEnabled, key)
+        ? localPromptEnabled[key]
+        : config.prompt_enabled?.[key];
+      state.prompt_enabled[key] = source !== false;
+      const panel = document.querySelector(`#${panelId}`);
+      const toggle = panel?.querySelector(".prompt-field-toggle input");
+      if (toggle) toggle.checked = state.prompt_enabled[key];
+      panel?.classList.toggle("prompt-field-off", !state.prompt_enabled[key]);
     }
     window.dispatchEvent(new CustomEvent("lakis-prompt-state-loaded"));
     // The initial render happens before this asynchronous configuration is
@@ -1776,11 +1845,14 @@ generateButton.addEventListener("click", async () => {
   // appear cropped or locked to that ratio.
   setPreviewZoom(100);
   const generationPayload = structuredClone(state);
+  const activePrompt = Object.fromEntries(Object.entries(state.prompt).map(([key, value]) => [
+    key, state.prompt_enabled[key] === false ? "" : value
+  ]));
   try {
-    if (state.translation_enabled && Object.values(state.prompt).some(containsKoreanPrompt)) {
+    if (state.translation_enabled && Object.values(activePrompt).some(containsKoreanPrompt)) {
       setGenerationProgress(0, "프롬프트 번역 중");
     }
-    generationPayload.prompt = await translatedPromptForGeneration(state.prompt);
+    generationPayload.prompt = await translatedPromptForGeneration(activePrompt);
     lastPreviewRevision = 0;
     lastGenerationState = "preparing";
     setGenerationProgress(0, "생성 중");

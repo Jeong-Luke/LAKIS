@@ -16,6 +16,13 @@ lakis_launcher_state.json
 .manifest-audit-*/
 .release-audit-*/
 dist/.lakis/
+dist/.offline-delta-test-install/
+dist/v*-rc/
+dist/LAKIS_v*-offline-patch/
+dist/LAKIS_v*-offline-patch.zip
+dist/LAKIS_Model_Importer.exe
+manifests/update-v*-rc.json
+src/*audit.jsonl
 
 installer/build_package.ps1
 installer/split_release.ps1

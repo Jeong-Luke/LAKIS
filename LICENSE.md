@@ -23,6 +23,25 @@ licensed under `AGPL-3.0-or-later`, with the original attribution and LAKIS
 modification notices preserved. Other GPL, MIT, Apache, BSD, Creative Commons,
 and model-specific components retain their own licences.
 
+## Licence map for bundled LAKIS nodes
+
+The directory-level licence always takes priority over this root notice:
+
+| Path | Licence |
+|---|---|
+| `src/custom_nodes/ComfyUI-KR-Camera-Control` | AGPL-3.0-or-later; derivative of `ComfyUI_bsk_UI` |
+| `src/custom_nodes/ComfyUI-LAKIS-Light-Control` | AGPL-3.0-or-later |
+| `src/custom_nodes/ComfyUI-LAKIS-Detail` | GPL-3.0-only; integrates with ComfyUI Impact Pack |
+| `src/custom_nodes/ComfyUI-KR-Camera-PromptStudio-Bridge` | MIT |
+| `src/custom_nodes/ComfyUI-LAKIS-AutoPatch` | MIT |
+| `src/custom_nodes/ComfyUI-LAKIS-Fast-Refiner` | MIT |
+| `src/custom_nodes/ComfyUI-PreviewMonitor` | Third-party MIT |
+| `patches/ComfyUI-Spectrum-KSampler` | Upstream MIT with LAKIS modification notice |
+
+Complete notices and applicable licence texts are stored in those directories
+and in `third_party_licenses/`. This map is informational and does not replace
+the licence shipped beside a component.
+
 ## AI output
 
 LAKIS does not claim copyright ownership of images merely because they were

@@ -251,7 +251,8 @@ internal static class LakisLauncher
                 startupProcess = process;
                 string launcherState = Path.Combine(root, "ComfyUI", runtimeDirectory,
                     DevelopmentBuild ? "lakis_dev_launcher_state.json" : "lakis_launcher_state.json");
-                bool ready = await Task.Run(() => WaitForLauncherReady(process, launcherState, 180));
+                bool ready = await Task.Run(() => WaitForLauncherReady(process, launcherState, 300,
+                    stage => BeginInvoke(new Action(() => SetStatus(stage)))));
                 if (userCancelled || IsDisposed) return;
                 if (!ready)
                 {
@@ -319,7 +320,8 @@ internal static class LakisLauncher
         catch { return false; }
     }
 
-    private static bool WaitForLauncherReady(Process process, string statePath, int timeoutSeconds)
+    private static bool WaitForLauncherReady(Process process, string statePath, int timeoutSeconds,
+        Action<string> reportStage = null)
     {
         DateTime deadline = DateTime.UtcNow.AddSeconds(timeoutSeconds);
         while (DateTime.UtcNow < deadline)
@@ -329,6 +331,12 @@ internal static class LakisLauncher
             if (TryReadLauncherState(statePath, process.Id, out state))
             {
                 object value;
+                object stageValue;
+                if (reportStage != null && state.TryGetValue("startup_stage", out stageValue))
+                {
+                    string stage = Convert.ToString(stageValue);
+                    if (!String.IsNullOrWhiteSpace(stage)) reportStage(stage);
+                }
                 string classification = state.TryGetValue("classification", out value)
                     ? Convert.ToString(value) : "";
                 if (classification == "LAKIS_READY") return true;
@@ -381,7 +389,7 @@ internal static class LakisLauncher
             try
             {
                 var request = (HttpWebRequest)WebRequest.Create(url + "?t=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-                request.UserAgent = "LAKIS-Launcher/7.3.3";
+                request.UserAgent = "LAKIS-Launcher/7.3.4";
                 request.Timeout = 12000;
                 request.ReadWriteTimeout = 12000;
                 request.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
@@ -402,7 +410,7 @@ internal static class LakisLauncher
         try
         {
             var request = (HttpWebRequest)WebRequest.Create(LatestReleaseApiUrl + "?t=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-            request.UserAgent = "LAKIS-Launcher/7.3.3";
+            request.UserAgent = "LAKIS-Launcher/7.3.4";
             request.Accept = "application/vnd.github+json";
             request.Timeout = 12000;
             request.ReadWriteTimeout = 12000;
@@ -424,7 +432,7 @@ internal static class LakisLauncher
         try
         {
             var request = (HttpWebRequest)WebRequest.Create(LatestReleaseApiUrl + "?t=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-            request.UserAgent = "LAKIS-Launcher/7.3.3";
+            request.UserAgent = "LAKIS-Launcher/7.3.4";
             request.Accept = "application/vnd.github+json";
             request.Timeout = 12000; request.ReadWriteTimeout = 12000;
             request.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
