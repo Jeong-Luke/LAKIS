@@ -1414,7 +1414,10 @@ document.querySelector(".history-strip").addEventListener("click", event => {
   document.querySelector("#previewImage").src = button.querySelector("img").src;
   setCurrentPreviewPrompt(button._lakisPrompt || null);
   if (button.dataset.mode) {
-    document.querySelector("#previewMode").textContent = button.dataset.mode.toUpperCase();
+    document.querySelector("#previewMode").textContent = generationModeLabel(
+      button.dataset.mode,
+      button.dataset.mode === "lakis_detail",
+    );
   }
   document.querySelector("#previewI2i").hidden = button.dataset.i2i !== "true";
   if (button.dataset.seed) {
@@ -1650,7 +1653,7 @@ function resetGenerationButton() {
   generateButton.style.setProperty("--generation-progress", "0%");
   generateButton.classList.remove("is-generating", "is-complete", "is-cancelling");
   generateButtonLabel.textContent = "제작하기";
-  generateButtonHint.textContent = `${state.generation.mode === "detail" ? "DETAIL" : "FAST"} · COMPOSITION READY`;
+  generateButtonHint.textContent = `${generationModeLabel()} · COMPOSITION READY`;
 }
 
 let lastErrorReport = null;
@@ -1765,7 +1768,9 @@ async function pollGenerationStatus() {
         const thumb = document.createElement("button");
         thumb.className = "history-thumb selected";
         thumb.dataset.seed = String(status.seed ?? state.output.seed);
-        thumb.dataset.mode = status.mode === "detail" ? "detail" : "fast";
+        thumb.dataset.mode = ["fast", "detail", "lakis_detail"].includes(status.mode)
+          ? status.mode
+          : "fast";
         thumb.dataset.i2i = String(status.i2i_enabled === true);
         thumb._lakisPrompt = status.prompt_used && typeof status.prompt_used === "object"
           ? structuredClone(status.prompt_used)
@@ -1777,7 +1782,10 @@ async function pollGenerationStatus() {
         const historyStrip = document.querySelector(".history-strip");
         historyStrip.prepend(thumb);
         historyStrip.scrollLeft = 0;
-        document.querySelector("#previewMode").textContent = thumb.dataset.mode.toUpperCase();
+        document.querySelector("#previewMode").textContent = generationModeLabel(
+          thumb.dataset.mode,
+          thumb.dataset.mode === "lakis_detail",
+        );
         document.querySelector("#previewI2i").hidden = thumb.dataset.i2i !== "true";
         document.querySelector("#previewSeed").textContent = `SEED ${thumb.dataset.seed}`;
         document.querySelector("#previewDuration").textContent = `${durationSeconds.toFixed(1)}초`;
@@ -1837,7 +1845,7 @@ generateButton.addEventListener("click", async () => {
   // startup/default state from replacing text the user has just entered.
   syncPromptStateFromInputs();
   saveLocalPromptState();
-  document.querySelector("#previewMode").textContent = state.generation.mode === "detail" ? "DETAIL" : "FAST";
+  document.querySelector("#previewMode").textContent = generationModeLabel();
   document.querySelector("#previewI2i").hidden = !state.i2i.enabled;
   document.querySelector("#previewSeed").textContent = `SEED ${state.output.seed}`;
   document.querySelector("#previewDuration").hidden = true;
