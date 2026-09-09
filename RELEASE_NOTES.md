@@ -1,4 +1,26 @@
-# LAKIS Studio v7.3.4
+# LAKIS Studio v7.3.5
+
+## 긴급 수정
+
+- LAKIS 최적화를 켠 DETAIL 생성 결과가 이미지 배지에서 `FAST`로 잘못
+  표시되던 문제를 수정했습니다. 생성 중, 생성 완료 후, 이력 이미지 재선택
+  시 모두 `LAKIS DETAIL`로 표시됩니다.
+- 구도 설정의 카메라 좌표와 ON/OFF 상태가 업데이트 또는 재시작 후 초기화되던
+  문제를 수정했습니다.
+- 캔버스 드래그, 휠 거리 조절, 키보드 이동, 슬라이더, 숫자 입력, 프리셋 및
+  초기화 조작이 모두 구도 상태 저장에 반영되도록 보강했습니다.
+
+사용자 모델, LoRA, 프롬프트, 워크플로 및 생성 이미지는 업데이트 시 보존됩니다.
+
+## English
+
+- Fixed LAKIS DETAIL results being mislabeled as FAST in the image badge.
+- Persisted composition camera coordinates and the composition ON/OFF state
+  across application restarts and updates.
+
+---
+
+## v7.3.4
 
 ## 주요 변경 사항
 
