@@ -312,6 +312,7 @@ internal static class SafeInstaller
             Directory.CreateDirectory(Path.Combine(comfy,"LAKIS"));File.WriteAllText(Path.Combine(comfy,"LAKIS","STOP_AUTOMATION"),"LAKIS owns this runtime.");
             Directory.CreateDirectory(Path.Combine(comfy,"LAKIS","workflows"));File.Copy(Path.Combine(lakis,"src","runtime","sync_runtime_workflow.py"),Path.Combine(comfy,"LAKIS","sync_runtime_workflow.py"),true);
             File.Copy(Path.Combine(lakis,"workflows","LAKIS_runtime_api_v7.1.json"),Path.Combine(comfy,"LAKIS","workflows","LAKIS_runtime_api_v7.1.json"),true);
+            File.Copy(Path.Combine(lakis,"workflows","LAKIS_DETAIL_runtime_api_v7.3.json"),Path.Combine(comfy,"LAKIS","workflows","LAKIS_DETAIL_runtime_api_v7.3.json"),true);
             File.Copy(Path.Combine(lakis,"workflows","LAKIS_runtime_visual_v7.3.json"),Path.Combine(comfy,"LAKIS","workflows","LAKIS_runtime_visual_v7.3.json"),true);
             File.Copy(Path.Combine(lakis,"workflows","LAKIS_custom_v7.3_editable.json"),Path.Combine(comfy,"LAKIS","workflows","LAKIS_custom_v7.3_editable.json"),true);
             Directory.CreateDirectory(Path.Combine(comfy,"user","default","workflows"));File.Copy(Path.Combine(lakis,"workflows","LAKIS_custom_v7.1.json"),Path.Combine(comfy,"user","default","workflows","LAKIS_custom_v7.1.json"),true);
@@ -379,7 +380,7 @@ internal static class SafeInstaller
             }
             string packaged=Path.Combine(comfy,"LAKIS","workflows");Directory.CreateDirectory(packaged);
             File.Copy(Path.Combine(uiRoot,"src","runtime","sync_runtime_workflow.py"),Path.Combine(comfy,"LAKIS","sync_runtime_workflow.py"),true);
-            foreach(string workflow in new[]{"LAKIS_runtime_api_v7.1.json","LAKIS_runtime_visual_v7.3.json","LAKIS_custom_v7.3_editable.json"})
+            foreach(string workflow in new[]{"LAKIS_runtime_api_v7.1.json","LAKIS_DETAIL_runtime_api_v7.3.json","LAKIS_runtime_visual_v7.3.json","LAKIS_custom_v7.3_editable.json"})
                 File.Copy(Path.Combine(uiRoot,"workflows",workflow),Path.Combine(packaged,workflow),true);
             File.Copy(Path.Combine(uiRoot,"LICENSE.md"),Path.Combine(target,"LICENSE.md"),true);
             File.Copy(Path.Combine(uiRoot,"THIRD_PARTY_NOTICES.md"),Path.Combine(target,"THIRD_PARTY_NOTICES.md"),true);

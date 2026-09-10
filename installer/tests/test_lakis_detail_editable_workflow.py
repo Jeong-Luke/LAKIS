@@ -54,14 +54,15 @@ class LakisDetailEditableWorkflowTests(unittest.TestCase):
         with (
             patch.object(serve_ui, "WORKFLOW_ROOT", REPOSITORY_ROOT / "missing-user-workflows"),
             patch.object(serve_ui, "PACKAGED_WORKFLOW_ROOT", packaged),
-            patch.object(serve_ui, "RUNTIME_LAKIS_WORKFLOW", packaged / "LAKIS_runtime_visual_v7.3.json"),
+            patch.object(serve_ui, "RUNTIME_LAKIS_WORKFLOW", packaged / "LAKIS_DETAIL_runtime_api_v7.3.json"),
             patch.object(serve_ui, "EDITABLE_LAKIS_WORKFLOW", packaged / "LAKIS_custom_v7.3_editable.json"),
         ):
             runtime_path, runtime = serve_ui.resolve_lakis_workflow("runtime")
             editable_path, editable = serve_ui.resolve_lakis_workflow("editable")
-        self.assertEqual("LAKIS_runtime_visual_v7.3.json", runtime_path.name)
+        self.assertEqual("LAKIS_DETAIL_runtime_api_v7.3.json", runtime_path.name)
         self.assertEqual("LAKIS_custom_v7.3_editable.json", editable_path.name)
-        self.assertEqual("LAKIS_DETAIL", {node["id"]: node for node in runtime["nodes"]}[2203]["type"])
+        self.assertEqual("LAKIS_DETAIL_runtime_api_v7.3.json", runtime_path.name)
+        self.assertEqual("LAKIS_DETAIL", runtime["lakis:face_scope"]["class_type"])
         self.assertEqual("LAKIS_DETAIL", {node["id"]: node for node in editable["nodes"]}[2203]["type"])
 
     def test_monitor_workflow_uses_runtime_api_identity(self):
@@ -78,10 +79,22 @@ class LakisDetailEditableWorkflowTests(unittest.TestCase):
             / "lakis_autopatch.js"
         ).read_text(encoding="utf-8")
         self.assertIn("lakis_autopatch_display_name", autopatch)
+        self.assertIn("app.loadApiJson(workflow, displayName)", autopatch)
         self.assertNotIn(
             'app.loadGraphData(workflow, true, true, "LAKIS_custom_v7.1.json")',
             autopatch,
         )
+
+    def test_runtime_monitor_never_falls_back_to_user_editable_workflow(self):
+        packaged = REPOSITORY_ROOT / "workflows"
+        with (
+            patch.object(serve_ui, "WORKFLOW_ROOT", packaged),
+            patch.object(serve_ui, "PACKAGED_WORKFLOW_ROOT", packaged),
+            patch.object(serve_ui, "RUNTIME_LAKIS_WORKFLOW", packaged / "missing-runtime-api.json"),
+            patch.object(serve_ui, "PREFERRED_LAKIS_WORKFLOW", packaged / "LAKIS_custom_v7.3_editable.json"),
+        ):
+            with self.assertRaises(FileNotFoundError):
+                serve_ui.resolve_lakis_workflow("runtime")
 
 
 if __name__ == "__main__":

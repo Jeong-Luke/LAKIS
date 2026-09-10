@@ -150,6 +150,7 @@ Require ($LASTEXITCODE -eq 0) "Repair data-preservation audit failed."
 
 $jsonPaths = @(
     "workflows\LAKIS_runtime_api_v7.1.json",
+    "workflows\LAKIS_DETAIL_runtime_api_v7.3.json",
     "workflows\LAKIS_runtime_visual_v7.3.json",
     "workflows\LAKIS_custom_v7.3_editable.json"
 )

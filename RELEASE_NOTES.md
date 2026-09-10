@@ -14,6 +14,9 @@
 - 구버전 숫자·불리언·카메라 설정을 안전하게 변환하고, 잘못된 고급 설정은
   해당 항목만 제외하도록 변경했습니다. 오래된 모델 노드 설정이 현재 선택한
   체크포인트·VAE·CLIP을 다시 덮어쓰는 문제도 차단했습니다.
+- 사이드바의 모니터 아이콘이 사용자 편집본을 열던 문제를 수정했습니다.
+  이제 실제 `LAKIS_DETAIL_runtime_api_v7.3` 실행 그래프를 API 형식으로 열며,
+  실행 파일이 없을 때 편집본으로 조용히 대체하지 않습니다.
 
 사용자 모델, LoRA, 프롬프트, 워크플로 및 생성 이미지는 업데이트 시 보존됩니다.
 
@@ -24,6 +27,8 @@
   across application restarts and updates.
 - Migrated legacy numeric, boolean, camera, and advanced-node settings safely,
   preventing pre-queue generation failures and stale model overrides.
+- Fixed the monitor shortcut to open the actual LAKIS DETAIL runtime API graph
+  instead of falling back to the user-editable workflow.
 
 ---
 

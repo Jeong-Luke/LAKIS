@@ -22,23 +22,31 @@ async function tryLoadPatchedWorkflow() {
 
   if (!response || response.status === 204 || !response.ok) return;
 
-  let workflow;
+  let payload;
   try {
-    workflow = await response.json();
+    payload = await response.json();
   } catch (e) {
     console.error("[LAKIS AutoPatch] invalid workflow payload", e);
     return;
   }
 
-  if (!workflow || typeof workflow !== "object" || !Array.isArray(workflow.nodes)) {
+  const envelope = payload?.lakis_autopatch && payload?.workflow;
+  const workflow = envelope ? payload.workflow : payload;
+  const workflowFormat = envelope ? payload.lakis_autopatch.format : "workflow";
+  if (!workflow || typeof workflow !== "object") {
     console.error("[LAKIS AutoPatch] workflow payload is not a ComfyUI workflow");
     return;
   }
 
   try {
-    const displayName = workflow?.extra?.lakis_autopatch_display_name
+    const displayName = payload?.lakis_autopatch?.display_name
+      || workflow?.extra?.lakis_autopatch_display_name
       || "LAKIS_DETAIL_runtime_api_v7.3.json";
-    await app.loadGraphData(workflow, true, true, displayName);
+    if (workflowFormat === "api") {
+      await app.loadApiJson(workflow, displayName);
+    } else {
+      await app.loadGraphData(workflow, true, true, displayName);
+    }
     await fetch("/lakis/autopatch/consume-startup-workflow", {
       method: "POST",
       cache: "no-store",

@@ -139,6 +139,7 @@ Add-UpdateFile "ComfyUI/custom_nodes/comfyui-spectrum-ksampler/LAKIS_MODIFICATIO
 # ComfyUI/user is deliberately excluded because it contains user changes.
 foreach ($runtimeName in @(
     "LAKIS_runtime_api_v7.1.json",
+    "LAKIS_DETAIL_runtime_api_v7.3.json",
     "LAKIS_runtime_visual_v7.3.json",
     "LAKIS_custom_v7.3_editable.json"
 )) {
