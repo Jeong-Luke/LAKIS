@@ -8,7 +8,9 @@ $icon = Join-Path $repo "resources\LAKIS_windows_compatible.ico"
 New-Item -ItemType Directory -Force -Path $stage,(Split-Path $output) | Out-Null
 
 $packageVersion = (Get-Content -LiteralPath (Join-Path $repo "VERSION") -Raw).Trim()
-$assemblyVersion = (($packageVersion -replace '[^0-9.]', '').Trim('.')) + ".0"
+$assemblyParts = @(($packageVersion -replace '[^0-9.]', '').Trim('.').Split('.') | Select-Object -First 4)
+while ($assemblyParts.Count -lt 4) { $assemblyParts += "0" }
+$assemblyVersion = $assemblyParts -join "."
 $assemblyInfo = Join-Path $stage "LAKIS.AssemblyInfo.cs"
 @"
 using System.Reflection;
