@@ -35,6 +35,7 @@ Require ($generator.Contains("THIRD_PARTY_NOTICES.md")) "Existing users must rec
 Require ($generator.Contains("ComfyUI-LAKIS-Light-Control")) "Existing users must receive the DSINE-free Light Control stub."
 Require ($generator.Contains("ComfyUI-LAKIS-Fast-Refiner")) "Existing users must receive the independent LAKIS_SCOPE node."
 Require ($generator.Contains("ComfyUI-LAKIS-Detail")) "Existing users must receive LAKIS_DETAIL with its GPL source and notices."
+Require ($generator.Contains("ComfyUI-LAKIS-AutoPatch")) "Existing users must receive the runtime API workflow loader."
 Require ($generator.Contains("ComfyUI-KR-Camera-Control")) "Existing users must receive Camera Control with its AGPL source and notices."
 Require ($generator.Contains('ComfyUI/LAKIS/external_ui/')) "Production external UI must use the LAKIS runtime directory."
 Require ($generator.Contains('ComfyUI/LAKIS/STOP_AUTOMATION')) "Existing users must receive the production safety lock after runtime migration."

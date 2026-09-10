@@ -116,6 +116,7 @@ Get-ChildItem -LiteralPath $scopeRoot -File -Recurse |
 foreach ($nodeName in @(
     "ComfyUI-KR-Camera-Control",
     "ComfyUI-KR-Camera-PromptStudio-Bridge",
+    "ComfyUI-LAKIS-AutoPatch",
     "ComfyUI-LAKIS-Detail"
 )) {
     $nodeRoot = Join-Path $repo "src\custom_nodes\$nodeName"
