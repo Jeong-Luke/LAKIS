@@ -1,6 +1,6 @@
 param(
     [string]$FromVersion = "7.3.4",
-    [string]$Version = "7.3.5",
+    [string]$Version = "7.3.4.1",
     [string]$OldManifest = "",
     [string]$NewManifest = "",
     [string]$DistDirectory = "",
@@ -69,7 +69,7 @@ foreach ($item in $changed) {
 
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot "Apply-OfflineDelta.ps1") -Destination (Join-Path $output "Apply-OfflineDelta.ps1")
 $launcher = "@echo off`r`nchcp 65001 >nul`r`npowershell.exe -NoProfile -ExecutionPolicy Bypass -File `"%~dp0Apply-OfflineDelta.ps1`"`r`npause`r`n"
-[System.IO.File]::WriteAllText((Join-Path $output "INSTALL_LAKIS_7.3.5_RC.cmd"), $launcher, [System.Text.UTF8Encoding]::new($false))
+[System.IO.File]::WriteAllText((Join-Path $output "INSTALL_LAKIS_7.3.4.1_RC.cmd"), $launcher, [System.Text.UTF8Encoding]::new($false))
 [ordered]@{
     from_version = $FromVersion
     version = $Version

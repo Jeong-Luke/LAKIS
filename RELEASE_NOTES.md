@@ -1,4 +1,4 @@
-# LAKIS Studio v7.3.5
+# LAKIS Studio v7.3.4.1
 
 ## 긴급 수정
 
@@ -9,6 +9,11 @@
   문제를 수정했습니다.
 - 캔버스 드래그, 휠 거리 조절, 키보드 이동, 슬라이더, 숫자 입력, 프리셋 및
   초기화 조작이 모두 구도 상태 저장에 반영되도록 보강했습니다.
+- v7.3.3 계열에서 저장된 얼굴·눈 디테일러 수치가 문자열로 남아 있으면
+  생성 큐에 들어가기 전에 `LKS-GEN-1001`이 발생하던 문제를 수정했습니다.
+- 구버전 숫자·불리언·카메라 설정을 안전하게 변환하고, 잘못된 고급 설정은
+  해당 항목만 제외하도록 변경했습니다. 오래된 모델 노드 설정이 현재 선택한
+  체크포인트·VAE·CLIP을 다시 덮어쓰는 문제도 차단했습니다.
 
 사용자 모델, LoRA, 프롬프트, 워크플로 및 생성 이미지는 업데이트 시 보존됩니다.
 
@@ -17,6 +22,8 @@
 - Fixed LAKIS DETAIL results being mislabeled as FAST in the image badge.
 - Persisted composition camera coordinates and the composition ON/OFF state
   across application restarts and updates.
+- Migrated legacy numeric, boolean, camera, and advanced-node settings safely,
+  preventing pre-queue generation failures and stale model overrides.
 
 ---
 

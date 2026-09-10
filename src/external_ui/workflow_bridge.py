@@ -137,6 +137,13 @@ ADVANCED_FLOAT_FIELD_NAMES = {
     "rdc_alpha_ll", "rdc_alpha_hh", "crop_factor", "denoise",
     "seam_fix_denoise",
 }
+TRUE_VALUES = {"1", "true", "yes", "on", "enabled"}
+FALSE_VALUES = {"0", "false", "no", "off", "disabled", ""}
+AUTHORITATIVE_MODEL_FIELDS = {
+    ("890:1365", "model_name"),
+    ("890:159", "vae_name"),
+    ("890:164", "clip_name"),
+}
 
 ADVANCED_NODE_GROUPS = {
     "model": ("890:1365", "890:159", "890:164", "890:905"),
@@ -165,6 +172,44 @@ ADVANCED_NODE_TITLES = {
     "1541:1542": "USDU DCW 스위치", "1541:1837": "USDU Spectrum", "1541:1838": "USDU 스텝",
     "1541:1538": "Ultimate SD Upscale",
 }
+
+
+def _coerce_bool(value: Any, default: bool = False, *, strict: bool = False) -> bool:
+    """Decode persisted booleans without treating the string ``false`` as true."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)) and not isinstance(value, bool) and value in {0, 1}:
+        return bool(value)
+    if isinstance(value, str):
+        normalized = value.strip().casefold()
+        if normalized in TRUE_VALUES:
+            return True
+        if normalized in FALSE_VALUES:
+            return False
+    if strict:
+        raise ValueError("value must be a boolean")
+    return default
+
+
+def _coerce_number(value: Any, default: float, *, integer: bool = False) -> int | float:
+    """Decode a finite JSON number or a legacy numeric string."""
+    if isinstance(value, bool):
+        return int(default) if integer else float(default)
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return int(default) if integer else float(default)
+    if not math.isfinite(number) or (integer and not number.is_integer()):
+        return int(default) if integer else float(default)
+    return int(number) if integer else number
+
+
+def _bounded_number(
+    value: Any, default: float, minimum: float, maximum: float, *, integer: bool = False,
+) -> int | float:
+    number = _coerce_number(value, default, integer=integer)
+    number = max(minimum, min(maximum, number))
+    return int(number) if integer else float(number)
 
 
 def _is_node_link(value: Any) -> bool:
@@ -378,7 +423,9 @@ def _apply_advanced_node_overrides(prompt: dict[str, Any], requested: Any) -> No
             # upscaler.  A stale advanced-settings value must never switch a
             # RealESRGAN user back to AnimeSharp without acknowledgement (or
             # override the user's acknowledged AnimeSharp choice).
-            if node_id == UPSCALER_NODE_ID and name == UPSCALER_FIELD_NAME:
+            if (node_id, name) in AUTHORITATIVE_MODEL_FIELDS or (
+                node_id == UPSCALER_NODE_ID and name == UPSCALER_FIELD_NAME
+            ):
                 continue
             original = inputs[name]
             class_type = str(prompt[node_id].get("class_type") or "")
@@ -405,24 +452,47 @@ def _apply_advanced_node_overrides(prompt: dict[str, Any], requested: Any) -> No
                 fail(f"{node_id}.{name} is not a supported option")
             boolean_string = isinstance(original, str) and original.strip().lower() in {"true", "false"}
             if schema_type == "BOOLEAN" or boolean_string:
-                if not isinstance(value, bool):
+                try:
+                    value = _coerce_bool(value, strict=True)
+                except ValueError:
                     fail(f"{node_id}.{name} must be true or false")
             elif isinstance(original, bool):
-                if not isinstance(value, bool):
+                try:
+                    value = _coerce_bool(value, strict=True)
+                except ValueError:
                     fail(f"{node_id}.{name} must be true or false")
             elif isinstance(original, (int, float)) and not isinstance(original, bool):
-                if not isinstance(value, (int, float)) or not math.isfinite(float(value)):
+                try:
+                    numeric_value = float(value)
+                except (TypeError, ValueError, OverflowError):
+                    fail(f"{node_id}.{name} must be a finite number")
+                if isinstance(value, bool) or not math.isfinite(numeric_value):
                     fail(f"{node_id}.{name} must be a finite number")
                 if isinstance(original, float) or name in ADVANCED_FLOAT_FIELD_NAMES:
-                    value = float(value)
+                    value = numeric_value
                 else:
-                    if not float(value).is_integer():
+                    if not numeric_value.is_integer():
                         fail(f"{node_id}.{name} must be an integer")
-                    value = int(value)
+                    value = int(numeric_value)
                 if "min" in constraints and value < constraints["min"]:
                     fail(f"{node_id}.{name} is below the supported minimum")
                 if "max" in constraints and value > constraints["max"]:
                     fail(f"{node_id}.{name} exceeds the supported maximum")
+            elif isinstance(original, str) and re.fullmatch(
+                r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)", original.strip(),
+            ):
+                try:
+                    numeric_value = float(value)
+                except (TypeError, ValueError, OverflowError):
+                    fail(f"{node_id}.{name} must be a finite number")
+                if isinstance(value, bool) or not math.isfinite(numeric_value):
+                    fail(f"{node_id}.{name} must be a finite number")
+                if name in ADVANCED_FLOAT_FIELD_NAMES or "." in original:
+                    value = numeric_value
+                else:
+                    if not numeric_value.is_integer():
+                        fail(f"{node_id}.{name} must be an integer")
+                    value = int(numeric_value)
             elif isinstance(original, str) and isinstance(value, (int, float)) and not isinstance(value, bool):
                 # Some ComfyUI enum-like inputs are numeric strings in the
                 # template (for example Prompt Studio resolution_bucket), but
@@ -439,7 +509,9 @@ def _apply_advanced_node_overrides(prompt: dict[str, Any], requested: Any) -> No
             inputs[name] = value
 
 
-def _clean_advanced_node_overrides(requested: Any) -> dict[str, dict[str, Any]]:
+def _clean_advanced_node_overrides(
+    requested: Any, *, drop_invalid: bool = False,
+) -> dict[str, dict[str, Any]]:
     """Validate and retain only editable node fields for restart persistence."""
     if requested in (None, {}):
         return {}
@@ -452,10 +524,22 @@ def _clean_advanced_node_overrides(requested: Any) -> dict[str, dict[str, Any]]:
         raise ValueError("advanced node settings are too large")
     template = json.loads(TEMPLATE.read_text(encoding="utf-8"))
     validated = deepcopy(template)
-    _apply_advanced_node_overrides(validated, requested)
+    accepted: dict[str, dict[str, Any]] = {}
+    for node_id, fields in requested.items():
+        if not isinstance(fields, dict):
+            continue
+        for name, value in fields.items():
+            try:
+                _apply_advanced_node_overrides(validated, {node_id: {name: value}})
+            except SettingsValidationError:
+                if not drop_invalid:
+                    raise
+                _audit("legacy_setting_dropped", node_id=node_id, setting_name=name)
+                continue
+            accepted.setdefault(node_id, {})[name] = value
     allowed = {node_id for node_ids in ADVANCED_NODE_GROUPS.values() for node_id in node_ids}
     clean: dict[str, dict[str, Any]] = {}
-    for node_id, fields in requested.items():
+    for node_id, fields in accepted.items():
         if node_id not in allowed or node_id not in template or not isinstance(fields, dict):
             continue
         editable = {
@@ -467,6 +551,7 @@ def _clean_advanced_node_overrides(requested: Any) -> dict[str, dict[str, Any]]:
             for name in fields
             if name in editable
             and node_id not in {"2138", "2139", "2140"}
+            and (node_id, name) not in AUTHORITATIVE_MODEL_FIELDS
             and not (node_id == UPSCALER_NODE_ID and name == UPSCALER_FIELD_NAME)
         }
         if selected:
@@ -597,16 +682,28 @@ def load_external_generation_state() -> dict[str, Any]:
     generation = payload.get("generation", {})
     camera = payload.get("camera", {})
     saved_engine = generation.get("upscale_engine") if isinstance(generation, dict) else None
-    saved_lakis_mode = bool(generation.get("lakis_mode", False)) if isinstance(generation, dict) else False
+    saved_lakis_mode = _coerce_bool(generation.get("lakis_mode", False)) if isinstance(generation, dict) else False
     # v4 introduces SCOPE as an explicit release option while retaining
     # Ultimate as the default. Legacy aliases are normalized once.
-    if int(payload.get("version", 0) or 0) < GENERATION_STATE_VERSION:
+    if _coerce_number(payload.get("version", 0), 0, integer=True) < GENERATION_STATE_VERSION:
         if saved_engine in {None, "lakis_fast"}:
             saved_engine = DEFAULT_UPSCALE_ENGINE
+    raw_overrides = payload.get("node_overrides", {})
     try:
-        node_overrides = _clean_advanced_node_overrides(payload.get("node_overrides", {}))
+        node_overrides = _clean_advanced_node_overrides(
+            raw_overrides, drop_invalid=True,
+        )
     except (TypeError, ValueError, OSError, json.JSONDecodeError):
         node_overrides = {}
+    if isinstance(raw_overrides, dict) and raw_overrides != node_overrides:
+        # Persist the migrated map so dropped fields are audited only once and
+        # subsequent launches no longer depend on legacy coercion.
+        payload["node_overrides"] = node_overrides
+        payload["updated_at"] = time.time()
+        try:
+            _write_external_ui_payload(payload)
+        except OSError:
+            pass
     return {
         "model": {key: model[key] for key in MODEL_STATE_KEYS if isinstance(model, dict) and key in model},
         "output": {key: output[key] for key in OUTPUT_STATE_KEYS if isinstance(output, dict) and key in output},
@@ -617,11 +714,16 @@ def load_external_generation_state() -> dict[str, Any]:
             else DEFAULT_UPSCALE_ENGINE
         },
         "camera": {
-            key: max(-1.0, min(1.0, float(camera[key])))
+            key: _bounded_number(
+                camera.get(key, camera.get(f"pos_{key}")) if key in {"x", "y", "z"} else camera.get(key),
+                0.0, -1.0, 1.0,
+            )
             for key in ("x", "y", "z", "roll", "frame_y")
-            if isinstance(camera, dict) and key in camera
+            if isinstance(camera, dict) and (
+                key in camera or (key in {"x", "y", "z"} and f"pos_{key}" in camera)
+            )
         },
-        "composition_enabled": bool(payload.get("composition_enabled", True)),
+        "composition_enabled": _coerce_bool(payload.get("composition_enabled", True), True),
         "node_overrides": node_overrides,
     }
 
@@ -634,11 +736,21 @@ def save_external_generation_state(
     if not isinstance(model, dict) or not isinstance(output, dict):
         raise ValueError("model and output state must be objects")
     clean_model = {key: model[key] for key in MODEL_STATE_KEYS if key in model}
+    clean_model["steps"] = _bounded_number(clean_model.get("steps", 30), 30, 1, 10_000, integer=True)
+    clean_model["cfg"] = _bounded_number(clean_model.get("cfg", 5.0), 5.0, 0.0, 100.0)
     if str(clean_model.get("sampler", "euler_ancestral")) not in _enum_options("KSampler", "sampler_name", SAMPLER_OPTIONS):
         raise ValueError("Unsupported sampler")
     if str(clean_model.get("scheduler", "normal")) not in _enum_options("KSampler", "scheduler", SCHEDULER_OPTIONS):
         raise ValueError("Unsupported scheduler")
     clean_output = {key: output[key] for key in OUTPUT_STATE_KEYS if key in output}
+    clean_output["width"] = _bounded_number(clean_output.get("width", 1536), 1536, 256, 4096, integer=True)
+    clean_output["height"] = _bounded_number(clean_output.get("height", 1024), 1024, 256, 4096, integer=True)
+    clean_output["seed"] = _bounded_number(
+        clean_output.get("seed", 0), 0, 0, COMFYUI_SEED_MAX, integer=True,
+    )
+    clean_output["aspect_locked"] = _coerce_bool(clean_output.get("aspect_locked", False))
+    if str(clean_output.get("seed_mode", "random")) not in {"random", "fixed"}:
+        clean_output["seed_mode"] = "random"
     if not isinstance(loras, list):
         loras = []
     if len(loras) > 64:
@@ -649,12 +761,12 @@ def save_external_generation_state(
             continue
         clean_loras.append({
             "name": str(item.get("name", ""))[:1000],
-            "enabled": bool(item.get("enabled", False)),
-            "strength": max(-20.0, min(20.0, float(item.get("strength", 1.0)))),
+            "enabled": _coerce_bool(item.get("enabled", False)),
+            "strength": _bounded_number(item.get("strength", 1.0), 1.0, -20.0, 20.0),
         })
     clean_overrides = _clean_advanced_node_overrides(node_overrides or {})
     clean_camera = {
-        key: max(-1.0, min(1.0, float(camera[key])))
+        key: _bounded_number(camera[key], 0.0, -1.0, 1.0)
         for key in ("x", "y", "z", "roll", "frame_y")
         if isinstance(camera, dict) and key in camera
     }
@@ -669,14 +781,14 @@ def save_external_generation_state(
         "version": GENERATION_STATE_VERSION,
         "model": clean_model,
         "output": clean_output,
-        "lora": {"current": clean_loras, "enabled": bool(lora_enabled)},
+        "lora": {"current": clean_loras, "enabled": _coerce_bool(lora_enabled, True)},
         "node_overrides": clean_overrides,
         "generation": {
-            "lakis_mode": bool(generation.get("lakis_mode", False)) if isinstance(generation, dict) else False,
+            "lakis_mode": _coerce_bool(generation.get("lakis_mode", False)) if isinstance(generation, dict) else False,
             "upscale_engine": upscale_engine,
         },
         "camera": clean_camera,
-        "composition_enabled": bool(composition_enabled),
+        "composition_enabled": _coerce_bool(composition_enabled, True),
         "updated_at": time.time(),
     })
     _write_external_ui_payload(payload)
@@ -807,15 +919,15 @@ def workflow_configuration() -> dict[str, Any]:
             "model": {
                 "sampler": sampler,
                 "scheduler": scheduler,
-                "steps": int(saved_model.get("steps", 30)),
-                "cfg": float(saved_model.get("cfg", 5.0)),
+                "steps": _bounded_number(saved_model.get("steps", 30), 30, 1, 10_000, integer=True),
+                "cfg": _bounded_number(saved_model.get("cfg", 5.0), 5.0, 0.0, 100.0),
             },
             "output": {
-                "width": int(saved_output.get("width", 1536)),
-                "height": int(saved_output.get("height", 1024)),
-                "seed": int(saved_output.get("seed", 579441119814924)),
+                "width": _bounded_number(saved_output.get("width", 1536), 1536, 256, 4096, integer=True),
+                "height": _bounded_number(saved_output.get("height", 1024), 1024, 256, 4096, integer=True),
+                "seed": _bounded_number(saved_output.get("seed", 579441119814924), 579441119814924, 0, COMFYUI_SEED_MAX, integer=True),
                 "seed_mode": str(saved_output.get("seed_mode", "random")),
-                "aspect_locked": bool(saved_output.get("aspect_locked", False)),
+                "aspect_locked": _coerce_bool(saved_output.get("aspect_locked", False)),
             },
             "node_overrides": saved.get("node_overrides", {}),
         },
@@ -848,8 +960,8 @@ def _saved_lora_configuration() -> dict[str, Any]:
                 continue
             configured.append({
                 "name": installed_name,
-                "enabled": bool(row.get("on", row.get("enabled", True))),
-                "strength": float(row.get("strength", 1)),
+                "enabled": _coerce_bool(row.get("on", row.get("enabled", True)), True),
+                "strength": _bounded_number(row.get("strength", 1), 1, -20, 20),
             })
     except (TypeError, ValueError, json.JSONDecodeError):
         configured = []
@@ -862,15 +974,15 @@ def _saved_lora_configuration() -> dict[str, Any]:
             installed_name = available_by_key.get(raw_name.casefold()) if raw_name else ""
             configured.append({
                 "name": installed_name or "",
-                "enabled": bool(row.get("enabled", False)) and bool(installed_name),
-                "strength": max(-20.0, min(20.0, float(row.get("strength", 1)))),
+                "enabled": _coerce_bool(row.get("enabled", False)) and bool(installed_name),
+                "strength": _bounded_number(row.get("strength", 1), 1, -20, 20),
             })
     return {
         # Restore the selected workflow profile, but only for LoRAs that are
         # actually installed. A clean first launch therefore remains empty.
         "current": configured,
         "options": available,
-        "enabled": bool(saved_lora.get("enabled", True)) if isinstance(saved_lora, dict) else True,
+        "enabled": _coerce_bool(saved_lora.get("enabled", True), True) if isinstance(saved_lora, dict) else True,
         "profile_index": profile_index,
         "node_class": preset.get("type"),
     }
@@ -1029,12 +1141,12 @@ def _inject_loras(prompt: dict[str, Any], requested: Any, globally_enabled: bool
         name = canonical.get(raw_name.lower())
         if name is None:
             raise ValueError(f"Unknown LoRA: {raw_name}")
-        strength = float(item.get("strength", 1.0))
+        strength = _coerce_number(item.get("strength", 1.0), float("nan"))
         if not math.isfinite(strength) or not -20.0 <= strength <= 20.0:
             raise ValueError(f"LoRA strength must be between -20 and 20: {name}")
         rows.append({
             "name": name,
-            "on": globally_enabled and bool(item.get("enabled", True)),
+            "on": globally_enabled and _coerce_bool(item.get("enabled", True), True),
             "strength": strength,
             "strengthTwo": None,
         })
@@ -1123,7 +1235,9 @@ def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dic
         raise ValueError("generation.mode must be fast, detail, or lakis_detail")
 
     detail = mode in {"detail", "lakis_detail"}
-    lakis_detail = detail and (mode == "lakis_detail" or bool(generation.get("lakis_mode", False)))
+    lakis_detail = detail and (
+        mode == "lakis_detail" or _coerce_bool(generation.get("lakis_mode", False))
+    )
     legacy_detail = detail and not lakis_detail
     prompt["2138"]["inputs"]["value"] = legacy_detail
     prompt["2139"]["inputs"]["value"] = legacy_detail
@@ -1131,7 +1245,7 @@ def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dic
 
     # Hidden DEV benchmark contract: preserve the complete generation path but
     # skip both detailers so repeated upscale-engine measurements are quick.
-    if DEVELOPMENT and bool(generation.get("upscale_benchmark", False)):
+    if DEVELOPMENT and _coerce_bool(generation.get("upscale_benchmark", False)):
         prompt["2138"]["inputs"]["value"] = False
         prompt["2139"]["inputs"]["value"] = False
         prompt["2140"]["inputs"]["value"] = True
@@ -1245,19 +1359,19 @@ def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dic
             },
         }
 
-    seed = int(output.get("seed", 0))
+    seed = _coerce_number(output.get("seed", 0), -1, integer=True)
     if not 0 <= seed <= COMFYUI_SEED_MAX:
         raise ValueError(f"Seed must be between 0 and {COMFYUI_SEED_MAX}")
     # VAE encoding and the Anima/Spectrum latent path must agree on exact
     # latent cells. Spectrum requires even latent dimensions, so output pixels
     # must be multiples of 16. A width such as 728 yields 91 latent cells and
     # is padded to 92 in one path, causing a 91-vs-92 KSampler mismatch.
-    width = round(max(256, min(4096, int(output.get("width", 1024)))) / 16) * 16
-    height = round(max(256, min(4096, int(output.get("height", 1536)))) / 16) * 16
+    width = round(_bounded_number(output.get("width", 1024), 1024, 256, 4096, integer=True) / 16) * 16
+    height = round(_bounded_number(output.get("height", 1536), 1536, 256, 4096, integer=True) / 16) * 16
     target_width, target_height = width, height
     prompt["890:1864"]["inputs"]["seed"] = seed
-    i2i_enabled = bool(i2i.get("enabled", False))
-    i2i_denoise = max(0.0, min(1.0, float(i2i.get("denoise", 0.5))))
+    i2i_enabled = _coerce_bool(i2i.get("enabled", False))
+    i2i_denoise = _bounded_number(i2i.get("denoise", 0.5), 0.5, 0.0, 1.0)
     if i2i_enabled:
         image_name = Path(str(i2i.get("image_name", ""))).name
         image_path = (COMFY_ROOT / "input" / image_name).resolve()
@@ -1305,11 +1419,19 @@ def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dic
     prompt["890:159"]["inputs"]["vae_name"] = vae
     prompt["890:164"]["inputs"]["clip_name"] = clip
     sampler_config = prompt["890:905"]["inputs"]
+    requested_sampler = str(model.get("sampler", sampler_config["sampler_name"]))
+    requested_scheduler = str(model.get("scheduler", sampler_config["scheduler"]))
+    if requested_sampler not in available["sampler"]["options"]:
+        raise ValueError(f"Unsupported sampler: {requested_sampler}")
+    if requested_scheduler not in available["scheduler"]["options"]:
+        raise ValueError(f"Unsupported scheduler: {requested_scheduler}")
     sampler_config.update({
-        "steps_total": int(model.get("steps", sampler_config["steps_total"])),
-        "cfg": float(model.get("cfg", sampler_config["cfg"])),
-        "sampler_name": str(model.get("sampler", sampler_config["sampler_name"])),
-        "scheduler": str(model.get("scheduler", sampler_config["scheduler"])),
+        "steps_total": _bounded_number(
+            model.get("steps", sampler_config["steps_total"]), sampler_config["steps_total"], 1, 10_000, integer=True,
+        ),
+        "cfg": _bounded_number(model.get("cfg", sampler_config["cfg"]), sampler_config["cfg"], 0.0, 100.0),
+        "sampler_name": requested_sampler,
+        "scheduler": requested_scheduler,
     })
     # The v6.1 reference workflow uses a calmer native-model i2i pass
     # (20 steps, CFG 8, Euler/Simple).  It preserves source structure better
@@ -1351,7 +1473,10 @@ def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dic
     camera_inputs = prompt["2135"]["inputs"]
     for source, target in (("x", "pos_x"), ("y", "pos_y"), ("z", "pos_z"),
                            ("roll", "roll"), ("frame_y", "frame_y")):
-        camera_inputs[target] = float(camera.get(source, camera_inputs.get(target, 0)))
+        camera_inputs[target] = _bounded_number(
+            camera.get(source, camera.get(target, camera_inputs.get(target, 0))),
+            camera_inputs.get(target, 0), -1.0, 1.0,
+        )
 
     # Camera-control node values must be applied after the friendly controls
     # but before its generated text is embedded in Prompt Studio. Applying
@@ -1361,13 +1486,13 @@ def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dic
     if isinstance(requested_overrides, dict) and "2135" in requested_overrides:
         _apply_advanced_node_overrides(prompt, {"2135": requested_overrides["2135"]})
 
-    composition_enabled = bool(application_state.get("composition_enabled", True))
+    composition_enabled = _coerce_bool(application_state.get("composition_enabled", True), True)
     camera_prompt = _camera_prompt(camera_inputs) if composition_enabled else ""
     _replace_camera_field(prompt, camera_prompt)
 
     _inject_prompts(prompt, prompt_state)
     lora_assertions = _inject_loras(
-        prompt, lora_state, bool(application_state.get("lora_enabled", True))
+        prompt, lora_state, _coerce_bool(application_state.get("lora_enabled", True), True)
     )
 
     # Accepted S1R2 Initial Spectrum: one patch, Initial only.  The DEV SPEED
@@ -1967,7 +2092,7 @@ class WorkflowBridge:
         generation_state = application_state.get("generation", {})
         effective_mode = (
             "lakis_detail"
-            if generation_state.get("mode") == "detail" and bool(generation_state.get("lakis_mode", False))
+            if generation_state.get("mode") == "detail" and _coerce_bool(generation_state.get("lakis_mode", False))
             else generation_state.get("mode", "fast")
         )
         self.status.update(state="preparing", percent=0.0, stage="생성 중", prompt_id=None,
@@ -1977,7 +2102,7 @@ class WorkflowBridge:
                            error_exception_type=None, request_id=token["request_id"],
                            diagnostic_context=diagnostic_context,
                            mode=effective_mode,
-                           i2i_enabled=bool(application_state.get("i2i", {}).get("enabled", False)),
+                           i2i_enabled=_coerce_bool(application_state.get("i2i", {}).get("enabled", False)),
                            prompt_used=prompt_used,
                            seed=int(application_state["output"]["seed"]),
                            started_at=time.time(), finished_at=None, cancel_requested=False,
@@ -2006,18 +2131,23 @@ class WorkflowBridge:
                 "checkpoint", "vae", "clip", "sampler", "scheduler", "steps", "cfg"
             )},
             "output": {key: output.get(key) for key in ("width", "height", "aspect_locked")},
-            "loras_enabled": bool(application_state.get("lora_enabled", True)),
+            "loras_enabled": _coerce_bool(application_state.get("lora_enabled", True), True),
             "loras": [
                 {key: item.get(key) for key in ("name", "strength", "enabled")}
                 for item in loras[:64] if isinstance(item, dict)
             ],
-            "camera": {key: camera.get(key) for key in (
-                "enabled", "pos_x", "pos_y", "pos_z", "roll", "frame_y"
-            )},
+            "camera": {
+                "enabled": _coerce_bool(camera.get("enabled", True), True),
+                "pos_x": camera.get("x", camera.get("pos_x")),
+                "pos_y": camera.get("y", camera.get("pos_y")),
+                "pos_z": camera.get("z", camera.get("pos_z")),
+                "roll": camera.get("roll"),
+                "frame_y": camera.get("frame_y"),
+            },
             "i2i": {
-                "enabled": bool(i2i.get("enabled", False)),
+                "enabled": _coerce_bool(i2i.get("enabled", False)),
                 "denoise": i2i.get("denoise"),
-                "source_size_enabled": bool(i2i.get("source_size_enabled", False)),
+                "source_size_enabled": _coerce_bool(i2i.get("source_size_enabled", False)),
             },
             "advanced_node_settings": deepcopy(application_state.get("node_overrides", {})),
         }
