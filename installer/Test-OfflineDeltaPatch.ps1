@@ -4,11 +4,11 @@ param(
 
 $ErrorActionPreference = "Stop"
 $repo = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-if (-not $PatchDirectory) { $PatchDirectory = Join-Path $repo "dist\LAKIS_v7.3.4.1-offline-patch" }
+if (-not $PatchDirectory) { $PatchDirectory = Join-Path $repo "dist\LAKIS_v7.3.6-offline-patch" }
 $testRoot = Join-Path $repo "dist\.offline-delta-test-install"
 if (Test-Path -LiteralPath $testRoot) { Remove-Item -LiteralPath $testRoot -Recurse -Force }
 New-Item -ItemType Directory -Force -Path $testRoot | Out-Null
-Set-Content -LiteralPath (Join-Path $testRoot "VERSION") -Value "7.3.3" -Encoding ASCII
+Set-Content -LiteralPath (Join-Path $testRoot "VERSION") -Value "7.3.5" -Encoding ASCII
 
 $protected = @(
     "ComfyUI\models\checkpoints\KEEP_MODEL.safetensors",
@@ -23,8 +23,8 @@ foreach ($relative in $protected) {
 }
 
 & (Join-Path $PatchDirectory "Apply-OfflineDelta.ps1") -InstallRoot $testRoot
-if ((Get-Content -Raw -LiteralPath (Join-Path $testRoot "VERSION")).Trim() -ne "7.3.4.1") {
-    throw "Offline patch did not advance VERSION to 7.3.4.1."
+if ((Get-Content -Raw -LiteralPath (Join-Path $testRoot "VERSION")).Trim() -ne "7.3.6") {
+    throw "Offline patch did not advance VERSION to 7.3.6."
 }
 foreach ($relative in $protected) {
     $path = Join-Path $testRoot $relative

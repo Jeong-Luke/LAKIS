@@ -1,4 +1,4 @@
-# LAKIS Studio v7.3.4.1
+# LAKIS Studio v7.3.6
 
 ## 긴급 수정
 
