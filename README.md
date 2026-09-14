@@ -8,9 +8,9 @@ LAKIS 애플리케이션, 사용자 인터페이스, 설치기, 업데이터, �
 
 ## 다운로드
 
-**[Windows용 LAKIS Studio v7.3.5 다운로드](https://github.com/Jeong-Luke/LAKIS/releases/download/v7.3.5/LAKIS_Setup.exe)**
+**[Windows용 LAKIS Studio v7.4.0 다운로드](https://github.com/Jeong-Luke/LAKIS/releases/download/v7.4.0/LAKIS_Setup.exe)**
 
-`LAKIS_Setup.exe`를 실행하면 LAKIS를 설치하거나 복구할 수 있습니다. [v7.3.5 릴리즈 설명과 개별 파일](https://github.com/Jeong-Luke/LAKIS/releases/tag/v7.3.5)도 확인할 수 있습니다.
+`LAKIS_Setup.exe`를 실행하면 LAKIS를 설치하거나 복구할 수 있습니다. [v7.4.0 릴리즈 설명과 개별 파일](https://github.com/Jeong-Luke/LAKIS/releases/tag/v7.4.0)도 확인할 수 있습니다.
 
 ## 안정 버전
 
@@ -50,7 +50,7 @@ from AGPL software remain AGPL-3.0-or-later.
 
 ### Download
 
-**[Download LAKIS Studio v7.3.5 for Windows](https://github.com/Jeong-Luke/LAKIS/releases/download/v7.3.5/LAKIS_Setup.exe)**
+**[Download LAKIS Studio v7.4.0 for Windows](https://github.com/Jeong-Luke/LAKIS/releases/download/v7.4.0/LAKIS_Setup.exe)**
 
 Run `LAKIS_Setup.exe` to install or repair LAKIS. You can also view the
 [v7.3.5 release notes and individual files](https://github.com/Jeong-Luke/LAKIS/releases/tag/v7.3.5).

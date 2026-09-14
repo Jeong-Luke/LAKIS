@@ -31,7 +31,8 @@ Require ($generator.Contains("lakis-tag-hash-")) "Manifest hashes must come from
 Require ($generator.Contains("LICENSE.md")) "Existing users must receive the LAKIS licence."
 Require ($generator.Contains("THIRD_PARTY_NOTICES.md")) "Existing users must receive third-party notices."
 Require (-not $generator.Contains('path = "ComfyUI/models/')) "Legacy updaters reject model paths; models must not be in the manifest."
-Require (-not $generator.Contains("ComfyUI-LAKIS-Light-Control")) "Next manifest generator must not include retired Light Control."
+Require (-not $generator.Contains('Add-UpdateFile "ComfyUI/custom_nodes/ComfyUI-LAKIS-Light-Control')) "Next manifest generator must not distribute retired Light Control."
+Require ($generator.Contains("ComfyUI/custom_nodes/ComfyUI-LAKIS-Light-Control/__init__.py")) "Next manifest must explicitly remove retired Light Control."
 Require (-not $generator.Contains("DSINE")) "Next manifest generator must not include DSINE."
 Require ($generator.Contains("ComfyUI-LAKIS-Local-Inpaint")) "Manifest generator must include the public Local Inpaint V2 custom node."
 

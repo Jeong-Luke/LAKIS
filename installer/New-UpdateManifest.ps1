@@ -115,11 +115,72 @@ foreach ($runtimeName in @(
         (Join-Path $repo "workflows\$runtimeName") "$rawBase/workflows/$runtimeName"
 }
 
+$retiredFiles = @(
+    'ComfyUI/LAKIS/STOP_AUTOMATION',
+    'ComfyUI/LAKIS/external_ui/README.md',
+    'ComfyUI/LAKIS/external_ui/advanced-node-settings.css',
+    'ComfyUI/LAKIS/external_ui/advanced-node-settings.js',
+    'ComfyUI/LAKIS/external_ui/app.js',
+    'ComfyUI/LAKIS/external_ui/assets/LAKIS_windows_compatible.ico',
+    'ComfyUI/LAKIS/external_ui/assets/upscaler/animesharp-v4-fast-preview.png',
+    'ComfyUI/LAKIS/external_ui/assets/upscaler/realesrgan-anime-6b-preview.png',
+    'ComfyUI/LAKIS/external_ui/brand-position-fix.css',
+    'ComfyUI/LAKIS/external_ui/camera-3d.css',
+    'ComfyUI/LAKIS/external_ui/composition-control.css',
+    'ComfyUI/LAKIS/external_ui/composition-toggle.css',
+    'ComfyUI/LAKIS/external_ui/data/autocomplete.csv',
+    'ComfyUI/LAKIS/external_ui/error-dialog.css',
+    'ComfyUI/LAKIS/external_ui/generation-actions.css',
+    'ComfyUI/LAKIS/external_ui/generation-monitor.css',
+    'ComfyUI/LAKIS/external_ui/history-mode-badge.css',
+    'ComfyUI/LAKIS/external_ui/horizontal-overflow-fix.css',
+    'ComfyUI/LAKIS/external_ui/i2i-control.css',
+    'ComfyUI/LAKIS/external_ui/i2i-preview-contain.css',
+    'ComfyUI/LAKIS/external_ui/index.html',
+    'ComfyUI/LAKIS/external_ui/launch_lakis.py',
+    'ComfyUI/LAKIS/external_ui/layout-adjustment.css',
+    'ComfyUI/LAKIS/external_ui/light-control-prototype.css',
+    'ComfyUI/LAKIS/external_ui/lightmap-knob-mockup.js',
+    'ComfyUI/LAKIS/external_ui/lora-controls.css',
+    'ComfyUI/LAKIS/external_ui/mockup-layout.css',
+    'ComfyUI/LAKIS/external_ui/preview-zoom.css',
+    'ComfyUI/LAKIS/external_ui/prompt-categories.css',
+    'ComfyUI/LAKIS/external_ui/prompt-highlighting.css',
+    'ComfyUI/LAKIS/external_ui/prompt-highlighting.js',
+    'ComfyUI/LAKIS/external_ui/prompt-inspector.css',
+    'ComfyUI/LAKIS/external_ui/prompt-model-controls.css',
+    'ComfyUI/LAKIS/external_ui/prompt-width.css',
+    'ComfyUI/LAKIS/external_ui/readability.css',
+    'ComfyUI/LAKIS/external_ui/seed-controls.css',
+    'ComfyUI/LAKIS/external_ui/seed-layout-fix.css',
+    'ComfyUI/LAKIS/external_ui/serve_ui.py',
+    'ComfyUI/LAKIS/external_ui/sidebar-links.css',
+    'ComfyUI/LAKIS/external_ui/status-footer-large.css',
+    'ComfyUI/LAKIS/external_ui/status-footer.css',
+    'ComfyUI/LAKIS/external_ui/styles.css',
+    'ComfyUI/LAKIS/external_ui/system-info-dialog.css',
+    'ComfyUI/LAKIS/external_ui/system-info-dialog.js',
+    'ComfyUI/LAKIS/external_ui/upscaler-license-migration.css',
+    'ComfyUI/LAKIS/external_ui/upscaler-license-migration.js',
+    'ComfyUI/LAKIS/external_ui/viewport-fix.css',
+    'ComfyUI/LAKIS/external_ui/workflow_bridge.py',
+    'ComfyUI/LAKIS/workflows/LAKIS_DETAIL_runtime_api_v7.3.json',
+    'ComfyUI/LAKIS/workflows/LAKIS_custom_v7.3_editable.json',
+    'ComfyUI/LAKIS/workflows/LAKIS_runtime_api_v7.1.json',
+    'ComfyUI/LAKIS/workflows/LAKIS_runtime_visual_v7.3.json',
+    'ComfyUI/custom_nodes/ComfyUI-LAKIS-Light-Control/INSTALL_REQUIREMENTS.bat',
+    'ComfyUI/custom_nodes/ComfyUI-LAKIS-Light-Control/LICENSE',
+    'ComfyUI/custom_nodes/ComfyUI-LAKIS-Light-Control/NOTICE.md',
+    'ComfyUI/custom_nodes/ComfyUI-LAKIS-Light-Control/__init__.py',
+    'ComfyUI/custom_nodes/ComfyUI-LAKIS-Light-Control/requirements.txt',
+    'ComfyUI/custom_nodes/ComfyUI-LAKIS-Light-Control/web/lakis_light_control.js'
+)
+
 $manifest = [ordered]@{
     version = $Version
     release_notes = "LAKIS $Version update"
     files = $files
-    delete = @()
+    delete = $retiredFiles
 }
 $output = if ([string]::IsNullOrWhiteSpace($OutputPath)) {
     Join-Path $repo "manifests\update-latest.json"
