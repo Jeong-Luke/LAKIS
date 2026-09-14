@@ -1,0 +1,261 @@
+extreme close-up
+close-up portrait
+tight face close-up
+headshot composition
+head-and-shoulders shot
+bust shot
+chest-up shot
+waist-up shot
+upper-body shot
+half-body shot
+cowboy shot
+three-quarter body shot
+knee-up shot
+full-body shot
+wide full-body shot
+long shot
+very wide shot
+environmental portrait
+wide environmental composition
+panoramic composition
+eye-level camera angle
+slightly low camera angle
+low-angle shot
+very low-angle shot
+worm's-eye view
+slightly high camera angle
+high-angle shot
+very high-angle shot
+bird's-eye view
+top-down composition
+overhead camera angle
+ground-level camera angle
+waist-level camera angle
+chest-level camera angle
+shoulder-level camera angle
+front-facing composition
+straight-on view
+three-quarter front view
+left three-quarter view
+right three-quarter view
+left side profile
+right side profile
+clean side-view composition
+three-quarter back view
+left three-quarter back view
+right three-quarter back view
+back-view composition
+over-the-shoulder composition
+rear over-the-shoulder view
+profile-focused composition
+centered composition
+strong centered composition
+slightly off-center composition
+left-weighted composition
+right-weighted composition
+upper-left subject placement
+upper-right subject placement
+lower-left subject placement
+lower-right subject placement
+rule-of-thirds composition
+left-third subject placement
+right-third subject placement
+upper-third subject placement
+lower-third subject placement
+balanced asymmetrical composition
+symmetrical composition
+near-symmetrical composition
+minimal centered composition
+subject isolated in negative space
+large negative space on the left
+large negative space on the right
+large negative space above the subject
+large negative space below the subject
+level horizon composition
+subtle Dutch angle
+moderate Dutch angle
+dramatic Dutch angle
+clockwise tilted composition
+counterclockwise tilted composition
+slightly rotated camera
+dynamic diagonal framing
+strong diagonal composition
+natural perspective
+compressed perspective
+deep perspective
+exaggerated perspective
+strong foreshortening
+subtle foreshortening
+wide-angle perspective
+ultra-wide perspective
+telephoto-style compression
+portrait-lens perspective
+cinematic wide-lens perspective
+close wide-angle portrait
+distant telephoto composition
+perspective from near foreground
+perspective from far background
+shallow-depth composition
+deep-focus composition
+strong foreground-background separation
+three-layer depth composition
+foreground-middle-background layering
+foreground framing elements
+soft foreground occlusion
+prominent foreground element
+subject framed by foreground elements
+subject framed by architecture
+subject framed by natural elements
+depth emphasized with leading foreground
+deep spatial composition
+compressed spatial composition
+open spatial composition
+dense layered composition
+tight crop around the subject
+loose crop around the subject
+generous headroom
+minimal headroom
+balanced headroom
+extra space above the subject
+extra space below the subject
+extra breathing room around the subject
+close edge framing
+subject touching the frame edge
+subject fully contained within frame
+cropped at mid-thigh
+cropped at the knees
+cropped at the waist
+cropped at the chest
+cropped just below the shoulders
+clean geometric composition
+triangular composition
+inverted triangular composition
+circular composition
+oval composition
+S-curve composition
+C-curve composition
+L-shaped composition
+Z-shaped composition
+radial composition
+spiral composition
+layered diagonal composition
+vertical composition
+horizontal composition
+strong vertical emphasis
+strong horizontal emphasis
+repeating-shape composition
+rhythmic composition
+visual balance with uneven spacing
+leading-lines composition
+converging-lines composition
+parallel-lines composition
+vanishing-point composition
+central vanishing-point composition
+off-center vanishing point
+single-point perspective composition
+two-point perspective composition
+corridor-style depth composition
+path-leading composition
+frame-within-a-frame composition
+window-framed composition
+doorway-framed composition
+archway-framed composition
+foreground vignette framing
+cinematic composition
+cinematic widescreen framing
+cinematic close framing
+editorial fashion composition
+magazine-cover composition
+poster-style composition
+character-poster composition
+album-cover composition
+promotional key-visual composition
+documentary-style composition
+candid snapshot composition
+street-photography composition
+travel-photo composition
+intimate portrait composition
+formal portrait composition
+studio portrait composition
+minimal portrait composition
+dramatic portrait composition
+casual portrait composition
+subject fills most of the frame
+subject occupies about two-thirds of the frame
+subject occupies about half of the frame
+small subject within a wide frame
+tiny subject within a vast frame
+large foreground subject
+medium-scale subject with visible environment
+distant subject with dominant environment
+close subject with limited environment
+balanced subject-to-background ratio
+balanced multi-subject composition
+side-by-side composition
+staggered-depth composition
+foreground-background subject arrangement
+triangular group composition
+symmetrical group composition
+asymmetrical group composition
+central-group composition
+wide group framing
+tight group framing
+portrait-orientation full-body framing
+portrait-orientation upper-body framing
+portrait-orientation close-up framing
+tall vertical composition
+vertical composition with strong headroom
+vertical composition with foreground depth
+vertical rule-of-thirds composition
+vertical centered poster composition
+vertical off-center editorial composition
+landscape-orientation portrait framing
+wide landscape composition
+landscape rule-of-thirds composition
+wide centered composition
+wide off-center composition
+cinematic horizontal composition
+wide frame with strong negative space
+wide frame with foreground layering
+camera slightly above eye level
+camera slightly below eye level
+camera close to the subject
+camera at medium distance
+camera far from the subject
+camera positioned to the left
+camera positioned to the right
+camera looking slightly upward
+camera looking slightly downward
+camera aligned with the subject
+camera offset from the subject
+camera placed near the ground
+camera placed above the subject
+clean space on the left for text
+clean space on the right for text
+clean space above for title text
+clean space below for caption text
+poster layout with open upper area
+poster layout with open side area
+editorial layout with negative space
+cover layout with centered subject
+cover layout with off-center subject
+balanced cinematic framing
+dynamic cinematic framing
+quiet restrained composition
+bold graphic composition
+soft balanced composition
+dramatic asymmetrical framing
+clean symmetrical framing
+close immersive composition
+distant observational composition
+spacious composition
+compact composition
+layered cinematic composition
+minimalist negative-space composition
+strong silhouette-friendly composition
+subject-emphasis composition
+environment-emphasis composition
+foreground-emphasis composition
+depth-emphasis composition
+perspective-emphasis composition
+clean character-focused composition

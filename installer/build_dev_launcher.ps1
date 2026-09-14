@@ -1,6 +1,6 @@
 $ErrorActionPreference = "Stop"
 $repo = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$workspace = (Resolve-Path (Join-Path $repo "..\..")).Path
+$workspace = (Resolve-Path (Join-Path $repo "..")).Path
 $output = Join-Path $workspace "dist"
 $stage = Join-Path $workspace ".dev-launcher-build"
 $csc = Join-Path $env:WINDIR "Microsoft.NET\Framework64\v4.0.30319\csc.exe"

@@ -1,5 +1,18 @@
 # Release notes
 
+## v7.4.0
+
+### Local Inpaint V2, LAKIS Link, Library, and workflow updates
+
+- Added Local Inpaint V2 for focused edits while preserving pixels outside the edited area. The required `anima-lllite-inpainting-v2.safetensors` weight remains a user-managed manual install and is not bundled or downloaded automatically.
+- Added LAKIS Link mobile access with image preview, pinch zoom, mobile inpaint drawing, wildcard controls, and the shared Library view.
+- Added Library multi-select and batch deletion, metadata reliability fixes, and viewport-based lazy image loading for lower browser memory use.
+- Added wildcard/random prompt insertion and continuous generation while preserving the one-click/one-prompt execution contract.
+- Improved prompt and Composition persistence across desktop and mobile feature-state changes.
+- Updated the official editable, runtime visual, and runtime API workflows with Local Inpaint V2 and Final Saver 775.
+- Removed retired Light/DSINE product paths and kept private research features out of the public package.
+- Fixed release-candidate issues in model detection, recent-image delivery, Link Library discovery, Final Saver result discovery, and patcher packaging.
+
 ## v7.3.0
 
 ### Error diagnostics and LoRA workflow improvements

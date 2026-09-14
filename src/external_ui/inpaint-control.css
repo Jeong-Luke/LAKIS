@@ -1,0 +1,68 @@
+.i2i-drop-zone { position: relative; }
+.inpaint-editor { position:relative; width:100%; height:clamp(300px,46vh,460px); min-height:300px; display:grid; place-items:center; overflow:hidden; border:1px dashed #3c4b66; border-radius:12px; background:#070a11; cursor:pointer; }
+.inpaint-editor:hover { border-color:#6f92dc; }
+.inpaint-editor.is-dragging { border-color:#f052a0; background:#130c18; }
+#inpaintPreview { position:absolute; display:block; object-fit:fill; }
+#inpaintPreview[hidden] { display:none; }
+#inpaintCanvas { position:absolute; cursor:crosshair; touch-action:none; z-index:2; opacity:.72; }
+#inpaintPlaceholder { display:grid; gap:5px; text-align:center; color:#dce4f4; }
+#inpaintPlaceholder small { color:#718099; font-size:11px; }
+.inpaint-controls[hidden] { display:none !important; }
+.inpaint-operation-switch { display:grid; grid-template-columns:1fr 1fr; gap:4px; padding:4px; border:1px solid #29354b; border-radius:10px; background:#090d16; }
+.inpaint-operation-switch button { padding:8px; border:0; border-radius:7px; color:#8e9bb1; background:transparent; cursor:pointer; font-weight:800; }
+.inpaint-operation-switch button.active { color:#fff; background:linear-gradient(135deg,#6847df,#4e31ae); box-shadow:0 0 0 1px #9278f4 inset; }
+.inpaint-prompt-panel.is-disabled { opacity:.42; filter:saturate(.45); }
+.inpaint-prompt-panel.is-disabled textarea { cursor:not-allowed; }
+.inpaint-panel .panel-heading > div { display:flex; align-items:center; gap:8px; }
+.inpaint-heading-actions { display:flex; align-items:center; gap:8px; }
+.inpaint-prompt-button { color:#f29ac6; border-color:rgba(240,82,160,.48); }
+.inpaint-prompt-button.is-active { color:#fff; background:#a82d69; border-color:#f052a0; }
+.inpaint-prompt-panel { display:grid; gap:7px; padding:10px; border:1px solid rgba(240,82,160,.32); border-radius:10px; background:#100c16; }
+.inpaint-prompt-panel[hidden] { display:none!important; }
+.inpaint-prompt-panel>div { display:flex; justify-content:space-between; color:#e4dce8; font-size:11px; }
+.inpaint-prompt-panel>div:not(.prompt-highlight-host)>span { color:#7f899d; font-size:9px; }
+.inpaint-prompt-panel textarea { min-height:76px; resize:vertical; border-color:#493047; font-size:14px; line-height:1.65; }
+.inpaint-prompt-panel .prompt-highlight-host { flex:none; width:100%; height:112px; min-height:112px; margin-top:0; }
+.inpaint-prompt-panel .prompt-highlight-layer { border-color:#493047; background:#100c16; font-size:14px; line-height:1.65; }
+.inpaint-prompt-panel .prompt-highlight-token { font-size:inherit; line-height:inherit; }
+.inpaint-prompt-panel .prompt-autocomplete { z-index:40; }
+.inpaint-prompt-panel .prompt-autocomplete strong { font-size:12px; }
+.inpaint-prompt-panel .prompt-autocomplete span { font-size:11px; }
+.inpaint-prompt-panel small { color:#7f899d; font-size:9px; }
+.inpaint-dev-badge { color:#f052a0; border:1px solid rgba(240,82,160,.5); border-radius:10px; padding:2px 7px; font-size:10px; font-weight:800; }
+.inpaint-controls { display:grid; gap:9px; margin-top:10px; }
+.inpaint-source-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; color:#d7deed; font-size:12px; font-weight:700; }
+.inpaint-source-heading small { color:#748199; font-size:10px; font-weight:500; }
+.inpaint-generated-gallery { min-height:58px; display:flex; gap:7px; overflow-x:auto; padding:5px; border:1px solid #28344a; border-radius:10px; background:#090d16; scrollbar-width:thin; }
+.inpaint-generated-thumb { flex:0 0 52px; width:52px; height:52px; padding:0; overflow:hidden; border:1px solid #35425a; border-radius:8px; background:#080b12; cursor:pointer; }
+.inpaint-generated-thumb:hover { border-color:#6f92dc; transform:translateY(-1px); }
+.inpaint-generated-thumb.selected { border-color:#f052a0; box-shadow:0 0 0 2px rgba(240,82,160,.22); }
+.inpaint-generated-thumb img { width:100%; height:100%; display:block; object-fit:cover; }
+.inpaint-gallery-empty { margin:auto; color:#68758c; font-size:11px; }
+.inpaint-controls label { display:grid; grid-template-columns:84px 1fr 42px; gap:8px; align-items:center; font-size:12px; color:#9ba7bd; }
+.inpaint-controls output { text-align:right; color:#dce4f4; }
+.inpaint-actions { display:flex; gap:8px; justify-content:flex-end; }
+.inpaint-actions .is-active { border-color:#4b82ff; color:#8db0ff; background:#162443; }
+#inpaintStatus { color:#8390a8; line-height:1.4; }
+.i2i-panel.inpaint-active .i2i-drop-zone { border-color:#f052a0; }
+.inpaint-panel:has(#inpaintToggle.on) { border-color:rgba(240,82,160,.45); box-shadow:inset 0 0 24px rgba(240,82,160,.04); }
+
+/* Inpaint is an exclusive second-column workspace. Camera and I2I are hidden
+   while it is active and return unchanged when the switch is turned off. */
+.control-column.inpaint-layout-active { overflow:hidden!important; }
+.control-column.inpaint-layout-active .composition-panel,
+.control-column.inpaint-layout-active .i2i-panel { display:none!important; }
+.control-column.inpaint-layout-active .inpaint-panel {
+  flex:1 1 auto!important;
+  min-height:0!important;
+  height:100%!important;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+}
+.control-column.inpaint-layout-active .inpaint-controls {
+  flex:1 1 auto;
+  min-height:0;
+  overflow-y:auto;
+  padding-right:4px;
+}

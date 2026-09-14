@@ -36,7 +36,7 @@ async function tryLoadPatchedWorkflow() {
   }
 
   try {
-    await app.loadGraphData(workflow, true, true, "LAKIS_custom_v7.1.json");
+    await app.loadGraphData(workflow, true, true, "LAKIS_custom_v7.4.json");
     await fetch("/lakis/autopatch/consume-startup-workflow", {
       method: "POST",
       cache: "no-store",

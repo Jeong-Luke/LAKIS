@@ -95,7 +95,7 @@ class ErrorCodeTests(unittest.TestCase):
                 self.assertEqual(code, workflow_bridge.WorkflowBridge._public_error(ValueError(message))[0])
 
     def test_setting_error_preserves_live_node_declaration(self):
-        prompt = json.loads((REPOSITORY_ROOT / "workflows" / "LAKIS_runtime_api_v7.1.json").read_text(encoding="utf-8"))
+        prompt = json.loads((REPOSITORY_ROOT / "workflows" / "LAKIS_runtime_api_v7.4.json").read_text(encoding="utf-8"))
         node = prompt["890:905"]
         class_type = node["class_type"]
         field = next(

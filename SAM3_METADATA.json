@@ -1,0 +1,11 @@
+{
+  "component": "sam3.1_multiplex_fp16.safetensors",
+  "source": "https://huggingface.co/Comfy-Org/sam3.1",
+  "commit": "f38cd62b71494b53ac2b56ca36e24f3c8d565581",
+  "sha256": "9BA99C92703C2E8B4F47DE2D34A539BB8E18923049E238B780D70DBE6368EB03",
+  "license": "Meta SAM License",
+  "license_source": "https://huggingface.co/Comfy-Org/sam3.1/blob/f38cd62b71494b53ac2b56ca36e24f3c8d565581/LICENSE",
+  "license_bundle_path": "third_party_licenses/Meta-SAM-License.txt",
+  "license_copy_sha256": "4DEA99BFAA016E21BC860D73F344236BD1E5C4977D1A9A8FD32F822B500AE1BE",
+  "status": "GREEN-CONDITIONAL"
+}

@@ -21,23 +21,18 @@
   .workspace{grid-template-columns:340px 340px minmax(390px,.9fr) 370px}
 }
 
-/* Fit composition and light controls into one desktop-height column. */
+/* Light control was retired. Do not reserve its former half-column space:
+   composition sizes to its real content and LLLite follows immediately. */
 @media (min-width:1181px){
   .control-column{
-    overflow-y:hidden;
+    overflow-y:auto;
   }
   .control-column .composition-panel{
-    flex:0 0 calc(54% - 4px);
+    flex:0 0 auto;
     height:auto;
     min-height:0;
     padding:11px 12px;
-    overflow:hidden;
-  }
-  .control-column .light-prototype-panel{
-    flex:1 1 calc(46% - 4px);
-    min-height:0;
-    padding:11px 12px;
-    overflow:hidden;
+    overflow:visible;
   }
   .control-column .panel-heading{
     margin-bottom:6px;
@@ -69,29 +64,5 @@
   }
   .control-column .composition-preview-presets .composition-presets button{
     padding:4px 1px;
-  }
-  .control-column .light-prototype-body{
-    gap:5px;
-  }
-  .control-column .light-orbit-wrap{
-    aspect-ratio:16/10;
-    border-radius:9px;
-  }
-  .control-column .light-mock-controls{
-    gap:1px;
-  }
-  .control-column .light-mock-controls label{
-    grid-template-columns:60px minmax(0,1fr) 47px;
-    gap:5px;
-    min-height:16px;
-  }
-  .control-column .light-mock-controls input[type="number"]{
-    padding:1px 3px;
-  }
-  .control-column .light-mock-controls .light-color-row{
-    grid-template-columns:60px minmax(0,1fr);
-  }
-  .control-column .light-color-row select{
-    padding:2px 5px;
   }
 }

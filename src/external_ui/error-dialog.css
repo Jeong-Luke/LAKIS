@@ -7,3 +7,11 @@
 .error-dialog-card button{min-width:112px;padding:10px 22px;border:0;border-radius:9px;background:linear-gradient(135deg,#6b4ee7,#4d8ef7);color:white;font-weight:800;cursor:pointer}
 .error-dialog-actions{display:flex;justify-content:center;gap:10px;flex-wrap:wrap}
 .error-dialog-actions #errorDialogCopy{background:#2a3040;color:#dce3f4;border:1px solid #46506a}
+.error-dialog-context-actions{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin:-8px 0 20px}
+.error-dialog-context-actions[hidden]{display:none}
+.error-dialog-context-actions button,.error-dialog-actions #errorDialogCancel{min-width:0;background:#202636;color:#dce3f4;border:1px solid #46506a}
+.error-dialog-dev-label{display:block;margin:-8px 0 16px;color:#7f879b;font-size:10px;letter-spacing:.15em}
+.error-dialog[data-type="license_notice"] .error-dialog-card{border-color:rgba(145,99,255,.7)}
+.error-dialog[data-type="license_notice"] .error-dialog-icon{background:rgba(126,83,236,.15);border-color:#8f68f2;color:#a98dff}
+.error-dialog[data-type="warning"] .error-dialog-card{border-color:rgba(238,176,74,.7)}
+.error-dialog[data-type="warning"] .error-dialog-icon{background:rgba(238,176,74,.14);border-color:#d69b3e;color:#ffc66b}

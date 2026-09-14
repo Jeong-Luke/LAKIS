@@ -7,8 +7,8 @@ from pathlib import Path
 
 
 COMFY_ROOT = Path(__file__).resolve().parents[1]
-UI_WORKFLOW = COMFY_ROOT / "user" / "default" / "workflows" / "LAKIS_custom_v7.1.json"
-API_WORKFLOW = COMFY_ROOT / "LAKIS" / "workflows" / "LAKIS_runtime_api_v7.1.json"
+UI_WORKFLOW = COMFY_ROOT / "user" / "default" / "workflows" / "LAKIS_custom_v7.4.json"
+API_WORKFLOW = COMFY_ROOT / "LAKIS" / "workflows" / "LAKIS_runtime_api_v7.4.json"
 
 WIDGET_INPUTS = {
     "1925": (

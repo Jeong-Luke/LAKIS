@@ -80,23 +80,6 @@ Get-ChildItem -LiteralPath $externalRoot -File -Recurse |
         Add-UpdateFile "ComfyUI/LAKIS_DEV/external_ui/$relative" $_.FullName "$rawBase/src/external_ui/$relative"
     }
 
-# Ship the DSINE-free lighting stub to existing users as well as clean
-# installs. The directory is LAKIS-owned; cached third-party weights and all
-# other user/custom-node data remain untouched.
-$lightControlRoot = Join-Path $repo "src\custom_nodes\ComfyUI-LAKIS-Light-Control"
-Get-ChildItem -LiteralPath $lightControlRoot -File -Recurse |
-    Where-Object {
-        $_.FullName -notmatch '[\\/]__pycache__[\\/]' -and
-        $_.Extension -ne '.pyc' -and
-        $_.Name -ne 'TEST_NOTES.txt'
-    } |
-    Sort-Object FullName |
-    ForEach-Object {
-        $relative = $_.FullName.Substring($lightControlRoot.Length).TrimStart('\').Replace('\', '/')
-        Add-UpdateFile "ComfyUI/custom_nodes/ComfyUI-LAKIS-Light-Control/$relative" $_.FullName `
-            "$rawBase/src/custom_nodes/ComfyUI-LAKIS-Light-Control/$relative"
-    }
-
 # Keep the packaged camera-to-prompt bridge workflow synchronized without
 # touching any user workflow files.
 $cameraBridgeRoot = Join-Path $repo "src\custom_nodes\ComfyUI-KR-Camera-PromptStudio-Bridge"
@@ -109,12 +92,24 @@ Add-UpdateFile "ComfyUI/custom_nodes/ComfyUI-KR-Camera-PromptStudio-Bridge/$came
     $cameraBridgeMatches[0].FullName `
     "$rawBase/src/custom_nodes/ComfyUI-KR-Camera-PromptStudio-Bridge/$cameraBridgeFile"
 
+# Public Local Inpaint V2 implementation. The model weight is intentionally
+# absent: users install it manually from the official publisher.
+$localInpaintRoot = Join-Path $repo "src\custom_nodes\ComfyUI-LAKIS-Local-Inpaint"
+Get-ChildItem -LiteralPath $localInpaintRoot -File -Recurse |
+    Where-Object { $_.FullName -notmatch '[\\/]__pycache__[\\/]' -and $_.Extension -ne '.pyc' } |
+    Sort-Object FullName |
+    ForEach-Object {
+        $relative = $_.FullName.Substring($localInpaintRoot.Length).TrimStart('\').Replace('\', '/')
+        Add-UpdateFile "ComfyUI/custom_nodes/ComfyUI-LAKIS-Local-Inpaint/$relative" $_.FullName `
+            "$rawBase/src/custom_nodes/ComfyUI-LAKIS-Local-Inpaint/$relative"
+    }
+
 # This is application-owned and safe to update. The editable workflow under
 # ComfyUI/user is deliberately excluded because it contains user changes.
 foreach ($runtimeName in @(
-    "LAKIS_runtime_api_v7.1.json",
-    "LAKIS_runtime_visual_v7.1.json",
-    "LAKIS_custom_v7.1_editable.json"
+    "LAKIS_runtime_api_v7.4.json",
+    "LAKIS_runtime_visual_v7.4.json",
+    "LAKIS_custom_v7.4_editable.json"
 )) {
     Add-UpdateFile "ComfyUI/LAKIS/workflows/$runtimeName" `
         (Join-Path $repo "workflows\$runtimeName") "$rawBase/workflows/$runtimeName"

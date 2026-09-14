@@ -30,8 +30,10 @@ $generator = Read-RepoFile "installer\New-UpdateManifest.ps1"
 Require ($generator.Contains("lakis-tag-hash-")) "Manifest hashes must come from published tagged bytes."
 Require ($generator.Contains("LICENSE.md")) "Existing users must receive the LAKIS licence."
 Require ($generator.Contains("THIRD_PARTY_NOTICES.md")) "Existing users must receive third-party notices."
-Require ($generator.Contains("ComfyUI-LAKIS-Light-Control")) "Existing users must receive the DSINE-free Light Control stub."
 Require (-not $generator.Contains('path = "ComfyUI/models/')) "Legacy updaters reject model paths; models must not be in the manifest."
+Require (-not $generator.Contains("ComfyUI-LAKIS-Light-Control")) "Next manifest generator must not include retired Light Control."
+Require (-not $generator.Contains("DSINE")) "Next manifest generator must not include DSINE."
+Require ($generator.Contains("ComfyUI-LAKIS-Local-Inpaint")) "Manifest generator must include the public Local Inpaint V2 custom node."
 
 $thirdPartyNotices = Read-RepoFile "THIRD_PARTY_NOTICES.md"
 foreach ($noticeName in @(
@@ -44,8 +46,7 @@ foreach ($noticeName in @(
     "qwen_3_06b_base.safetensors",
     "qwen_image_vae.safetensors",
     "sam3.1_multiplex_fp16.safetensors",
-    "7-Zip",
-    "DSINE"
+    "7-Zip"
 )) {
     Require ($thirdPartyNotices.Contains($noticeName)) "Third-party notice is missing: $noticeName"
 }
@@ -83,12 +84,13 @@ $publishIndex = $workflow.IndexOf("Publish only the verified manifest", [System.
 Require ($verifyIndex -ge 0 -and $releasePublishIndex -gt $verifyIndex -and $publishIndex -gt $releasePublishIndex) "Draft verification, release publication, and manifest publication are out of order."
 
 $setup = Read-RepoFile "installer\Setup_LAKIS_Safe.cs"
+Require (-not $setup.Contains("ComfyUI-LAKIS-Light-Control")) "Installer must not install retired Light Control."
+Require (-not $setup.Contains("DSINE")) "Installer must not install DSINE source or weights."
 foreach ($needle in @(
     ('private const string Revision = "v' + $ExpectedVersion + '"'),
     'LAKIS_Model_Importer.exe',
     'THIRD_PARTY_NOTICES.md',
-    'ComfyUI-LAKIS-Light-Control',
-    'LAKIS_runtime_api_v7.1.json',
+    'LAKIS_runtime_api_v7.4.json',
     'RealESRGAN_x4plus_anime_6B.pth'
 )) {
     Require ($setup.Contains($needle)) "Installer/repair invariant is missing: $needle"
@@ -119,9 +121,9 @@ Require ($LASTEXITCODE -eq 0) "Installer behavioral data-safety test failed."
 Require ($LASTEXITCODE -eq 0) "Repair data-preservation audit failed."
 
 $jsonPaths = @(
-    "workflows\LAKIS_runtime_api_v7.1.json",
-    "workflows\LAKIS_runtime_visual_v7.1.json",
-    "workflows\LAKIS_custom_v7.1_editable.json"
+    "workflows\LAKIS_runtime_api_v7.4.json",
+    "workflows\LAKIS_runtime_visual_v7.4.json",
+    "workflows\LAKIS_custom_v7.4_editable.json"
 )
 $jsonFiles = @($jsonPaths | ForEach-Object {
     $path = Join-Path $repo $_
@@ -157,6 +159,13 @@ Require ($LASTEXITCODE -eq 0) "Per-install UI-state isolation regression failed.
 foreach ($jsonFile in $jsonFiles) {
     & $python -m json.tool $jsonFile 1>$null
     Require ($LASTEXITCODE -eq 0) "Invalid packaged workflow JSON: $jsonFile"
+}
+foreach ($workflowPath in $jsonPaths) {
+    $workflowFile = Join-Path $repo $workflowPath
+    $workflowJson = Get-Content -Raw -LiteralPath $workflowFile
+    Require ($workflowJson.Contains('LAKIS_LocalInpaintPrepare')) "Local Inpaint prepare node missing: $workflowFile"
+    Require ($workflowJson.Contains('LAKIS_LocalInpaintComposite')) "Local Inpaint composite node missing: $workflowFile"
+    Require (-not $workflowJson.Contains('DEKIS_LocalInpaint')) "DEKIS node name leaked into public workflow: $workflowFile"
 }
 
 foreach ($required in @(

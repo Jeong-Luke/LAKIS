@@ -5,6 +5,7 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.IO;
 using System.Net;
+using System.Net.Sockets;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -16,13 +17,21 @@ using System.Web.Script.Serialization;
 
 internal static class LakisLauncher
 {
-#if LAKIS_DEV
+#if LAKIS_LUKE
+    private const bool DevelopmentBuild = false;
+    private const bool PrivateLukeBuild = true;
+    private const string ProductTitle = "LUKIS Studio";
+    private const string DesktopMutexName = "Local\\LUKIS-Studio-Desktop";
+    private const string StartupMutexName = "Local\\LUKIS-Studio-Startup";
+#elif LAKIS_DEV
     private const bool DevelopmentBuild = true;
+    private const bool PrivateLukeBuild = false;
     private const string ProductTitle = "LAKIS Studio DEV";
     private const string DesktopMutexName = "Local\\LAKIS-Studio-DEV-Desktop";
     private const string StartupMutexName = "Local\\LAKIS-Studio-DEV-Startup";
 #else
     private const bool DevelopmentBuild = false;
+    private const bool PrivateLukeBuild = false;
     private const string ProductTitle = "LAKIS Studio";
     private const string DesktopMutexName = "Local\\LAKIS-Studio-Desktop";
     private const string StartupMutexName = "Local\\LAKIS-Studio-Startup";
@@ -85,7 +94,7 @@ internal static class LakisLauncher
             title.MouseDown += DragWindow;
             var subtitle = new Label {
                 Left = 114, Top = 78, Width = 260, Height = 25,
-                Text = DevelopmentBuild ? "Studio · DEVELOPMENT" : "Studio", Font = new Font("Segoe UI", 11F, FontStyle.Bold),
+                Text = PrivateLukeBuild ? "Studio · LUKE" : (DevelopmentBuild ? "Studio · DEVELOPMENT" : "Studio"), Font = new Font("Segoe UI", 11F, FontStyle.Bold),
                 ForeColor = Color.FromArgb(171, 178, 203)
             };
             subtitle.MouseDown += DragWindow;
@@ -148,9 +157,11 @@ internal static class LakisLauncher
         {
             try
             {
-                string path = DevelopmentBuild
-                    ? Path.Combine(installRoot, "ComfyUI", "LAKIS_DEV", "DEV_VERSION")
-                    : Path.Combine(installRoot, "VERSION");
+                string path = PrivateLukeBuild
+                    ? Path.Combine(installRoot, "ComfyUI", "LAKIS_LUKE", "LUKE_VERSION")
+                    : (DevelopmentBuild
+                        ? Path.Combine(installRoot, "ComfyUI", "LAKIS_DEV", "DEV_VERSION")
+                        : Path.Combine(installRoot, "VERSION"));
                 return "v" + File.ReadAllText(path).Trim();
             }
             catch { return "LAKIS Studio"; }
@@ -164,7 +175,8 @@ internal static class LakisLauncher
         private async Task StartAsync()
         {
             string python = Path.Combine(root, "python_embeded", "pythonw.exe");
-            string launcher = Path.Combine(root, "ComfyUI", "LAKIS_DEV", "external_ui", "launch_lakis.py");
+            string runtimeFolder = PrivateLukeBuild ? "LAKIS_LUKE" : "LAKIS_DEV";
+            string launcher = Path.Combine(root, "ComfyUI", runtimeFolder, "external_ui", "launch_lakis.py");
             if (!File.Exists(python) || !File.Exists(launcher))
             {
                 MessageBox.Show(this, "LAKIS 실행 파일을 찾을 수 없습니다. 설치를 다시 진행해 주세요.",
@@ -173,14 +185,14 @@ internal static class LakisLauncher
             }
             try
             {
-                SetStatus(DevelopmentBuild ? "개발판 시작 중 · 자동 업데이트 꺼짐" : "업데이트 확인 중");
+                SetStatus(PrivateLukeBuild ? "개인판 시작 중 · 자동 업데이트 꺼짐" : (DevelopmentBuild ? "개발판 시작 중 · 자동 업데이트 꺼짐" : "업데이트 확인 중"));
                 string patcher = Path.Combine(root, "LAKIS_Patcher.exe");
                 string updater = File.Exists(patcher) ? patcher : Path.Combine(root, "LAKIS_Updater.exe");
                 string currentText = File.Exists(Path.Combine(root, "VERSION"))
                     ? File.ReadAllText(Path.Combine(root, "VERSION")).Trim() : "0.0.0";
                 Version current;
                 if (!Version.TryParse(currentText, out current)) current = new Version(0, 0, 0);
-                var check = DevelopmentBuild ? Tuple.Create(true, current, "") : await Task.Run(() => {
+                var check = (DevelopmentBuild || PrivateLukeBuild) ? Tuple.Create(true, current, "") : await Task.Run(() => {
                     Version latest; string failure;
                     bool ok = TryGetLatestVersion(out latest, out failure);
                     return Tuple.Create(ok, latest, failure);
@@ -207,37 +219,46 @@ internal static class LakisLauncher
                 };
                 if (DevelopmentBuild)
                 {
+                    startInfo.EnvironmentVariables["LAKIS_COMFY_PORT"] = FindAvailableLoopbackPort(8190).ToString();
                     startInfo.EnvironmentVariables["LAKIS_DEVELOPMENT"] = "1";
                     startInfo.EnvironmentVariables["LAKIS_DESKTOP_HOST"] =
                         Path.Combine(root, "LAKIS_DEV_Desktop.exe");
+                }
+                else if (PrivateLukeBuild)
+                {
+                    startInfo.EnvironmentVariables["LAKIS_LUKE"] = "1";
+                    startInfo.EnvironmentVariables["LAKIS_DESKTOP_HOST"] =
+                        Path.Combine(root, "LUKIS_Desktop.exe");
                 }
                 startInfo.EnvironmentVariables["LORA_MANAGER_SETTINGS_DIR"] =
                     Path.Combine(root, "ComfyUI", "user", "default", "lora-manager");
                 Process process = Process.Start(startInfo);
                 startupProcess = process;
-                string launcherState = Path.Combine(root, "ComfyUI", "LAKIS_DEV",
-                    DevelopmentBuild ? "lakis_dev_launcher_state.json" : "lakis_launcher_state.json");
+                string launcherState = Path.Combine(root, "ComfyUI", runtimeFolder,
+                    PrivateLukeBuild ? "lakis_luke_launcher_state.json" :
+                    (DevelopmentBuild ? "lakis_dev_launcher_state.json" : "lakis_launcher_state.json"));
                 bool ready = await Task.Run(() => WaitForLauncherReady(process, launcherState, 180));
                 if (userCancelled || IsDisposed) return;
                 if (!ready)
                 {
-                    MessageBox.Show(this, "LAKIS가 제한 시간 안에 준비되지 않았습니다. 런처 로그를 확인해 주세요.",
+                    string failureMessage = GetLauncherFailureMessage(launcherState, process);
+                    MessageBox.Show(this, failureMessage,
                         "LAKIS 실행 오류", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     Close();
                     return;
                 }
-                SetStatus("LAKIS Studio 화면 준비 중");
+                SetStatus((PrivateLukeBuild ? "LUKIS" : "LAKIS") + " Studio 화면 준비 중");
                 bool desktopReady = await Task.Run(() => WaitForDesktopWindow(process, launcherState, 45));
                 if (userCancelled || IsDisposed) return;
                 if (!desktopReady)
                 {
                     progress.MarqueeAnimationSpeed = 0;
-                    SetStatus("LAKIS Studio 화면을 열지 못했습니다");
+                    SetStatus((PrivateLukeBuild ? "LUKIS" : "LAKIS") + " Studio 화면을 열지 못했습니다");
                     MessageBox.Show(this, "LAKIS 백엔드는 준비되었지만 화면이 열리지 않았습니다. 이 창을 닫지 않고 유지합니다.",
                         "LAKIS 실행 오류", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return;
                 }
-                SetStatus("LAKIS Studio 실행 완료");
+                SetStatus((PrivateLukeBuild ? "LUKIS" : "LAKIS") + " Studio 실행 완료");
                 await Task.Delay(750);
                 Close();
             }
@@ -305,6 +326,41 @@ internal static class LakisLauncher
         return false;
     }
 
+    private static int FindAvailableLoopbackPort(int preferredPort)
+    {
+        try
+        {
+            var probe = new TcpListener(System.Net.IPAddress.Loopback, preferredPort);
+            probe.Start();
+            probe.Stop();
+            return preferredPort;
+        }
+        catch (SocketException)
+        {
+            var probe = new TcpListener(System.Net.IPAddress.Loopback, 0);
+            probe.Start();
+            int port = ((System.Net.IPEndPoint)probe.LocalEndpoint).Port;
+            probe.Stop();
+            return port;
+        }
+    }
+
+    private static string GetLauncherFailureMessage(string statePath, Process process)
+    {
+        Dictionary<string, object> state;
+        if (process != null && TryReadLauncherState(statePath, process.Id, out state))
+        {
+            object codeValue;
+            object classValue;
+            string code = state.TryGetValue("error_code", out codeValue) ? Convert.ToString(codeValue) : "";
+            string classification = state.TryGetValue("classification", out classValue) ? Convert.ToString(classValue) : "";
+            if (!String.IsNullOrEmpty(code) || !String.IsNullOrEmpty(classification))
+                return "LAKIS 시작에 실패했습니다.\n\n오류 코드: " + code + "\n상태: " + classification +
+                    "\n\n자세한 내용은 런처 로그를 확인해 주세요.";
+        }
+        return "LAKIS가 제한 시간 안에 준비되지 않았습니다. 런처 로그를 확인해 주세요.";
+    }
+
     private static bool WaitForDesktopWindow(
         Process startupProcess, string statePath, int timeoutSeconds)
     {
@@ -346,7 +402,7 @@ internal static class LakisLauncher
             try
             {
                 var request = (HttpWebRequest)WebRequest.Create(url + "?t=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-                request.UserAgent = "LAKIS-Launcher/7.3.0";
+                request.UserAgent = "LAKIS-Launcher/7.4.0";
                 request.Timeout = 12000;
                 request.ReadWriteTimeout = 12000;
                 request.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
@@ -367,7 +423,7 @@ internal static class LakisLauncher
         try
         {
             var request = (HttpWebRequest)WebRequest.Create(LatestReleaseApiUrl + "?t=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-            request.UserAgent = "LAKIS-Launcher/7.3.0";
+            request.UserAgent = "LAKIS-Launcher/7.4.0";
             request.Accept = "application/vnd.github+json";
             request.Timeout = 12000;
             request.ReadWriteTimeout = 12000;
@@ -389,7 +445,7 @@ internal static class LakisLauncher
         try
         {
             var request = (HttpWebRequest)WebRequest.Create(LatestReleaseApiUrl + "?t=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-            request.UserAgent = "LAKIS-Launcher/7.3.0";
+            request.UserAgent = "LAKIS-Launcher/7.4.0";
             request.Accept = "application/vnd.github+json";
             request.Timeout = 12000; request.ReadWriteTimeout = 12000;
             request.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;

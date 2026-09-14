@@ -31,8 +31,10 @@ item is failing or unverified.
 - [ ] Run clean installation on the default drive and on a different drive.
   Confirm the previous cross-volume move error does not recur.
 - [ ] Run **repair** on an existing installation. Confirm version, external UI,
-  packaged workflows, Light Control stub, licence notices, desktop runtime,
+  packaged workflows, licence notices, desktop runtime,
   Model Importer, and RealESRGAN are present.
+- [ ] Confirm the candidate manifest, installer, external UI, and packaged
+  workflows contain no retired Light Control or DSINE product dependency.
 - [ ] Before and after Repair, hash representative files under
   `models/loras`, `models/checkpoints`, `models/diffusion_models`,
   `ComfyUI/user`, `ComfyUI/input`, and `ComfyUI/output`. Every hash and file

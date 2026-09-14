@@ -1,0 +1,525 @@
+closed book
+open book
+hardcover book
+paperback book
+old leather-bound book
+small pocket notebook
+spiral notebook
+open notebook
+sketchbook
+drawing pad
+clipboard
+document folder
+stack of papers
+rolled paper
+sealed envelope
+letter
+postcard
+bookmark
+fountain pen
+ballpoint pen
+mechanical pencil
+wooden pencil
+colored pencil
+marker pen
+paint marker
+ruler
+eraser
+pencil case
+pair of scissors
+stapler
+paper clip
+sticky notes
+desk calendar
+small memo pad
+coffee cup
+ceramic coffee mug
+paper coffee cup
+takeaway coffee cup
+espresso cup
+tea cup
+teacup with saucer
+glass teacup
+tea pot
+coffee pot
+water bottle
+glass water bottle
+metal thermos
+travel tumbler
+drinking glass
+tall glass
+wine glass
+champagne glass
+cocktail glass
+juice glass
+milk bottle
+soda can
+soft drink bottle
+bento box
+lunch box
+picnic basket
+paper food bag
+plate of cookies
+slice of cake
+cupcake
+donut
+croissant
+baguette
+sandwich
+apple
+red apple
+green apple
+orange
+lemon
+peach
+strawberry
+bunch of grapes
+ice cream cone
+popsicle
+candy bag
+chocolate bar
+single red rose
+single white rose
+single pink rose
+rose bouquet
+mixed flower bouquet
+wildflower bouquet
+sunflower
+sunflower bouquet
+tulip bouquet
+lily bouquet
+daisy bouquet
+lavender bundle
+small flower basket
+flower crown
+potted plant
+small succulent
+potted cactus
+fern leaf
+maple leaf
+autumn leaf
+fallen leaves
+pine cone
+tree branch
+cherry blossom branch
+flowering branch
+small wreath
+seashell
+conch shell
+smooth stone
+crystal stone
+feather
+white feather
+bird feather
+handbag
+small handbag
+shoulder bag
+crossbody bag
+tote bag
+canvas tote bag
+shopping bag
+paper shopping bag
+backpack
+small backpack
+school backpack
+drawstring bag
+duffel bag
+sports bag
+briefcase
+document case
+suitcase
+small suitcase
+rolling suitcase
+vintage suitcase
+travel trunk
+luggage tag
+wallet
+card holder
+coin purse
+passport
+boarding pass
+train ticket
+travel map
+folded map
+compass
+smartphone
+foldable smartphone
+tablet
+small tablet
+laptop computer
+closed laptop
+wireless headphones
+over-ear headphones
+wired earphones
+wireless earbuds case
+portable music player
+smartwatch
+digital wristwatch
+USB flash drive
+portable hard drive
+power bank
+charging cable
+game controller
+handheld game console
+portable radio
+small speaker
+walkie-talkie
+remote control
+calculator
+digital camera
+mirrorless camera
+DSLR camera
+compact camera
+instant camera
+vintage film camera
+camera lens
+camera strap
+tripod
+small tripod
+paintbrush
+large paintbrush
+palette knife
+artist palette
+paint tube
+charcoal stick
+drawing stylus
+graphics tablet pen
+measuring tape
+sewing needle
+thread spool
+yarn ball
+knitting needles
+crochet hook
+fabric swatch
+microphone
+wireless microphone
+studio microphone
+headset microphone
+acoustic guitar
+electric guitar
+bass guitar
+ukulele
+violin
+viola
+cello
+flute
+clarinet
+saxophone
+trumpet
+trombone
+harmonica
+tambourine
+drumsticks
+small hand drum
+music sheet
+sheet music folder
+metronome
+music stand
+conductor baton
+round hand mirror
+compact mirror
+hairbrush
+wooden comb
+makeup brush
+lipstick
+perfume bottle
+nail polish bottle
+cosmetic pouch
+jewelry box
+ring box
+necklace
+pearl necklace
+bracelet
+wristwatch
+sunglasses
+eyeglasses
+folding fan
+paper fan
+lace fan
+silk scarf
+ribbon
+large ribbon
+hair ribbon
+brooch
+hairpin
+ornamental hairpin
+small tiara
+wide-brim hat
+straw hat
+baseball cap
+beret
+closed umbrella
+open umbrella
+transparent umbrella
+black umbrella
+red umbrella
+parasol
+lace parasol
+rain boots
+snow shovel
+hand warmer
+folded picnic blanket
+camping lantern
+flashlight
+headlamp
+camping mug
+canteen
+binoculars
+small telescope
+magnifying glass
+walking stick
+hiking pole
+pillow
+small pillow
+decorative cushion
+heart-shaped cushion
+blanket
+folded blanket
+throw blanket
+towel
+bath towel
+hand towel
+plush rabbit
+plush bear
+plush cat
+plush dog
+small stuffed animal
+music box
+alarm clock
+table clock
+photo frame
+framed photograph
+small vase
+glass vase
+candle
+scented candle
+candle holder
+small lamp
+desk lamp
+keyring
+house keys
+basketball
+soccer ball
+volleyball
+tennis ball
+tennis racket
+badminton racket
+shuttlecock
+baseball
+baseball glove
+baseball bat
+golf club
+golf ball
+table tennis paddle
+skateboard
+longboard
+roller skates
+jump rope
+yoga mat
+water sports board
+surfboard
+swimming goggles
+sports towel
+gym bottle
+bicycle helmet
+protective helmet
+stethoscope
+thermometer
+medical clipboard
+syringe without needle visible
+bandage roll
+first aid kit
+test tube
+test tube rack
+laboratory flask
+beaker
+graduated cylinder
+microscope
+petri dish
+safety goggles
+small toolbox
+wrench
+screwdriver
+pliers
+measuring calipers
+blueprint roll
+hard hat
+work gloves
+paint roller
+clipboard with forms
+school textbook
+stack of textbooks
+workbook
+school notebook
+student ID card
+school bag
+lunch bag
+geometry set
+protractor
+compass drawing tool
+chalk
+whiteboard marker
+small chalkboard
+flash cards
+index cards
+exam paper
+certificate
+diploma scroll
+wooden staff
+ornate magic staff
+crystal-tipped staff
+small wand
+ornate wand
+spellbook
+ancient-looking book
+rolled parchment
+sealed parchment
+wax-sealed letter
+glass potion bottle
+blue potion bottle
+red potion bottle
+small potion vial
+crystal orb
+small crystal
+large gemstone
+amulet
+ornate pendant
+antique key
+ornate key
+small treasure chest
+wooden chest
+golden goblet
+silver goblet
+metal lantern
+oil lantern
+hourglass
+pocket watch
+quill pen
+ink bottle
+rolled scroll
+old map
+leather satchel
+coin pouch
+ceremonial fan
+decorative mask
+half-face mask
+festival mask
+holographic tablet
+transparent display panel
+futuristic handheld device
+compact scanner
+digital access card
+futuristic wrist device
+glowing data chip
+small drone
+floating camera drone
+robotic assistant device
+portable hologram projector
+futuristic medical scanner
+sci-fi tool kit
+energy cell
+glowing crystal module
+futuristic helmet
+transparent visor
+electronic key card
+gift box
+wrapped present
+small present box
+birthday cake
+party balloon
+bundle of balloons
+confetti popper
+party hat
+paper crown
+bouquet wrapped in paper
+invitation card
+greeting card
+award trophy
+small medal
+certificate folder
+graduation cap
+graduation diploma
+wedding bouquet
+ring pillow
+champagne bottle
+grocery bag
+paper grocery bag
+reusable shopping bag
+shopping basket
+small cardboard box
+parcel box
+delivery package
+takeaway food bag
+newspaper
+folded newspaper
+magazine
+fashion magazine
+catalog
+ticket stub
+receipt
+parking ticket
+coin
+handful of coins
+key card
+name badge
+lanyard
+railway ticket
+subway card
+bus pass
+airline boarding pass
+passport wallet
+travel guidebook
+folded city map
+tourist brochure
+neck pillow
+luggage handle
+camera travel bag
+small carry-on bag
+travel umbrella
+travel thermos
+glass marble
+handful of marbles
+paper crane
+origami flower
+origami star
+small bell
+wind chime
+dreamcatcher
+snow globe
+glass figurine
+wooden figurine
+small statue
+decorative plate
+ceramic ornament
+small framed artwork
+playing card
+deck of cards
+chess piece
+chessboard
+dice
+puzzle piece
+small puzzle box
+rope
+coiled rope
+small chain
+cloth bag
+wooden basket
+metal bucket
+watering can
+garden trowel
+small shovel
+spray bottle
+cleaning cloth
+feather duster
+folded apron
+wooden tray
+metal tray
+serving tray
+menu
+small signboard
+handheld sign
+name placard
+folded paper umbrella
+handheld flag
+small flag
+paper lantern

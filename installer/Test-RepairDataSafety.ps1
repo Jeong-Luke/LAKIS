@@ -56,11 +56,11 @@ Require (-not $compactRepair.Contains('foreach(varmodelinModels)')) `
     "Repair must not reinstall or overwrite the general model inventory."
 
 # Audit every recursive-destructive helper reachable directly from Repair.
-# Light Control is LAKIS-owned; uiStage is a temporary extraction directory;
-# Lora Manager is an app component below custom_nodes. No other target is valid.
+# Retired Light Control must not be reinstalled or replaced. Lora Manager is
+# the only ZIP component and uiStage is a temporary extraction directory.
 $deleteCalls = [System.Text.RegularExpressions.Regex]::Matches($compactRepair, 'DeleteTree\(([^\)]+)\)')
-Require ($deleteCalls.Count -eq 1 -and $deleteCalls[0].Groups[1].Value -eq 'lightTarget') `
-    "Repair may recursively replace only the LAKIS-owned Light Control directory."
+Require ($deleteCalls.Count -eq 0) `
+    "Repair must not recursively replace a retired Light Control product directory."
 
 $resetCalls = [System.Text.RegularExpressions.Regex]::Matches($compactRepair, 'Reset\(([^\)]+)\)')
 Require ($resetCalls.Count -eq 1 -and $resetCalls[0].Groups[1].Value -eq 'uiStage') `
@@ -71,4 +71,4 @@ Require ($installZipCalls.Count -eq 1) "Repair may replace exactly one ZIP compo
 Require ($installZipCalls[0].Groups[1].Value -eq 'LoraManager,cache,Path.Combine(custom,LoraManager.Destination),status') `
     "Repair ZIP replacement escaped the LAKIS component allowlist."
 
-Write-Output "REPAIR_DATA_SAFETY_OK protected_roots=7 model_exception=RealESRGAN destructive_targets=3"
+Write-Output "REPAIR_DATA_SAFETY_OK protected_roots=7 model_exception=RealESRGAN destructive_targets=2"

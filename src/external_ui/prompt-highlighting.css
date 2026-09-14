@@ -149,3 +149,10 @@ body.prompt-resizing {
   transform: translateX(12px);
   background: #fff4c2;
 }
+
+.translation-network-notice {
+  margin: 6px 0 0;
+  color: #9aa3b5;
+  font-size: 11px;
+  line-height: 1.4;
+}

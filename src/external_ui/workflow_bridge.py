@@ -1,7 +1,7 @@
 """Narrow LAKIS external-UI bridge for the validated FAST/DETAIL workflow.
 
 The saved Standard workflow and custom-node sources are never modified.  Every
-request starts from the validated v7.1 runtime prompt and applies only an
+request starts from the validated v7.4 runtime prompt and applies only an
 in-memory application-state mapping before submitting Final Saver 775.
 """
 
@@ -27,25 +27,49 @@ import uuid
 
 import aiohttp
 
+try:
+    import yaml
+except ImportError:  # Keep the bridge usable in stripped-down repair builds.
+    yaml = None
 
-COMFY_PORT = 8190 if os.environ.get("LAKIS_DEVELOPMENT") == "1" else 8189
+
+DEVELOPMENT = os.environ.get("LAKIS_DEVELOPMENT") == "1"
+COMFY_PORT = int(os.environ.get("LAKIS_COMFY_PORT") or (8190 if DEVELOPMENT else 8189))
+FULL_TURBO_EXPERIMENT = (
+    os.environ.get("LAKIS_DEVELOPMENT") == "1"
+    and os.environ.get("LAKIS_FULL_TURBO_EXPERIMENT") == "1"
+)
+HALF_RES_FAST_EXPERIMENT = (
+    os.environ.get("LAKIS_DEVELOPMENT") == "1"
+    and os.environ.get("LAKIS_HALF_RES_FAST_EXPERIMENT", "0") == "1"
+)
+LOCAL_INPAINT_V2 = os.environ.get("LAKIS_LOCAL_INPAINT_V2", "1") == "1"
+LOCAL_INPAINT_V2_MIN_PADDING = 96
+LOCAL_INPAINT_V2_PADDING_RATIO = 0.60
+LOCAL_INPAINT_V2_MAX_CROP_RATIO = 0.70
+LOCAL_INPAINT_V2_ALIGNMENT = 16
+LOCAL_INPAINT_V2_MIN_WORK_EDGE = 768
+LOCAL_INPAINT_V2_MAX_WORK_EDGE = 1280
+LOCAL_INPAINT_V2_LARGE_EDIT_RATIO = 0.35
+LOCAL_INPAINT_V2_OUTFIT_COVERAGE_HALO = 64
 COMFY_SERVER = f"http://127.0.0.1:{COMFY_PORT}"
 FINAL_NODE = "775"
 DEV_ROOT = Path(__file__).resolve().parent.parent
 COMFY_ROOT = DEV_ROOT.parent
 OUTPUT_ROOT = COMFY_ROOT / "output"
+OUTPUT_LOCATION_PATH = DEV_ROOT / "output-location.json"
 STOP_FILE = DEV_ROOT / "STOP_AUTOMATION"
 ALLOW_FILE = DEV_ROOT / "ALLOW_ONE_GENERATION"
-TEMPLATE = COMFY_ROOT / "LAKIS" / "workflows" / "LAKIS_runtime_api_v7.1.json"
-SAVED_WORKFLOW = COMFY_ROOT / "user" / "default" / "workflows" / "LAKIS_custom_v7.1.json"
+TEMPLATE = COMFY_ROOT / "LAKIS" / "workflows" / "LAKIS_runtime_api_v7.4.json"
+SAVED_WORKFLOW = COMFY_ROOT / "LAKIS" / "workflows" / "LAKIS_custom_v7.4_editable.json"
 # Repair/updater installations made before v7.1 kept the validated workflow
 # contents under their v7.0.24 filenames. Continue to accept those files so a
 # UI-only update cannot leave the launcher without an executable workflow.
-if not TEMPLATE.is_file():
+if not TEMPLATE.is_file() and not DEVELOPMENT:
     TEMPLATE = next(iter(sorted((COMFY_ROOT / "LAKIS" / "workflows").glob(
         "LAKIS_runtime_api_v*.json"
     ), reverse=True)), TEMPLATE)
-if not SAVED_WORKFLOW.is_file():
+if not SAVED_WORKFLOW.is_file() and not DEVELOPMENT:
     SAVED_WORKFLOW = next(iter(sorted((COMFY_ROOT / "user" / "default" / "workflows").glob(
         "LAKIS_custom_v*.json"
     ), reverse=True)), SAVED_WORKFLOW)
@@ -57,6 +81,17 @@ USER_STATE_ROOT = Path(os.environ.get("LOCALAPPDATA", str(DEV_ROOT))) / (
 UNSCOPED_UI_STATE_PATH = USER_STATE_ROOT / "external_ui_user_state.json"
 GENERATION_JOURNAL_PATH = USER_STATE_ROOT / "generation-runtime-journal.json"
 GENERATION_STALL_SECONDS = 300
+
+
+def configured_output_root() -> Path:
+    try:
+        payload = json.loads(OUTPUT_LOCATION_PATH.read_text(encoding="utf-8"))
+        candidate = Path(str(payload.get("path") or "")).expanduser().resolve()
+        if candidate.is_dir():
+            return candidate
+    except (OSError, ValueError, TypeError, json.JSONDecodeError):
+        pass
+    return OUTPUT_ROOT.resolve()
 
 
 def _ui_state_path_for_install(install_root: Path, user_state_root: Path = USER_STATE_ROOT) -> Path:
@@ -90,6 +125,12 @@ PROMPT_STATE_KEYS = {
 }
 MODEL_STATE_KEYS = {"checkpoint", "vae", "clip", "sampler", "scheduler", "steps", "cfg"}
 OUTPUT_STATE_KEYS = {"width", "height", "seed", "seed_mode", "aspect_locked"}
+DEV_UPSCALE_ENGINES = {
+    "allinone_ultimate", "ultimate", "lakis_scope", "lakis_scope_quality",
+}
+RELEASE_UPSCALE_ENGINES = {"ultimate", "lakis_scope"}
+DEFAULT_UPSCALE_ENGINE = "ultimate"
+GENERATION_STATE_VERSION = 5
 DEFAULT_CHECKPOINT = "anima_baseV10.safetensors"
 SAMPLER_OPTIONS = (
     "euler", "euler_cfg_pp", "euler_ancestral", "euler_ancestral_cfg_pp", "heun", "heunpp2",
@@ -114,6 +155,13 @@ ADVANCED_FLOAT_FIELD_NAMES = {
     "rdc_alpha_ll", "rdc_alpha_hh", "crop_factor", "denoise",
     "seam_fix_denoise",
 }
+TRUE_VALUES = {"1", "true", "yes", "on", "enabled"}
+FALSE_VALUES = {"0", "false", "no", "off", "disabled", ""}
+AUTHORITATIVE_MODEL_FIELDS = {
+    ("890:1365", "model_name"),
+    ("890:159", "vae_name"),
+    ("890:164", "clip_name"),
+}
 
 ADVANCED_NODE_GROUPS = {
     "model": ("890:1365", "890:159", "890:164", "890:905"),
@@ -122,7 +170,7 @@ ADVANCED_NODE_GROUPS = {
     "i2i": ("1744", "1736:1737", "1634:1760"),
     "prompt": ("2133",),
     "generation": (
-        "2138", "2139", "2140", "1541:1536",
+        "1541:1536", "2140", "2138", "2139",
         "1530:2051", "1530:1824", "1530:1827", "1530:1832", "1530:1835", "1530:1834", "1530:2060", "1530:1826",
         "1836:2076", "1836:2067", "1836:2077", "1836:2074", "1836:2078", "1836:2079", "1836:2080", "1836:2069",
         "1541:1535", "1541:1534", "1541:1533", "1541:1532", "1541:1540", "1541:1542", "1541:1837", "1541:1838", "1541:1538",
@@ -138,10 +186,48 @@ ADVANCED_NODE_TITLES = {
     "1836:2074": "눈 DCW 스위치", "1836:2078": "눈 DCW", "1836:2079": "눈 Spectrum",
     "1836:2080": "눈 정렬 Hook", "1836:2069": "눈 디테일러",
     "1541:1535": "USDU 배율", "1541:1534": "USDU 타일 분할", "1541:1533": "USDU 가로 타일 계산",
-    "1541:1532": "USDU 세로 타일 계산", "1541:1536": "USDU 업스케일 모델", "1541:1540": "USDU DCW",
+    "1541:1532": "USDU 세로 타일 계산", "1541:1536": "업스케일러 모델", "1541:1540": "USDU DCW",
     "1541:1542": "USDU DCW 스위치", "1541:1837": "USDU Spectrum", "1541:1838": "USDU 스텝",
     "1541:1538": "Ultimate SD Upscale",
 }
+
+
+def _coerce_bool(value: Any, default: bool = False, *, strict: bool = False) -> bool:
+    """Decode persisted booleans without treating the string ``false`` as true."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)) and not isinstance(value, bool) and value in {0, 1}:
+        return bool(value)
+    if isinstance(value, str):
+        normalized = value.strip().casefold()
+        if normalized in TRUE_VALUES:
+            return True
+        if normalized in FALSE_VALUES:
+            return False
+    if strict:
+        raise ValueError("value must be a boolean")
+    return default
+
+
+def _coerce_number(value: Any, default: float, *, integer: bool = False) -> int | float:
+    """Decode a finite JSON number or a legacy numeric string."""
+    if isinstance(value, bool):
+        return int(default) if integer else float(default)
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return int(default) if integer else float(default)
+    if not math.isfinite(number) or (integer and not number.is_integer()):
+        return int(default) if integer else float(default)
+    return int(number) if integer else number
+
+
+def _bounded_number(
+    value: Any, default: float, minimum: float, maximum: float, *, integer: bool = False,
+) -> int | float:
+    number = _coerce_number(value, default, integer=integer)
+    number = max(minimum, min(maximum, number))
+    return int(number) if integer else float(number)
 
 
 def _is_node_link(value: Any) -> bool:
@@ -343,6 +429,10 @@ def _apply_advanced_node_overrides(prompt: dict[str, Any], requested: Any) -> No
     for node_id, fields in requested.items():
         if node_id not in allowed or node_id not in prompt or not isinstance(fields, dict):
             continue
+        # These switches are derived exclusively from FAST/DETAIL mode. Old
+        # persisted values must not silently bypass detailers or upscaling.
+        if node_id in {"2138", "2139", "2140"}:
+            continue
         inputs = prompt[node_id].get("inputs", {})
         for name, value in fields.items():
             if name not in inputs or _is_node_link(inputs[name]):
@@ -351,7 +441,9 @@ def _apply_advanced_node_overrides(prompt: dict[str, Any], requested: Any) -> No
             # upscaler.  A stale advanced-settings value must never switch a
             # RealESRGAN user back to AnimeSharp without acknowledgement (or
             # override the user's acknowledged AnimeSharp choice).
-            if node_id == UPSCALER_NODE_ID and name == UPSCALER_FIELD_NAME:
+            if (node_id, name) in AUTHORITATIVE_MODEL_FIELDS or (
+                node_id == UPSCALER_NODE_ID and name == UPSCALER_FIELD_NAME
+            ):
                 continue
             original = inputs[name]
             class_type = str(prompt[node_id].get("class_type") or "")
@@ -378,24 +470,47 @@ def _apply_advanced_node_overrides(prompt: dict[str, Any], requested: Any) -> No
                 fail(f"{node_id}.{name} is not a supported option")
             boolean_string = isinstance(original, str) and original.strip().lower() in {"true", "false"}
             if schema_type == "BOOLEAN" or boolean_string:
-                if not isinstance(value, bool):
+                try:
+                    value = _coerce_bool(value, strict=True)
+                except ValueError:
                     fail(f"{node_id}.{name} must be true or false")
             elif isinstance(original, bool):
-                if not isinstance(value, bool):
+                try:
+                    value = _coerce_bool(value, strict=True)
+                except ValueError:
                     fail(f"{node_id}.{name} must be true or false")
             elif isinstance(original, (int, float)) and not isinstance(original, bool):
-                if not isinstance(value, (int, float)) or not math.isfinite(float(value)):
+                try:
+                    numeric_value = float(value)
+                except (TypeError, ValueError, OverflowError):
+                    fail(f"{node_id}.{name} must be a finite number")
+                if isinstance(value, bool) or not math.isfinite(numeric_value):
                     fail(f"{node_id}.{name} must be a finite number")
                 if isinstance(original, float) or name in ADVANCED_FLOAT_FIELD_NAMES:
-                    value = float(value)
+                    value = numeric_value
                 else:
-                    if not float(value).is_integer():
+                    if not numeric_value.is_integer():
                         fail(f"{node_id}.{name} must be an integer")
-                    value = int(value)
+                    value = int(numeric_value)
                 if "min" in constraints and value < constraints["min"]:
                     fail(f"{node_id}.{name} is below the supported minimum")
                 if "max" in constraints and value > constraints["max"]:
                     fail(f"{node_id}.{name} exceeds the supported maximum")
+            elif isinstance(original, str) and re.fullmatch(
+                r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)", original.strip(),
+            ):
+                try:
+                    numeric_value = float(value)
+                except (TypeError, ValueError, OverflowError):
+                    fail(f"{node_id}.{name} must be a finite number")
+                if isinstance(value, bool) or not math.isfinite(numeric_value):
+                    fail(f"{node_id}.{name} must be a finite number")
+                if name in ADVANCED_FLOAT_FIELD_NAMES or "." in original:
+                    value = numeric_value
+                else:
+                    if not numeric_value.is_integer():
+                        fail(f"{node_id}.{name} must be an integer")
+                    value = int(numeric_value)
             elif isinstance(original, str) and isinstance(value, (int, float)) and not isinstance(value, bool):
                 # Some ComfyUI enum-like inputs are numeric strings in the
                 # template (for example Prompt Studio resolution_bucket), but
@@ -412,7 +527,9 @@ def _apply_advanced_node_overrides(prompt: dict[str, Any], requested: Any) -> No
             inputs[name] = value
 
 
-def _clean_advanced_node_overrides(requested: Any) -> dict[str, dict[str, Any]]:
+def _clean_advanced_node_overrides(
+    requested: Any, *, drop_invalid: bool = False,
+) -> dict[str, dict[str, Any]]:
     """Validate and retain only editable node fields for restart persistence."""
     if requested in (None, {}):
         return {}
@@ -425,10 +542,22 @@ def _clean_advanced_node_overrides(requested: Any) -> dict[str, dict[str, Any]]:
         raise ValueError("advanced node settings are too large")
     template = json.loads(TEMPLATE.read_text(encoding="utf-8"))
     validated = deepcopy(template)
-    _apply_advanced_node_overrides(validated, requested)
+    accepted: dict[str, dict[str, Any]] = {}
+    for node_id, fields in requested.items():
+        if not isinstance(fields, dict):
+            continue
+        for name, value in fields.items():
+            try:
+                _apply_advanced_node_overrides(validated, {node_id: {name: value}})
+            except SettingsValidationError:
+                if not drop_invalid:
+                    raise
+                _audit("legacy_setting_dropped", node_id=node_id, setting_name=name)
+                continue
+            accepted.setdefault(node_id, {})[name] = value
     allowed = {node_id for node_ids in ADVANCED_NODE_GROUPS.values() for node_id in node_ids}
     clean: dict[str, dict[str, Any]] = {}
-    for node_id, fields in requested.items():
+    for node_id, fields in accepted.items():
         if node_id not in allowed or node_id not in template or not isinstance(fields, dict):
             continue
         editable = {
@@ -439,6 +568,8 @@ def _clean_advanced_node_overrides(requested: Any) -> dict[str, dict[str, Any]]:
             name: deepcopy(validated[node_id]["inputs"][name])
             for name in fields
             if name in editable
+            and node_id not in {"2138", "2139", "2140"}
+            and (node_id, name) not in AUTHORITATIVE_MODEL_FIELDS
             and not (node_id == UPSCALER_NODE_ID and name == UPSCALER_FIELD_NAME)
         }
         if selected:
@@ -481,14 +612,90 @@ def load_external_prompt_state() -> dict[str, str]:
     }
 
 
-def save_external_prompt_state(prompt: Any) -> dict[str, str]:
+def load_external_prompt_enabled() -> dict[str, bool]:
+    payload = _load_external_ui_payload()
+    enabled = payload.get("prompt_enabled", {}) if isinstance(payload, dict) else {}
+    if not isinstance(enabled, dict):
+        enabled = {}
+    return {key: enabled.get(key, True) is not False for key in PROMPT_STATE_KEYS}
+
+
+def load_external_prompt_bundle() -> dict[str, Any]:
+    """Return the durable raw prompt state shared by PC and LAKIS Link."""
+    payload = _load_external_ui_payload()
+    inpaint_prompt = payload.get("inpaint_prompt", {}) if isinstance(payload, dict) else {}
+    prompt_ui = payload.get("prompt_ui", {}) if isinstance(payload, dict) else {}
+    if not isinstance(inpaint_prompt, dict):
+        inpaint_prompt = {}
+    if not isinstance(prompt_ui, dict):
+        prompt_ui = {}
+    return {
+        "prompt": load_external_prompt_state(),
+        "prompt_enabled": load_external_prompt_enabled(),
+        "inpaint_prompt": {
+            "prompt": str(inpaint_prompt.get("prompt", ""))[:4000],
+            "negative_prompt": str(inpaint_prompt.get("negative_prompt", ""))[:4000],
+        },
+        "translation_enabled": payload.get("translation_enabled", True) is not False,
+        "prompt_ui": {
+            "positive_tab": str(prompt_ui.get("positive_tab", "generalPromptPanel")),
+            "negative_tab": str(prompt_ui.get("negative_tab", "negativeGeneralPromptPanel")),
+        },
+        "revision": int(payload.get("prompt_revision", 0) or 0),
+        "updated_at": float(payload.get("prompt_updated_at", payload.get("updated_at", 0)) or 0),
+    }
+
+
+def save_external_prompt_state(
+    prompt: Any,
+    prompt_enabled: Any = None,
+    inpaint_prompt: Any = None,
+    translation_enabled: Any = None,
+    prompt_ui: Any = None,
+) -> dict[str, Any]:
     if not isinstance(prompt, dict):
         raise ValueError("prompt state must be an object")
     clean = {key: str(prompt.get(key, ""))[:100_000] for key in PROMPT_STATE_KEYS}
+    enabled = load_external_prompt_enabled()
+    if isinstance(prompt_enabled, dict):
+        enabled = {key: prompt_enabled.get(key, True) is not False for key in PROMPT_STATE_KEYS}
     payload = _load_external_ui_payload()
-    payload.update({"version": 2, "prompt": clean, "updated_at": time.time()})
+    existing_inpaint = payload.get("inpaint_prompt", {})
+    if not isinstance(existing_inpaint, dict):
+        existing_inpaint = {}
+    if isinstance(inpaint_prompt, dict):
+        existing_inpaint = {
+            "prompt": str(inpaint_prompt.get("prompt", existing_inpaint.get("prompt", "")))[:4000],
+            "negative_prompt": str(inpaint_prompt.get(
+                "negative_prompt", existing_inpaint.get("negative_prompt", "")
+            ))[:4000],
+        }
+    existing_ui = payload.get("prompt_ui", {})
+    if not isinstance(existing_ui, dict):
+        existing_ui = {}
+    if isinstance(prompt_ui, dict):
+        existing_ui = {
+            "positive_tab": str(prompt_ui.get("positive_tab", existing_ui.get("positive_tab", "generalPromptPanel"))),
+            "negative_tab": str(prompt_ui.get("negative_tab", existing_ui.get("negative_tab", "negativeGeneralPromptPanel"))),
+        }
+    now = time.time()
+    payload.update({
+        "version": max(int(payload.get("version", 0) or 0), 5),
+        "prompt": clean,
+        "prompt_enabled": enabled,
+        "inpaint_prompt": existing_inpaint,
+        "translation_enabled": (
+            translation_enabled is not False
+            if translation_enabled is not None
+            else payload.get("translation_enabled", True) is not False
+        ),
+        "prompt_ui": existing_ui,
+        "prompt_revision": int(payload.get("prompt_revision", 0) or 0) + 1,
+        "prompt_updated_at": now,
+        "updated_at": now,
+    })
     _write_external_ui_payload(payload)
-    return clean
+    return load_external_prompt_bundle()
 
 
 def _load_external_ui_payload() -> dict[str, Any]:
@@ -554,29 +761,79 @@ def load_external_generation_state() -> dict[str, Any]:
     payload = _load_external_ui_payload()
     model = payload.get("model", {})
     output = payload.get("output", {})
+    generation = payload.get("generation", {})
+    camera = payload.get("camera", {})
+    saved_engine = generation.get("upscale_engine") if isinstance(generation, dict) else None
+    saved_lakis_mode = _coerce_bool(generation.get("lakis_mode", False)) if isinstance(generation, dict) else False
+    # v4 introduces SCOPE as an explicit release option while retaining
+    # Ultimate as the default. Legacy aliases are normalized once.
+    if _coerce_number(payload.get("version", 0), 0, integer=True) < GENERATION_STATE_VERSION:
+        if saved_engine in {None, "lakis_fast"}:
+            saved_engine = DEFAULT_UPSCALE_ENGINE
+    raw_overrides = payload.get("node_overrides", {})
     try:
-        node_overrides = _clean_advanced_node_overrides(payload.get("node_overrides", {}))
+        node_overrides = _clean_advanced_node_overrides(
+            raw_overrides, drop_invalid=True,
+        )
     except (TypeError, ValueError, OSError, json.JSONDecodeError):
         node_overrides = {}
+    if isinstance(raw_overrides, dict) and raw_overrides != node_overrides:
+        # Persist the migrated map so dropped fields are audited only once and
+        # subsequent launches no longer depend on legacy coercion.
+        payload["node_overrides"] = node_overrides
+        payload["updated_at"] = time.time()
+        try:
+            _write_external_ui_payload(payload)
+        except OSError:
+            pass
     return {
         "model": {key: model[key] for key in MODEL_STATE_KEYS if isinstance(model, dict) and key in model},
         "output": {key: output[key] for key in OUTPUT_STATE_KEYS if isinstance(output, dict) and key in output},
+        "generation": {
+            "lakis_mode": saved_lakis_mode,
+            "upscale_engine": saved_engine
+            if saved_engine in ((DEV_UPSCALE_ENGINES if DEVELOPMENT else RELEASE_UPSCALE_ENGINES) | {"lakis_fast"})
+            else DEFAULT_UPSCALE_ENGINE
+        },
+        "camera": {
+            key: _bounded_number(
+                camera.get(key, camera.get(f"pos_{key}")) if key in {"x", "y", "z"} else camera.get(key),
+                0.0, -1.0, 1.0,
+            )
+            for key in ("x", "y", "z", "roll", "frame_y")
+            if isinstance(camera, dict) and (
+                key in camera or (key in {"x", "y", "z"} and f"pos_{key}" in camera)
+            )
+        },
+        "composition_enabled": _coerce_bool(payload.get("composition_enabled", True), True),
+        "wildcard_enabled": _coerce_bool(payload.get("wildcard_enabled", False), False),
         "node_overrides": node_overrides,
     }
 
 
 def save_external_generation_state(
     model: Any, output: Any, loras: Any = None, lora_enabled: Any = True,
-    node_overrides: Any = None,
+    node_overrides: Any = None, generation: Any = None,
+    camera: Any = None, composition_enabled: Any = True, wildcard_enabled: Any = False,
 ) -> dict[str, Any]:
     if not isinstance(model, dict) or not isinstance(output, dict):
         raise ValueError("model and output state must be objects")
     clean_model = {key: model[key] for key in MODEL_STATE_KEYS if key in model}
+    clean_model["steps"] = _bounded_number(clean_model.get("steps", 30), 30, 1, 10_000, integer=True)
+    clean_model["cfg"] = _bounded_number(clean_model.get("cfg", 5.0), 5.0, 0.0, 100.0)
     if str(clean_model.get("sampler", "euler_ancestral")) not in _enum_options("KSampler", "sampler_name", SAMPLER_OPTIONS):
         raise ValueError("Unsupported sampler")
     if str(clean_model.get("scheduler", "normal")) not in _enum_options("KSampler", "scheduler", SCHEDULER_OPTIONS):
         raise ValueError("Unsupported scheduler")
     clean_output = {key: output[key] for key in OUTPUT_STATE_KEYS if key in output}
+    clean_output["width"] = _bounded_number(clean_output.get("width", 1536), 1536, 256, 4096, integer=True)
+    clean_output["height"] = _bounded_number(clean_output.get("height", 1024), 1024, 256, 4096, integer=True)
+    clean_output["seed"] = _bounded_number(
+        clean_output.get("seed", 0), 0, 0, COMFYUI_SEED_MAX, integer=True,
+    )
+    clean_output["aspect_locked"] = _coerce_bool(clean_output.get("aspect_locked", False))
+    if str(clean_output.get("seed_mode", "random")) not in {"random", "fixed"}:
+        clean_output["seed_mode"] = "random"
     if not isinstance(loras, list):
         loras = []
     if len(loras) > 64:
@@ -587,33 +844,139 @@ def save_external_generation_state(
             continue
         clean_loras.append({
             "name": str(item.get("name", ""))[:1000],
-            "enabled": bool(item.get("enabled", False)),
-            "strength": max(-20.0, min(20.0, float(item.get("strength", 1.0)))),
+            "enabled": _coerce_bool(item.get("enabled", False)),
+            "strength": _bounded_number(item.get("strength", 1.0), 1.0, -20.0, 20.0),
         })
     clean_overrides = _clean_advanced_node_overrides(node_overrides or {})
+    clean_camera = {
+        key: _bounded_number(camera[key], 0.0, -1.0, 1.0)
+        for key in ("x", "y", "z", "roll", "frame_y")
+        if isinstance(camera, dict) and key in camera
+    }
+    upscale_engine = generation.get("upscale_engine", DEFAULT_UPSCALE_ENGINE) if isinstance(generation, dict) else DEFAULT_UPSCALE_ENGINE
+    if upscale_engine == "lakis_fast":
+        upscale_engine = "lakis_scope"
+    allowed_engines = DEV_UPSCALE_ENGINES if DEVELOPMENT else RELEASE_UPSCALE_ENGINES
+    if upscale_engine not in allowed_engines:
+        raise ValueError("Unsupported upscale engine")
     payload = _load_external_ui_payload()
     payload.update({
-        "version": 2,
+        "version": GENERATION_STATE_VERSION,
         "model": clean_model,
         "output": clean_output,
-        "lora": {"current": clean_loras, "enabled": bool(lora_enabled)},
+        "lora": {"current": clean_loras, "enabled": _coerce_bool(lora_enabled, True)},
         "node_overrides": clean_overrides,
+        "generation": {
+            "lakis_mode": _coerce_bool(generation.get("lakis_mode", False)) if isinstance(generation, dict) else False,
+            "upscale_engine": upscale_engine,
+        },
+        "camera": clean_camera,
+        "composition_enabled": _coerce_bool(composition_enabled, True),
+        "wildcard_enabled": _coerce_bool(wildcard_enabled, False),
         "updated_at": time.time(),
     })
     _write_external_ui_payload(payload)
     return {
         "model": clean_model, "output": clean_output, "lora": payload["lora"],
         "node_overrides": clean_overrides,
+        "generation": payload["generation"],
+        "camera": clean_camera,
+        "composition_enabled": payload["composition_enabled"],
     }
 
 
+def _model_roots(folder: str) -> list[Path]:
+    """Return local and registered shared roots used by this ComfyUI install."""
+    roots = [COMFY_ROOT / "models" / folder]
+    shared_override = os.environ.get("LAKIS_SHARED_MODELS_ROOT", "").strip()
+    if shared_override:
+        roots.append(Path(shared_override) / folder)
+    local_app_data = Path(os.environ.get("LOCALAPPDATA", ""))
+    if str(local_app_data):
+        # Companion installations may be present without their
+        # generated extra_model_paths.yaml.  LAKIS remains the canonical model
+        # library, so retain this deterministic repair fallback as well.
+        roots.append(local_app_data / "Programs" / "LAKIS" / "ComfyUI" / "models" / folder)
+    config_path = COMFY_ROOT / "extra_model_paths.yaml"
+    if yaml is not None and config_path.is_file():
+        try:
+            configured = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+        except (OSError, ValueError, TypeError):
+            configured = {}
+        for section in configured.values() if isinstance(configured, dict) else ():
+            if not isinstance(section, dict):
+                continue
+            base = Path(str(section.get("base_path", config_path.parent)))
+            if not base.is_absolute():
+                base = config_path.parent / base
+            value = section.get(folder)
+            for relative in str(value or "").splitlines():
+                relative = relative.strip()
+                if relative:
+                    roots.append(base / relative)
+    unique: list[Path] = []
+    seen: set[str] = set()
+    for root in roots:
+        key = str(root.resolve()).casefold()
+        if key not in seen:
+            seen.add(key)
+            unique.append(root)
+    return unique
+
+
 def _model_files(folder: str) -> list[str]:
-    root = COMFY_ROOT / "models" / folder
-    return sorted(
-        str(path.relative_to(root)).replace("/", "\\")
-        for path in root.rglob("*")
-        if path.is_file() and path.suffix.lower() in MODEL_EXTENSIONS
+    names: dict[str, str] = {}
+    for root in _model_roots(folder):
+        if not root.is_dir():
+            continue
+        for path in root.rglob("*"):
+            if path.is_file() and path.suffix.lower() in MODEL_EXTENSIONS:
+                name = str(path.relative_to(root)).replace("/", "\\")
+                names.setdefault(name.casefold(), name)
+    return sorted(names.values(), key=str.casefold)
+
+
+def _is_anima_checkpoint(checkpoint: str) -> bool:
+    """Identify Anima derivatives without relying only on their filename."""
+    if "anima" in checkpoint.lower():
+        return True
+    model_paths = [root / checkpoint for root in _model_roots("diffusion_models")]
+    for model_path in model_paths:
+        for metadata_path in (
+            model_path.with_suffix(".metadata.json"),
+            model_path.with_suffix(".civitai.info"),
+        ):
+            try:
+                metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            except (OSError, ValueError, TypeError):
+                continue
+            base_model = metadata.get("base_model") or metadata.get("baseModel")
+            if not base_model and isinstance(metadata.get("civitai"), dict):
+                base_model = metadata["civitai"].get("baseModel")
+            air = metadata.get("air")
+            if not air and isinstance(metadata.get("civitai"), dict):
+                air = metadata["civitai"].get("air")
+            if "anima" in str(base_model or "").lower() or "urn:air:anima:" in str(air or "").lower():
+                return True
+    return False
+
+
+def model_inventory() -> dict[str, Any]:
+    """Return live model lists without modifying the user's saved selections."""
+    inventories = {
+        "checkpoint": _model_files("diffusion_models"),
+        "vae": _model_files("vae"),
+        "clip": _model_files("text_encoders"),
+    }
+    signature_source = "\n".join(
+        f"{kind}:{value}"
+        for kind, values in inventories.items()
+        for value in values
     )
+    return {
+        **inventories,
+        "signature": hashlib.sha256(signature_source.encode("utf-8")).hexdigest(),
+    }
 
 
 def lora_inventory() -> dict[str, Any]:
@@ -655,6 +1018,7 @@ def workflow_configuration() -> dict[str, Any]:
     if scheduler not in scheduler_options:
         scheduler = "normal"
     return {
+        "development": DEVELOPMENT,
         "comfy_port": COMFY_PORT,
         "checkpoint": {
             "current": checkpoint,
@@ -675,20 +1039,26 @@ def workflow_configuration() -> dict[str, Any]:
         "scheduler": {"current": scheduler, "options": scheduler_options, "loader_class": "KSampler"},
         "lora": _saved_lora_configuration(),
         "prompt": prompt_defaults,
+        "prompt_enabled": load_external_prompt_enabled(),
+        "prompt_state": load_external_prompt_bundle(),
         "advanced_nodes": advanced_node_configuration(template),
         "generation_state": {
+            "generation": saved.get("generation", {"upscale_engine": DEFAULT_UPSCALE_ENGINE}),
+            "camera": saved.get("camera", {}),
+            "composition_enabled": saved.get("composition_enabled", True),
+            "wildcard_enabled": saved.get("wildcard_enabled", False),
             "model": {
                 "sampler": sampler,
                 "scheduler": scheduler,
-                "steps": int(saved_model.get("steps", 30)),
-                "cfg": float(saved_model.get("cfg", 5.0)),
+                "steps": _bounded_number(saved_model.get("steps", 30), 30, 1, 10_000, integer=True),
+                "cfg": _bounded_number(saved_model.get("cfg", 5.0), 5.0, 0.0, 100.0),
             },
             "output": {
-                "width": int(saved_output.get("width", 1536)),
-                "height": int(saved_output.get("height", 1024)),
-                "seed": int(saved_output.get("seed", 579441119814924)),
+                "width": _bounded_number(saved_output.get("width", 1536), 1536, 256, 4096, integer=True),
+                "height": _bounded_number(saved_output.get("height", 1024), 1024, 256, 4096, integer=True),
+                "seed": _bounded_number(saved_output.get("seed", 579441119814924), 579441119814924, 0, COMFYUI_SEED_MAX, integer=True),
                 "seed_mode": str(saved_output.get("seed_mode", "random")),
-                "aspect_locked": bool(saved_output.get("aspect_locked", False)),
+                "aspect_locked": _coerce_bool(saved_output.get("aspect_locked", False)),
             },
             "node_overrides": saved.get("node_overrides", {}),
         },
@@ -721,8 +1091,8 @@ def _saved_lora_configuration() -> dict[str, Any]:
                 continue
             configured.append({
                 "name": installed_name,
-                "enabled": bool(row.get("on", row.get("enabled", True))),
-                "strength": float(row.get("strength", 1)),
+                "enabled": _coerce_bool(row.get("on", row.get("enabled", True)), True),
+                "strength": _bounded_number(row.get("strength", 1), 1, -20, 20),
             })
     except (TypeError, ValueError, json.JSONDecodeError):
         configured = []
@@ -735,15 +1105,15 @@ def _saved_lora_configuration() -> dict[str, Any]:
             installed_name = available_by_key.get(raw_name.casefold()) if raw_name else ""
             configured.append({
                 "name": installed_name or "",
-                "enabled": bool(row.get("enabled", False)) and bool(installed_name),
-                "strength": max(-20.0, min(20.0, float(row.get("strength", 1)))),
+                "enabled": _coerce_bool(row.get("enabled", False)) and bool(installed_name),
+                "strength": _bounded_number(row.get("strength", 1), 1, -20, 20),
             })
     return {
         # Restore the selected workflow profile, but only for LoRAs that are
         # actually installed. A clean first launch therefore remains empty.
         "current": configured,
         "options": available,
-        "enabled": bool(saved_lora.get("enabled", True)) if isinstance(saved_lora, dict) else True,
+        "enabled": _coerce_bool(saved_lora.get("enabled", True), True) if isinstance(saved_lora, dict) else True,
         "profile_index": profile_index,
         "node_class": preset.get("type"),
     }
@@ -793,12 +1163,6 @@ def _dependencies(prompt: dict[str, Any], node_id: str) -> set[str]:
 
 
 def _final_only(prompt: dict[str, Any]) -> dict[str, Any]:
-    # Disabled cleanup has lazy inputs which must not keep its debug subsystem
-    # alive in the API graph.
-    router = prompt.get("2165", {}).get("inputs", {})
-    if router.get("cleanup_enabled") is False:
-        for key in ("cleanup_image", "old_shadow_mask", "semantic_shadow_preview"):
-            router.pop(key, None)
     keep: set[str] = set()
     pending = [FINAL_NODE]
     while pending:
@@ -810,6 +1174,41 @@ def _final_only(prompt: dict[str, Any]) -> dict[str, Any]:
         keep.add(node_id)
         pending.extend(_dependencies(prompt, node_id) - keep)
     return {node_id: prompt[node_id] for node_id in prompt if node_id in keep}
+
+
+def _dependency_only(prompt: dict[str, Any], target_node: str) -> dict[str, Any]:
+    """Return the minimum executable graph needed to reach one node."""
+    keep: set[str] = set()
+    pending = [target_node]
+    while pending:
+        node_id = pending.pop()
+        if node_id in keep:
+            continue
+        if node_id not in prompt:
+            raise RuntimeError(f"Missing warmup dependency {node_id}")
+        keep.add(node_id)
+        pending.extend(_dependencies(prompt, node_id) - keep)
+    return {node_id: prompt[node_id] for node_id in prompt if node_id in keep}
+
+
+def _warmup_graph(prompt: dict[str, Any], full: bool) -> tuple[dict[str, Any], str]:
+    """Build a no-save warmup target from the validated production graph."""
+    # ComfyUI rejects partial graphs that contain no OUTPUT_NODE.  A bare
+    # KSampler or VAEDecode therefore never warmed anything.  Finish the tiny
+    # 256px/1-step graph with PreviewImage: it is an output node, exercises the
+    # real VAE decode path, and does not write a user image to disk.
+    template = json.loads(TEMPLATE.read_text(encoding="utf-8"))
+    decode_id = "lakis_startup_warmup_decode"
+    target = "lakis_startup_warmup_preview"
+    decode = deepcopy(template["1635"])
+    decode["inputs"]["samples"] = ["1634:1622", 0]
+    prompt[decode_id] = decode
+    prompt[target] = {
+        "inputs": {"images": [decode_id, 0]},
+        "class_type": "PreviewImage",
+        "_meta": {"title": "LAKIS startup warmup preview"},
+    }
+    return _dependency_only(prompt, target), target
 
 
 def _inject_prompts(prompt: dict[str, Any], prompt_state: dict[str, Any]) -> None:
@@ -867,12 +1266,12 @@ def _inject_loras(prompt: dict[str, Any], requested: Any, globally_enabled: bool
         name = canonical.get(raw_name.lower())
         if name is None:
             raise ValueError(f"Unknown LoRA: {raw_name}")
-        strength = float(item.get("strength", 1.0))
+        strength = _coerce_number(item.get("strength", 1.0), float("nan"))
         if not math.isfinite(strength) or not -20.0 <= strength <= 20.0:
             raise ValueError(f"LoRA strength must be between -20 and 20: {name}")
         rows.append({
             "name": name,
-            "on": globally_enabled and bool(item.get("enabled", True)),
+            "on": globally_enabled and _coerce_bool(item.get("enabled", True), True),
             "strength": strength,
             "strengthTwo": None,
         })
@@ -922,6 +1321,14 @@ def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dic
     if not TEMPLATE.is_file():
         raise RuntimeError(f"Validated API prompt template is missing: {TEMPLATE}")
     prompt = json.loads(TEMPLATE.read_text(encoding="utf-8"))
+    # SAM3 legitimately returns an empty [0,H,W] mask batch when it cannot
+    # detect the requested face/eye. WAS Masks Combine Batch raises on that
+    # input. Use the LAKIS-compatible combiner so a missed detection skips the
+    # detailer instead of aborting the whole image generation.
+    for node in prompt.values():
+        if node.get("class_type") == "Masks Combine Batch":
+            node["class_type"] = "LAKIS_SafeMasksCombineBatch"
+            node.setdefault("_meta", {})["title"] = "LAKIS Safe Masks Combine Batch"
     # Apply the persisted user choice in memory. This remains effective even
     # when LAKIS is installed in a location where packaged workflows are
     # read-only for the desktop process.
@@ -936,7 +1343,7 @@ def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dic
                 "1744", "1736:1737", "1634:1760",
                 "1736:1987",
                 "1634:1721", "1634:1622", "1633:1616", "1633:1790", "1633:1612",
-                "1633:1619", "2165"}
+                "1633:1619"}
     missing = sorted(required - set(prompt))
     if missing:
         raise RuntimeError(f"Validated prompt contract changed; missing {missing}")
@@ -948,31 +1355,261 @@ def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dic
     lora_state = application_state.get("loras", workflow_configuration()["lora"]["current"])
     model = application_state.get("model", {})
     i2i = application_state.get("i2i", {})
+    inpaint = application_state.get("inpaint", {})
+    effective_prompt_state = deepcopy(prompt_state) if isinstance(prompt_state, dict) else {}
+    inpaint_requested = _coerce_bool(inpaint.get("enabled", False))
+    if inpaint_requested:
+        # Inpaint is a local edit contract. Letting the normal generation
+        # panels leak into this conditioning can reconstruct a person or prop
+        # inside a deletion mask. Only the dedicated inpaint prompts are used.
+        effective_prompt_state = {key: "" for key in PROMPT_STATE_KEYS}
+    inpaint_prompt = str(inpaint.get("prompt", "")).strip()
+    inpaint_negative_prompt = str(inpaint.get("negative_prompt", "")).strip()
+    inpaint_operation = str(inpaint.get("operation", "regenerate")).strip().lower()
+    if inpaint_operation not in {"remove", "regenerate"}:
+        raise ValueError("inpaint.operation must be remove or regenerate")
+    inpaint_removal_mode = inpaint_requested and inpaint_operation == "remove"
+    # A source-conditioning model naturally tries to preserve the silhouette
+    # of the original clothes.  Edits that expose more of the arms/shoulders
+    # therefore need a little more sampling freedom than a colour or accessory
+    # change.  Keep this narrowly scoped to ordinary outfit terms so normal
+    # face, hair and object edits retain their existing stability.
+    exposure_outfit_terms = (
+        "swimsuit", "swimwear", "one-piece swimsuit", "bikini",
+        "short sleeve", "short-sleeve", "sleeveless", "tank top",
+        "camisole", "tube top", "수영복", "반팔", "민소매",
+    )
+    exposure_outfit_edit = (
+        inpaint_requested
+        and not inpaint_removal_mode
+        and any(term in inpaint_prompt.lower() for term in exposure_outfit_terms)
+    )
+    if len(inpaint_prompt) > 4000:
+        raise ValueError("인페인트 프롬프트는 4,000자 이하여야 합니다.")
+    if len(inpaint_negative_prompt) > 4000:
+        raise ValueError("인페인트 제외 프롬프트는 4,000자 이하여야 합니다.")
+    if inpaint_removal_mode:
+        # Delete mode is deliberately prompt-free from the user's point of
+        # view. Discard both dedicated text boxes and use a deterministic
+        # background-restoration contract.
+        # A negative prompt alone does not tell a diffusion model what should
+        # replace the unwanted object. Explicitly condition the masked area as
+        # a continuation of its surrounding background instead of allowing the
+        # base character prompt to invent another limb or accessory there.
+        inpaint_prompt = (
+            "remove the unwanted object inside the masked area completely, "
+            "background only, reconstruct the natural surrounding floor or wall, "
+            "continue the nearby surface, lighting, shadow, texture and perspective, "
+            "plain empty unobstructed background in the masked area, seamless clean "
+            "restoration, no foreground object"
+        )
+        inpaint_negative_prompt = (
+            "duplicate body parts, extra limbs, extra arms, extra legs, extra "
+            "hands, extra feet, residual anatomy, "
+            "person, character, body, clothing, shoes, object remnants, floating "
+            "object, black object, geometric object, symbol, icon, logo, text"
+        )
+    elif exposure_outfit_edit:
+        # Describe the newly visible anatomy explicitly and suppress the source
+        # garment prior.  This is appended only to the private inpaint branch;
+        # the user's normal generation prompts remain isolated.
+        inpaint_prompt = ", ".join(part for part in (
+            inpaint_prompt,
+            "(replace the original clothing completely:1.55), (wear only the requested "
+            "garment with no outer layer:1.4), newly exposed skin "
+            "matching the character's existing skin tone, natural shoulders and arms, "
+            "clean clothing-to-skin boundaries, preserve the exact original pose, body "
+            "silhouette, body proportions and bust size",
+        ) if part)
+        inpaint_negative_prompt = ", ".join(part for part in (
+            inpaint_negative_prompt,
+            "(original outfit:1.5), unchanged clothing, (outerwear:1.4), long sleeves, jacket, coat, hoodie, vest, "
+            "garment remnants, fabric covering the newly exposed skin, mismatched skin tone, "
+            "changed body proportions, enlarged bust, exaggerated breasts, changed hairstyle",
+        ) if part)
+    if inpaint_requested and inpaint_prompt:
+        existing_general = "" if inpaint_removal_mode else str(effective_prompt_state.get("general", "")).strip()
+        effective_prompt_state["general"] = ", BREAK, ".join(
+            part for part in (existing_general, inpaint_prompt) if part
+        )
+    if inpaint_requested and inpaint_negative_prompt:
+        existing_negative = str(effective_prompt_state.get("negative", "")).strip()
+        effective_prompt_state["negative"] = ", ".join(
+            part for part in (existing_negative, inpaint_negative_prompt) if part
+        )
     mode = generation.get("mode", "fast")
-    if mode not in {"fast", "detail"}:
-        raise ValueError("generation.mode must be fast or detail")
+    if mode not in {"fast", "detail", "lakis_detail"}:
+        raise ValueError("generation.mode must be fast, detail, or lakis_detail")
 
-    detail = mode == "detail"
-    for node_id in ("2138", "2139", "2140"):
-        prompt[node_id]["inputs"]["value"] = detail
+    detail = mode in {"detail", "lakis_detail"}
+    lakis_detail = detail and (
+        mode == "lakis_detail" or _coerce_bool(generation.get("lakis_mode", False))
+    )
+    legacy_detail = detail and not lakis_detail
+    prompt["2138"]["inputs"]["value"] = legacy_detail
+    prompt["2139"]["inputs"]["value"] = legacy_detail
+    prompt["2140"]["inputs"]["value"] = detail
 
-    seed = int(output.get("seed", 0))
+    # Hidden DEV benchmark contract: preserve the complete generation path but
+    # skip both detailers so repeated upscale-engine measurements are quick.
+    if DEVELOPMENT and _coerce_bool(generation.get("upscale_benchmark", False)):
+        prompt["2138"]["inputs"]["value"] = False
+        prompt["2139"]["inputs"]["value"] = False
+        prompt["2140"]["inputs"]["value"] = True
+
+    requested_upscale_engine = generation.get("upscale_engine", DEFAULT_UPSCALE_ENGINE)
+    if legacy_detail:
+        requested_upscale_engine = "ultimate"
+    elif lakis_detail:
+        requested_upscale_engine = "lakis_scope"
+    if requested_upscale_engine == "lakis_fast":
+        requested_upscale_engine = "lakis_scope"
+    allowed_engines = DEV_UPSCALE_ENGINES if DEVELOPMENT else RELEASE_UPSCALE_ENGINES
+    if requested_upscale_engine not in allowed_engines:
+        raise ValueError("generation.upscale_engine must be ultimate or lakis_scope")
+    use_allinone_ultimate = requested_upscale_engine == "allinone_ultimate"
+    scope_quality = lakis_detail or requested_upscale_engine == "lakis_scope_quality"
+    upscale_engine = "lakis_scope" if requested_upscale_engine in {"lakis_scope", "lakis_scope_quality"} else "ultimate"
+    if lakis_detail:
+        vram_gate_id = "lakis:vram:base_to_face"
+        face_scope_id = "lakis:face_scope"
+        prompt[vram_gate_id] = {
+            "class_type": "LAKIS_VRAM_GATE",
+            "_meta": {"title": "LAKIS VRAM Gate · base to detail"},
+            "inputs": {"image": ["1633:1611", 0], "min_free_gb": 1.5, "empty_cache": True},
+        }
+        prompt[face_scope_id] = {
+            "class_type": "LAKIS_DETAIL",
+            "_meta": {"title": "LAKIS_DETAIL · single pass"},
+            "inputs": {
+                "image": [vram_gate_id, 0], "face_segs": ["1530:1827", 0],
+                "model": ["1530:1832", 0], "clip": ["1530:1833", 2],
+                "vae": ["1530:1833", 3], "positive": ["1530:1833", 4],
+                "negative": ["1530:1833", 5], "seed": ["1530:1833", 8],
+                "steps": 8, "cfg": ["1530:1833", 11],
+                "sampler_name": ["1530:1833", 13], "scheduler": ["1530:1825", 0],
+                "face_guide_size": 768, "face_max_size": 1280,
+                "face_denoise": 0.24, "face_feather": 8,
+                "eye_refine": True, "eye_strength": 0.22, "eye_y": 0.42,
+                "eye_spacing": 0.34, "eye_width": 0.24, "eye_height": 0.14,
+                "eye_radius": 2, "eye_color_preservation": 0.85,
+                "unload_after": False, "detailer_hook": ["1530:2060", 0],
+            },
+        }
+        # In LAKIS detail mode the output selector and tile-size probe must
+        # depend on the LAKIS detail image as well.  Leaving either wired to
+        # the legacy eye-detailer keeps the entire legacy face/eye branch in
+        # the executable graph even though its switches are off.
+        prompt["1541:1545"]["inputs"]["on_false"] = [face_scope_id, 0]
+        prompt["1541:1531"]["inputs"]["image"] = [face_scope_id, 0]
+        prompt["1541:1538"]["inputs"]["image"] = [face_scope_id, 0]
+    # Hidden DEV comparison contract.  These are the exact Ultimate SD Upscale
+    # values from the user-provided animaAllInOne_v61 workflow.  Keep this
+    # opt-in so normal UI presets and persisted user settings are untouched.
+    if (
+        upscale_engine == "ultimate"
+        and DEVELOPMENT
+        and (use_allinone_ultimate or bool(generation.get("allinone_ultimate_benchmark", False)))
+    ):
+        ultimate_inputs = prompt["1541:1538"]["inputs"]
+        ultimate_inputs.update({
+            "upscale_by": 2.0,
+            "steps": 15,
+            "cfg": 8.0,
+            "sampler_name": "euler",
+            "scheduler": "sgm_uniform",
+            "denoise": 0.11,
+            "mode_type": "Chess",
+            "tile_width": 512,
+            "tile_height": 512,
+            "mask_blur": 8,
+            "tile_padding": 128,
+            "seam_fix_mode": "None",
+            "seam_fix_denoise": 1.0,
+            "seam_fix_width": 64,
+            "seam_fix_mask_blur": 8,
+            "seam_fix_padding": 16,
+            "force_uniform_tiles": True,
+            "tiled_decode": False,
+            "batch_size": 1,
+        })
+    if upscale_engine == "lakis_scope":
+        old_inputs = prompt["1541:1538"]["inputs"]
+        if bool(generation.get("allinone_scope_geometry_benchmark", False)):
+            old_inputs.update({
+                "upscale_by": 2.0,
+                "tile_width": 512,
+                "tile_height": 512,
+                "tile_padding": 128,
+            })
+        prompt["1541:1538"] = {
+            "class_type": "LAKIS_SCOPE",
+            "_meta": {"title": "LAKIS_SCOPE"},
+            "inputs": {
+                "image": old_inputs["image"],
+                "model": old_inputs["model"],
+                "positive": old_inputs["positive"],
+                "negative": old_inputs["negative"],
+                "vae": old_inputs["vae"],
+                "upscale_model": old_inputs["upscale_model"],
+                "upscale_by": old_inputs["upscale_by"],
+                "seed": old_inputs["seed"],
+                "steps": old_inputs["steps"],
+                "cfg": old_inputs["cfg"],
+                "sampler_name": old_inputs["sampler_name"],
+                "scheduler": old_inputs["scheduler"],
+                "denoise": old_inputs["denoise"],
+                "tile_size": old_inputs["tile_width"],
+                "overlap": old_inputs["tile_padding"],
+                "tile_batch_size": 2,
+                "quality_mode": scope_quality or bool(generation.get("scope_quality_benchmark", False)),
+            },
+        }
+
+    seed = _coerce_number(output.get("seed", 0), -1, integer=True)
     if not 0 <= seed <= COMFYUI_SEED_MAX:
         raise ValueError(f"Seed must be between 0 and {COMFYUI_SEED_MAX}")
     # VAE encoding and the Anima/Spectrum latent path must agree on exact
     # latent cells. Spectrum requires even latent dimensions, so output pixels
     # must be multiples of 16. A width such as 728 yields 91 latent cells and
     # is padded to 92 in one path, causing a 91-vs-92 KSampler mismatch.
-    width = round(max(256, min(4096, int(output.get("width", 1024)))) / 16) * 16
-    height = round(max(256, min(4096, int(output.get("height", 1536)))) / 16) * 16
+    # Normal generation resolution is authoritative user state. Local Inpaint
+    # may derive a different source/crop/processing canvas, but only inside this
+    # request-local graph; it must never flow back into output state.
+    normal_width = round(_bounded_number(output.get("width", 1024), 1024, 256, 4096, integer=True) / 16) * 16
+    normal_height = round(_bounded_number(output.get("height", 1536), 1536, 256, 4096, integer=True) / 16) * 16
+    width, height = normal_width, normal_height
+    if _coerce_bool(inpaint.get("enabled", False)):
+        source_width = _bounded_number(inpaint.get("image_width", width), width, 64, 16384, integer=True)
+        source_height = _bounded_number(inpaint.get("image_height", height), height, 64, 16384, integer=True)
+        width = max(64, round(source_width / 16) * 16)
+        height = max(64, round(source_height / 16) * 16)
+    target_width, target_height = width, height
     prompt["890:1864"]["inputs"]["seed"] = seed
-    i2i_enabled = bool(i2i.get("enabled", False))
-    i2i_denoise = max(0.0, min(1.0, float(i2i.get("denoise", 0.5))))
-    if i2i_enabled:
-        image_name = Path(str(i2i.get("image_name", ""))).name
+    inpaint_enabled = _coerce_bool(inpaint.get("enabled", False))
+    local_inpaint_v2 = inpaint_enabled and LOCAL_INPAINT_V2
+    # Inpaint owns the source-image pipeline. Treat stale I2I state as OFF so
+    # old saved UI state cannot make an otherwise valid inpaint request fail.
+    i2i_enabled = _coerce_bool(i2i.get("enabled", False)) and not inpaint_enabled
+    i2i_denoise = _bounded_number(i2i.get("denoise", 0.5), 0.5, 0.0, 1.0)
+    source_denoise = (
+        _bounded_number(inpaint.get("denoise", 0.65), 0.65, 0.0, 1.0)
+        if inpaint_enabled else i2i_denoise
+    )
+    if inpaint_removal_mode:
+        # Structural deletion needs enough freedom to replace source anatomy;
+        # the ordinary 0.35 edit default tends to preserve the extra limb.
+        source_denoise = max(source_denoise, 0.72)
+    elif exposure_outfit_edit:
+        source_denoise = max(source_denoise, 0.86)
+    source_enabled = i2i_enabled or inpaint_enabled
+    if source_enabled:
+        source_state = inpaint if inpaint_enabled else i2i
+        expected_prefix = "LAKIS_inpaint_input" if inpaint_enabled else "LAKIS_i2i_input"
+        image_name = Path(str(source_state.get("image_name", ""))).name
         image_path = (COMFY_ROOT / "input" / image_name).resolve()
-        if not image_name.startswith("LAKIS_i2i_input.") or image_path.parent != (COMFY_ROOT / "input").resolve() or not image_path.is_file():
-            raise ValueError("i2i 입력 이미지를 다시 선택해 주세요.")
+        if not image_name.startswith(expected_prefix) or image_path.parent != (COMFY_ROOT / "input").resolve() or not image_path.is_file():
+            raise ValueError("LLLite 원본 이미지를 다시 선택해 주세요." if inpaint_enabled else "i2i 입력 이미지를 다시 선택해 주세요.")
         prompt["1744"]["inputs"]["image"] = image_name
         # ImageScaleToTotalPixels preserves the source aspect ratio and can
         # produce latent dimensions that differ by one cell from Anima's
@@ -990,15 +1627,324 @@ def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dic
             "class_type": "ImageScale",
             "_meta": {"title": "i2i 입력을 출력 해상도에 맞춤"},
         }
-    prompt["1736:1737"]["inputs"]["value"] = i2i_enabled
-    prompt["1634:1760"]["inputs"]["value"] = i2i_denoise
+        if inpaint_enabled:
+            mask_name = Path(str(inpaint.get("mask_name", ""))).name
+            mask_path = (COMFY_ROOT / "input" / mask_name).resolve()
+            if not mask_name.startswith("LAKIS_inpaint_mask") or mask_path.suffix.lower() != ".png" or mask_path.parent != (COMFY_ROOT / "input").resolve() or not mask_path.is_file():
+                raise ValueError("인페인트 마스크를 다시 그려 주세요.")
+            prompt["lakis:inpaint_mask_loader"] = {
+                "inputs": {"image": mask_name, "channel": "red"},
+                "class_type": "LoadImageMask", "_meta": {"title": "LAKIS 인페인트 마스크"},
+            }
+            mask_grow = int(_bounded_number(inpaint.get("grow_mask_by", 8), 8, 0, 64, integer=True))
+            if inpaint_removal_mode:
+                # A wide user mask already covers the unwanted object.  The
+                # former forced 48px growth unnecessarily regenerated nearby
+                # floor/wall pixels and made the repaired patch visibly shift
+                # colour.  Keep only a modest safety margin around the object.
+                mask_grow = max(mask_grow, 16)
+            elif exposure_outfit_edit:
+                # Respect the user's painted boundary. Expanding this to 16px
+                # could pull a nearby chin/face into a clothing edit.
+                mask_grow = max(mask_grow, 8)
+            prompt["lakis:inpaint_mask_grow"] = {
+                "inputs": {
+                    "mask": ["lakis:inpaint_mask_loader", 0],
+                    "expand": mask_grow,
+                    "tapered_corners": True,
+                },
+                "class_type": "GrowMask",
+                "_meta": {"title": "LAKIS 인페인트 영역 확장"},
+            }
+            inpaint_mask_ref = ["lakis:inpaint_mask_grow", 0]
+            inpaint_source_ref = ["1736:1741", 0]
+            inpaint_latent_source_ref = None
+            if exposure_outfit_edit:
+                # DEV-only conservative semantic assist.  Broad outfit edits
+                # (sleeveless/short-sleeve/swimwear) need the complete source
+                # garment removed, but the hand-painted mask often misses a
+                # hood, cuff or sleeve.  Union the user's mask with SAM3's
+                # clothing mask, then protect detected hair.  This path is
+                # deliberately not used for ordinary colour/material edits.
+                prompt["lakis:inpaint_clothing_condition"] = {
+                    "inputs": {
+                        "text": "clothing:256",
+                        "clip": ["1530:1821", 2],
+                    },
+                    "class_type": "CLIPTextEncode",
+                    "_meta": {"title": "LAKIS 인페인트 · 의상 조건 인코드"},
+                }
+                prompt["lakis:inpaint_clothing_detect"] = {
+                    "inputs": {
+                        "threshold": "0.42", "refine_iterations": "2",
+                        "individual_masks": "True", "model": ["1530:1821", 1],
+                        "image": ["1736:1741", 0],
+                        "conditioning": ["lakis:inpaint_clothing_condition", 0],
+                    },
+                    "class_type": "SAM3_Detect",
+                    "_meta": {"title": "LAKIS 인페인트 · 의상 마스크"},
+                }
+                prompt["lakis:inpaint_clothing_combine"] = {
+                    "inputs": {"masks": ["lakis:inpaint_clothing_detect", 0]},
+                    "class_type": "LAKIS_SafeMasksCombineBatch",
+                    "_meta": {"title": "LAKIS 인페인트 · 의상 마스크 결합"},
+                }
+                prompt["lakis:inpaint_clothing_grow"] = {
+                    "inputs": {
+                        "mask": ["lakis:inpaint_clothing_combine", 0],
+                        "expand": 6, "tapered_corners": True,
+                    },
+                    "class_type": "GrowMask",
+                    "_meta": {"title": "LAKIS 인페인트 · 의상 경계 확장"},
+                }
+                # Clothing is removal coverage for an outfit replacement, not
+                # a protection mask. Limit the automatic segmentation to the
+                # neighbourhood anchored by the user's paint, then union it
+                # with that authoritative user mask. The former V2 `multiply`
+                # kept only the intersection and left old garment silhouettes
+                # outside the painted region untouched.
+                prompt["lakis:inpaint_outfit_anchor_halo"] = {
+                    "inputs": {
+                        "mask": inpaint_mask_ref,
+                        "expand": LOCAL_INPAINT_V2_OUTFIT_COVERAGE_HALO,
+                        "tapered_corners": True,
+                    },
+                    "class_type": "GrowMask",
+                    "_meta": {"title": "LAKIS 인페인트 · 의상 교체 범위 제한"},
+                }
+                prompt["lakis:inpaint_clothing_near_user"] = {
+                    "inputs": {
+                        "destination": ["lakis:inpaint_clothing_grow", 0],
+                        "source": ["lakis:inpaint_outfit_anchor_halo", 0],
+                        "x": 0, "y": 0, "operation": "multiply",
+                    },
+                    "class_type": "MaskComposite",
+                    "_meta": {"title": "LAKIS 인페인트 · 사용자 주변 기존 의상"},
+                }
+                prompt["lakis:inpaint_mask_with_clothing"] = {
+                    "inputs": {
+                        "destination": inpaint_mask_ref,
+                        "source": ["lakis:inpaint_clothing_near_user", 0],
+                        "x": 0, "y": 0,
+                        "operation": "add",
+                    },
+                    "class_type": "MaskComposite",
+                    "_meta": {"title": "LAKIS 인페인트 · 사용자+의상 마스크"},
+                }
+                prompt["lakis:inpaint_hair_condition"] = {
+                    "inputs": {"text": "hair:256", "clip": ["1530:1821", 2]},
+                    "class_type": "CLIPTextEncode",
+                    "_meta": {"title": "LAKIS 인페인트 · 머리카락 보호 조건"},
+                }
+                prompt["lakis:inpaint_hair_detect"] = {
+                    "inputs": {
+                        "threshold": "0.52", "refine_iterations": "1",
+                        "individual_masks": "True", "model": ["1530:1821", 1],
+                        "image": ["1736:1741", 0],
+                        "conditioning": ["lakis:inpaint_hair_condition", 0],
+                    },
+                    "class_type": "SAM3_Detect",
+                    "_meta": {"title": "LAKIS 인페인트 · 머리카락 마스크"},
+                }
+                prompt["lakis:inpaint_hair_combine"] = {
+                    "inputs": {"masks": ["lakis:inpaint_hair_detect", 0]},
+                    "class_type": "LAKIS_SafeMasksCombineBatch",
+                    "_meta": {"title": "LAKIS 인페인트 · 머리카락 마스크 결합"},
+                }
+                prompt["lakis:inpaint_hair_grow"] = {
+                    "inputs": {
+                        "mask": ["lakis:inpaint_hair_combine", 0],
+                        "expand": 4, "tapered_corners": True,
+                    },
+                    "class_type": "GrowMask",
+                    "_meta": {"title": "LAKIS 인페인트 · 머리카락 경계 보호"},
+                }
+                prompt["lakis:inpaint_semantic_mask"] = {
+                    "inputs": {
+                        "destination": ["lakis:inpaint_mask_with_clothing", 0],
+                        "source": ["lakis:inpaint_hair_grow", 0],
+                        "x": 0, "y": 0, "operation": "subtract",
+                    },
+                    "class_type": "MaskComposite",
+                    "_meta": {"title": "LAKIS 인페인트 · 머리카락 제외"},
+                }
+                inpaint_mask_ref = ["lakis:inpaint_semantic_mask", 0]
+                prompt["lakis:inpaint_neutral_image"] = {
+                    "inputs": {
+                        "width": source_width, "height": source_height,
+                        "batch_size": 1, "color": 0x808080,
+                    },
+                    "class_type": "EmptyImage",
+                    "_meta": {"title": "LAKIS 인페인트 · 의상 정보 중립화"},
+                }
+                prompt["lakis:inpaint_neutral_source"] = {
+                    "inputs": {
+                        "destination": ["1736:1741", 0],
+                        "source": ["lakis:inpaint_neutral_image", 0],
+                        "x": 0, "y": 0, "resize_source": False,
+                        "mask": inpaint_mask_ref,
+                    },
+                    "class_type": "ImageCompositeMasked",
+                    "_meta": {"title": "LAKIS 인페인트 · 원본 의상 선삭제"},
+                }
+                inpaint_source_ref = ["lakis:inpaint_neutral_source", 0]
+            if local_inpaint_v2:
+                prompt["lakis:inpaint_v2_prepare"] = {
+                    "inputs": {"image": inpaint_source_ref, "mask": inpaint_mask_ref,
+                        "minimum_padding": LOCAL_INPAINT_V2_MIN_PADDING,
+                        "padding_ratio": LOCAL_INPAINT_V2_PADDING_RATIO,
+                        "maximum_crop_ratio": LOCAL_INPAINT_V2_MAX_CROP_RATIO,
+                        "alignment": LOCAL_INPAINT_V2_ALIGNMENT,
+                        "minimum_work_edge": LOCAL_INPAINT_V2_MIN_WORK_EDGE,
+                        "maximum_work_edge": LOCAL_INPAINT_V2_MAX_WORK_EDGE,
+                        "large_edit_ratio": LOCAL_INPAINT_V2_LARGE_EDIT_RATIO},
+                    "class_type": "LAKIS_LocalInpaintPrepare",
+                    "_meta": {"title": "LAKIS Local Inpaint V2 · Crop"},
+                }
+                inpaint_source_ref = ["lakis:inpaint_v2_prepare", 0]
+                inpaint_mask_ref = ["lakis:inpaint_v2_prepare", 1]
+            # The 4-channel Anima LLLite already masks its RGB condition using
+            # the supplied mask. VAEEncodeForInpaint blanks the same pixels a
+            # second time and leaves a dark rectangular prior on Anima. Keep
+            # the intact source latent and allow noise only inside the mask.
+            prompt["lakis:inpaint_encode"] = {
+                "inputs": {"pixels": inpaint_latent_source_ref or inpaint_source_ref, "vae": ["1736:1746", 0]},
+                "class_type": "VAEEncode", "_meta": {"title": "LAKIS 인페인트 원본 VAE 인코드"},
+            }
+            prompt["lakis:inpaint_noise_mask"] = {
+                "inputs": {
+                    "samples": ["lakis:inpaint_encode", 0],
+                    "mask": inpaint_mask_ref,
+                },
+                "class_type": "SetLatentNoiseMask",
+                "_meta": {"title": "LAKIS 인페인트 영역 제한"},
+            }
+            prompt["1736:1743"]["inputs"]["on_true"] = ["lakis:inpaint_noise_mask", 0]
+            inpaint_lllite_strength = _bounded_number(inpaint.get("strength", 1.0), 1.0, 0.0, 2.0)
+            if exposure_outfit_edit:
+                # High LLLite strength is useful for identity-preserving local
+                # edits but also locks the original garment silhouette.
+                # Balance garment replacement against body-shape retention.
+                # Lower values removed the source outfit but hallucinated a
+                # new torso; higher values kept the old sleeves and hood.
+                inpaint_lllite_strength = min(inpaint_lllite_strength, 0.66)
+            prompt["lakis:inpaint_lllite"] = {
+                "inputs": {"model": ["1634:1626", 0], "lllite_name": "anima-lllite-inpainting-v2.safetensors",
+                           "image": inpaint_source_ref, "mask": inpaint_mask_ref,
+                           "strength": inpaint_lllite_strength,
+                           "start_percent": 0.0, "end_percent": 1.0, "preserve_wrapper": True},
+                "class_type": "AnimaLLLiteApply_sdscripts", "_meta": {"title": "LAKIS Anima LLLite Inpaint"},
+            }
+            prompt["lakis:inpaint_lllite_highrez"] = {
+                "inputs": {"model": ["1633:1619", 0], "lllite_name": "anima-lllite-inpainting-v2.safetensors",
+                           "image": inpaint_source_ref, "mask": inpaint_mask_ref,
+                           "strength": inpaint_lllite_strength * 0.75,
+                           "start_percent": 0.0, "end_percent": 1.0, "preserve_wrapper": True},
+                "class_type": "AnimaLLLiteApply_sdscripts", "_meta": {"title": "LAKIS Anima LLLite Inpaint · HighRez"},
+            }
+            prompt["1634:1721"]["inputs"]["model"] = ["lakis:inpaint_lllite", 0]
+            if not local_inpaint_v2:
+                prompt["lakis:inpaint_detail"] = {
+                "class_type": "LAKIS_DETAIL",
+                "_meta": {"title": "LAKIS_DETAIL · mandatory inpaint finish"},
+                "inputs": {
+                    "image": ["1541:1545", 0], "face_segs": ["1530:1827", 0],
+                    "model": ["1530:1832", 0], "clip": ["1530:1833", 2],
+                    "vae": ["1530:1833", 3], "positive": ["1530:1833", 4],
+                    "negative": ["1530:1833", 5], "seed": ["1530:1833", 8],
+                    "steps": 6, "cfg": ["1530:1833", 11],
+                    "sampler_name": ["1530:1833", 13], "scheduler": ["1530:1825", 0],
+                    "face_guide_size": 768, "face_max_size": 1280,
+                    "face_denoise": 0.20, "face_feather": 10,
+                    "eye_refine": True, "eye_strength": 0.18, "eye_y": 0.42,
+                    "eye_spacing": 0.34, "eye_width": 0.24, "eye_height": 0.14,
+                    "eye_radius": 2, "eye_color_preservation": 0.90,
+                    "unload_after": False, "detailer_hook": ["1530:2060", 0],
+                },
+            }
+            # Keep the diffusion/noise mask firm, but feather only the final
+            # composite edge so the edited area's colour does not form a hard
+            # pale silhouette against the untouched source.
+            prompt["lakis:inpaint_mask_image"] = {
+                "inputs": {"mask": inpaint_mask_ref},
+                "class_type": "MaskToImage",
+                "_meta": {"title": "LAKIS 인페인트 합성 마스크 변환"},
+            }
+            prompt["lakis:inpaint_mask_blur"] = {
+                "inputs": {
+                    "image": ["lakis:inpaint_mask_image", 0],
+                    "blur_radius": 15 if inpaint_removal_mode else (11 if exposure_outfit_edit else 7),
+                    "sigma": 6.0 if inpaint_removal_mode else (4.5 if exposure_outfit_edit else 3.0),
+                },
+                "class_type": "ImageBlur",
+                "_meta": {"title": "LAKIS 인페인트 경계 블렌딩"},
+            }
+            prompt["lakis:inpaint_composite_mask"] = {
+                "inputs": {"image": ["lakis:inpaint_mask_blur", 0], "channel": "red"},
+                "class_type": "ImageToMask",
+                "_meta": {"title": "LAKIS 인페인트 합성 마스크"},
+            }
+            inpaint_composite_source = ["1635", 0] if local_inpaint_v2 else ["lakis:inpaint_detail", 0]
+            if inpaint_removal_mode and not local_inpaint_v2:
+                prompt["lakis:inpaint_color_match"] = {
+                    "inputs": {
+                        "generated": inpaint_composite_source,
+                        "original": ["1744", 0],
+                        "mask": inpaint_mask_ref,
+                        "radius": 64,
+                        "strength": 0.85,
+                        "max_shift": 0.18,
+                    },
+                    "class_type": "LAKIS_INPAINT_COLOR_MATCH",
+                    "_meta": {"title": "LAKIS 삭제 영역 주변 색상 정합"},
+                }
+                inpaint_composite_source = ["lakis:inpaint_color_match", 0]
+            if local_inpaint_v2:
+                prompt["lakis:inpaint_final_composite"] = {
+                    "inputs": {"original": ["1736:1741", 0], "edited_crop": inpaint_composite_source,
+                        "crop_mask": ["lakis:inpaint_v2_prepare", 1],
+                        "x": ["lakis:inpaint_v2_prepare", 2], "y": ["lakis:inpaint_v2_prepare", 3],
+                        "crop_width": ["lakis:inpaint_v2_prepare", 4], "crop_height": ["lakis:inpaint_v2_prepare", 5],
+                        "feather": 16 if inpaint_removal_mode else 10,
+                        "color_match_strength": 0.80 if inpaint_removal_mode else 0.55},
+                    "class_type": "LAKIS_LocalInpaintComposite",
+                    "_meta": {"title": "LAKIS Local Inpaint V2 · Composite"},
+                }
+            else:
+                prompt["lakis:inpaint_final_composite"] = {
+                "inputs": {
+                    "destination": ["1744", 0],
+                    "source": inpaint_composite_source,
+                    "x": 0,
+                    "y": 0,
+                    "resize_source": True,
+                    "mask": ["lakis:inpaint_composite_mask", 0],
+                },
+                "class_type": "ImageCompositeMasked",
+                "_meta": {"title": "LAKIS LLLite · masked result only"},
+            }
+            prompt[FINAL_NODE]["inputs"]["images"] = ["lakis:inpaint_final_composite", 0]
+            if local_inpaint_v2:
+                # Image Saver reads width/height through node 921. Leaving that
+                # helper on the legacy final image keeps HighRez, detailers and
+                # USDU alive even though the saved image itself is local V2.
+                prompt["921"]["inputs"]["image"] = ["lakis:inpaint_final_composite", 0]
+    half_res_fast = HALF_RES_FAST_EXPERIMENT and mode == "fast" and not source_enabled
+    if half_res_fast:
+        # DEV experiment based on the reviewed 0.5x -> 2x workflow: generate
+        # one quarter of the target pixel count, then reconstruct at the exact
+        # requested canvas in the existing HighRez stage.
+        width = max(256, round((target_width * 0.5) / 16) * 16)
+        height = max(256, round((target_height * 0.5) / 16) * 16)
+    prompt["1736:1737"]["inputs"]["value"] = source_enabled
+    prompt["1634:1760"]["inputs"]["value"] = source_denoise
     checkpoint = str(model.get("checkpoint", prompt["890:1365"]["inputs"]["model_name"]))
     vae = str(model.get("vae", prompt["890:159"]["inputs"]["vae_name"]))
     clip = str(model.get("clip", prompt["890:164"]["inputs"]["clip_name"]))
     available = workflow_configuration()
     if checkpoint not in available["checkpoint"]["options"]:
         raise ValueError(f"Unknown diffusion model: {checkpoint}")
-    if "anima" not in checkpoint.lower():
+    if not _is_anima_checkpoint(checkpoint):
         raise ValueError("FAST workflow requires an Anima-compatible diffusion model")
     if vae not in available["vae"]["options"]:
         raise ValueError(f"Unknown VAE: {vae}")
@@ -1008,16 +1954,24 @@ def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dic
     prompt["890:159"]["inputs"]["vae_name"] = vae
     prompt["890:164"]["inputs"]["clip_name"] = clip
     sampler_config = prompt["890:905"]["inputs"]
+    requested_sampler = str(model.get("sampler", sampler_config["sampler_name"]))
+    requested_scheduler = str(model.get("scheduler", sampler_config["scheduler"]))
+    if requested_sampler not in available["sampler"]["options"]:
+        raise ValueError(f"Unsupported sampler: {requested_sampler}")
+    if requested_scheduler not in available["scheduler"]["options"]:
+        raise ValueError(f"Unsupported scheduler: {requested_scheduler}")
     sampler_config.update({
-        "steps_total": int(model.get("steps", sampler_config["steps_total"])),
-        "cfg": float(model.get("cfg", sampler_config["cfg"])),
-        "sampler_name": str(model.get("sampler", sampler_config["sampler_name"])),
-        "scheduler": str(model.get("scheduler", sampler_config["scheduler"])),
+        "steps_total": _bounded_number(
+            model.get("steps", sampler_config["steps_total"]), sampler_config["steps_total"], 1, 10_000, integer=True,
+        ),
+        "cfg": _bounded_number(model.get("cfg", sampler_config["cfg"]), sampler_config["cfg"], 0.0, 100.0),
+        "sampler_name": requested_sampler,
+        "scheduler": requested_scheduler,
     })
     # The v6.1 reference workflow uses a calmer native-model i2i pass
     # (20 steps, CFG 8, Euler/Simple).  It preserves source structure better
     # than the normal T2I sampler defaults without increasing total work.
-    if i2i_enabled:
+    if source_enabled:
         sampler_config.update({
             "steps_total": 20,
             "refiner_step": min(12, int(sampler_config.get("refiner_step", 12))),
@@ -1050,11 +2004,18 @@ def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dic
             "Workflow resolution contract is incomplete: "
             f"prompt_studios={resolution_nodes}, latent_sources={latent_nodes}"
         )
+    if local_inpaint_v2:
+        for node_id in resolution_nodes:
+            prompt[node_id]["inputs"]["resolution_custom_width"] = ["lakis:inpaint_v2_prepare", 6]
+            prompt[node_id]["inputs"]["resolution_custom_height"] = ["lakis:inpaint_v2_prepare", 7]
 
     camera_inputs = prompt["2135"]["inputs"]
     for source, target in (("x", "pos_x"), ("y", "pos_y"), ("z", "pos_z"),
                            ("roll", "roll"), ("frame_y", "frame_y")):
-        camera_inputs[target] = float(camera.get(source, camera_inputs.get(target, 0)))
+        camera_inputs[target] = _bounded_number(
+            camera.get(source, camera.get(target, camera_inputs.get(target, 0))),
+            camera_inputs.get(target, 0), -1.0, 1.0,
+        )
 
     # Camera-control node values must be applied after the friendly controls
     # but before its generated text is embedded in Prompt Studio. Applying
@@ -1064,16 +2025,21 @@ def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dic
     if isinstance(requested_overrides, dict) and "2135" in requested_overrides:
         _apply_advanced_node_overrides(prompt, {"2135": requested_overrides["2135"]})
 
-    composition_enabled = bool(application_state.get("composition_enabled", True))
+    # Camera conditioning is incompatible with the inpaint contract. Enforce
+    # the same exclusivity server-side even if a stale client sends it enabled.
+    composition_enabled = _coerce_bool(application_state.get("composition_enabled", True), True) and not inpaint_enabled
     camera_prompt = _camera_prompt(camera_inputs) if composition_enabled else ""
     _replace_camera_field(prompt, camera_prompt)
 
-    _inject_prompts(prompt, prompt_state)
+    _inject_prompts(prompt, effective_prompt_state)
     lora_assertions = _inject_loras(
-        prompt, lora_state, bool(application_state.get("lora_enabled", True))
+        prompt, lora_state,
+        _coerce_bool(application_state.get("lora_enabled", True), True) and not inpaint_removal_mode,
     )
 
-    # Accepted S1R2 Initial Spectrum: one patch, Initial only.
+    # Accepted S1R2 Initial Spectrum: one patch, Initial only.  The DEV SPEED
+    # experiment replaces this path below; the two optimizers must not be
+    # stacked until SPEED has an independently measured baseline.
     spectrum = prompt["1634:1721"]["inputs"]
     spectrum.update({"enabled": True, "one_sampler_only": True, "verbose": False})
     prompt["1633:1723"]["inputs"].update(
@@ -1081,16 +2047,37 @@ def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dic
     )
     prompt["1633:1612"]["inputs"]["model"] = ["1633:1619", 0]
 
-    # The public prototype does not expose the unfinished Light Control yet.
-    # Route the Initial latent directly into HighRez so none of the LAKIS
-    # light/geometry stages are scheduled by Final-only dependency closure.
+    # DEV-only benchmark path for the official Anima Turbo v0.2 contract.
+    # The LoRA is distilled for CFG 1 and 8-12 steps; applying it only to the
+    # three-step HighRez pass leaves the expensive Initial pass unaccelerated.
+    # Keep this opt-in until timing and image-quality gates are satisfied.
+    if FULL_TURBO_EXPERIMENT and not source_enabled:
+        initial_turbo_id = "lakis_external_turbo_initial"
+        prompt[initial_turbo_id] = {
+            "class_type": "LoraLoaderModelOnly",
+            "inputs": {
+                "model": ["1634:1626", 0],
+                "lora_name": "anima-turbo-lora-v0.2.safetensors",
+                "strength_model": 1.0,
+            },
+            "_meta": {"title": "LAKIS DEV - Turbo Initial"},
+        }
+        spectrum["model"] = [initial_turbo_id, 0]
+        sampler_config.update({
+            "steps_total": 10,
+            "refiner_step": min(8, int(sampler_config.get("refiner_step", 8))),
+            "cfg": 1.0,
+            "sampler_name": "euler",
+            "scheduler": "normal",
+        })
+
     prompt["1633:1616"]["inputs"]["on_false"] = ["1634:1622", 0]
     prompt["1633:1790"]["inputs"]["samples"] = ["1634:1622", 0]
 
     # Validated S7 Turbo HighRez is shared by FAST and DETAIL.  The user-facing
     # mode controls only Face/Eye/USDU, not the lighting engine or sampler base.
     turbo_id = "lakis_external_turbo_highrez"
-    if not i2i_enabled:
+    if not source_enabled:
         prompt[turbo_id] = {
             "class_type": "LoraLoaderModelOnly",
             "inputs": {"model": ["1633:1619", 0],
@@ -1102,11 +2089,26 @@ def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dic
     # bicubic, multiple-of-32, max-2560 scaling contract, but uses a shorter
     # 12/16-step native pass: materially more reconstruction than the former
     # 5/6-step Turbo path at roughly the same total sampling budget.
-    highrez_steps = (16 if detail else 12) if i2i_enabled else 3
-    highrez_cfg = (6.0 if detail else 5.0) if i2i_enabled else 1.0
-    highrez_sampler = "euler" if i2i_enabled else "gradient_estimation"
-    highrez_denoise = (0.31 if detail else 0.28) if i2i_enabled else 0.2
-    highrez_model = ["1633:1619", 0] if i2i_enabled else [turbo_id, 0]
+    highrez_steps = (16 if detail else 12) if source_enabled else 3
+    highrez_cfg = (6.0 if detail else 5.0) if source_enabled else 1.0
+    highrez_sampler = "euler" if source_enabled else "gradient_estimation"
+    highrez_denoise = (0.31 if detail else 0.28) if source_enabled else 0.2
+    if exposure_outfit_edit:
+        highrez_denoise = max(highrez_denoise, 0.38)
+    highrez_model = (
+        ["lakis:inpaint_lllite_highrez", 0] if inpaint_enabled
+        else (["1633:1619", 0] if source_enabled else [turbo_id, 0])
+    )
+    if half_res_fast:
+        prompt["1633:2124"]["inputs"].update({
+            "scale_by": 2.0,
+            "max_long_edge": max(target_width, target_height),
+        })
+        highrez_steps = 5
+        highrez_cfg = 5.0
+        highrez_sampler = "er_sde"
+        highrez_denoise = 0.37
+        highrez_model = ["1633:1619", 0]
     prompt["1633:1612"]["inputs"].update({
         "model": highrez_model, "steps": highrez_steps, "cfg": highrez_cfg,
         "sampler_name": highrez_sampler, "scheduler": "simple", "denoise": highrez_denoise,
@@ -1116,36 +2118,110 @@ def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dic
     # an explicit node-level edit is the final authority for this generation.
     _apply_advanced_node_overrides(prompt, requested_overrides)
 
+    wildcard_metadata = application_state.get("wildcard", {})
+    if isinstance(wildcard_metadata, dict) and wildcard_metadata.get("selections"):
+        prompt[FINAL_NODE]["inputs"]["custom"] = json.dumps(
+            {"lakis_wildcard": wildcard_metadata}, ensure_ascii=False, separators=(",", ":")
+        )
+    if local_inpaint_v2:
+        # Keep the runtime crop coordinates and pipeline marker in Final Saver
+        # metadata. This connection also makes missing crop metadata visible to
+        # dependency closure instead of silently producing a legacy graph.
+        prompt[FINAL_NODE]["inputs"]["custom"] = ["lakis:inpaint_v2_prepare", 10]
+
     prompt = _final_only(prompt)
+    if not inpaint_enabled:
+        leaked_v2_ids = sorted({
+            node_id for node_id, node in prompt.items()
+            if node_id.startswith("lakis:inpaint_v2_")
+            or str(node.get("class_type", "")) in {
+                "LAKIS_LocalInpaintPrepare", "LAKIS_LocalInpaintComposite"
+            }
+        })
+        saver_input = prompt.get(FINAL_NODE, {}).get("inputs", {}).get("images")
+        leaked_v2_output = saver_input == ["lakis:inpaint_final_composite", 0]
+        leaked_v2_marker = prompt.get(FINAL_NODE, {}).get("inputs", {}).get("custom") == [
+            "lakis:inpaint_v2_prepare", 10
+        ]
+        if leaked_v2_ids or leaked_v2_output or leaked_v2_marker:
+            raise RuntimeError(
+                "LAKIS normal-generation preflight blocked leaked Local Inpaint V2 state: "
+                f"nodes={leaked_v2_ids}, saver_input={saver_input}, marker={leaked_v2_marker}"
+            )
+    if local_inpaint_v2:
+        required_v2 = {
+            "lakis:inpaint_v2_prepare", "lakis:inpaint_encode",
+            "lakis:inpaint_lllite", "1634:1622", "1635",
+            "lakis:inpaint_final_composite", FINAL_NODE,
+        }
+        forbidden_v2_ids = {
+            "1633:1612", "1530:1824", "1530:1830", "1836:2067",
+            "1836:2069", "lakis:face_scope", "lakis:inpaint_detail",
+        }
+        missing_v2 = sorted(required_v2 - set(prompt))
+        forbidden_ids = sorted(forbidden_v2_ids & set(prompt))
+        forbidden_types = sorted({
+            str(node.get("class_type", "")) for node in prompt.values()
+            if str(node.get("class_type", "")) in {"UltimateSDUpscale", "LAKIS_DETAIL"}
+        })
+        prepare = prompt.get("lakis:inpaint_v2_prepare", {})
+        composite = prompt.get("lakis:inpaint_final_composite", {})
+        marker = prompt.get(FINAL_NODE, {}).get("inputs", {}).get("custom")
+        v2_contract = {
+            "prepare_type": prepare.get("class_type") == "LAKIS_LocalInpaintPrepare",
+            "composite_type": composite.get("class_type") == "LAKIS_LocalInpaintComposite",
+            "crop_metadata": marker == ["lakis:inpaint_v2_prepare", 10],
+            "pipeline_marker": marker == ["lakis:inpaint_v2_prepare", 10],
+        }
+        if missing_v2 or forbidden_ids or forbidden_types or not all(v2_contract.values()):
+            raise RuntimeError(
+                "LAKIS Local Inpaint V2 preflight blocked an unsafe graph: "
+                f"missing={missing_v2}, forbidden_ids={forbidden_ids}, "
+                f"forbidden_types={forbidden_types}, contract={v2_contract}"
+            )
     # i2i and t2i must share the exact same positive/negative conditioning
     # chain. Guard this contract before queueing so a workflow edit can never
     # silently produce an image while ignoring either prompt branch.
+    initial_conditioning_node = prompt.get("1634:1622", {}).get("inputs", {})
     prompt_contract = {
         "positive_text": prompt.get("890:903", {}).get("inputs", {}).get("text") == ["890:2012", 0],
         "negative_text": prompt.get("890:904", {}).get("inputs", {}).get("text") == ["890:2013", 0],
-        "initial_positive": prompt.get("1634:1622", {}).get("inputs", {}).get("positive") == ["1634:1624", 4],
-        "initial_negative": prompt.get("1634:1622", {}).get("inputs", {}).get("negative") == ["1634:1624", 5],
-        "highrez_positive": prompt.get("1633:1612", {}).get("inputs", {}).get("positive") == ["1633:1618", 4],
-        "highrez_negative": prompt.get("1633:1612", {}).get("inputs", {}).get("negative") == ["1633:1618", 5],
+        "initial_positive": initial_conditioning_node.get("positive") == ["1634:1624", 4],
+        "initial_negative": initial_conditioning_node.get("negative") == ["1634:1624", 5],
+        "highrez_positive": local_inpaint_v2 or prompt.get("1633:1612", {}).get("inputs", {}).get("positive") == ["1633:1618", 4],
+        "highrez_negative": local_inpaint_v2 or prompt.get("1633:1612", {}).get("inputs", {}).get("negative") == ["1633:1618", 5],
     }
     if not all(prompt_contract.values()):
         raise RuntimeError(f"Prompt conditioning contract is disconnected: {prompt_contract}")
-    light_nodes = {"2158", "2142", "2148", "2143", "2151", "2150"}
     assertions = {
         "final_only": FINAL_NODE in prompt,
-        "cleanup_absent": "2154" not in prompt,
-        "semantic_shadow_absent": "2161" not in prompt,
-        "initial_spectrum": prompt["1634:1721"]["inputs"]["enabled"] is True,
+        "initial_spectrum": prompt.get("1634:1721", {}).get("inputs", {}).get("enabled") is True,
         "highrez_spectrum_absent": "1633:1723" not in prompt,
-        "prototype_light_disabled": not (light_nodes & set(prompt)),
         "detail_enabled": detail,
         "node_count": len(prompt),
         "camera_prompt": camera_prompt,
         "composition_enabled": composition_enabled,
         "lora_stack_node": prompt["890:1281"]["inputs"].get("lora_stack") == ["1925", 1],
-        "resolution": f"{width}x{height}",
+        "resolution": f"{target_width}x{target_height}",
+        "initial_resolution": f"{width}x{height}",
+        "normal_resolution": f"{normal_width}x{normal_height}",
+        "local_processing_resolution_source": "LAKIS_LocalInpaintPrepare"
+        if local_inpaint_v2 else "not_applicable",
+        "half_res_fast_experiment": half_res_fast,
         "i2i_enabled": i2i_enabled,
+        "inpaint_enabled": inpaint_enabled,
+        "inpaint_pipeline": "local_v2" if local_inpaint_v2 else ("legacy" if inpaint_enabled else "off"),
+        "inpaint_v2_contract": v2_contract if local_inpaint_v2 else {},
+        "inpaint_detail_enabled": inpaint_enabled and "lakis:inpaint_detail" in prompt,
+        "inpaint_detail_contract": (not inpaint_enabled) or local_inpaint_v2 or "lakis:inpaint_detail" in prompt,
+        "inpaint_prompt": inpaint_prompt,
+        "inpaint_negative_prompt": inpaint_negative_prompt,
+        "inpaint_removal_mode": inpaint_removal_mode,
+        "inpaint_exposure_outfit_edit": exposure_outfit_edit,
+        "inpaint_operation": inpaint_operation,
+        "inpaint_mask_grow": mask_grow if inpaint_enabled else 0,
         "i2i_denoise": i2i_denoise,
+        "source_denoise": source_denoise,
         "highrez_steps": highrez_steps,
         "highrez_cfg": highrez_cfg,
         "highrez_sampler": highrez_sampler,
@@ -1158,7 +2234,15 @@ def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dic
     ignored_assertions = {"detail_enabled", "node_count", "lora_count", "enabled_lora_count",
                           "loras_globally_enabled", "lora_profile_index", "composition_enabled",
                           "camera_prompt", "resolution", "resolution_nodes", "latent_nodes",
-                          "i2i_enabled", "i2i_denoise", "highrez_steps", "highrez_cfg",
+                          "initial_resolution", "half_res_fast_experiment",
+                          "i2i_enabled", "i2i_denoise", "inpaint_enabled",
+                          "inpaint_pipeline",
+                          "inpaint_v2_contract",
+                          "inpaint_detail_enabled", "inpaint_prompt", "inpaint_negative_prompt",
+                          "inpaint_removal_mode", "inpaint_exposure_outfit_edit",
+                          "inpaint_operation",
+                          "inpaint_mask_grow",
+                          "source_denoise", "highrez_steps", "highrez_cfg",
                           "highrez_sampler", "highrez_denoise"}
     ignored_assertions.add("prompt_contract")
     if not all(value for key, value in assertions.items() if key not in ignored_assertions):
@@ -1167,20 +2251,19 @@ def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dic
 
 
 NODE_WEIGHTS = {
-    "1634:1622": 25.0, "1635": 1.0, "2158": 2.0, "2142": 1.0,
-    "2148": 2.0, "2143": 1.0, "2151": 1.0, "2150": 18.0,
+    "1634:1622": 25.0, "1635": 1.0,
     "1633:1790": 1.0, "1633:1794": 1.0, "1633:1612": 8.0,
     "1633:1611": 1.0, "1530:1826": 15.0, "1836:2069": 12.0,
-    "1541:1538": 24.0, FINAL_NODE: 1.0,
+    "lakis:face_scope": 15.0, "1541:1538": 24.0, FINAL_NODE: 1.0,
 }
 NODE_LABELS = {
-    "1634:1622": "Initial", "1635": "Decode", "2158": "SAM3",
-    "2142": "Depth", "2143": "Relight",
-    "2151": "Cast Shadow", "2150": "VAE Encode",
+    "1634:1622": "Initial", "1635": "Decode",
     "1633:1790": "HighRez Decode", "1633:1794": "HighRez Encode",
     "1633:1612": "HighRez", "1633:1611": "HighRez Decode",
+    "1530:1824": "Face Detection", "1530:1823": "Face Mask",
     "1530:1826": "Face Detail", "1836:2069": "Eye Detail",
-    "1541:1538": "Upscale", FINAL_NODE: "Final Save",
+    "1836:2067": "Eye Detection", "1836:2066": "Eye Mask",
+    "lakis:face_scope": "Face Scope", "1541:1538": "Upscale", FINAL_NODE: "Final Save",
 }
 
 NODE_ERROR_CODES = {
@@ -1197,7 +2280,12 @@ NODE_ERROR_CODES = {
     "1633:1790": ("LKS-GEN-1403", "HighRez 이미지 디코딩 단계에서 오류가 발생했어요."),
     "1633:1611": ("LKS-GEN-1403", "HighRez 이미지 디코딩 단계에서 오류가 발생했어요."),
     "1530:1826": ("LKS-GEN-1501", "얼굴 디테일 처리 중 오류가 발생했어요."),
+    "1530:1824": ("LKS-GEN-1501", "얼굴 감지 단계에서 오류가 발생했어요."),
+    "1530:1823": ("LKS-GEN-1501", "얼굴 마스크 처리 중 오류가 발생했어요."),
     "1836:2069": ("LKS-GEN-1502", "눈 디테일 처리 중 오류가 발생했어요."),
+    "lakis:face_scope": ("LKS-GEN-1503", "LAKIS_DETAIL 처리 중 오류가 발생했어요."),
+    "1836:2067": ("LKS-GEN-1502", "눈 감지 단계에서 오류가 발생했어요."),
+    "1836:2066": ("LKS-GEN-1502", "눈 마스크 처리 중 오류가 발생했어요."),
     "1541:1538": ("LKS-GEN-1601", "업스케일 단계에서 오류가 발생했어요."),
     "775": ("LKS-GEN-1701", "완성된 이미지를 저장하지 못했어요."),
 }
@@ -1303,15 +2391,127 @@ class WorkflowBridge:
         self._preview_lock = threading.Lock()
         self._preview_bytes: bytes | None = None
         self._preview_mime = "image/jpeg"
+        self._warmup_lock = threading.Lock()
+        self._warmup_result: dict[str, Any] | None = None
         self._recover_interrupted_generation()
-        # No worker exists during bridge construction. A remaining one-shot
-        # authorization therefore belongs to an interrupted previous process.
+        # The allowance is owned by a worker in this bridge process. If the
+        # previous DEV process was force-closed before its finally block ran,
+        # an unconsumed file can survive and reject the first click after a
+        # restart. No worker exists yet during construction, so it is always
+        # safe to remove that stale allowance here.
         if ALLOW_FILE.is_file():
             try:
                 ALLOW_FILE.unlink()
                 _audit("external_ui_stale_allowance_cleared")
             except OSError as error:
                 _audit("external_ui_stale_allowance_clear_failed", error=repr(error))
+
+    @staticmethod
+    def _warmup_application_state() -> dict[str, Any]:
+        config = workflow_configuration()
+        return {
+            "generation": {"mode": "fast", "upscale_engine": DEFAULT_UPSCALE_ENGINE},
+            "model": {
+                "checkpoint": config["checkpoint"]["current"],
+                "vae": config["vae"]["current"],
+                "clip": config["clip"]["current"],
+                "sampler": config["sampler"]["current"],
+                "scheduler": config["scheduler"]["current"],
+                "steps": 1, "cfg": 1.0,
+            },
+            "output": {"width": 256, "height": 256, "seed": 0,
+                       "seed_mode": "fixed", "aspect_locked": False},
+            "prompt": {key: "" for key in PROMPT_STATE_KEYS},
+            "loras": [], "lora_enabled": False, "composition_enabled": False,
+            "camera": {}, "i2i": {"enabled": False, "denoise": 0.5},
+            "node_overrides": {},
+        }
+
+    @staticmethod
+    def _vram_total() -> int:
+        try:
+            with urlopen(COMFY_SERVER + "/system_stats", timeout=3) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+            devices = payload.get("devices", []) if isinstance(payload, dict) else []
+            return max((int(item.get("vram_total") or 0) for item in devices), default=0)
+        except Exception:
+            return 0
+
+    def warmup(self) -> dict[str, Any]:
+        """Warm the real generation path without saving an image."""
+        with self._warmup_lock:
+            if self._warmup_result and self._warmup_result.get("status") == "complete":
+                return dict(self._warmup_result)
+            started = time.monotonic()
+            vram_total = self._vram_total()
+            gib = 1024 ** 3
+            if vram_total and vram_total < 8 * gib:
+                result = {"ok": True, "status": "skipped", "profile": "low_memory",
+                          "reason": "vram_below_8_gib", "vram_total": vram_total,
+                          "duration_seconds": 0.0}
+                self._warmup_result = result
+                _audit("external_ui_warmup_skipped", **result)
+                return dict(result)
+            profile = "full" if vram_total >= 10 * gib else "light"
+            try:
+                prompt, _ = build_prompt(self._warmup_application_state())
+                prompt, target = _warmup_graph(prompt, profile == "full")
+                result = asyncio.run(self._run_warmup(prompt, target, timeout=120.0))
+                result.update({"profile": profile, "vram_total": vram_total,
+                               "duration_seconds": round(time.monotonic() - started, 3)})
+            except Exception as error:
+                result = {"ok": False, "status": "failed", "profile": profile,
+                          "vram_total": vram_total,
+                          "duration_seconds": round(time.monotonic() - started, 3),
+                          "error": str(error)[:1000]}
+            self._warmup_result = result
+            _audit("external_ui_warmup_finished", **result)
+            return dict(result)
+
+    async def _run_warmup(self, prompt: dict[str, Any], target: str,
+                          timeout: float) -> dict[str, Any]:
+        client_id = f"lakis-warmup-{uuid.uuid4().hex}"
+        async with aiohttp.ClientSession() as session:
+            async with session.get(COMFY_SERVER + "/queue", timeout=3) as response:
+                queue = await response.json()
+            if queue.get("queue_running") or queue.get("queue_pending"):
+                return {"ok": True, "status": "skipped", "reason": "queue_busy"}
+            websocket_url = f"ws://127.0.0.1:{COMFY_PORT}/ws?clientId={client_id}"
+            async with session.ws_connect(websocket_url, max_msg_size=2 * 1024 * 1024) as ws:
+                payload = {"prompt": prompt, "client_id": client_id,
+                           "partial_execution_targets": [target],
+                           "extra_data": {"preview_method": "none"}}
+                async with session.post(COMFY_SERVER + "/prompt", json=payload,
+                                        timeout=30) as response:
+                    body = await response.json()
+                    if response.status >= 400:
+                        raise RuntimeError(f"ComfyUI warmup rejected: {body}")
+                prompt_id = body.get("prompt_id")
+                if not prompt_id:
+                    raise RuntimeError(f"ComfyUI warmup returned no prompt_id: {body}")
+                deadline = time.monotonic() + timeout
+                while time.monotonic() < deadline:
+                    try:
+                        message = await ws.receive(
+                            timeout=min(10.0, max(0.1, deadline - time.monotonic()))
+                        )
+                    except asyncio.TimeoutError:
+                        # Model loading can legitimately be quiet for tens of seconds.
+                        # Keep the short receive interval only so the total deadline
+                        # remains enforceable and launcher cancellation stays responsive.
+                        continue
+                    if message.type != aiohttp.WSMsgType.TEXT:
+                        continue
+                    envelope = json.loads(message.data)
+                    data = envelope.get("data", {})
+                    if data.get("prompt_id") not in {None, prompt_id}:
+                        continue
+                    event = envelope.get("type")
+                    if event == "execution_success" or (event == "executing" and data.get("node") is None):
+                        return {"ok": True, "status": "complete", "prompt_id": prompt_id}
+                    if event in {"execution_error", "execution_interrupted"}:
+                        raise RuntimeError(f"ComfyUI warmup failed: {data}")
+                raise TimeoutError("ComfyUI warmup timed out")
 
     def _write_generation_journal(self) -> None:
         snapshot = self.status.snapshot()
@@ -1393,19 +2593,28 @@ class WorkflowBridge:
         prompt, preflight = build_prompt(application_state)
         prompt_used = deepcopy(application_state.get("prompt", {}))
         prompt_used["composition"] = str(preflight.get("camera_prompt") or "")
+        wildcard_metadata = application_state.get("wildcard", {})
+        if isinstance(wildcard_metadata, dict):
+            prompt_used["wildcard"] = deepcopy(wildcard_metadata)
         self._clear_preview()
         token = {"request_id": uuid.uuid4().hex, "created_at": time.time(), "source": "external_ui_click"}
         with ALLOW_FILE.open("x", encoding="utf-8") as stream:
             json.dump(token, stream)
         diagnostic_context = self._diagnostic_context(application_state)
+        generation_state = application_state.get("generation", {})
+        effective_mode = (
+            "lakis_detail"
+            if generation_state.get("mode") == "detail" and _coerce_bool(generation_state.get("lakis_mode", False))
+            else generation_state.get("mode", "fast")
+        )
         self.status.update(state="preparing", percent=0.0, stage="생성 중", prompt_id=None,
                            preview_frames=0, preview_mime=None,
                            output_url=None, error=None, error_code=None, error_detail=None,
                            error_stage=None, error_node_id=None, error_node_type=None,
                            error_exception_type=None, request_id=token["request_id"],
                            diagnostic_context=diagnostic_context,
-                           mode=application_state["generation"]["mode"],
-                           i2i_enabled=bool(application_state.get("i2i", {}).get("enabled", False)),
+                           mode=effective_mode,
+                           i2i_enabled=_coerce_bool(application_state.get("i2i", {}).get("enabled", False)),
                            prompt_used=prompt_used,
                            seed=int(application_state["output"]["seed"]),
                            started_at=time.time(), finished_at=None, cancel_requested=False,
@@ -1427,25 +2636,41 @@ class WorkflowBridge:
         generation = application_state.get("generation", {})
         camera = application_state.get("camera", {})
         i2i = application_state.get("i2i", {})
+        inpaint = application_state.get("inpaint", {})
         loras = application_state.get("loras", [])
         return {
-            "generation": {key: generation.get(key) for key in ("mode",)},
+            "generation": {key: generation.get(key) for key in ("mode", "lakis_mode", "upscale_engine")},
             "model": {key: model.get(key) for key in (
                 "checkpoint", "vae", "clip", "sampler", "scheduler", "steps", "cfg"
             )},
             "output": {key: output.get(key) for key in ("width", "height", "aspect_locked")},
-            "loras_enabled": bool(application_state.get("lora_enabled", True)),
+            "loras_enabled": _coerce_bool(application_state.get("lora_enabled", True), True),
             "loras": [
                 {key: item.get(key) for key in ("name", "strength", "enabled")}
                 for item in loras[:64] if isinstance(item, dict)
             ],
-            "camera": {key: camera.get(key) for key in (
-                "enabled", "pos_x", "pos_y", "pos_z", "roll", "frame_y"
-            )},
+            "camera": {
+                "enabled": _coerce_bool(camera.get("enabled", True), True),
+                "pos_x": camera.get("x", camera.get("pos_x")),
+                "pos_y": camera.get("y", camera.get("pos_y")),
+                "pos_z": camera.get("z", camera.get("pos_z")),
+                "roll": camera.get("roll"),
+                "frame_y": camera.get("frame_y"),
+            },
             "i2i": {
-                "enabled": bool(i2i.get("enabled", False)),
+                "enabled": _coerce_bool(i2i.get("enabled", False)),
                 "denoise": i2i.get("denoise"),
-                "source_size_enabled": bool(i2i.get("source_size_enabled", False)),
+                "source_size_enabled": _coerce_bool(i2i.get("source_size_enabled", False)),
+            },
+            "inpaint": {
+                "enabled": _coerce_bool(inpaint.get("enabled", False)),
+                "has_source": bool(inpaint.get("image_name")),
+                "has_mask": bool(inpaint.get("mask_name")),
+                "has_prompt": bool(str(inpaint.get("prompt", "")).strip()),
+                "has_negative_prompt": bool(str(inpaint.get("negative_prompt", "")).strip()),
+                "denoise": inpaint.get("denoise"),
+                "strength": inpaint.get("strength"),
+                "grow_mask_by": inpaint.get("grow_mask_by"),
             },
             "advanced_node_settings": deepcopy(application_state.get("node_overrides", {})),
         }
@@ -1472,7 +2697,11 @@ class WorkflowBridge:
                 prompt_requests=self.status.prompt_requests,
             )
         finally:
-            if self.status.prompt_requests:
+            # Keep successfully loaded models resident.  The unconditional
+            # development reset used for cold benchmarks made every ordinary
+            # generation pay model-load cost again and could race the next
+            # request.  Failed/cancelled jobs still get the defensive reset.
+            if self.status.prompt_requests and self.status.snapshot().get("state") != "complete":
                 self._request_runtime_reset()
             if ALLOW_FILE.exists():
                 ALLOW_FILE.unlink()
@@ -1583,7 +2812,7 @@ class WorkflowBridge:
                 self._write_generation_journal()
                 _audit("external_ui_prompt_queued", prompt_id=prompt_id, preflight=preflight,
                        prompt_requests=1, retries=0)
-                completed = await self._observe(ws, prompt_id, prompt)
+                completed = await self._observe(session, ws, prompt_id, prompt)
 
             if not completed:
                 _audit("external_ui_generation_cancelled", prompt_id=prompt_id)
@@ -1594,18 +2823,75 @@ class WorkflowBridge:
                                output_url=output_url, finished_at=time.time())
             _audit("external_ui_generation_complete", prompt_id=prompt_id, output_url=output_url)
 
-    async def _observe(self, ws: aiohttp.ClientWebSocketResponse, prompt_id: str,
+    @staticmethod
+    def _queue_contains_prompt(queue: dict[str, Any], prompt_id: str) -> bool:
+        """Recognize a prompt in either current or future ComfyUI queue shapes."""
+        def contains(value: Any) -> bool:
+            if isinstance(value, str):
+                return value == prompt_id
+            if isinstance(value, (list, tuple)):
+                return any(contains(item) for item in value)
+            if isinstance(value, dict):
+                return any(contains(item) for item in value.values())
+            return False
+
+        return contains(queue.get("queue_running", [])) or contains(queue.get("queue_pending", []))
+
+    async def _probe_prompt_state(self, session: aiohttp.ClientSession,
+                                  prompt_id: str) -> str:
+        """Confirm backend state before declaring a quiet websocket stalled."""
+        try:
+            async with session.get(f"{COMFY_SERVER}/history/{prompt_id}", timeout=10) as response:
+                if response.status < 400:
+                    history = await response.json()
+                    record = history.get(prompt_id) if isinstance(history, dict) else None
+                    if isinstance(record, dict):
+                        status = record.get("status") or {}
+                        if status.get("status_str") == "error":
+                            return "error"
+                        if status.get("completed") is True or record.get("outputs") is not None:
+                            return "complete"
+        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
+            pass
+
+        try:
+            async with session.get(COMFY_SERVER + "/queue", timeout=10) as response:
+                if response.status < 400:
+                    queue = await response.json()
+                    if isinstance(queue, dict) and self._queue_contains_prompt(queue, prompt_id):
+                        return "running"
+        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
+            return "unreachable"
+        return "missing"
+
+    async def _observe(self, session: aiohttp.ClientSession,
+                       ws: aiohttp.ClientWebSocketResponse, prompt_id: str,
                        prompt: dict[str, Any]) -> bool:
         weights = {node_id: NODE_WEIGHTS.get(node_id, 0.08) for node_id in prompt}
         total = sum(weights.values()) or 1.0
         completed: set[str] = set()
         current: str | None = None
+        current_started_at: float | None = None
         current_fraction = 0.0
         while True:
             try:
                 message = await ws.receive(timeout=GENERATION_STALL_SECONDS)
             except asyncio.TimeoutError as error:
                 snapshot = self.status.snapshot()
+                backend_state = await self._probe_prompt_state(session, prompt_id)
+                if backend_state == "running":
+                    # Nodes such as LAKIS_SCOPE may legitimately emit no progress
+                    # event while processing a large image. The queue is the
+                    # authority; websocket silence alone is not a stall.
+                    self.status.update(last_activity_at=time.time())
+                    self._write_generation_journal()
+                    _audit("external_ui_quiet_node_still_running", prompt_id=prompt_id,
+                           node_id=snapshot.get("last_node_id"),
+                           node_type=snapshot.get("last_node_type"))
+                    continue
+                if backend_state == "complete":
+                    _audit("external_ui_completion_recovered_from_history", prompt_id=prompt_id)
+                    return True
                 inactive = time.time() - float(snapshot.get("last_activity_at") or time.time())
                 raise GenerationStallError(
                     node_id=snapshot.get("last_node_id"), node_type=snapshot.get("last_node_type"),
@@ -1628,7 +2914,16 @@ class WorkflowBridge:
                 next_node = data.get("node")
                 if current and current in prompt:
                     completed.add(current)
+                    if DEVELOPMENT and current_started_at is not None:
+                        _audit(
+                            "external_ui_node_complete",
+                            prompt_id=prompt_id,
+                            node_id=current,
+                            node_type=str(prompt.get(current, {}).get("class_type") or "") or None,
+                            elapsed_seconds=round(time.time() - current_started_at, 4),
+                        )
                 current = str(next_node) if next_node is not None else None
+                current_started_at = time.time() if current is not None else None
                 current_fraction = 0.0
                 if next_node is None:
                     return True
@@ -1690,7 +2985,25 @@ class WorkflowBridge:
         async with session.get(f"{COMFY_SERVER}/history/{prompt_id}", timeout=15) as response:
             history = await response.json()
         outputs = history.get(prompt_id, {}).get("outputs", {}).get(FINAL_NODE, {})
-        images = outputs.get("images", [])
+        images = outputs.get("images", []) if isinstance(outputs, dict) else []
+        if not images and isinstance(outputs, dict):
+            # Image Saver releases have used both a direct `images` list and
+            # nested UI payloads. Accept only filename-bearing records from
+            # Final Saver 775, never another preview/output node.
+            pending = list(outputs.values())
+            while pending and not images:
+                value = pending.pop(0)
+                if isinstance(value, dict):
+                    if isinstance(value.get("filename"), str):
+                        images = [value]
+                        break
+                    pending.extend(value.values())
+                elif isinstance(value, list):
+                    matching = [item for item in value if isinstance(item, dict) and isinstance(item.get("filename"), str)]
+                    if matching:
+                        images = matching
+                        break
+                    pending.extend(value)
         if images:
             image = images[-1]
             query = urlencode({"filename": image["filename"], "subfolder": image.get("subfolder", ""),
@@ -1701,18 +3014,31 @@ class WorkflowBridge:
         # this bridge requires an empty queue before its one owned prompt, a file
         # created after this request began is attributable to the current prompt.
         threshold = float(self.status.started_at or time.time()) - 2.0
-        candidates = [
-            path for path in OUTPUT_ROOT.rglob("*")
-            if path.is_file() and path.suffix.lower() in {".png", ".jpg", ".jpeg", ".webp"}
-            and path.stat().st_mtime >= threshold
-        ]
+        configured_root = configured_output_root()
+        roots = []
+        for root in (configured_root, OUTPUT_ROOT.resolve()):
+            if root.is_dir() and root not in roots:
+                roots.append(root)
+        candidates: list[tuple[Path, Path]] = []
+        for _ in range(12):
+            candidates = [
+                (path, root) for root in roots for path in root.rglob("*")
+                if path.is_file() and path.suffix.lower() in {".png", ".jpg", ".jpeg", ".webp"}
+                and path.stat().st_mtime >= threshold
+            ]
+            if candidates:
+                break
+            await asyncio.sleep(0.25)
         if not candidates:
-            raise RuntimeError("Final Saver 775 completed but no current-request output file was found")
-        path = max(candidates, key=lambda item: item.stat().st_mtime)
-        relative = path.relative_to(OUTPUT_ROOT)
-        query = urlencode({"filename": relative.name,
-                           "subfolder": relative.parent.as_posix() if relative.parent != Path(".") else "",
-                           "type": "output"})
+            raise RuntimeError(
+                "Final Saver 775 completed but no current-request output file was found; "
+                f"searched={','.join(str(root) for root in roots)} threshold={threshold}"
+            )
+        path, matched_root = max(candidates, key=lambda item: item[0].stat().st_mtime)
+        relative = path.relative_to(matched_root)
+        if matched_root == configured_root:
+            return "/api/history-image?" + urlencode({"id": relative.as_posix()})
+        query = urlencode({"filename": path.name, "subfolder": relative.parent.as_posix() if relative.parent != Path('.') else "", "type": "output"})
         return f"{COMFY_SERVER}/view?{query}"
 
     def cancel(self) -> dict[str, Any]:
@@ -1732,3 +3058,4 @@ class WorkflowBridge:
             response.read()
         _audit("external_ui_user_cancel_requested", prompt_id=self.status.prompt_id)
         return {"ok": True}
+

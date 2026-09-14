@@ -20,6 +20,7 @@ authorship or ownership of these components.
 | ComfyUI-Lora-Manager | [df34efaf](https://github.com/willmiao/ComfyUI-Lora-Manager/tree/df34efafbc604fa81fbd58f09f723842a73dadfd) | GPL-3.0 |
 | ComfyUI_UltimateSDUpscale | [a5547db9](https://github.com/ssitu/ComfyUI_UltimateSDUpscale/tree/a5547db9e1d07d3318bb21e9e9c474f4c1e9c8df) | GPL-3.0 |
 | ComfyUI-Anima-DAVE | [83143e8d](https://github.com/sorryhyun/ComfyUI-Anima-DAVE/tree/83143e8d84768e25f72755ec00ea00ded07ee06e) | MIT |
+| ComfyUI-Anima-LLLite | [b7495bd8](https://github.com/kohya-ss/ComfyUI-Anima-LLLite/tree/b7495bd8eb876e334509976896702484ed19cdbb) | Apache-2.0; model weights are separate components with separate terms |
 | ComfyUI-Custom-Scripts | [609f3afa](https://github.com/pythongosssss/ComfyUI-Custom-Scripts/tree/609f3afaa74b2f88ef9ce8d939626065e3247469) | MIT |
 | ComfyUI-DCW | [66aaf9dd](https://github.com/namemechan/ComfyUI-DCW/tree/66aaf9dddb03bad031c1e8443e255a811008e477) | GPL-3.0 |
 | ComfyUI-Easy-Use | [b5e31ef1](https://github.com/yolain/ComfyUI-Easy-Use/tree/b5e31ef12ad9d0b187b545c2707735cc7d581c52) | GPL-3.0 |
@@ -63,14 +64,15 @@ available in this repository and through the upstream links.
 | `anima-turbo-lora-v0.2.safetensors` | [CircleStone Labs Civitai release](https://civitai.com/models/2560840/anima-turbo-lora) · [official Anima-Official-LoRAs](https://huggingface.co/circlestone-labs/Anima-Official-LoRAs/blob/main/anima-turbo-lora-v0.2.safetensors) | CircleStone Labs Non-Commercial License. Copyright CircleStone Labs LLC. The official file and LAKIS pin have SHA-256 `1b55e40bdb1d0e5a78cb498f245fccfdaae97823265db957d2aabdcf4cd3caf1`. Model/LoRA use is non-commercial and non-production; the licence separately permits commercial use of outputs subject to its terms. |
 | `qwen_3_06b_base.safetensors` | [Qwen3-0.6B](https://huggingface.co/Qwen/Qwen3-0.6B) · [official Anima copy](https://huggingface.co/circlestone-labs/Anima/blob/main/split_files/text_encoders/qwen_3_06b_base.safetensors) | Apache-2.0; Alibaba Cloud Qwen Team. The official Anima copy and LAKIS pin have SHA-256 `cd2a512003e2f9f3cd3c32a9c3573f820bb28c940f73c57b1ddaa983d9223eba`. |
 | `qwen_image_vae.safetensors` | [Comfy-Org/Qwen-Image_ComfyUI at `7beb7b64`](https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/tree/7beb7b647f04469fbe64ba8adc2bb0d7e5e9f73f) | Apache-2.0 repository; underlying Qwen model terms also apply. |
-| `sam3.1_multiplex_fp16.safetensors` | [Comfy-Org/sam3.1 at `f38cd62b`](https://huggingface.co/Comfy-Org/sam3.1/tree/f38cd62b71494b53ac2b56ca36e24f3c8d565581) | Meta SAM License; redistribution and use are subject to the [official agreement](https://github.com/facebookresearch/sam3/blob/main/LICENSE). |
+| `sam3.1_multiplex_fp16.safetensors` | [Comfy-Org/sam3.1 at `f38cd62b`](https://huggingface.co/Comfy-Org/sam3.1/tree/f38cd62b71494b53ac2b56ca36e24f3c8d565581) | Meta SAM License; SHA-256 `9BA99C92703C2E8B4F47DE2D34A539BB8E18923049E238B780D70DBE6368EB03`. The pinned [official license](https://huggingface.co/Comfy-Org/sam3.1/blob/f38cd62b71494b53ac2b56ca36e24f3c8d565581/LICENSE) is bundled as `third_party_licenses/Meta-SAM-License.txt`. |
+| `anima-lllite-inpainting-v2.safetensors` | [kohya-ss/Anima-LLLite](https://huggingface.co/kohya-ss/Anima-LLLite) | CircleStone Labs Non-Commercial License v1.0; SHA-256 `5242e677d2be34ee70ca7c97c3b14ff5ee49838c03fc1e60ac4852a180db6ef5`. Not bundled, mirrored, or automatically downloaded by LAKIS. The user installs it manually from the official publisher. Non-commercial and non-production restrictions remain applicable. |
 | `pooled_text_proj-0611.safetensors` | [Spectrum release 0605](https://github.com/sorryhyun/ComfyUI-Spectrum-KSampler/releases/tag/0605) | Publisher release asset associated with the MIT project; no separate asset terms were stated. |
 
 Availability through LAKIS is not a representation that every use is permitted.
 Users must review the exact model terms before commercial use, redistribution,
 fine-tuning, or publication.
 
-Required CircleStone attribution notice for the Anima base and Turbo LoRA:
+Required CircleStone attribution notice for the Anima base, Turbo LoRA, and external LLLite inpainting weight:
 
 > The CircleStone Model is licensed by CircleStone Labs LLC under the CircleStone
 > Non-Commercial License. Copyright CircleStone Labs LLC. IN NO EVENT SHALL
@@ -83,6 +85,10 @@ The complete CircleStone v1.2 text is included as
 also published in the
 [official Anima repository](https://huggingface.co/circlestone-labs/Anima/blob/main/LICENSE.md).
 
+The separate LLLite inpainting weight uses CircleStone v1.0. Its exact license
+text is included for reference as
+`third_party_licenses/CircleStone-Labs-Non-Commercial-License-v1.0.txt`.
+
 Anima is a derivative of NVIDIA Cosmos. The NVIDIA agreement and its required
 notice are included as `third_party_licenses/NVIDIA-Open-Model-License-2025-10-24.pdf`
 and `third_party_licenses/NVIDIA-Cosmos-NOTICE.txt`. Built on NVIDIA Cosmos.
@@ -93,6 +99,7 @@ and `third_party_licenses/NVIDIA-Cosmos-NOTICE.txt`. Built on NVIDIA Cosmos.
 - [ltdrdata/img2texture `d6159abe`](https://github.com/ltdrdata/img2texture/tree/d6159abea44a0b2cf77454d3d46962c8b21eb9d3) — MIT.
 - [ltdrdata/cstr `0520c29a`](https://github.com/ltdrdata/cstr/tree/0520c29a18a7a869a6e5983861d6f7a4c86f8e9b) — MIT.
 - [ltdrdata/ffmpy `f0007376`](https://github.com/ltdrdata/ffmpy/tree/f000737698b387ffaeab7cd871b0e9185811230d) — MIT.
+- [googletrans-py 4.0.0](https://github.com/StarkBotsIndustries/googletrans) — MIT. The license copy is included as `third_party_licenses/googletrans-py-MIT.txt`.
 
 ## Installer and runtime prerequisites
 
@@ -104,10 +111,11 @@ and `third_party_licenses/NVIDIA-Cosmos-NOTICE.txt`. Built on NVIDIA Cosmos.
 - Python, PyTorch, CUDA libraries, and PyPI packages retain their respective
   upstream licences and notices.
 
-## Removed component
+## Removed components
 
-DSINE source and weights are not downloaded, bundled, referenced, or required by
-this release. Existing user cache files are not silently deleted.
+The retired Light Control implementation and its former DSINE source and weights
+are not downloaded, bundled, referenced, or required by this release. Existing
+user cache files are not silently deleted.
 
 ## No endorsement
 

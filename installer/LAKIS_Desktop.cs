@@ -11,7 +11,12 @@ using Microsoft.Web.WebView2.WinForms;
 
 internal sealed class LakisDesktopForm : Form
 {
-#if LAKIS_DEV
+#if LAKIS_LUKE
+    private const string ProductTitle = "LUKIS Studio";
+    private const string LauncherFileName = "Start_LUKIS_Mobile.cmd";
+    private const string DesktopMutexName = "Local\\LUKIS-Studio-Desktop";
+    private const string WindowStateFolder = ".lukis";
+#elif LAKIS_DEV
     private const string ProductTitle = "LAKIS Studio DEV";
     private const string LauncherFileName = "LAKIS_DEV.exe";
     private const string DesktopMutexName = "Local\\LAKIS-Studio-DEV-Desktop";
@@ -29,6 +34,7 @@ internal sealed class LakisDesktopForm : Form
     private readonly Button minimizeButton = new Button();
     private readonly Button maximizeButton = new Button();
     private readonly Button closeButton = new Button();
+    private readonly NotifyIcon trayIcon = new NotifyIcon();
     private readonly string targetUrl;
     private readonly string statePath;
 
@@ -46,12 +52,44 @@ internal sealed class LakisDesktopForm : Form
         statePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, WindowStateFolder, "desktop-window.txt");
         RestoreWindowState();
         BuildTitleBar();
+        BuildTrayIcon();
         webView.Dock = DockStyle.Fill;
         Controls.Add(webView);
         Controls.Add(titleBar);
         webView.Resize += (_, __) => ApplyResponsiveZoom();
         Shown += async (_, __) => await InitializeAsync();
-        FormClosing += (_, __) => SaveWindowState();
+        FormClosing += (_, __) => { SaveWindowState(); trayIcon.Visible = false; trayIcon.Dispose(); };
+    }
+
+    private void BuildTrayIcon()
+    {
+        trayIcon.Icon = Icon;
+        trayIcon.Text = ProductTitle;
+        trayIcon.Visible = false;
+        var menu = new ContextMenuStrip();
+        menu.Items.Add(ProductTitle + " 열기", null, (_, __) => RestoreFromTray());
+        menu.Items.Add("종료", null, (_, __) => Close());
+        trayIcon.ContextMenuStrip = menu;
+        trayIcon.DoubleClick += (_, __) => RestoreFromTray();
+        trayIcon.MouseClick += (_, eventArgs) => { if (eventArgs.Button == MouseButtons.Left) RestoreFromTray(); };
+    }
+
+    private void SendToTray()
+    {
+        SaveWindowState();
+        trayIcon.Visible = true;
+        ShowInTaskbar = false;
+        Hide();
+    }
+
+    private void RestoreFromTray()
+    {
+        trayIcon.Visible = false;
+        ShowInTaskbar = true;
+        Show();
+        WindowState = FormWindowState.Normal;
+        Activate();
+        BringToFront();
     }
 
     private void BuildTitleBar()
@@ -171,6 +209,15 @@ internal sealed class LakisDesktopForm : Form
             ApplyResponsiveZoom();
             webView.CoreWebView2.Settings.AreDevToolsEnabled = false;
             webView.CoreWebView2.Settings.IsStatusBarEnabled = false;
+            webView.CoreWebView2.WebMessageReceived += (_, eventArgs) =>
+            {
+                try
+                {
+                    if (String.Equals(eventArgs.TryGetWebMessageAsString(), "lakis-background", StringComparison.Ordinal))
+                        BeginInvoke(new Action(SendToTray));
+                }
+                catch { }
+            };
             webView.CoreWebView2.NewWindowRequested += (_, eventArgs) =>
             {
                 eventArgs.Handled = true;

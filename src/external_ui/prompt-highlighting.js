@@ -2,7 +2,8 @@ const CLASSIFY_URL = "/api/classify-prompt";
 const TARGET_IDS = [
   "fixedPromptInput", "generalPromptInput", "qualityPromptInput",
   "artistPromptInput", "triggerPromptInput", "negativePrompt",
-  "negativeFixedPromptInput", "negativeQualityPromptInput", "negativeArtistPromptInput"
+  "negativeFixedPromptInput", "negativeQualityPromptInput", "negativeArtistPromptInput",
+  "inpaintPromptInput", "inpaintNegativePromptInput"
 ];
 const COMMON_TAGS = [
   ["girl", "소녀"], ["1girl", "한 명의 소녀"], ["boy", "소년"], ["1boy", "한 명의 소년"],
@@ -74,6 +75,11 @@ function render(text, tokens) {
     const match = /^(\s*)([\s\S]*?)(\s*)$/.exec(part);
     const body = match?.[2] || "";
     if (!body) return escapeHtml(part);
+    if (/__([A-Za-z0-9_][A-Za-z0-9_\-/]{0,199})__/.test(body)) {
+      return escapeHtml(match[1]) + tokenSpan(body, {
+        section: "wildcard", label: "랜덤 선택 와일드카드"
+      }) + escapeHtml(match[3]);
+    }
     if (containsKorean(body)) {
       return escapeHtml(match[1]) + tokenSpan(body, {
         section: "korean",
@@ -228,8 +234,9 @@ function install(textarea) {
     const before = textarea.value.slice(0, currentRange.start);
     const after = textarea.value.slice(currentRange.end);
     const prefix = before && !/[\s\n]$/.test(before) ? " " : "";
-    textarea.value = before + prefix + item.tag.replace(/_/g, " ") + after;
-    const caret = (before + prefix + item.tag.replace(/_/g, " ")).length;
+    const insertedTag = item.tag.replace(/_/g, " ");
+    textarea.value = before + prefix + insertedTag + after;
+    const caret = (before + prefix + insertedTag).length;
     textarea.setSelectionRange(caret, caret);
     textarea.dispatchEvent(new Event("input", { bubbles: true }));
     closeSuggestions(); textarea.focus();
@@ -238,17 +245,21 @@ function install(textarea) {
     suggestions.replaceChildren(...items.map((item, index) => {
       const button = document.createElement("button");
       button.type = "button"; button.className = index === activeSuggestion ? "active" : "";
-      button.innerHTML = `<strong>${escapeHtml(item.tag.replace(/_/g, " "))}</strong><span>${escapeHtml(item.ko || item.description || item.category || "태그")}</span>`;
+      const displayTag = item.tag.replace(/_/g, " ");
+      button.innerHTML = `<strong>${escapeHtml(displayTag)}</strong><span>${escapeHtml(item.ko || item.description || item.category || "태그")}</span>`;
       button.addEventListener("mousedown", event => { event.preventDefault(); chooseSuggestion(item); });
       return button;
     }));
     suggestions.hidden = items.length === 0;
     if (items.length) positionSuggestions();
   };
+  const suggestionIdentity = item => String(item?.tag || "")
+    .replace(/\\([()[\]{}])/g, "$1")
+    .trim().toLocaleLowerCase().replace(/_/g, " ").replace(/\s+/g, " ");
   const scheduleSuggestions = () => {
     clearTimeout(suggestionTimer);
     const fragment = currentFragment();
-    if (fragment.query.length < 2 || containsKorean(fragment.query)) { closeSuggestions(); return; }
+    if (fragment.query.includes("__") || fragment.query.length < 2 || containsKorean(fragment.query)) { closeSuggestions(); return; }
     currentRange = fragment;
     suggestionTimer = setTimeout(async () => {
       const requestSequence = ++suggestionSequence;
@@ -260,7 +271,13 @@ function install(textarea) {
         remote = Array.isArray(result.suggestions) ? result.suggestions : [];
       } catch {}
       if (requestSequence !== suggestionSequence || currentFragment().query !== fragment.query) return;
-      const merged = [...local, ...remote].filter((item, index, all) => item?.tag && all.findIndex(other => other?.tag === item.tag) === index).slice(0, 3);
+      const seen = new Set();
+      const merged = [...local, ...remote].filter(item => {
+        const identity = suggestionIdentity(item);
+        if (!identity || seen.has(identity)) return false;
+        seen.add(identity);
+        return true;
+      }).slice(0, 3);
       activeSuggestion = 0; renderSuggestions(merged);
     }, 120);
   };

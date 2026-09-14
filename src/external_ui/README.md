@@ -7,7 +7,7 @@ contract without exposing ComfyUI node IDs.
 - FAST: Face Detailer, Eye Detailer, USDU disabled
 - DETAIL: Face Detailer, Eye Detailer, USDU enabled
 - Both modes retain Initial Spectrum and Turbo HighRez
-- Public-preview UI temporarily hides the unfinished Light Control.
+- Retired Light Control is excluded from the public runtime and UI.
 - Composition Control exposes `CameraSettings {x, y, z, roll, frame_y}`.
 - The 3D camera canvas is extracted from the real KR Camera Control v1.1.1
   interaction/math contract: left drag changes azimuth/elevation, right or Alt
@@ -16,7 +16,7 @@ contract without exposing ComfyUI node IDs.
 
 The Generate button now submits the application state to the local bridge. The
 bridge derives an in-memory, Final-Saver-only API prompt from the validated
-v7.1 runtime conversion contract; it never edits the saved workflow or custom nodes.
+v7.4 runtime conversion contract; it never edits the saved workflow or custom nodes.
 
 - Accepted S1R2 Initial Spectrum and validated Turbo HighRez are shared.
 - FAST keeps Face/Eye/USDU off; DETAIL turns all three on.

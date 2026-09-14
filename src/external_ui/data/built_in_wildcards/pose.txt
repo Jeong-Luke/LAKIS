@@ -1,0 +1,487 @@
+standing naturally
+standing upright
+standing casually
+standing with relaxed posture
+standing at ease
+standing with weight on one leg
+standing with feet together
+standing with feet shoulder-width apart
+standing in contrapposto
+standing with one hip tilted
+standing with shoulders relaxed
+standing in a poised posture
+standing in an elegant posture
+standing in a confident posture
+standing in a reserved posture
+standing with arms at sides
+standing with hands clasped in front
+standing with hands clasped behind back
+standing with one hand on hip
+standing with both hands on hips
+standing with one hand in pocket
+standing with both hands in pockets
+standing with arms crossed
+standing with one hand near chin
+standing with one hand touching cheek
+standing with one hand brushing hair
+standing with one hand near lips
+standing with one hand over chest
+standing with both hands over chest
+standing with one hand behind neck
+standing with one hand raised
+standing with both palms open
+standing with fingers interlaced in front
+standing with hands resting at waist
+standing with one finger raised
+walking forward
+walking casually
+walking slowly
+walking briskly
+walking with relaxed steps
+walking with confident stride
+walking with elegant stride
+walking while looking sideways
+walking while looking back
+walking with hands in pockets
+walking with one hand waving
+walking with arms swinging naturally
+mid-step walking pose
+taking a step forward
+taking a step backward
+walking away
+walking on tiptoes
+walking with one foot crossing in front
+running forward
+running lightly
+running playfully
+running with energetic stride
+running at full speed
+running while looking back
+running with one arm raised
+running with arms pumping
+mid-run pose
+jogging lightly
+sprinting forward
+starting to run
+slowing down from a run
+sitting naturally
+sitting upright
+sitting casually
+sitting elegantly
+sitting with relaxed posture
+sitting with straight back
+sitting slightly leaned forward
+sitting slightly leaned back
+sitting sideways
+sitting with legs together
+sitting with knees together
+sitting with knees apart
+sitting with one leg crossed over the other
+sitting with ankles crossed
+sitting with one knee raised
+sitting with both knees raised
+sitting with one leg stretched out
+sitting with both legs stretched forward
+sitting with one leg tucked under
+sitting with one leg bent and one leg extended
+sitting with hands on lap
+sitting with both hands clasped on lap
+sitting with one hand on lap
+sitting with one elbow on knee
+sitting with chin resting on hand
+sitting with one hand on cheek
+sitting with one hand supporting body
+sitting with hands behind for support
+sitting with palms on the floor
+sitting with one hand waving
+sitting with one hand raised
+sitting on a chair
+sitting on a stool
+sitting on a bench
+sitting on the edge of a chair
+sitting on the edge of a bench
+sitting deep in a chair
+sitting sideways on a chair
+sitting sideways on a bench
+sitting with back against chair
+sitting with one arm over chair back
+sitting while leaning on table
+sitting on the floor
+sitting cross-legged on the floor
+sitting seiza style
+sitting with legs folded to one side
+sitting with knees hugged to chest
+sitting on floor and leaning back
+sitting with chin on knees
+sitting with hands cupping cheeks
+kneeling
+kneeling upright
+kneeling on one knee
+kneeling on both knees
+kneeling with hands on thighs
+kneeling with hands clasped
+kneeling with one hand on floor
+kneeling in a graceful pose
+kneeling in a formal pose
+kneeling in a pleading pose
+crouching
+crouching low
+crouching with both feet flat
+crouching with one knee up
+crouching with one hand on ground
+crouching in a ready pose
+crouching in a curious pose
+squatting
+squatting with elbows on knees
+squatting in a relaxed pose
+lying on back
+lying on side
+lying on stomach
+lying on side propped on one elbow
+lying on back with hands behind head
+lying on back with one knee bent
+lying on side with knees slightly bent
+lying with arms stretched out
+lying with one hand near face
+lying curled slightly on side
+reclining casually
+reclining elegantly
+reclining with one arm supporting body
+reclining with legs crossed at ankles
+reclining while looking at viewer
+jumping
+jumping with both feet off the ground
+jumping with arms spread wide
+jumping with one arm raised
+jumping joyfully
+small hop
+leaping forward
+airborne pose
+airborne with knees bent
+airborne with one leg extended
+airborne with both legs tucked
+midair spin pose
+midair reaching pose
+midair tuck pose
+midair twist pose
+midair split-leg pose
+springing upward pose
+dynamic landing pose
+cartwheel-like dynamic pose
+acrobat balance pose
+waving with one hand
+waving enthusiastically
+waving gently
+raising one hand in greeting
+raising both hands in greeting
+pointing forward
+pointing upward
+pointing sideways
+pointing to self
+gesturing with open palm
+presenting with one hand
+presenting with both hands
+beckoning with one hand
+saluting
+peace sign pose
+double peace sign pose
+thumbs up pose
+double thumbs up pose
+finger heart pose
+heart pose with both hands
+palms together pose
+prayer-like pose
+small fist pump pose
+raising fist in encouragement pose
+index finger to lips pose
+questioning shrug pose
+open-handed cheerful pose
+cute idol pose
+hands near cheeks pose
+cheek framing pose
+playful hand behind head pose
+fashion model pose
+runway-style standing pose
+magazine cover pose
+slight hip tilt pose
+crossed leg fashion pose
+shoulder touch pose
+looking back fashion pose
+over-the-shoulder pose
+hands in pockets fashion pose
+stylish contrapposto pose
+confident fashion pose
+casual street-fashion pose
+editorial standing pose
+portrait pose with slight head tilt
+portrait pose with shoulders angled
+portrait pose with one hand near chin
+portrait pose with hands gently folded
+portrait pose with one shoulder forward
+portrait pose with subtle lean
+portrait pose with calm stance
+thinking pose
+chin in hand pose
+arms folded thoughtful pose
+shy pose with hands behind back
+shy pose with fingers touching
+embarrassed pose with shoulders raised
+surprised pose with hands near chest
+startled pose
+curious leaning-in pose
+bashful pose with knees together
+hesitant pose
+nervous pose holding one arm
+relieved pose with one hand on chest
+delighted pose with clasped hands
+disappointed slouch pose
+tired pose with drooping shoulders
+pouting pose
+confused pose with tilted head
+proud pose
+serious pose with firm stance
+covering mouth with one hand pose
+hands clasped excitedly pose
+touching ear pose
+adjusting collar pose
+adjusting sleeve pose
+touching shoulder pose
+hand on chin pose
+stretching both arms upward
+stretching one arm upward
+stretching sideways
+neck stretch pose
+back stretch pose
+shoulder stretch pose
+arms spread wide stretch
+morning stretch pose
+hands behind head stretch pose
+side bend stretch pose
+leg stretch pose
+gentle warm-up pose
+yoga mountain pose
+yoga tree pose
+yoga warrior pose
+yoga seated pose
+yoga lotus pose
+yoga child pose
+stretching lunge pose
+balance pose on one leg
+standing side stretch pose
+seated forward bend pose
+kneeling stretch pose
+meditation pose
+dance pose
+spinning dance pose
+ballet-inspired pose
+ballet arabesque pose
+ballet first-position arms pose
+stage performance pose
+idol choreography pose
+one leg raised dance pose
+arms extended dance pose
+dramatic stage pose
+rhythmic stepping pose
+performance finishing pose
+graceful twirl pose
+energetic dance jump pose
+spotlight performance pose
+action-ready stance
+defensive stance
+ready stance with bent knees
+balanced combat stance
+sideways ready stance
+guarded pose
+dodging pose
+lunging forward pose
+dynamic strike pose
+braced stance
+heroic action pose
+determined forward stance
+one arm guarding and one arm extended pose
+tense action stance
+leaning against wall
+leaning against railing
+leaning against table
+leaning against desk
+leaning against fence
+leaning back on elbows
+leaning sideways with one shoulder against wall
+leaning with arms crossed
+leaning with one foot against wall
+casual lean pose
+slight forward lean pose
+slight backward lean pose
+holding an item with both hands
+holding an item in one hand
+holding an item close to chest
+holding an item at side
+presenting an item with open palm
+reading pose
+writing pose
+drawing pose
+typing pose
+looking at a handheld item
+offering an item forward
+lifting an item overhead
+carrying an item under one arm
+carefully cradling an item
+examining an item closely
+back-facing standing pose
+back-facing pose looking over shoulder
+three-quarter back pose
+half-turned pose
+turning toward viewer pose
+turning away pose
+rear-view seated pose
+rear-view kneeling pose
+side-profile standing pose
+side-profile seated pose
+front-facing symmetrical pose
+three-quarter front pose
+profile pose with chin slightly raised
+reaching outward as if inviting someone
+open-arm welcoming pose
+listening pose with head tilted
+offering handshake pose
+gentle bow pose
+small curtsy pose
+hand-over-heart greeting pose
+requesting pose with palms together
+apologetic slight bow pose
+encouraging gesture pose
+standing with legs crossed at ankles
+standing with one toe pointed outward
+standing with one heel lifted
+standing with one knee bent inward slightly
+standing with knees together
+standing with a gentle side lean
+standing with chest slightly forward
+standing with relaxed asymmetry
+standing with an open stance
+standing with closed posture
+standing with one foot slightly forward
+standing with one foot slightly behind
+standing with legs in a narrow stance
+standing with a wide stance
+dramatic reaching pose
+cinematic hero pose
+cinematic silhouette pose
+dramatic kneeling pose
+dramatic over-the-shoulder pose
+windswept standing pose
+dramatic seated pose
+dramatic pointing pose
+slow turn pose
+cinematic walking pose
+quiet cinematic standing pose
+tense cinematic stance
+sleepy seated pose
+sleepy standing pose
+resting pose with head down
+resting chin on hand pose
+slouched seated pose
+dozing pose
+resting against support pose
+tired leaning pose
+gentle resting pose
+resting with hands folded
+full-body centered standing pose
+full-body seated pose
+full-body walking pose
+full-body running pose
+full-body kneeling pose
+full-body crouching pose
+full-body airborne pose
+upper-body portrait pose
+waist-up portrait pose
+from-behind standing pose
+looking-away standing pose
+looking-up standing pose
+looking-down seated pose
+looking-to-the-side pose
+head tilted slightly pose
+shoulders angled pose
+balanced symmetrical pose
+soft asymmetrical pose
+posed but natural stance
+standing with one arm raised and feet together
+standing with one arm raised and feet apart
+standing with one arm raised and one foot forward
+standing with one arm raised and one foot behind
+standing with one arm raised and one knee bent
+standing with one arm raised and both knees slightly bent
+standing with one arm raised and legs crossed at ankles
+standing with one arm raised and weight shifted to one leg
+standing with both arms raised and feet together
+standing with both arms raised and feet apart
+standing with both arms raised and one foot forward
+standing with both arms raised and one foot behind
+standing with both arms raised and one knee bent
+standing with both arms raised and both knees slightly bent
+standing with both arms raised and legs crossed at ankles
+standing with both arms raised and weight shifted to one leg
+standing with one arm extended sideways and feet together
+standing with one arm extended sideways and feet apart
+standing with one arm extended sideways and one foot forward
+standing with one arm extended sideways and one foot behind
+standing with one arm extended sideways and one knee bent
+standing with one arm extended sideways and both knees slightly bent
+standing with one arm extended sideways and legs crossed at ankles
+standing with one arm extended sideways and weight shifted to one leg
+standing with both arms extended sideways and feet together
+standing with both arms extended sideways and feet apart
+standing with both arms extended sideways and one foot forward
+standing with both arms extended sideways and one foot behind
+standing with both arms extended sideways and one knee bent
+standing with both arms extended sideways and both knees slightly bent
+standing with both arms extended sideways and legs crossed at ankles
+standing with both arms extended sideways and weight shifted to one leg
+standing with one arm extended forward and feet together
+standing with one arm extended forward and feet apart
+standing with one arm extended forward and one foot forward
+standing with one arm extended forward and one foot behind
+standing with one arm extended forward and one knee bent
+standing with one arm extended forward and both knees slightly bent
+standing with one arm extended forward and legs crossed at ankles
+standing with one arm extended forward and weight shifted to one leg
+standing with both arms extended forward and feet together
+standing with both arms extended forward and feet apart
+standing with both arms extended forward and one foot forward
+standing with both arms extended forward and one foot behind
+standing with both arms extended forward and one knee bent
+standing with both arms extended forward and both knees slightly bent
+standing with both arms extended forward and legs crossed at ankles
+standing with both arms extended forward and weight shifted to one leg
+standing with one hand on waist and feet together
+standing with one hand on waist and feet apart
+standing with one hand on waist and one foot forward
+standing with one hand on waist and one foot behind
+standing with one hand on waist and one knee bent
+standing with one hand on waist and both knees slightly bent
+standing with one hand on waist and legs crossed at ankles
+standing with one hand on waist and weight shifted to one leg
+standing with both hands on waist and feet together
+standing with both hands on waist and feet apart
+standing with both hands on waist and one foot forward
+standing with both hands on waist and one foot behind
+standing with both hands on waist and one knee bent
+standing with both hands on waist and both knees slightly bent
+standing with both hands on waist and legs crossed at ankles
+standing with both hands on waist and weight shifted to one leg
+standing with one hand behind back and feet together
+standing with one hand behind back and feet apart
+standing with one hand behind back and one foot forward
+standing with one hand behind back and one foot behind
+standing with one hand behind back and one knee bent
+standing with one hand behind back and both knees slightly bent
+standing with one hand behind back and legs crossed at ankles
+standing with one hand behind back and weight shifted to one leg
+standing with both hands behind back and feet together
+standing with both hands behind back and feet apart
+standing with both hands behind back and one foot forward
+standing with both hands behind back and one foot behind
+standing with both hands behind back and one knee bent
+standing with both hands behind back and both knees slightly bent
+standing with both hands behind back and legs crossed at ankles
+standing with both hands behind back and weight shifted to one leg
