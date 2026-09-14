@@ -14,7 +14,19 @@ LAKIS 애플리케이션, 사용자 인터페이스, 설치기, 업데이터, �
 
 ## 안정 버전
 
-이 저장소는 LAKIS의 안정 배포 버전을 관리합니다. 현재 안정 기준 버전은 `v7.3.5`입니다. 이전 개발 패키지와 개발용 워크플로는 별도로 관리하며 신규 사용자에게 배포하지 않습니다.
+이 저장소는 LAKIS의 안정 배포 버전을 관리합니다. 현재 안정 기준 버전은 `v7.4.0`입니다. 이전 개발 패키지와 개발용 워크플로는 별도로 관리하며 신규 사용자에게 배포하지 않습니다.
+
+## v7.4.0 주요 기능
+
+- FAST, DETAIL, LAKIS DETAIL 생성 모드와 Composition, i2i
+- 작은 영역을 수정하고 원본 영역을 보존하는 Local Inpaint V2와 Inpaint Delete
+- 이미지 메타데이터, 다중 선택, 일괄 삭제 및 화면 근처 지연 로드를 지원하는 LAKIS Library
+- 모바일에서 생성 화면과 Library를 사용하는 LAKIS Link
+- 일반 프롬프트에 추가되는 와일드카드 / 랜덤 선택과 연속 생성
+- 모바일·PC 프롬프트 및 Composition 설정 유지
+- Editable, Runtime Visual, Runtime API로 구성된 공식 v7.4 workflow
+
+Local Inpaint V2에 필요한 `anima-lllite-inpainting-v2.safetensors`는 LAKIS에 포함되거나 자동 다운로드되지 않습니다. 사용자가 공식 배포처에서 직접 설치해야 합니다.
 
 ## 배포 정책
 
@@ -53,11 +65,23 @@ from AGPL software remain AGPL-3.0-or-later.
 **[Download LAKIS Studio v7.4.0 for Windows](https://github.com/Jeong-Luke/LAKIS/releases/download/v7.4.0/LAKIS_Setup.exe)**
 
 Run `LAKIS_Setup.exe` to install or repair LAKIS. You can also view the
-[v7.3.5 release notes and individual files](https://github.com/Jeong-Luke/LAKIS/releases/tag/v7.3.5).
+[v7.4.0 release notes and individual files](https://github.com/Jeong-Luke/LAKIS/releases/tag/v7.4.0).
 
 ### Stable baseline
 
-This repository contains the stable LAKIS distribution line. The current prepared baseline is `v7.3.5`. Earlier development packages and workflows are maintained separately and are not distributed to new users.
+This repository contains the stable LAKIS distribution line. The current stable baseline is `v7.4.0`. Earlier development packages and workflows are maintained separately and are not distributed to new users.
+
+### v7.4.0 features
+
+- FAST, DETAIL, and LAKIS DETAIL generation modes with Composition and i2i
+- Local Inpaint V2 and Inpaint Delete for focused edits that preserve the source outside the edited area
+- LAKIS Library with metadata, multi-select, batch deletion, and viewport-based lazy loading
+- LAKIS Link for mobile generation and Library access
+- Wildcard/random prompt insertion and continuous generation
+- Prompt and Composition persistence across desktop and mobile
+- Official v7.4 Editable, Runtime Visual, and Runtime API workflows
+
+The `anima-lllite-inpainting-v2.safetensors` weight required by Local Inpaint V2 is not bundled or downloaded automatically. Users install it manually from the official publisher.
 
 ### Distribution policy
 

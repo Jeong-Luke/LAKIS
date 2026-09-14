@@ -1,0 +1,35 @@
+# LAKIS v7.4.0
+
+## 주요 변경 사항
+
+- 작은 수정 영역을 처리하고 그 밖의 원본 픽셀을 보존하는 Local Inpaint V2와 Inpaint Delete를 추가했습니다.
+- LAKIS Link에서 모바일 생성 화면, 이미지 미리보기, 확대·축소, 인페인트 드로잉과 Library 사용을 지원합니다.
+- LAKIS Library에 메타데이터 안정화, 다중 선택, 일괄 삭제와 화면 근처 이미지 지연 로드를 적용했습니다.
+- 와일드카드 / 랜덤 선택과 연속 생성을 추가했습니다.
+- 모바일과 PC의 프롬프트 및 Composition 설정 유지 동작을 개선했습니다.
+- Local Inpaint V2와 Final Saver 775를 반영한 Editable, Runtime Visual, Runtime API workflow를 제공합니다.
+- 모델 감지, 최근 이미지 전달, Link Library 검색, Final Saver 결과 검색과 패처 패키징 문제를 수정했습니다.
+- 폐기된 Light/DSINE 경로와 비공개 연구 기능을 공개 배포에서 제외했습니다.
+
+## Local Inpaint 모델
+
+`anima-lllite-inpainting-v2.safetensors`는 설치 프로그램이나 updater에 포함되지 않으며 자동으로 다운로드되지 않습니다. 공식 배포처에서 사용자가 직접 설치해야 합니다.
+
+## 업데이트 안전성
+
+v7.3.6에서 v7.4.0으로 업데이트할 수 있습니다. 사용자 모델, LoRA, workflow, 입력·출력 이미지, Library, 사용자 와일드카드와 설치별 설정은 유지됩니다.
+
+---
+
+## English
+
+- Added Local Inpaint V2 and Inpaint Delete for focused edits that preserve source pixels outside the edited area.
+- Added LAKIS Link mobile generation and Library access, image preview, pinch zoom, and mobile inpaint drawing.
+- Added Library metadata fixes, multi-select, batch deletion, and viewport-based lazy image loading.
+- Added wildcard/random prompt insertion and continuous generation.
+- Improved prompt and Composition persistence across desktop and mobile.
+- Updated the official Editable, Runtime Visual, and Runtime API workflows with Local Inpaint V2 and Final Saver 775.
+- Fixed model detection, recent-image delivery, Link Library discovery, Final Saver result discovery, and patcher packaging.
+- Removed retired Light/DSINE paths and private research features from the public distribution.
+
+The `anima-lllite-inpainting-v2.safetensors` weight is not bundled or downloaded automatically. Users install it manually from the official publisher.
