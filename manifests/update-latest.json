@@ -1,6 +1,6 @@
 {
-  "version": "7.4.2",
-  "release_notes": "LAKIS 7.4.2 recovery update: restores the LAKIS Safe Masks Combine Batch node required by DETAIL generation.",
+  "version": "7.4.3",
+  "release_notes": "LAKIS 7.4.3 recovery update: restores the LAKIS Safe Masks Combine Batch node and corrects its download integrity hash.",
   "files": [
     {
       "path": "LAKIS.exe",
@@ -464,8 +464,8 @@
     },
     {
       "path": "ComfyUI/custom_nodes/ComfyUI-LAKIS-Local-Inpaint/__init__.py",
-      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/main/src/custom_nodes/ComfyUI-LAKIS-Local-Inpaint/__init__.py",
-      "sha256": "E37D77A92BB27515308E261954E88900C2B899A8EF8D30804813FA18675636DD"
+      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/bac0dc270e9f08545cacf57fd5bd0ba51efa5cd9/src/custom_nodes/ComfyUI-LAKIS-Local-Inpaint/__init__.py",
+      "sha256": "EEE593B768AEE10536C874A773D51D4603B438DB491B741F861603748FEA12D9"
     },
     {
       "path": "ComfyUI/LAKIS/workflows/LAKIS_runtime_api_v7.4.json",
