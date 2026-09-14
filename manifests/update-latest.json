@@ -1,6 +1,6 @@
 {
-  "version": "7.4.1",
-  "release_notes": "LAKIS 7.4.1 recovery update: restores the public LAKIS runtime path and STOP_AUTOMATION safety lock.",
+  "version": "7.4.2",
+  "release_notes": "LAKIS 7.4.2 recovery update: restores the LAKIS Safe Masks Combine Batch node required by DETAIL generation.",
   "files": [
     {
       "path": "LAKIS.exe",
@@ -464,8 +464,8 @@
     },
     {
       "path": "ComfyUI/custom_nodes/ComfyUI-LAKIS-Local-Inpaint/__init__.py",
-      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/v7.4.0/src/custom_nodes/ComfyUI-LAKIS-Local-Inpaint/__init__.py",
-      "sha256": "77780DE7D53BEEE30C0E045D9F3785F8BBB608562B312D860F8E6C6CD0A67F2C"
+      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/main/src/custom_nodes/ComfyUI-LAKIS-Local-Inpaint/__init__.py",
+      "sha256": "E37D77A92BB27515308E261954E88900C2B899A8EF8D30804813FA18675636DD"
     },
     {
       "path": "ComfyUI/LAKIS/workflows/LAKIS_runtime_api_v7.4.json",

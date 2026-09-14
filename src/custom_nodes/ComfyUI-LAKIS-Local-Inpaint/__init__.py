@@ -140,17 +140,45 @@ class LAKISLocalInpaintComposite:
         return (result,)
 
 
+class LAKISSafeMasksCombineBatch:
+    """Combine detector mask batches and safely handle an empty result."""
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {"required": {"masks": ("MASK",)}}
+
+    RETURN_TYPES = ("MASK",)
+    RETURN_NAMES = ("mask",)
+    FUNCTION = "combine_masks"
+    CATEGORY = "LAKIS/Mask"
+
+    def combine_masks(self, masks):
+        if isinstance(masks, torch.Tensor):
+            if masks.ndim >= 3 and masks.shape[0] == 0:
+                return (torch.zeros((1, masks.shape[-2], masks.shape[-1]),
+                                    device=masks.device, dtype=masks.dtype),)
+            if masks.ndim == 2:
+                return (masks.unsqueeze(0).clamp(0, 1),)
+            if masks.ndim >= 3:
+                return (masks.sum(dim=0, keepdim=True).clamp(0, 1),)
+        mask_list = list(masks)
+        if not mask_list:
+            return (torch.zeros((1, 64, 64), dtype=torch.float32),)
+        return (torch.stack(mask_list, dim=0).sum(dim=0, keepdim=True).clamp(0, 1),)
+
+
 NODE_CLASS_MAPPINGS = {
     "LAKIS_LocalInpaintPrepare": LAKISLocalInpaintPrepare,
     "LAKIS_LocalInpaintComposite": LAKISLocalInpaintComposite,
     # Compatibility aliases for existing DEKIS development workflows.
     "DEKIS_LocalInpaintPrepare": LAKISLocalInpaintPrepare,
     "DEKIS_LocalInpaintComposite": LAKISLocalInpaintComposite,
+    "LAKIS_SafeMasksCombineBatch": LAKISSafeMasksCombineBatch,
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
     "LAKIS_LocalInpaintPrepare": "LAKIS Local Inpaint V2 · Prepare",
     "LAKIS_LocalInpaintComposite": "LAKIS Local Inpaint V2 · Composite",
     "DEKIS_LocalInpaintPrepare": "LAKIS Local Inpaint V2 · Prepare (DEKIS alias)",
     "DEKIS_LocalInpaintComposite": "LAKIS Local Inpaint V2 · Composite (DEKIS alias)",
+    "LAKIS_SafeMasksCombineBatch": "LAKIS Safe Masks Combine Batch",
 }
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]
