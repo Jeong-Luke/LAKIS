@@ -1,6 +1,6 @@
 {
-  "version": "7.4.0",
-  "release_notes": "LAKIS 7.4.0 update",
+  "version": "7.4.1",
+  "release_notes": "LAKIS 7.4.1 recovery update: restores the public LAKIS runtime path and STOP_AUTOMATION safety lock.",
   "files": [
     {
       "path": "LAKIS.exe",
