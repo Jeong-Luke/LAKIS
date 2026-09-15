@@ -35,6 +35,10 @@ Require (-not $generator.Contains('Add-UpdateFile "ComfyUI/custom_nodes/ComfyUI-
 Require ($generator.Contains("ComfyUI/custom_nodes/ComfyUI-LAKIS-Light-Control/__init__.py")) "Next manifest must explicitly remove retired Light Control."
 Require (-not $generator.Contains("DSINE")) "Next manifest generator must not include DSINE."
 Require ($generator.Contains("ComfyUI-LAKIS-Local-Inpaint")) "Manifest generator must include the public Local Inpaint V2 custom node."
+Require ($generator.Contains("ComfyUI-Anima-LLLite")) "Manifest generator must include the Local Inpaint runtime node package."
+Require (-not $generator.Contains('ComfyUI/LAKIS_DEV/external_ui/')) "Public update files must target the production LAKIS runtime directory."
+Require ($generator.Contains('Add-UpdateFile "ComfyUI/LAKIS/STOP_AUTOMATION"')) "Every update must restore the generation safety marker."
+Require (-not $generator.Contains("'ComfyUI/LAKIS/STOP_AUTOMATION',")) "The generation safety marker must never be deleted."
 
 $thirdPartyNotices = Read-RepoFile "THIRD_PARTY_NOTICES.md"
 foreach ($noticeName in @(
@@ -136,8 +140,9 @@ $cameraBridgeJson = @(Get-ChildItem -LiteralPath $cameraBridgeRoot -File -Filter
 Require ($cameraBridgeJson.Count -eq 1) "Expected exactly one packaged KR Camera Anima bridge workflow."
 $jsonFiles += $cameraBridgeJson[0].FullName
 $bundledPythonCandidates = @(
-    [System.IO.Path]::GetFullPath((Join-Path $repo "..\..\python_embeded\python.exe")),
-    [System.IO.Path]::GetFullPath((Join-Path $repo "..\first-user-test\install\python_embeded\python.exe"))
+    [System.IO.Path]::GetFullPath((Join-Path $repo "..\LAKIS_KREA2_PORTABLE\python_embeded\python.exe")),
+    [System.IO.Path]::GetFullPath((Join-Path $repo "..\release\first-user-test\install\python_embeded\python.exe")),
+    [System.IO.Path]::GetFullPath((Join-Path $repo "..\..\python_embeded\python.exe"))
 )
 $bundledPython = $bundledPythonCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
 $python = if (-not [string]::IsNullOrWhiteSpace($bundledPython)) {

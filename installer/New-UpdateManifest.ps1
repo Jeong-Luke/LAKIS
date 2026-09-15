@@ -77,8 +77,13 @@ Get-ChildItem -LiteralPath $externalRoot -File -Recurse |
     Sort-Object FullName |
     ForEach-Object {
         $relative = $_.FullName.Substring($externalRoot.Length).TrimStart('\').Replace('\', '/')
-        Add-UpdateFile "ComfyUI/LAKIS_DEV/external_ui/$relative" $_.FullName "$rawBase/src/external_ui/$relative"
+        Add-UpdateFile "ComfyUI/LAKIS/external_ui/$relative" $_.FullName "$rawBase/src/external_ui/$relative"
     }
+
+# The launcher refuses every generation without this application-owned safety
+# marker. It must be restored by every repair/update, not treated as stale data.
+Add-UpdateFile "ComfyUI/LAKIS/STOP_AUTOMATION" (Join-Path $repo "resources\STOP_AUTOMATION") `
+    "$rawBase/resources/STOP_AUTOMATION"
 
 # Keep the packaged camera-to-prompt bridge workflow synchronized without
 # touching any user workflow files.
@@ -94,6 +99,16 @@ Add-UpdateFile "ComfyUI/custom_nodes/ComfyUI-KR-Camera-PromptStudio-Bridge/$came
 
 # Public Local Inpaint V2 implementation. The model weight is intentionally
 # absent: users install it manually from the official publisher.
+$llliteRoot = Join-Path $repo "src\custom_nodes\ComfyUI-Anima-LLLite"
+Get-ChildItem -LiteralPath $llliteRoot -File -Recurse |
+    Where-Object { $_.FullName -notmatch '[\\/]__pycache__[\\/]' -and $_.Extension -ne '.pyc' } |
+    Sort-Object FullName |
+    ForEach-Object {
+        $relative = $_.FullName.Substring($llliteRoot.Length).TrimStart('\').Replace('\', '/')
+        Add-UpdateFile "ComfyUI/custom_nodes/ComfyUI-Anima-LLLite/$relative" $_.FullName `
+            "$rawBase/src/custom_nodes/ComfyUI-Anima-LLLite/$relative"
+    }
+
 $localInpaintRoot = Join-Path $repo "src\custom_nodes\ComfyUI-LAKIS-Local-Inpaint"
 Get-ChildItem -LiteralPath $localInpaintRoot -File -Recurse |
     Where-Object { $_.FullName -notmatch '[\\/]__pycache__[\\/]' -and $_.Extension -ne '.pyc' } |
@@ -116,54 +131,8 @@ foreach ($runtimeName in @(
 }
 
 $retiredFiles = @(
-    'ComfyUI/LAKIS/STOP_AUTOMATION',
-    'ComfyUI/LAKIS/external_ui/README.md',
-    'ComfyUI/LAKIS/external_ui/advanced-node-settings.css',
-    'ComfyUI/LAKIS/external_ui/advanced-node-settings.js',
-    'ComfyUI/LAKIS/external_ui/app.js',
-    'ComfyUI/LAKIS/external_ui/assets/LAKIS_windows_compatible.ico',
-    'ComfyUI/LAKIS/external_ui/assets/upscaler/animesharp-v4-fast-preview.png',
-    'ComfyUI/LAKIS/external_ui/assets/upscaler/realesrgan-anime-6b-preview.png',
-    'ComfyUI/LAKIS/external_ui/brand-position-fix.css',
-    'ComfyUI/LAKIS/external_ui/camera-3d.css',
-    'ComfyUI/LAKIS/external_ui/composition-control.css',
-    'ComfyUI/LAKIS/external_ui/composition-toggle.css',
-    'ComfyUI/LAKIS/external_ui/data/autocomplete.csv',
-    'ComfyUI/LAKIS/external_ui/error-dialog.css',
-    'ComfyUI/LAKIS/external_ui/generation-actions.css',
-    'ComfyUI/LAKIS/external_ui/generation-monitor.css',
-    'ComfyUI/LAKIS/external_ui/history-mode-badge.css',
-    'ComfyUI/LAKIS/external_ui/horizontal-overflow-fix.css',
-    'ComfyUI/LAKIS/external_ui/i2i-control.css',
-    'ComfyUI/LAKIS/external_ui/i2i-preview-contain.css',
-    'ComfyUI/LAKIS/external_ui/index.html',
-    'ComfyUI/LAKIS/external_ui/launch_lakis.py',
-    'ComfyUI/LAKIS/external_ui/layout-adjustment.css',
     'ComfyUI/LAKIS/external_ui/light-control-prototype.css',
     'ComfyUI/LAKIS/external_ui/lightmap-knob-mockup.js',
-    'ComfyUI/LAKIS/external_ui/lora-controls.css',
-    'ComfyUI/LAKIS/external_ui/mockup-layout.css',
-    'ComfyUI/LAKIS/external_ui/preview-zoom.css',
-    'ComfyUI/LAKIS/external_ui/prompt-categories.css',
-    'ComfyUI/LAKIS/external_ui/prompt-highlighting.css',
-    'ComfyUI/LAKIS/external_ui/prompt-highlighting.js',
-    'ComfyUI/LAKIS/external_ui/prompt-inspector.css',
-    'ComfyUI/LAKIS/external_ui/prompt-model-controls.css',
-    'ComfyUI/LAKIS/external_ui/prompt-width.css',
-    'ComfyUI/LAKIS/external_ui/readability.css',
-    'ComfyUI/LAKIS/external_ui/seed-controls.css',
-    'ComfyUI/LAKIS/external_ui/seed-layout-fix.css',
-    'ComfyUI/LAKIS/external_ui/serve_ui.py',
-    'ComfyUI/LAKIS/external_ui/sidebar-links.css',
-    'ComfyUI/LAKIS/external_ui/status-footer-large.css',
-    'ComfyUI/LAKIS/external_ui/status-footer.css',
-    'ComfyUI/LAKIS/external_ui/styles.css',
-    'ComfyUI/LAKIS/external_ui/system-info-dialog.css',
-    'ComfyUI/LAKIS/external_ui/system-info-dialog.js',
-    'ComfyUI/LAKIS/external_ui/upscaler-license-migration.css',
-    'ComfyUI/LAKIS/external_ui/upscaler-license-migration.js',
-    'ComfyUI/LAKIS/external_ui/viewport-fix.css',
-    'ComfyUI/LAKIS/external_ui/workflow_bridge.py',
     'ComfyUI/LAKIS/workflows/LAKIS_DETAIL_runtime_api_v7.3.json',
     'ComfyUI/LAKIS/workflows/LAKIS_custom_v7.3_editable.json',
     'ComfyUI/LAKIS/workflows/LAKIS_runtime_api_v7.1.json',
@@ -175,6 +144,16 @@ $retiredFiles = @(
     'ComfyUI/custom_nodes/ComfyUI-LAKIS-Light-Control/requirements.txt',
     'ComfyUI/custom_nodes/ComfyUI-LAKIS-Light-Control/web/lakis_light_control.js'
 )
+
+$filePaths = @($files | ForEach-Object { [string]$_.path })
+$duplicatePaths = @($filePaths | Group-Object | Where-Object Count -gt 1 | ForEach-Object Name)
+if ($duplicatePaths.Count) {
+    throw "Update manifest contains duplicate file paths: $($duplicatePaths -join ', ')"
+}
+$deleteOverlap = @($retiredFiles | Where-Object { $_ -in $filePaths })
+if ($deleteOverlap.Count) {
+    throw "Update manifest would install and delete the same paths: $($deleteOverlap -join ', ')"
+}
 
 $manifest = [ordered]@{
     version = $Version

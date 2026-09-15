@@ -94,6 +94,57 @@ class ErrorCodeTests(unittest.TestCase):
             with self.subTest(message=message):
                 self.assertEqual(code, workflow_bridge.WorkflowBridge._public_error(ValueError(message))[0])
 
+    def test_missing_runtime_nodes_have_a_specific_code_and_sorted_detail(self):
+        error = workflow_bridge.MissingRuntimeNodesError(["ZNode", "ANode", "ZNode"])
+        code, message = workflow_bridge.WorkflowBridge._public_error(error)
+        self.assertEqual("LKS-NODE-1201", code)
+        self.assertIn("사용자 노드", message)
+        self.assertEqual(("ANode", "ZNode"), error.node_types)
+        self.assertIn("ANode, ZNode", str(error))
+
+    def test_specific_runtime_and_final_output_failures_have_distinct_codes(self):
+        cases = [
+            (workflow_bridge.InvalidGenerationRequestError("bad json"), "LKS-CFG-1001"),
+            (workflow_bridge.InvalidGenerationRequestError("empty", reason="empty_body"), "LKS-CFG-1002"),
+            (workflow_bridge.InvalidGenerationRequestError("large", reason="body_too_large"), "LKS-CFG-1003"),
+            (workflow_bridge.MissingRuntimeNodesError(["AnimaLLLiteApply_sdscripts"]), "LKS-NODE-1202"),
+            (workflow_bridge.MissingRuntimeNodesError(["LAKIS_LocalInpaintPrepare"]), "LKS-NODE-1203"),
+            (workflow_bridge.MissingRuntimeNodesError(["Image Saver"]), "LKS-NODE-1204"),
+            (workflow_bridge.FinalOutputNotFoundError("not found"), "LKS-GEN-1702"),
+            (self.structured("775", message="Permission denied"), "LKS-GEN-1703"),
+            (self.structured("775", message="No space left on device"), "LKS-GEN-1704"),
+            (self.structured("1541:1538", message="CUDA error: unknown error"), "LKS-GEN-1004"),
+        ]
+        for error, expected in cases:
+            with self.subTest(expected=expected):
+                self.assertEqual(expected, workflow_bridge.WorkflowBridge._public_error(error)[0])
+
+    def test_local_inpaint_stages_have_distinct_codes(self):
+        expected = {
+            "lakis:inpaint_mask_loader": "LKS-INP-1001",
+            "lakis:inpaint_v2_prepare": "LKS-INP-1002",
+            "lakis:inpaint_encode": "LKS-INP-1003",
+            "lakis:inpaint_lllite": "LKS-INP-1004",
+            "lakis:inpaint_color_match": "LKS-INP-1005",
+            "lakis:inpaint_final_composite": "LKS-INP-1006",
+        }
+        for node_id, code in expected.items():
+            with self.subTest(node_id=node_id):
+                error = self.structured(node_id, node_type="InpaintNode")
+                self.assertEqual(code, workflow_bridge.WorkflowBridge._public_error(error)[0])
+
+    def test_runtime_node_preflight_checks_every_unique_prompt_type(self):
+        prompt = {
+            "1": {"class_type": "Present", "inputs": {}},
+            "2": {"class_type": "MissingB", "inputs": {}},
+            "3": {"class_type": "MissingA", "inputs": {}},
+            "4": {"class_type": "MissingB", "inputs": {}},
+        }
+        self.assertEqual(
+            ["MissingA", "MissingB"],
+            workflow_bridge._missing_runtime_node_types(prompt, {"Present": {}}),
+        )
+
     def test_setting_error_preserves_live_node_declaration(self):
         prompt = json.loads((REPOSITORY_ROOT / "workflows" / "LAKIS_runtime_api_v7.4.json").read_text(encoding="utf-8"))
         node = prompt["890:905"]
@@ -123,7 +174,9 @@ class ErrorCodeTests(unittest.TestCase):
             nested.mkdir(parents=True)
             (nested / "new_lora.safetensors").write_bytes(b"test")
             (nested / "ignore.txt").write_text("ignored", encoding="utf-8")
-            with patch.object(workflow_bridge, "COMFY_ROOT", root):
+            # Isolate this inventory test from the real per-user shared-model
+            # fallback that may exist on the machine running the release gate.
+            with patch.object(workflow_bridge, "_model_roots", return_value=[root / "models" / "loras"]):
                 first = workflow_bridge.lora_inventory()
                 (root / "models" / "loras" / "style.pt").write_bytes(b"next")
                 second = workflow_bridge.lora_inventory()

@@ -1,4 +1,4 @@
-# LAKIS v7.4.0
+# LAKIS v7.4.4
 
 ## 주요 변경 사항
 
@@ -9,6 +9,11 @@
 - 모바일과 PC의 프롬프트 및 Composition 설정 유지 동작을 개선했습니다.
 - Local Inpaint V2와 Final Saver 775를 반영한 Editable, Runtime Visual, Runtime API workflow를 제공합니다.
 - 모델 감지, 최근 이미지 전달, Link Library 검색, Final Saver 결과 검색과 패처 패키징 문제를 수정했습니다.
+- 생성 오류를 요청 형식, 연결, 필수 노드, GPU, 저장 및 Local Inpaint 단계별 코드로 세분화했습니다.
+- 서버 연결 또는 비정상 응답에서도 설정과 원인 정보가 오류 보고에서 사라지지 않도록 개선했습니다.
+- 생성 요청 전에 필수 ComfyUI 노드를 확인하여 누락된 LLLite, Local Inpaint 및 Final Saver 노드를 즉시 안내합니다.
+- 공개 업데이트에 Local Inpaint V2용 `ComfyUI-Anima-LLLite` 실행 노드를 포함하고 안전 마커를 항상 복구하도록 수정했습니다.
+- 업데이트가 같은 파일을 설치한 뒤 삭제하지 못하도록 매니페스트 충돌 검사를 추가했습니다.
 - 폐기된 Light/DSINE 경로와 비공개 연구 기능을 공개 배포에서 제외했습니다.
 
 ## Local Inpaint 모델
@@ -17,7 +22,7 @@
 
 ## 업데이트 안전성
 
-v7.3.6에서 v7.4.0으로 업데이트할 수 있습니다. 사용자 모델, LoRA, workflow, 입력·출력 이미지, Library, 사용자 와일드카드와 설치별 설정은 유지됩니다.
+기존 v7.4.x 및 v7.3.6 설치에서 v7.4.4로 업데이트할 수 있습니다. 사용자 모델, LoRA, workflow, 입력·출력 이미지, Library, 사용자 와일드카드와 설치별 설정은 유지됩니다.
 
 ---
 
@@ -30,6 +35,11 @@ v7.3.6에서 v7.4.0으로 업데이트할 수 있습니다. 사용자 모델, Lo
 - Improved prompt and Composition persistence across desktop and mobile.
 - Updated the official Editable, Runtime Visual, and Runtime API workflows with Local Inpaint V2 and Final Saver 775.
 - Fixed model detection, recent-image delivery, Link Library discovery, Final Saver result discovery, and patcher packaging.
+- Split generation failures into precise request, transport, required-node, GPU, save, and Local Inpaint error codes.
+- Preserved settings and diagnostic details when the UI receives a connection failure or a non-JSON server response.
+- Added a preflight check for missing LLLite, Local Inpaint, and Final Saver nodes before submitting a generation request.
+- Added the `ComfyUI-Anima-LLLite` runtime nodes to public updates and ensured the required safety marker is restored.
+- Added manifest validation that rejects any path scheduled for both installation and deletion.
 - Removed retired Light/DSINE paths and private research features from the public distribution.
 
 The `anima-lllite-inpainting-v2.safetensors` weight is not bundled or downloaded automatically. Users install it manually from the official publisher.

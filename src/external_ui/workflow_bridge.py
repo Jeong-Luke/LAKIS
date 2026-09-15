@@ -297,6 +297,14 @@ def _comfy_object_info() -> dict[str, Any]:
     return _OBJECT_INFO_CACHE
 
 
+def _missing_runtime_node_types(prompt: dict[str, Any], object_info: dict[str, Any]) -> list[str]:
+    required_types = {
+        str(node.get("class_type") or "")
+        for node in prompt.values() if isinstance(node, dict)
+    }
+    return sorted(node_type for node_type in required_types if node_type and node_type not in object_info)
+
+
 def _enum_options(class_type: str, name: str, fallback: tuple[Any, ...] = (),
                   object_info: dict[str, Any] | None = None) -> list[Any]:
     info = object_info if object_info is not None else _comfy_object_info()
@@ -2264,6 +2272,13 @@ NODE_LABELS = {
     "1530:1826": "Face Detail", "1836:2069": "Eye Detail",
     "1836:2067": "Eye Detection", "1836:2066": "Eye Mask",
     "lakis:face_scope": "Face Scope", "1541:1538": "Upscale", FINAL_NODE: "Final Save",
+    "lakis:inpaint_mask_loader": "Inpaint Mask Load",
+    "lakis:inpaint_v2_prepare": "Local Inpaint Prepare",
+    "lakis:inpaint_encode": "Local Inpaint VAE Encode",
+    "lakis:inpaint_lllite": "LLLite Inpaint Apply",
+    "lakis:inpaint_lllite_highrez": "LLLite Inpaint HighRez Apply",
+    "lakis:inpaint_color_match": "Local Inpaint Color Match",
+    "lakis:inpaint_final_composite": "Local Inpaint Composite",
 }
 
 NODE_ERROR_CODES = {
@@ -2288,6 +2303,13 @@ NODE_ERROR_CODES = {
     "1836:2066": ("LKS-GEN-1502", "눈 마스크 처리 중 오류가 발생했어요."),
     "1541:1538": ("LKS-GEN-1601", "업스케일 단계에서 오류가 발생했어요."),
     "775": ("LKS-GEN-1701", "완성된 이미지를 저장하지 못했어요."),
+    "lakis:inpaint_mask_loader": ("LKS-INP-1001", "인페인트 마스크를 불러오지 못했어요."),
+    "lakis:inpaint_v2_prepare": ("LKS-INP-1002", "Local Inpaint 영역을 준비하지 못했어요."),
+    "lakis:inpaint_encode": ("LKS-INP-1003", "Local Inpaint 이미지를 VAE로 인코딩하지 못했어요."),
+    "lakis:inpaint_lllite": ("LKS-INP-1004", "LLLite Inpaint 모델을 적용하지 못했어요."),
+    "lakis:inpaint_lllite_highrez": ("LKS-INP-1004", "LLLite Inpaint 모델을 적용하지 못했어요."),
+    "lakis:inpaint_color_match": ("LKS-INP-1005", "Local Inpaint 색상 보정 중 오류가 발생했어요."),
+    "lakis:inpaint_final_composite": ("LKS-INP-1006", "Local Inpaint 결과를 원본에 합성하지 못했어요."),
 }
 
 
@@ -2312,6 +2334,25 @@ class SettingsValidationError(ValueError):
             "node_declaration": self.node_declaration,
             "internal_reason": self.internal_reason,
         }
+
+
+class MissingRuntimeNodesError(RuntimeError):
+    def __init__(self, node_types: list[str]):
+        self.node_types = tuple(sorted(set(node_types)))
+        super().__init__("ComfyUI runtime is missing required node types: " + ", ".join(self.node_types))
+
+
+class InvalidGenerationRequestError(ValueError):
+    def __init__(self, message: str, *, reason: str = "malformed_json"):
+        super().__init__(message)
+        self.reason = reason
+
+    def diagnostic(self) -> dict[str, Any]:
+        return {"request_validation_reason": self.reason}
+
+
+class FinalOutputNotFoundError(RuntimeError):
+    pass
 
 
 class GenerationExecutionError(RuntimeError):
@@ -2716,7 +2757,8 @@ class WorkflowBridge:
         node_id = getattr(error, "node_id", None)
         if isinstance(error, SettingsValidationError):
             return "LKS-CFG-1103", "세부 설정값이 해당 ComfyUI 노드의 입력 규격과 맞지 않아요."
-        if "fault failed: 2" in lowered or "vram allocation failed" in lowered:
+        if ("fault failed: 2" in lowered or "vram allocation failed" in lowered
+                or "cuda error: unknown error" in lowered or "torch.acceleratorerror" in lowered):
             return (
                 "LKS-GEN-1004",
                 "GPU 모델 메모리 상태가 불안정해 생성이 중단됐어요. "
@@ -2746,6 +2788,27 @@ class WorkflowBridge:
             return "LKS-MOD-1103", "선택한 VAE 파일을 찾을 수 없어요."
         if "unknown clip" in lowered:
             return "LKS-MOD-1104", "선택한 CLIP 파일을 찾을 수 없어요."
+        if isinstance(error, InvalidGenerationRequestError):
+            if error.reason == "empty_body":
+                return "LKS-CFG-1002", "생성 요청 내용이 비어 있어 처리하지 못했어요."
+            if error.reason == "body_too_large":
+                return "LKS-CFG-1003", "생성 요청 데이터가 허용 크기를 초과했어요."
+            return "LKS-CFG-1001", "생성 요청 데이터가 올바르지 않아 읽지 못했어요."
+        if isinstance(error, MissingRuntimeNodesError):
+            missing = set(error.node_types)
+            if "AnimaLLLiteApply_sdscripts" in missing:
+                return "LKS-NODE-1202", "인페인트 실행 노드가 설치되지 않았거나 로드되지 않았어요."
+            if missing & {"LAKIS_LocalInpaintPrepare", "LAKIS_LocalInpaintComposite"}:
+                return "LKS-NODE-1203", "LAKIS Local Inpaint 노드가 설치되지 않았거나 로드되지 않았어요."
+            if "Image Saver" in missing:
+                return "LKS-NODE-1204", "최종 이미지 저장 노드가 설치되지 않았거나 로드되지 않았어요."
+            return "LKS-NODE-1201", "생성에 필요한 ComfyUI 사용자 노드가 설치되지 않았거나 로드되지 않았어요."
+        if isinstance(error, FinalOutputNotFoundError):
+            return "LKS-GEN-1702", "저장 완료 응답에서 생성된 이미지 파일을 찾지 못했어요."
+        if ("permission denied" in lowered or "access is denied" in lowered) and node_id == FINAL_NODE:
+            return "LKS-GEN-1703", "이미지 파일을 저장할 권한이 없거나 같은 파일을 다른 프로그램이 사용 중이에요."
+        if ("no space left" in lowered or "disk full" in lowered) and node_id == FINAL_NODE:
+            return "LKS-GEN-1704", "저장 공간이 부족해 이미지를 저장하지 못했어요."
         if "i2i 입력 이미지를 다시 선택" in detail:
             return "LKS-I2I-1101", "i2i 입력 이미지를 다시 선택해 주세요."
         if "unsupported sampler" in lowered:
@@ -2781,6 +2844,15 @@ class WorkflowBridge:
                 queue = await response.json()
             if queue.get("queue_running") or queue.get("queue_pending"):
                 raise RuntimeError("ComfyUI queue is not empty")
+            async with session.get(COMFY_SERVER + "/object_info", timeout=15) as response:
+                if response.status >= 400:
+                    raise RuntimeError(f"ComfyUI node inventory unavailable: HTTP {response.status}")
+                object_info = await response.json()
+            missing_types = _missing_runtime_node_types(prompt, object_info)
+            if missing_types:
+                _audit("external_ui_generation_missing_runtime_nodes", node_types=missing_types,
+                       request_id=token["request_id"])
+                raise MissingRuntimeNodesError(missing_types)
             if self.status.cancel_requested:
                 self.status.update(state="cancelled", stage="중지됨", finished_at=time.time())
                 return
@@ -3030,7 +3102,7 @@ class WorkflowBridge:
                 break
             await asyncio.sleep(0.25)
         if not candidates:
-            raise RuntimeError(
+            raise FinalOutputNotFoundError(
                 "Final Saver 775 completed but no current-request output file was found; "
                 f"searched={','.join(str(root) for root in roots)} threshold={threshold}"
             )

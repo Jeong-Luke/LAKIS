@@ -1993,6 +1993,38 @@ function showGenerationError(message, errorCode = "", context = {}) {
   showDevModal({type:"ERROR", title:"생성 오류", message:displayMessage, copyError:true, focusTarget:generateButton});
 }
 
+function clientGenerationDiagnostics(payload) {
+  const source = payload && typeof payload === "object" ? payload : {};
+  const inpaint = source.inpaint && typeof source.inpaint === "object" ? source.inpaint : {};
+  const i2i = source.i2i && typeof source.i2i === "object" ? source.i2i : {};
+  return {
+    generation: structuredClone(source.generation || {}),
+    model: structuredClone(source.model || {}),
+    output: structuredClone(source.output || {}),
+    loras_enabled: Boolean(source.lora_enabled ?? source.loras_enabled ?? true),
+    loras: Array.isArray(source.loras) ? structuredClone(source.loras) : [],
+    camera: structuredClone(source.camera || {}),
+    i2i: {
+      enabled: Boolean(i2i.enabled),
+      has_source: Boolean(i2i.image || i2i.source || i2i.filename),
+      denoise: i2i.denoise ?? null,
+      source_size_enabled: Boolean(i2i.source_size_enabled),
+    },
+    inpaint: {
+      enabled: Boolean(inpaint.enabled),
+      has_source: Boolean(inpaint.source_image || inpaint.source || inpaint.source_filename),
+      has_mask: Boolean(inpaint.mask_image || inpaint.mask || inpaint.mask_filename),
+      has_prompt: Boolean(String(inpaint.prompt || "").trim()),
+      has_negative_prompt: Boolean(String(inpaint.negative_prompt || "").trim()),
+      operation: inpaint.operation || null,
+      denoise: inpaint.denoise ?? null,
+      strength: inpaint.strength ?? null,
+      grow_mask_by: inpaint.grow_mask_by ?? null,
+    },
+    advanced_node_settings: structuredClone(source.advanced_node_settings || {}),
+  };
+}
+
 function closeGenerationError() {
   closeDevModal("close");
 }
@@ -2290,7 +2322,19 @@ window.addEventListener("lakis:generate", async event => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(event.detail)
     });
-    const result = await response.json();
+    const responseText = await response.text();
+    let result;
+    try {
+      result = responseText ? JSON.parse(responseText) : {};
+    } catch (_) {
+      const failure = new Error(`생성 서버 응답을 읽지 못했어요. (HTTP ${response.status})`);
+      failure.lakis = {
+        error_code: "LKS-GEN-1011",
+        error_stage: "생성 요청 응답",
+        error_detail: `Non-JSON response (HTTP ${response.status}): ${responseText.slice(0, 1000)}`,
+      };
+      throw failure;
+    }
     if (!response.ok || !result.ok) {
       const failure = new Error(result.error || `HTTP ${response.status}`);
       failure.lakis = result;
@@ -2298,13 +2342,16 @@ window.addEventListener("lakis:generate", async event => {
     }
     lastGenerationState = "preparing";
   } catch (error) {
-    showGenerationError(error.message, error.lakis?.error_code, {
-      stage: error.lakis?.error_stage || "요청 검증",
+    const transportFailure = !error.lakis;
+    showGenerationError(error.message, error.lakis?.error_code || (transportFailure ? "LKS-GEN-1012" : ""), {
+      stage: error.lakis?.error_stage || (transportFailure ? "생성 서버 연결" : "요청 검증"),
       nodeId: error.lakis?.error_node_id, nodeType: error.lakis?.error_node_type,
       requestId: error.lakis?.request_id,
       settingDiagnostic: error.lakis?.setting_diagnostic,
-      diagnostics: error.lakis?.diagnostic_context,
-      errorDetail: error.lakis?.error_detail,
+      diagnostics: error.lakis?.diagnostic_context || clientGenerationDiagnostics(event.detail),
+      errorDetail: error.lakis?.error_detail || (transportFailure
+        ? `Frontend request failure: ${error.name || "Error"}: ${error.message || String(error)}`
+        : null),
     });
   } finally {
     generationSubmissionPending = false;

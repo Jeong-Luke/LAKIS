@@ -35,6 +35,7 @@ if str(UI_ROOT) not in sys.path:
     sys.path.insert(0, str(UI_ROOT))
 
 from workflow_bridge import (
+    InvalidGenerationRequestError,
     LOCAL_INPAINT_V2,
     WorkflowBridge,
     lora_inventory,
@@ -1339,8 +1340,10 @@ class Handler(SimpleHTTPRequestHandler):
 
     def _read_json(self, max_size: int = 1_000_000) -> dict:
         size = int(self.headers.get("Content-Length", "0"))
-        if size <= 0 or size > max_size:
-            raise ValueError("Invalid request size")
+        if size <= 0:
+            raise ValueError("Request body is empty")
+        if size > max_size:
+            raise ValueError(f"Request body exceeds {max_size} bytes")
         return json.loads(self.rfile.read(size).decode("utf-8"))
 
     def do_POST(self) -> None:  # noqa: N802
@@ -1552,8 +1555,23 @@ class Handler(SimpleHTTPRequestHandler):
                 self._send_json(400, {"ok": False, "error": "모델 설정을 저장하지 못했어요."})
             return
         if self.path == "/api/generate":
-            incoming = self._read_json()
+            incoming: dict[str, Any] = {}
             try:
+                try:
+                    parsed = self._read_json()
+                except (json.JSONDecodeError, UnicodeDecodeError, ValueError) as error:
+                    detail = str(error)
+                    reason = (
+                        "empty_body" if "body is empty" in detail
+                        else "body_too_large" if "body exceeds" in detail
+                        else "malformed_json"
+                    )
+                    raise InvalidGenerationRequestError(
+                        f"Invalid generation request JSON: {error}", reason=reason
+                    ) from error
+                if not isinstance(parsed, dict):
+                    raise InvalidGenerationRequestError("Generation request body must be a JSON object")
+                incoming = parsed
                 inpaint = incoming.get("inpaint") if isinstance(incoming.get("inpaint"), dict) else {}
                 if bool(inpaint.get("enabled")):
                     weight = lllite_inpaint_weight_status()
@@ -1561,7 +1579,7 @@ class Handler(SimpleHTTPRequestHandler):
                         self._send_json(409, {
                             **weight,
                             "ok": False,
-                            "error_code": "LAKIS_LLLITE_WEIGHT_REQUIRED",
+                            "error_code": "LKS-INP-1101",
                             "error_stage": "요청 검증",
                             "error": "Anima LLLite Inpainting 모델을 공식 배포처에서 직접 설치해 주세요.",
                         })

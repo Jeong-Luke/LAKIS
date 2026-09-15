@@ -85,6 +85,16 @@ try {
             Write-Output ("VERIFIED pass={0}/{1} file={2}/{3}: {4}" -f $pass, $Passes, ($index + 1), $manifest.files.Count, $path)
         }
     }
+    $deleteSeen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($deletePathValue in @($manifest.delete)) {
+        $deletePath = [string]$deletePathValue
+        if ([string]::IsNullOrWhiteSpace($deletePath) -or [System.IO.Path]::IsPathRooted($deletePath) -or
+            $deletePath.Replace('\', '/').Split('/') -contains '..') {
+            throw "Unsafe or empty delete path: $deletePath"
+        }
+        if (-not $deleteSeen.Add($deletePath)) { throw "Duplicate delete path: $deletePath" }
+        if ($seen.Contains($deletePath)) { throw "Manifest installs and deletes the same path: $deletePath" }
+    }
 }
 finally {
     if (Test-Path -LiteralPath $temporaryRoot) { Remove-Item -LiteralPath $temporaryRoot -Recurse -Force }
