@@ -1,5 +1,30 @@
 # Release notes
 
+## v7.4.6 updater hardening backlog
+
+- Add long-path-safe rollback storage for deeply nested installations.
+- Preserve the primary ApplyUpdate exception when rollback also fails.
+
+## Next release (unreleased)
+
+### Link Library mobile detail navigation
+
+- Added a dedicated detail header above enlarged Library images in LAKIS, DEKIS, and LUKIS Link.
+- Added a mobile-safe close button that returns to the existing Library list without overlapping the image.
+
+### Inpaint removal runtime node
+
+- Added and registered the missing `LAKIS_INPAINT_COLOR_MATCH` node used by removal-mode inpaint.
+- Prevented `LKS-NODE-1201` from blocking an inpaint request before it reaches ComfyUI.
+
+### Anima checkpoint compatibility detection
+
+- Fixed `LKS-MOD-1102` incorrectly rejecting Anima checkpoints whose filenames do not contain `anima` and which have no Civitai sidecar metadata.
+- Added safe Anima architecture detection from the small safetensors JSON header without loading the model weights into memory.
+- Verified the fix directly against the official header of `screenChantvMerge_v11.safetensors` from Civitai model version `3327430`.
+- Preserved rejection for non-Anima tensor layouts, malformed safetensors files, and unsupported checkpoint formats without reliable metadata.
+- Added the model-compatibility cases to the release regression gate; all 15 error-code and compatibility tests pass.
+
 ## v7.4.0
 
 ### Local Inpaint V2, LAKIS Link, Library, and workflow updates
@@ -100,3 +125,10 @@
   - binaries rebuilt and the 51-file update manifest regenerated;
   - both workflow choices pass the empty-user-workflow regression test;
   - the installer compiles with both application-owned workflows included.
+## Missing-node error report completeness
+
+- Missing-node reports now place `error_detail` before the potentially large
+  settings snapshot, so copied reports retain the exact missing node type.
+- Long advanced-setting strings such as LoRA preset databases are represented
+  by their character count instead of being copied in full. This keeps reports
+  small without removing generation settings needed for diagnosis.

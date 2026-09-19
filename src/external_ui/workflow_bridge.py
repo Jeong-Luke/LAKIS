@@ -10,12 +10,13 @@ from __future__ import annotations
 import asyncio
 from copy import deepcopy
 from dataclasses import dataclass, field
+from functools import wraps
 import hashlib
 import importlib.util
 import json
 import math
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 import re
 import struct
 import threading
@@ -26,6 +27,11 @@ from urllib.request import Request, urlopen
 import uuid
 
 import aiohttp
+
+try:
+    from PIL import Image
+except ImportError:
+    Image = None
 
 try:
     import yaml
@@ -85,11 +91,14 @@ GENERATION_STALL_SECONDS = 300
 
 def configured_output_root() -> Path:
     try:
-        payload = json.loads(OUTPUT_LOCATION_PATH.read_text(encoding="utf-8"))
-        candidate = Path(str(payload.get("path") or "")).expanduser().resolve()
-        if candidate.is_dir():
-            return candidate
-    except (OSError, ValueError, TypeError, json.JSONDecodeError):
+        payload = json.loads(OUTPUT_LOCATION_PATH.read_text(encoding="utf-8-sig"))
+        raw = payload.get("path") if isinstance(payload, dict) else None
+        if isinstance(raw, str) and raw.strip():
+            candidate = Path(raw).expanduser()
+            # Empty/relative configuration is not permission to scan CWD.
+            if candidate.is_absolute() and candidate.is_dir():
+                return candidate.resolve()
+    except (OSError, ValueError, TypeError):
         pass
     return OUTPUT_ROOT.resolve()
 
@@ -106,6 +115,26 @@ def _ui_state_path_for_install(install_root: Path, user_state_root: Path = USER_
 
 
 UI_STATE_PATH = _ui_state_path_for_install(COMFY_ROOT.parent)
+# A journal belongs to one installation, just like its durable settings. Leave
+# legacy unscoped journals untouched: they do not identify their installation.
+GENERATION_JOURNAL_PATH = UI_STATE_PATH.with_name("generation-runtime-journal.json")
+_UI_STATE_LOCK = threading.RLock()
+
+
+def _state_transaction(function):
+    """Serialize the complete read/merge/replace transaction in this process.
+
+    Atomic rename alone prevents torn JSON, not lost updates. The same RLock
+    also covers legacy migration and nested load/save helpers. Separate bridge
+    processes and stale same-field client revisions require separate arbitration.
+    """
+    @wraps(function)
+    def guarded(*args, **kwargs):
+        with _UI_STATE_LOCK:
+            return function(*args, **kwargs)
+    return guarded
+
+
 UPSCALER_CHOICE_PATH = USER_STATE_ROOT / "upscaler-license-choice.json"
 LEGACY_UPSCALER_CHOICE_PATH = COMFY_ROOT.parent / ".lakis" / "upscaler-license-choice.json"
 REALESRGAN_MODEL = "RealESRGAN_x4plus_anime_6B.pth"
@@ -303,6 +332,23 @@ def _missing_runtime_node_types(prompt: dict[str, Any], object_info: dict[str, A
         for node in prompt.values() if isinstance(node, dict)
     }
     return sorted(node_type for node_type in required_types if node_type and node_type not in object_info)
+
+
+def _validate_live_prompt_models(prompt: dict[str, Any], object_info: dict[str, Any]) -> None:
+    """Reject stale UI selections before consuming allowance or calling /prompt."""
+    checks = (
+        ("890:1365", "DiffusionModelLoaderKJ", "model_name", "Unknown diffusion model"),
+        ("890:159", "VAELoader", "vae_name", "Unknown VAE"),
+        ("890:164", "CLIPLoader", "clip_name", "Unknown CLIP"),
+    )
+    for node_id, class_type, input_name, label in checks:
+        node = prompt.get(node_id)
+        if not isinstance(node, dict):
+            continue
+        selected = str(node.get("inputs", {}).get(input_name, ""))
+        allowed = _live_loader_inventory(class_type, input_name, object_info)
+        if not selected or selected not in allowed:
+            raise ValueError(f"{label}: {selected}")
 
 
 def _enum_options(class_type: str, name: str, fallback: tuple[Any, ...] = (),
@@ -628,6 +674,7 @@ def load_external_prompt_enabled() -> dict[str, bool]:
     return {key: enabled.get(key, True) is not False for key in PROMPT_STATE_KEYS}
 
 
+@_state_transaction
 def load_external_prompt_bundle() -> dict[str, Any]:
     """Return the durable raw prompt state shared by PC and LAKIS Link."""
     payload = _load_external_ui_payload()
@@ -654,6 +701,7 @@ def load_external_prompt_bundle() -> dict[str, Any]:
     }
 
 
+@_state_transaction
 def save_external_prompt_state(
     prompt: Any,
     prompt_enabled: Any = None,
@@ -706,6 +754,7 @@ def save_external_prompt_state(
     return load_external_prompt_bundle()
 
 
+@_state_transaction
 def _load_external_ui_payload() -> dict[str, Any]:
     if UI_STATE_PATH.is_file():
         source = UI_STATE_PATH
@@ -737,6 +786,7 @@ def _load_external_ui_payload() -> dict[str, Any]:
     return payload
 
 
+@_state_transaction
 def _write_external_ui_payload(payload: dict[str, Any]) -> None:
     UI_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
     temporary = UI_STATE_PATH.with_name(f".{UI_STATE_PATH.name}.{uuid.uuid4().hex}.tmp")
@@ -750,6 +800,7 @@ def _write_external_ui_payload(payload: dict[str, Any]) -> None:
             pass
 
 
+@_state_transaction
 def remove_persisted_upscaler_override() -> bool:
     """Remove the legacy advanced override now governed by licence choice."""
     payload = _load_external_ui_payload()
@@ -765,6 +816,7 @@ def remove_persisted_upscaler_override() -> bool:
     return True
 
 
+@_state_transaction
 def load_external_generation_state() -> dict[str, Any]:
     payload = _load_external_ui_payload()
     model = payload.get("model", {})
@@ -819,6 +871,7 @@ def load_external_generation_state() -> dict[str, Any]:
     }
 
 
+@_state_transaction
 def save_external_generation_state(
     model: Any, output: Any, loras: Any = None, lora_enabled: Any = True,
     node_overrides: Any = None, generation: Any = None,
@@ -899,12 +952,6 @@ def _model_roots(folder: str) -> list[Path]:
     shared_override = os.environ.get("LAKIS_SHARED_MODELS_ROOT", "").strip()
     if shared_override:
         roots.append(Path(shared_override) / folder)
-    local_app_data = Path(os.environ.get("LOCALAPPDATA", ""))
-    if str(local_app_data):
-        # Companion installations may be present without their
-        # generated extra_model_paths.yaml.  LAKIS remains the canonical model
-        # library, so retain this deterministic repair fallback as well.
-        roots.append(local_app_data / "Programs" / "LAKIS" / "ComfyUI" / "models" / folder)
     config_path = COMFY_ROOT / "extra_model_paths.yaml"
     if yaml is not None and config_path.is_file():
         try:
@@ -944,8 +991,76 @@ def _model_files(folder: str) -> list[str]:
     return sorted(names.values(), key=str.casefold)
 
 
+def _live_loader_inventory(class_type: str, input_name: str,
+                           object_info: dict[str, Any] | None = None) -> list[str]:
+    """Return only filenames registered by the active ComfyUI loader."""
+    values = _enum_options(class_type, input_name, (), object_info)
+    return [str(value) for value in values if isinstance(value, str) and value]
+
+
+def _live_model_inventories(object_info: dict[str, Any] | None = None) -> dict[str, list[str]]:
+    info = object_info if object_info is not None else _comfy_object_info()
+    return {
+        "checkpoint": _live_loader_inventory("DiffusionModelLoaderKJ", "model_name", info),
+        "vae": _live_loader_inventory("VAELoader", "vae_name", info),
+        "clip": _live_loader_inventory("CLIPLoader", "clip_name", info),
+    }
+
+
+def _live_lora_inventory(object_info: dict[str, Any] | None = None) -> list[str]:
+    info = object_info if object_info is not None else _comfy_object_info()
+    return _live_loader_inventory("LoraLoader", "lora_name", info)
+
+
+def _select_live_model(saved: Any, canonical: Any, options: list[str]) -> str:
+    saved_name = str(saved or "")
+    canonical_name = str(canonical or "")
+    if saved_name in options:
+        return saved_name
+    if canonical_name in options:
+        return canonical_name
+    return options[0] if options else ""
+
+
+SAFETENSORS_MAX_HEADER_BYTES = 16 * 1024 * 1024
+ANIMA_TENSOR_SIGNATURE = {
+    "net.x_embedder.proj.1.weight": [2048, 68],
+    "net.blocks.0.cross_attn.k_proj.weight": [2048, 1024],
+    "net.blocks.27.self_attn.q_proj.weight": [2048, 2048],
+    "net.final_layer.linear.weight": [64, 2048],
+}
+
+
+def _safetensors_has_anima_architecture(model_path: Path) -> bool:
+    """Inspect only the safetensors JSON header for the Anima DiT signature."""
+    if model_path.suffix.lower() != ".safetensors" or not model_path.is_file():
+        return False
+    try:
+        with model_path.open("rb") as stream:
+            raw_length = stream.read(8)
+            if len(raw_length) != 8:
+                return False
+            header_length = struct.unpack("<Q", raw_length)[0]
+            if header_length < 2 or header_length > SAFETENSORS_MAX_HEADER_BYTES:
+                return False
+            header = json.loads(stream.read(header_length))
+    except (OSError, ValueError, TypeError, struct.error, json.JSONDecodeError):
+        return False
+    if not isinstance(header, dict):
+        return False
+    key_variants = (
+        lambda name: name,
+        lambda name: "model.diffusion_model." + name.removeprefix("net."),
+    )
+    return any(all(
+        isinstance(header.get(key_for(name)), dict)
+        and header[key_for(name)].get("shape") == shape
+        for name, shape in ANIMA_TENSOR_SIGNATURE.items()
+    ) for key_for in key_variants)
+
+
 def _is_anima_checkpoint(checkpoint: str) -> bool:
-    """Identify Anima derivatives without relying only on their filename."""
+    """Identify Anima derivatives by name, sidecar metadata, or tensor layout."""
     if "anima" in checkpoint.lower():
         return True
     model_paths = [root / checkpoint for root in _model_roots("diffusion_models")]
@@ -966,16 +1081,14 @@ def _is_anima_checkpoint(checkpoint: str) -> bool:
                 air = metadata["civitai"].get("air")
             if "anima" in str(base_model or "").lower() or "urn:air:anima:" in str(air or "").lower():
                 return True
+        if _safetensors_has_anima_architecture(model_path):
+            return True
     return False
 
 
 def model_inventory() -> dict[str, Any]:
     """Return live model lists without modifying the user's saved selections."""
-    inventories = {
-        "checkpoint": _model_files("diffusion_models"),
-        "vae": _model_files("vae"),
-        "clip": _model_files("text_encoders"),
-    }
+    inventories = _live_model_inventories()
     signature_source = "\n".join(
         f"{kind}:{value}"
         for kind, values in inventories.items()
@@ -989,7 +1102,7 @@ def model_inventory() -> dict[str, Any]:
 
 def lora_inventory() -> dict[str, Any]:
     """Return the live LoRA inventory without touching persisted UI state."""
-    options = _model_files("loras")
+    options = _live_lora_inventory()
     signature = hashlib.sha256("\n".join(options).encode("utf-8")).hexdigest()
     return {"options": options, "signature": signature, "count": len(options)}
 
@@ -999,24 +1112,19 @@ def workflow_configuration() -> dict[str, Any]:
     object_info = _comfy_object_info()
     prompt_defaults = dict(FIRST_RUN_PROMPT)
     prompt_defaults.update(load_external_prompt_state())
-    checkpoint_options = _model_files("diffusion_models")
+    inventories = _live_model_inventories(object_info)
+    checkpoint_options = inventories["checkpoint"]
     saved = load_external_generation_state()
     saved_model = saved["model"]
     saved_output = saved["output"]
     checkpoint_default = DEFAULT_CHECKPOINT if DEFAULT_CHECKPOINT in checkpoint_options else template["890:1365"]["inputs"]["model_name"]
-    checkpoint = saved_model.get("checkpoint", checkpoint_default)
-    if checkpoint not in checkpoint_options:
-        checkpoint = checkpoint_default
-    vae_options = _model_files("vae")
+    checkpoint = _select_live_model(saved_model.get("checkpoint"), checkpoint_default, checkpoint_options)
+    vae_options = inventories["vae"]
     vae_default = template["890:159"]["inputs"]["vae_name"]
-    vae = saved_model.get("vae", vae_default)
-    if vae not in vae_options:
-        vae = vae_default
-    clip_options = _model_files("text_encoders")
+    vae = _select_live_model(saved_model.get("vae"), vae_default, vae_options)
+    clip_options = inventories["clip"]
     clip_default = template["890:164"]["inputs"]["clip_name"]
-    clip = saved_model.get("clip", clip_default)
-    if clip not in clip_options:
-        clip = clip_default
+    clip = _select_live_model(saved_model.get("clip"), clip_default, clip_options)
     sampler_options = _enum_options("KSampler", "sampler_name", SAMPLER_OPTIONS, object_info)
     scheduler_options = _enum_options("KSampler", "scheduler", SCHEDULER_OPTIONS, object_info)
     sampler = str(saved_model.get("sampler", "euler_ancestral"))
@@ -1078,7 +1186,7 @@ def _saved_lora_configuration() -> dict[str, Any]:
     preset = next(node for node in workflow.get("nodes", []) if str(node.get("id")) == "1925")
     widgets = preset["widgets_values"]
     profile_index = int(widgets[1])
-    available = _model_files("loras")
+    available = _live_lora_inventory()
     available_by_key = {name.replace("/", "\\").casefold(): name for name in available}
     configured: list[dict[str, Any]] = []
     saved_lora = _load_external_ui_payload().get("lora", {})
@@ -1260,7 +1368,7 @@ def _inject_loras(prompt: dict[str, Any], requested: Any, globally_enabled: bool
     if len(requested) > 64:
         raise ValueError("At most 64 LoRAs may be configured")
 
-    available = _model_files("loras")
+    available = _live_lora_inventory()
     canonical = {name.replace("/", "\\").lower(): name for name in available}
     rows: list[dict[str, Any]] = []
     for index, item in enumerate(requested):
@@ -2351,8 +2459,96 @@ class InvalidGenerationRequestError(ValueError):
         return {"request_validation_reason": self.reason}
 
 
+def _final_image_records(value: Any) -> list[dict[str, str]]:
+    """Accept valid Final Saver descriptors, not malformed values or paths."""
+    pending = [value]
+    result = []
+    examined = 0
+    while pending and examined < 10000:
+        current = pending.pop()
+        examined += 1
+        if isinstance(current, dict):
+            filename = current.get("filename")
+            subfolder = current.get("subfolder", "")
+            image_type = current.get("type", "output")
+            if isinstance(filename, str) and filename and isinstance(subfolder, str):
+                normalized = subfolder.replace("\\", "/")
+                if (filename == Path(filename).name and "/" not in filename and "\\" not in filename
+                        and ":" not in filename and filename not in {".", ".."}
+                        and not PureWindowsPath(normalized).drive
+                        and not PurePosixPath(normalized).is_absolute()
+                        and ".." not in PurePosixPath(normalized).parts
+                        and isinstance(image_type, str) and image_type in {"output", "temp"}):
+                    result.append({"filename": filename, "subfolder": subfolder, "type": image_type})
+            else:
+                pending.extend(reversed(list(current.values())))
+        elif isinstance(current, list):
+            pending.extend(reversed(current))
+    return result
+
+
+def _output_belongs_to_request(path: Path, request_id: str) -> bool:
+    """Read embedded prompt metadata, without decoding pixels or changing files."""
+    if Image is None or not request_id:
+        return False
+    try:
+        with Image.open(path) as image:
+            raw_values = [image.info.get("prompt"), image.getexif().get(272)]
+            for raw in raw_values:
+                if not isinstance(raw, str) or len(raw) > 4 * 1024 * 1024:
+                    continue
+                # PNG stores a raw JSON graph; a prompt string inside that graph
+                # may itself contain the text "prompt:". Only strip the EXIF
+                # prefix when the metadata is not already a JSON object.
+                encoded = raw.lstrip()
+                if not encoded.startswith("{"):
+                    marker = encoded.find("prompt:")
+                    if marker < 0:
+                        continue
+                    encoded = encoded[marker + 7:].lstrip()
+                try:
+                    graph, _ = json.JSONDecoder().raw_decode(encoded.lstrip())
+                except ValueError:
+                    continue
+                final = graph.get(FINAL_NODE) if isinstance(graph, dict) else None
+                meta = final.get("_meta") if isinstance(final, dict) else None
+                if isinstance(meta, dict) and meta.get("lakis_request_id") == request_id:
+                    return True
+    except (OSError, ValueError, TypeError, SyntaxError):
+        pass
+    return False
+
+
 class FinalOutputNotFoundError(RuntimeError):
     pass
+
+
+class PromptRejectedError(RuntimeError):
+    """A definite HTTP rejection, with ComfyUI's node errors preserved."""
+    def __init__(self, status: int, payload: Any) -> None:
+        self.http_status = status
+        self.payload = payload
+        self.failure_stage = "ComfyUI 요청 검증"
+        self.node_id = None
+        self.node_type = None
+        if isinstance(payload, dict):
+            nodes = payload.get("node_errors")
+            if isinstance(nodes, dict) and len(nodes) == 1:
+                node_id, node = next(iter(nodes.items()))
+                self.node_id = str(node_id)
+                if isinstance(node, dict):
+                    self.node_type = node.get("class_type")
+        super().__init__(f"ComfyUI /prompt rejected: HTTP {status}; "
+                         + json.dumps(payload, ensure_ascii=False)[:3500])
+
+    def diagnostic(self) -> dict[str, Any]:
+        return {"http_status": self.http_status, "comfy_error": self.payload}
+
+
+class SubmissionOutcomeUnknownError(RuntimeError):
+    """No safe retry: the backend may already be executing this request."""
+    submission_outcome_unknown = True
+    failure_stage = "ComfyUI 요청 상태 확인"
 
 
 class GenerationExecutionError(RuntimeError):
@@ -2395,6 +2591,7 @@ class GenerationState:
     error_node_id: str | None = None
     error_node_type: str | None = None
     error_exception_type: str | None = None
+    setting_diagnostic: dict[str, Any] | None = None
     request_id: str | None = None
     diagnostic_context: dict[str, Any] = field(default_factory=dict)
     mode: str | None = None
@@ -2405,6 +2602,7 @@ class GenerationState:
     finished_at: float | None = None
     cancel_requested: bool = False
     prompt_requests: int = 0
+    submission_unresolved: bool = False
     preview_revision: int = 0
     preview_frames: int = 0
     preview_mime: str | None = None
@@ -2427,6 +2625,8 @@ class GenerationState:
 class WorkflowBridge:
     def __init__(self) -> None:
         self.status = GenerationState()
+        self._job_lock = threading.RLock()
+        self._active_request_id: str | None = None
         self._worker: threading.Thread | None = None
         self._consumed_allowance: Path | None = None
         self._preview_lock = threading.Lock()
@@ -2557,24 +2757,56 @@ class WorkflowBridge:
     def _write_generation_journal(self) -> None:
         snapshot = self.status.snapshot()
         if snapshot.get("state") not in {"preparing", "running", "cancelling"}:
-            self._clear_generation_journal()
+            # Only the owner is allowed to clear its journal.
+            self._clear_generation_journal(snapshot.get("request_id"))
             return
         GENERATION_JOURNAL_PATH.parent.mkdir(parents=True, exist_ok=True)
-        temporary = GENERATION_JOURNAL_PATH.with_suffix(".tmp")
+        temporary = GENERATION_JOURNAL_PATH.with_name(
+            f".{GENERATION_JOURNAL_PATH.name}.{uuid.uuid4().hex}.tmp")
         safe = {key: snapshot.get(key) for key in (
             "state", "request_id", "prompt_id", "stage", "mode", "i2i_enabled",
             "started_at", "last_activity_at", "last_node_started_at",
             "last_node_id", "last_node_type", "diagnostic_context",
         )}
-        temporary.write_text(json.dumps(safe, ensure_ascii=False, indent=2), encoding="utf-8")
-        os.replace(temporary, GENERATION_JOURNAL_PATH)
+        try:
+            temporary.write_text(json.dumps(safe, ensure_ascii=False, indent=2), encoding="utf-8")
+            os.replace(temporary, GENERATION_JOURNAL_PATH)
+        finally:
+            temporary.unlink(missing_ok=True)
 
     @staticmethod
-    def _clear_generation_journal() -> None:
+    def _clear_generation_journal(request_id: str | None = None) -> bool:
         try:
+            if not GENERATION_JOURNAL_PATH.exists():
+                return True
+            if request_id is not None:
+                saved = json.loads(GENERATION_JOURNAL_PATH.read_text(encoding="utf-8"))
+                if not isinstance(saved, dict) or saved.get("request_id") != request_id:
+                    return False
             GENERATION_JOURNAL_PATH.unlink(missing_ok=True)
-        except OSError as error:
+            return True
+        except (OSError, ValueError, TypeError) as error:
             _audit("external_ui_generation_journal_clear_failed", error=repr(error))
+            return False
+
+
+    def _cleanup_request_files(self, request_id: str) -> bool:
+        """Never delete a file created for another request. Caller holds _job_lock."""
+        clean = True
+        for path in (ALLOW_FILE, DEV_ROOT / f".ALLOW_ONE_GENERATION.consumed.{request_id}"):
+            try:
+                if not path.exists():
+                    continue
+                token = json.loads(path.read_text(encoding="utf-8"))
+                if not isinstance(token, dict) or token.get("request_id") != request_id:
+                    clean = False
+                    _audit("external_ui_cleanup_owner_mismatch", request_id=request_id)
+                    continue
+                path.unlink(missing_ok=True)
+            except (OSError, ValueError, TypeError) as error:
+                clean = False
+                _audit("external_ui_cleanup_failed", request_id=request_id, error=repr(error))
+        return self._clear_generation_journal(request_id) and clean
 
     def _recover_interrupted_generation(self) -> None:
         if not GENERATION_JOURNAL_PATH.is_file():
@@ -2626,52 +2858,88 @@ class WorkflowBridge:
             self.status.preview_mime = mime
 
     def start(self, application_state: dict[str, Any]) -> dict[str, Any]:
-        with self.status.lock:
-            if self.status.state in {"preparing", "running", "cancelling"}:
-                raise RuntimeError("A LAKIS generation is already active")
-        if not STOP_FILE.is_file():
-            raise RuntimeError("STOP_AUTOMATION safety lock is missing")
-        prompt, preflight = build_prompt(application_state)
-        prompt_used = deepcopy(application_state.get("prompt", {}))
-        prompt_used["composition"] = str(preflight.get("camera_prompt") or "")
-        wildcard_metadata = application_state.get("wildcard", {})
-        if isinstance(wildcard_metadata, dict):
-            prompt_used["wildcard"] = deepcopy(wildcard_metadata)
-        self._clear_preview()
-        token = {"request_id": uuid.uuid4().hex, "created_at": time.time(), "source": "external_ui_click"}
-        with ALLOW_FILE.open("x", encoding="utf-8") as stream:
-            json.dump(token, stream)
-        diagnostic_context = self._diagnostic_context(application_state)
-        generation_state = application_state.get("generation", {})
-        effective_mode = (
-            "lakis_detail"
-            if generation_state.get("mode") == "detail" and _coerce_bool(generation_state.get("lakis_mode", False))
-            else generation_state.get("mode", "fast")
-        )
-        self.status.update(state="preparing", percent=0.0, stage="생성 중", prompt_id=None,
-                           preview_frames=0, preview_mime=None,
-                           output_url=None, error=None, error_code=None, error_detail=None,
-                           error_stage=None, error_node_id=None, error_node_type=None,
-                           error_exception_type=None, request_id=token["request_id"],
-                           diagnostic_context=diagnostic_context,
-                           mode=effective_mode,
-                           i2i_enabled=_coerce_bool(application_state.get("i2i", {}).get("enabled", False)),
-                           prompt_used=prompt_used,
-                           seed=int(application_state["output"]["seed"]),
-                           started_at=time.time(), finished_at=None, cancel_requested=False,
-                           prompt_requests=0, last_node_id=None, last_node_type=None,
-                           last_activity_at=time.time(), last_node_started_at=None)
-        self._write_generation_journal()
-        self._worker = threading.Thread(
-            target=self._thread_main, args=(prompt, preflight, token),
-            name="lakis-external-ui-generation", daemon=True,
-        )
-        self._worker.start()
-        return {"ok": True, "request_id": token["request_id"], "preflight": preflight}
+        with self._job_lock:
+            # A terminal UI status is not proof that its worker finished cleanup.
+            if self._active_request_id is not None or self.status.snapshot()["state"] in {
+                "preparing", "running", "cancelling"
+            }:
+                raise RuntimeError("A LAKIS generation is already active or awaiting cleanup")
+            if not STOP_FILE.is_file():
+                raise RuntimeError("STOP_AUTOMATION safety lock is missing")
+            prompt, preflight = build_prompt(application_state)
+            prompt_used = deepcopy(application_state.get("prompt", {}))
+            prompt_used["composition"] = str(preflight.get("camera_prompt") or "")
+            wildcard_metadata = application_state.get("wildcard", {})
+            if isinstance(wildcard_metadata, dict):
+                prompt_used["wildcard"] = deepcopy(wildcard_metadata)
+            diagnostic_context = self._diagnostic_context(application_state)
+            generation = application_state.get("generation", {})
+            effective_mode = (
+                "lakis_detail" if generation.get("mode") == "detail"
+                and _coerce_bool(generation.get("lakis_mode", False))
+                else generation.get("mode", "fast")
+            )
+            seed = int(application_state["output"]["seed"])
+            self._clear_preview()
+            token = {"request_id": uuid.uuid4().hex, "created_at": time.time(),
+                     "source": "external_ui_click"}
+            # Metadata only: preserve sampler inputs, file naming, and node 775.
+            # Image Saver embeds this submitted graph; fallback file discovery must
+            # see this exact ID rather than guessing by modification time.
+            prompt[FINAL_NODE].setdefault("_meta", {})["lakis_request_id"] = token["request_id"]
+            self._active_request_id = token["request_id"]
+            self._consumed_allowance = None
+            self._worker = None
+            allowance_created = False
+            try:
+                with ALLOW_FILE.open("x", encoding="utf-8") as stream:
+                    allowance_created = True
+                    json.dump(token, stream)
+                self.status.update(
+                    state="preparing", percent=0.0, stage="생성 중", prompt_id=None,
+                    preview_frames=0, preview_mime=None, output_url=None,
+                    error=None, error_code=None, error_detail=None, error_stage=None,
+                    error_node_id=None, error_node_type=None, error_exception_type=None,
+                    setting_diagnostic=None,
+                    request_id=token["request_id"], diagnostic_context=diagnostic_context,
+                    mode=effective_mode,
+                    i2i_enabled=_coerce_bool(application_state.get("i2i", {}).get("enabled", False)),
+                    prompt_used=prompt_used, seed=seed, started_at=time.time(), finished_at=None,
+                    cancel_requested=False, prompt_requests=0, submission_unresolved=False,
+                    last_node_id=None, last_node_type=None,
+                    last_activity_at=time.time(), last_node_started_at=None,
+                )
+                self._write_generation_journal()
+                self._worker = threading.Thread(target=self._thread_main,
+                    args=(prompt, preflight, token), name="lakis-external-ui-generation", daemon=True)
+                self._worker.start()
+            except Exception as error:
+                # Nothing has been submitted by a worker if Thread.start failed.
+                self._worker = None
+                cleaned = self._cleanup_request_files(token["request_id"]) if allowance_created else True
+                if cleaned:
+                    self._active_request_id = None
+                code, message = self._public_error(error)
+                self.status.update(state="error", stage="오류", error=message, error_code=code,
+                                   error_detail=str(error)[:4000], error_exception_type=type(error).__name__,
+                                   error_stage="생성 준비", finished_at=time.time())
+                raise
+            return {"ok": True, "request_id": token["request_id"], "preflight": preflight}
 
     @staticmethod
     def _diagnostic_context(application_state: dict[str, Any]) -> dict[str, Any]:
         """Copy only reproducibility settings; never prompt text, images, or paths."""
+        def compact(value: Any, depth: int = 0) -> Any:
+            if isinstance(value, str):
+                return f"<omitted string: {len(value)} chars>" if len(value) > 200 else value
+            if depth >= 6:
+                return "<omitted nested value>"
+            if isinstance(value, dict):
+                return {key: compact(item, depth + 1) for key, item in list(value.items())[:128]}
+            if isinstance(value, (list, tuple)):
+                return [compact(item, depth + 1) for item in list(value)[:64]]
+            return deepcopy(value)
+
         model = application_state.get("model", {})
         output = application_state.get("output", {})
         generation = application_state.get("generation", {})
@@ -2713,13 +2981,15 @@ class WorkflowBridge:
                 "strength": inpaint.get("strength"),
                 "grow_mask_by": inpaint.get("grow_mask_by"),
             },
-            "advanced_node_settings": deepcopy(application_state.get("node_overrides", {})),
+            "advanced_node_settings": compact(application_state.get("node_overrides", {})),
         }
 
     def _thread_main(self, prompt: dict[str, Any], preflight: dict[str, Any], token: dict[str, Any]) -> None:
+        unresolved = False
         try:
             asyncio.run(self._run(prompt, preflight, token))
         except Exception as error:
+            unresolved = bool(getattr(error, "submission_outcome_unknown", False))
             error_code, public_message = self._public_error(error)
             node_id = getattr(error, "node_id", None)
             node_type = getattr(error, "node_type", None)
@@ -2729,7 +2999,9 @@ class WorkflowBridge:
                                error_detail=str(error)[:4000], error_stage=failure_stage,
                                error_node_id=node_id, error_node_type=node_type,
                                error_exception_type=exception_type,
-                               stage="오류", finished_at=time.time())
+                               stage="오류", finished_at=time.time(),
+                               submission_unresolved=unresolved,
+                               setting_diagnostic=error.diagnostic() if hasattr(error, "diagnostic") else None)
             _audit(
                 "external_ui_generation_failed", error_code=error_code,
                 request_id=token["request_id"], prompt_id=self.status.prompt_id,
@@ -2738,23 +3010,35 @@ class WorkflowBridge:
                 prompt_requests=self.status.prompt_requests,
             )
         finally:
-            # Keep successfully loaded models resident.  The unconditional
-            # development reset used for cold benchmarks made every ordinary
-            # generation pay model-load cost again and could race the next
-            # request.  Failed/cancelled jobs still get the defensive reset.
-            if self.status.prompt_requests and self.status.snapshot().get("state") != "complete":
-                self._request_runtime_reset()
-            if ALLOW_FILE.exists():
-                ALLOW_FILE.unlink()
-            if self._consumed_allowance and self._consumed_allowance.exists():
-                self._consumed_allowance.unlink()
-            self._clear_generation_journal()
+            with self._job_lock:
+                if self._active_request_id != token["request_id"]:
+                    _audit("external_ui_cleanup_not_owner", request_id=token["request_id"])
+                    return
+                if unresolved:
+                    # Preserve the consumed allowance, journal, and execution
+                    # slot. No /free, second /prompt, or automatic regeneration.
+                    _audit("external_ui_submission_unresolved", request_id=token["request_id"],
+                           prompt_id=self.status.prompt_id)
+                    return
+                try:
+                    if self.status.prompt_id and self.status.snapshot().get("state") in {"error", "cancelled"}:
+                        self._request_runtime_reset()
+                finally:
+                    if self._cleanup_request_files(token["request_id"]):
+                        self._consumed_allowance = None
+                        self._active_request_id = None
+                    else:
+                        _audit("external_ui_cleanup_blocked", request_id=token["request_id"])
 
     @staticmethod
     def _public_error(error: Exception) -> tuple[str, str]:
         detail = str(error)
         lowered = detail.lower()
         node_id = getattr(error, "node_id", None)
+        if isinstance(error, SubmissionOutcomeUnknownError):
+            return "LKS-GEN-1011", "생성 요청의 최종 상태를 확인하지 못했어요. 중복 생성을 막기 위해 재요청을 차단했어요."
+        if isinstance(error, PromptRejectedError):
+            return "LKS-CFG-1104", "ComfyUI가 생성 요청 입력을 거부했어요. 오류 정보에서 노드와 입력값을 확인해 주세요."
         if isinstance(error, SettingsValidationError):
             return "LKS-CFG-1103", "세부 설정값이 해당 ComfyUI 노드의 입력 규격과 맞지 않아요."
         if ("fault failed: 2" in lowered or "vram allocation failed" in lowered
@@ -2802,6 +3086,8 @@ class WorkflowBridge:
                 return "LKS-NODE-1203", "LAKIS Local Inpaint 노드가 설치되지 않았거나 로드되지 않았어요."
             if "Image Saver" in missing:
                 return "LKS-NODE-1204", "최종 이미지 저장 노드가 설치되지 않았거나 로드되지 않았어요."
+            if "LAKIS_INPAINT_COLOR_MATCH" in missing:
+                return "LKS-NODE-1205", "인페인트 색상 정합 노드가 설치되지 않았거나 로드되지 않았어요."
             return "LKS-NODE-1201", "생성에 필요한 ComfyUI 사용자 노드가 설치되지 않았거나 로드되지 않았어요."
         if isinstance(error, FinalOutputNotFoundError):
             return "LKS-GEN-1702", "저장 완료 응답에서 생성된 이미지 파일을 찾지 못했어요."
@@ -2853,6 +3139,7 @@ class WorkflowBridge:
                 _audit("external_ui_generation_missing_runtime_nodes", node_types=missing_types,
                        request_id=token["request_id"])
                 raise MissingRuntimeNodesError(missing_types)
+            _validate_live_prompt_models(prompt, object_info)
             if self.status.cancel_requested:
                 self.status.update(state="cancelled", stage="중지됨", finished_at=time.time())
                 return
@@ -2872,19 +3159,40 @@ class WorkflowBridge:
                     # backend launch policy or the stored workflow.
                     "extra_data": {"preview_method": "auto"},
                 }
-                async with session.post(COMFY_SERVER + "/prompt", json=payload, timeout=60) as response:
-                    self.status.update(prompt_requests=1)
-                    body = await response.json()
-                    if response.status >= 400:
-                        raise RuntimeError(f"ComfyUI /prompt rejected: {body}")
-                prompt_id = body.get("prompt_id")
-                if not prompt_id:
-                    raise RuntimeError(f"ComfyUI returned no prompt_id: {body}")
+                # Count the attempt before entering POST: a lost response does
+                # not prove that the backend failed to enqueue it.
+                self.status.update(prompt_requests=1)
+                try:
+                    async with session.post(COMFY_SERVER + "/prompt", json=payload, timeout=60) as response:
+                        try:
+                            body = await response.json()
+                        except (ValueError, aiohttp.ClientError):
+                            body = {"response_format": "non_json"}
+                        if 400 <= response.status < 500:
+                            raise PromptRejectedError(response.status, body)
+                        if response.status >= 500:
+                            raise SubmissionOutcomeUnknownError(f"ComfyUI /prompt HTTP {response.status}; outcome unknown")
+                except (aiohttp.ClientError, asyncio.TimeoutError, OSError) as error:
+                    raise SubmissionOutcomeUnknownError("ComfyUI /prompt response lost; do not resubmit") from error
+                prompt_id = body.get("prompt_id") if isinstance(body, dict) else None
+                if not isinstance(prompt_id, str) or not prompt_id.strip():
+                    raise SubmissionOutcomeUnknownError("ComfyUI returned no usable prompt_id; do not resubmit")
                 self.status.update(state="running", prompt_id=prompt_id, stage="생성 중")
-                self._write_generation_journal()
+                try:
+                    self._write_generation_journal()
+                except OSError as error:
+                    _audit("external_ui_running_journal_write_failed", error=repr(error))
                 _audit("external_ui_prompt_queued", prompt_id=prompt_id, preflight=preflight,
                        prompt_requests=1, retries=0)
-                completed = await self._observe(session, ws, prompt_id, prompt)
+                try:
+                    completed = await self._observe(session, ws, prompt_id, prompt)
+                except (GenerationExecutionError, SubmissionOutcomeUnknownError):
+                    raise
+                except Exception as error:
+                    # A malformed progress value or unexpected observer failure
+                    # does not prove the accepted backend request has stopped.
+                    _audit("external_ui_observer_failed", prompt_id=prompt_id, error=repr(error))
+                    completed = await self._recover_closed_monitor(session, prompt_id)
 
             if not completed:
                 _audit("external_ui_generation_cancelled", prompt_id=prompt_id)
@@ -2918,10 +3226,23 @@ class WorkflowBridge:
                     history = await response.json()
                     record = history.get(prompt_id) if isinstance(history, dict) else None
                     if isinstance(record, dict):
-                        status = record.get("status") or {}
+                        status = record.get("status")
+                        status = status if isinstance(status, dict) else {}
                         if status.get("status_str") == "error":
-                            return "error"
-                        if status.get("completed") is True or record.get("outputs") is not None:
+                            messages = status.get("messages")
+                            messages = messages if isinstance(messages, (list, tuple)) else []
+                            for item in reversed(messages):
+                                if isinstance(item, (list, tuple)) and len(item) == 2 and isinstance(item[1], dict):
+                                    event, data = item
+                                    if event == "execution_interrupted" and self.status.cancel_requested:
+                                        return "cancelled"
+                                    if event in {"execution_error", "execution_interrupted"}:
+                                        raise GenerationExecutionError(data,
+                                            node_id=str(data.get("node_id") or "") or None,
+                                            node_type=data.get("node_type"), failure_stage="ComfyUI 실행")
+                            raise GenerationExecutionError({"exception_message": "ComfyUI history reports error"},
+                                node_id=None, node_type=None, failure_stage="ComfyUI 실행")
+                        if status.get("completed") is True:
                             return "complete"
         except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
             pass
@@ -2935,6 +3256,27 @@ class WorkflowBridge:
         except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
             return "unreachable"
         return "missing"
+
+    def _record_running_journal(self) -> None:
+        try:
+            self._write_generation_journal()
+        except OSError as error:
+            _audit("external_ui_running_journal_write_failed", error=repr(error))
+
+    async def _recover_closed_monitor(self, session: aiohttp.ClientSession, prompt_id: str) -> bool:
+        """Bounded observation of the SAME prompt; never submit another one."""
+        last_state = "unreachable"
+        for attempt in range(12):
+            last_state = await self._probe_prompt_state(session, prompt_id)
+            if last_state == "complete":
+                return True
+            if last_state == "cancelled":
+                self.status.update(state="cancelled", stage="중지됨", finished_at=time.time())
+                return False
+            if attempt < 11:
+                await asyncio.sleep(1.0)
+        raise SubmissionOutcomeUnknownError(
+            f"Monitor closed; prompt_id={prompt_id}; last_backend_state={last_state}; do not resubmit")
 
     async def _observe(self, session: aiohttp.ClientSession,
                        ws: aiohttp.ClientWebSocketResponse, prompt_id: str,
@@ -2956,7 +3298,7 @@ class WorkflowBridge:
                     # event while processing a large image. The queue is the
                     # authority; websocket silence alone is not a stall.
                     self.status.update(last_activity_at=time.time())
-                    self._write_generation_journal()
+                    self._record_running_journal()
                     _audit("external_ui_quiet_node_still_running", prompt_id=prompt_id,
                            node_id=snapshot.get("last_node_id"),
                            node_type=snapshot.get("last_node_type"))
@@ -2964,19 +3306,29 @@ class WorkflowBridge:
                 if backend_state == "complete":
                     _audit("external_ui_completion_recovered_from_history", prompt_id=prompt_id)
                     return True
-                inactive = time.time() - float(snapshot.get("last_activity_at") or time.time())
-                raise GenerationStallError(
-                    node_id=snapshot.get("last_node_id"), node_type=snapshot.get("last_node_type"),
-                    failure_stage=snapshot.get("stage") or "ComfyUI 실행", inactive_seconds=inactive,
-                ) from error
+                if backend_state == "cancelled":
+                    self.status.update(state="cancelled", stage="중지됨", finished_at=time.time())
+                    return False
+                # Lost connectivity is not proof that backend execution stopped.
+                return await self._recover_closed_monitor(session, prompt_id)
+            except (aiohttp.ClientError, OSError):
+                return await self._recover_closed_monitor(session, prompt_id)
+            if message.type in {aiohttp.WSMsgType.CLOSE, aiohttp.WSMsgType.CLOSING,
+                                aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR}:
+                return await self._recover_closed_monitor(session, prompt_id)
             self.status.update(last_activity_at=time.time())
             if message.type == aiohttp.WSMsgType.BINARY:
                 self._capture_preview_frame(bytes(message.data))
-                self._write_generation_journal()
+                self._record_running_journal()
                 continue
             if message.type != aiohttp.WSMsgType.TEXT:
                 continue
-            envelope = json.loads(message.data)
+            try:
+                envelope = json.loads(message.data)
+            except (ValueError, TypeError):
+                return await self._recover_closed_monitor(session, prompt_id)
+            if not isinstance(envelope, dict) or not isinstance(envelope.get("data", {}), dict):
+                return await self._recover_closed_monitor(session, prompt_id)
             event = envelope.get("type")
             data = envelope.get("data", {})
             event_prompt = data.get("prompt_id")
@@ -3002,13 +3354,13 @@ class WorkflowBridge:
                 node_type = str(prompt.get(current, {}).get("class_type") or "") or None
                 self.status.update(last_node_id=current, last_node_type=node_type,
                                    last_node_started_at=time.time())
-                self._write_generation_journal()
+                self._record_running_journal()
                 self._set_weighted_progress(weights, completed, total, current, 0.0)
             elif event == "progress" and current:
                 maximum = float(data.get("max") or 1)
                 current_fraction = min(1.0, float(data.get("value") or 0) / maximum)
                 self._set_weighted_progress(weights, completed, total, current, current_fraction)
-                self._write_generation_journal()
+                self._record_running_journal()
             elif event in {"execution_error", "execution_interrupted"}:
                 if event == "execution_interrupted" and self.status.cancel_requested:
                     self.status.update(state="cancelled", stage="중지됨", finished_at=time.time())
@@ -3054,64 +3406,61 @@ class WorkflowBridge:
         self.status.update(percent=percent, stage=f"생성 중 · {title}")
 
     async def _find_output(self, session: aiohttp.ClientSession, prompt_id: str) -> str:
-        async with session.get(f"{COMFY_SERVER}/history/{prompt_id}", timeout=15) as response:
-            history = await response.json()
-        outputs = history.get(prompt_id, {}).get("outputs", {}).get(FINAL_NODE, {})
-        images = outputs.get("images", []) if isinstance(outputs, dict) else []
-        if not images and isinstance(outputs, dict):
-            # Image Saver releases have used both a direct `images` list and
-            # nested UI payloads. Accept only filename-bearing records from
-            # Final Saver 775, never another preview/output node.
-            pending = list(outputs.values())
-            while pending and not images:
-                value = pending.pop(0)
-                if isinstance(value, dict):
-                    if isinstance(value.get("filename"), str):
-                        images = [value]
-                        break
-                    pending.extend(value.values())
-                elif isinstance(value, list):
-                    matching = [item for item in value if isinstance(item, dict) and isinstance(item.get("filename"), str)]
-                    if matching:
-                        images = matching
-                        break
-                    pending.extend(value)
+        try:
+            async with session.get(f"{COMFY_SERVER}/history/{prompt_id}", timeout=15) as response:
+                history = await response.json() if response.status < 400 else {}
+        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
+            history = {}
+        record = history.get(prompt_id) if isinstance(history, dict) else None
+        outputs = record.get("outputs") if isinstance(record, dict) else None
+        final = outputs.get(FINAL_NODE) if isinstance(outputs, dict) else None
+        images = _final_image_records(final)
         if images:
-            image = images[-1]
-            query = urlencode({"filename": image["filename"], "subfolder": image.get("subfolder", ""),
-                               "type": image.get("type", "output")})
-            return f"{COMFY_SERVER}/view?{query}"
+            return f"{COMFY_SERVER}/view?{urlencode(images[-1])}"
 
-        # The installed Image Saver reports no `images` entry in history. Since
-        # this bridge requires an empty queue before its one owned prompt, a file
-        # created after this request began is attributable to the current prompt.
-        threshold = float(self.status.started_at or time.time()) - 2.0
+        # Timestamp is only a scan filter; embedded request identity is mandatory.
+        # A missing/old Saver metadata contract now yields a diagnostic, never the
+        # previous user's image. Direct history descriptors remain compatible.
+        snapshot = self.status.snapshot()
+        request_id = snapshot.get("request_id")
+        threshold = float(snapshot.get("started_at") or time.time()) - 2.0
         configured_root = configured_output_root()
         roots = []
         for root in (configured_root, OUTPUT_ROOT.resolve()):
             if root.is_dir() and root not in roots:
                 roots.append(root)
-        candidates: list[tuple[Path, Path]] = []
-        for _ in range(12):
-            candidates = [
-                (path, root) for root in roots for path in root.rglob("*")
-                if path.is_file() and path.suffix.lower() in {".png", ".jpg", ".jpeg", ".webp"}
-                and path.stat().st_mtime >= threshold
-            ]
+        for attempt in range(12):
+            candidates = []
+            if isinstance(request_id, str) and request_id:
+                for root in roots:
+                    for index, path in enumerate(root.rglob("*")):
+                        if index >= 20000:
+                            _audit("external_ui_output_scan_limit", prompt_id=prompt_id)
+                            break
+                        try:
+                            if path.suffix.lower() not in {".png", ".jpg", ".jpeg", ".webp"} or not path.is_file():
+                                continue
+                            resolved = path.resolve()
+                            if root != resolved.parent and root not in resolved.parents:
+                                continue
+                            modified = path.stat().st_mtime
+                            if modified >= threshold and _output_belongs_to_request(path, request_id):
+                                candidates.append((modified, path, root))
+                        except OSError:
+                            continue
             if candidates:
-                break
-            await asyncio.sleep(0.25)
-        if not candidates:
-            raise FinalOutputNotFoundError(
-                "Final Saver 775 completed but no current-request output file was found; "
-                f"searched={','.join(str(root) for root in roots)} threshold={threshold}"
-            )
-        path, matched_root = max(candidates, key=lambda item: item[0].stat().st_mtime)
-        relative = path.relative_to(matched_root)
-        if matched_root == configured_root:
-            return "/api/history-image?" + urlencode({"id": relative.as_posix()})
-        query = urlencode({"filename": path.name, "subfolder": relative.parent.as_posix() if relative.parent != Path('.') else "", "type": "output"})
-        return f"{COMFY_SERVER}/view?{query}"
+                _, path, root = max(candidates, key=lambda item: item[0])
+                relative = path.relative_to(root)
+                if root == configured_root:
+                    return "/api/history-image?" + urlencode({"id": relative.as_posix()})
+                query = urlencode({"filename": path.name,
+                    "subfolder": relative.parent.as_posix() if relative.parent != Path('.') else "", "type": "output"})
+                return f"{COMFY_SERVER}/view?{query}"
+            if attempt < 11:
+                await asyncio.sleep(0.25)
+        raise FinalOutputNotFoundError(
+            f"Final Saver 775 completed but no request-correlated output was found; prompt_id={prompt_id}; "
+            f"request_id={request_id}; searched={','.join(str(root) for root in roots)}; threshold={threshold}")
 
     def cancel(self) -> dict[str, Any]:
         with self.status.lock:
@@ -3130,4 +3479,3 @@ class WorkflowBridge:
             response.read()
         _audit("external_ui_user_cancel_requested", prompt_id=self.status.prompt_id)
         return {"ok": True}
-

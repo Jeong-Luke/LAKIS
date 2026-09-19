@@ -8,7 +8,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $repo = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$workspace = (Resolve-Path (Join-Path $repo "..\..")).Path
+$workspace = $repo
 $dist = if ([string]::IsNullOrWhiteSpace($DistDirectory)) {
     Join-Path $workspace "dist"
 } else {
@@ -85,39 +85,29 @@ Get-ChildItem -LiteralPath $externalRoot -File -Recurse |
 Add-UpdateFile "ComfyUI/LAKIS/STOP_AUTOMATION" (Join-Path $repo "resources\STOP_AUTOMATION") `
     "$rawBase/resources/STOP_AUTOMATION"
 
-# Keep the packaged camera-to-prompt bridge workflow synchronized without
-# touching any user workflow files.
-$cameraBridgeRoot = Join-Path $repo "src\custom_nodes\ComfyUI-KR-Camera-PromptStudio-Bridge"
-$cameraBridgeMatches = @(Get-ChildItem -LiteralPath $cameraBridgeRoot -File -Filter "KR_Camera_Anima_*_ONOFF.json")
-if ($cameraBridgeMatches.Count -ne 1) {
-    throw "Expected exactly one packaged KR Camera Anima bridge workflow; found $($cameraBridgeMatches.Count)."
+# These public, release-managed providers are shared with Install and Repair.
+# No model files, runtime markers, caches, or user-created workflows are added.
+$packageNames = @(Get-Content -LiteralPath (Join-Path $repo "resources\PRODUCTION_NODE_PACKAGES.txt") |
+    ForEach-Object { $_.Trim() } | Where-Object { $_ -and -not $_.StartsWith('#') })
+if ($packageNames.Count -eq 0 -or ($packageNames | Select-Object -Unique).Count -ne $packageNames.Count) {
+    throw "Managed node package inventory is empty or contains duplicates."
 }
-$cameraBridgeFile = $cameraBridgeMatches[0].Name
-Add-UpdateFile "ComfyUI/custom_nodes/ComfyUI-KR-Camera-PromptStudio-Bridge/$cameraBridgeFile" `
-    $cameraBridgeMatches[0].FullName `
-    "$rawBase/src/custom_nodes/ComfyUI-KR-Camera-PromptStudio-Bridge/$cameraBridgeFile"
-
-# Public Local Inpaint V2 implementation. The model weight is intentionally
-# absent: users install it manually from the official publisher.
-$llliteRoot = Join-Path $repo "src\custom_nodes\ComfyUI-Anima-LLLite"
-Get-ChildItem -LiteralPath $llliteRoot -File -Recurse |
-    Where-Object { $_.FullName -notmatch '[\\/]__pycache__[\\/]' -and $_.Extension -ne '.pyc' } |
-    Sort-Object FullName |
-    ForEach-Object {
-        $relative = $_.FullName.Substring($llliteRoot.Length).TrimStart('\').Replace('\', '/')
-        Add-UpdateFile "ComfyUI/custom_nodes/ComfyUI-Anima-LLLite/$relative" $_.FullName `
-            "$rawBase/src/custom_nodes/ComfyUI-Anima-LLLite/$relative"
+foreach ($package in $packageNames) {
+    if ($package -notmatch '^[A-Za-z0-9_-]+$') { throw "Invalid package name: $package" }
+    $packageRoot = Join-Path $repo "src\custom_nodes\$package"
+    if (-not (Test-Path -LiteralPath (Join-Path $packageRoot "__init__.py") -PathType Leaf)) {
+        throw "Required managed node package is missing: $package"
     }
-
-$localInpaintRoot = Join-Path $repo "src\custom_nodes\ComfyUI-LAKIS-Local-Inpaint"
-Get-ChildItem -LiteralPath $localInpaintRoot -File -Recurse |
-    Where-Object { $_.FullName -notmatch '[\\/]__pycache__[\\/]' -and $_.Extension -ne '.pyc' } |
-    Sort-Object FullName |
-    ForEach-Object {
-        $relative = $_.FullName.Substring($localInpaintRoot.Length).TrimStart('\').Replace('\', '/')
-        Add-UpdateFile "ComfyUI/custom_nodes/ComfyUI-LAKIS-Local-Inpaint/$relative" $_.FullName `
-            "$rawBase/src/custom_nodes/ComfyUI-LAKIS-Local-Inpaint/$relative"
-    }
+    Get-ChildItem -LiteralPath $packageRoot -File -Recurse |
+        Where-Object { $_.FullName -notmatch '[\\/]__pycache__[\\/]' -and $_.Extension -ne '.pyc' -and
+            $_.Name -ne 'startup_workflow.json' } |
+        Sort-Object FullName | ForEach-Object {
+            $relative = $_.FullName.Substring($packageRoot.Length).TrimStart('\').Replace('\', '/')
+            Add-UpdateFile "ComfyUI/custom_nodes/$package/$relative" $_.FullName "$rawBase/src/custom_nodes/$package/$relative"
+        }
+}
+Add-UpdateFile "ComfyUI/LAKIS/sync_runtime_workflow.py" (Join-Path $repo "src\runtime\sync_runtime_workflow.py") `
+    "$rawBase/src/runtime/sync_runtime_workflow.py"
 
 # This is application-owned and safe to update. The editable workflow under
 # ComfyUI/user is deliberately excluded because it contains user changes.

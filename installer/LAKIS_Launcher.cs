@@ -49,6 +49,8 @@ internal static class LakisLauncher
         private readonly string root;
         private Process startupProcess;
         private bool userCancelled;
+        private bool startupCompleted;
+        private DateTime startupProcessStartedAt;
         private readonly CenterCropPictureBox artwork = new CenterCropPictureBox();
         private readonly List<Image> artworkFrames = new List<Image>();
         private readonly System.Windows.Forms.Timer artworkTimer = new System.Windows.Forms.Timer();
@@ -120,6 +122,7 @@ internal static class LakisLauncher
             Controls.AddRange(new Control[] { artwork, logo, title, subtitle, copyright, status, progress, close });
             close.BringToFront();
             Shown += async (_, __) => await StartAsync();
+            FormClosing += (_, __) => { if (!startupCompleted) StopStartupProcessTree(); };
             FormClosed += (_, __) => { artworkTimer.Stop(); foreach (Image frame in artworkFrames) frame.Dispose(); };
         }
 
@@ -141,9 +144,43 @@ internal static class LakisLauncher
         private void CancelStartup()
         {
             userCancelled = true;
-            try { if (startupProcess != null && !startupProcess.HasExited) startupProcess.Kill(); }
-            catch { }
+            if (!startupCompleted) StopStartupProcessTree();
             Close();
+        }
+
+        private void StopStartupProcessTree()
+        {
+            Process process = startupProcess;
+            if (process == null || startupCompleted) return;
+            try
+            {
+                process.Refresh();
+                if (process.HasExited) return;
+                string expected = Path.GetFullPath(Path.Combine(root, "python_embeded", "pythonw.exe"));
+                if (!String.Equals(Path.GetFullPath(process.MainModule.FileName), expected,
+                                   StringComparison.OrdinalIgnoreCase) ||
+                    process.StartTime != startupProcessStartedAt)
+                    throw new InvalidOperationException("Startup process identity changed; refusing termination.");
+                string taskkill = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "taskkill.exe");
+                using (Process killer = Process.Start(new ProcessStartInfo {
+                    FileName = taskkill, Arguments = "/PID " + process.Id + " /T /F",
+                    UseShellExecute = false, CreateNoWindow = true,
+                    WindowStyle = ProcessWindowStyle.Hidden,
+                }))
+                {
+                    if (killer == null || !killer.WaitForExit(10000))
+                        throw new IOException("Owned startup process cleanup did not complete.");
+                }
+                if (!process.WaitForExit(5000))
+                    throw new IOException("Owned startup process remains alive.");
+            }
+            catch (Exception error)
+            {
+                // Never fall back to killing every Python or process under root.
+                try { File.AppendAllText(Path.Combine(root, "launcher-cleanup.log"),
+                    DateTime.UtcNow.ToString("O") + " " + error.Message + Environment.NewLine); }
+                catch { }
+            }
         }
 
         protected override void OnPaint(PaintEventArgs e)
@@ -175,14 +212,8 @@ internal static class LakisLauncher
         private async Task StartAsync()
         {
             string python = Path.Combine(root, "python_embeded", "pythonw.exe");
-            string runtimeFolder = PrivateLukeBuild ? "LAKIS_LUKE" : "LAKIS_DEV";
+            string runtimeFolder = PrivateLukeBuild ? "LAKIS_LUKE" : (DevelopmentBuild ? "LAKIS_DEV" : "LAKIS");
             string launcher = Path.Combine(root, "ComfyUI", runtimeFolder, "external_ui", "launch_lakis.py");
-            if (!File.Exists(python) || !File.Exists(launcher))
-            {
-                MessageBox.Show(this, "LAKIS 실행 파일을 찾을 수 없습니다. 설치를 다시 진행해 주세요.",
-                    "LAKIS 실행 오류", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                Close(); return;
-            }
             try
             {
                 SetStatus(PrivateLukeBuild ? "개인판 시작 중 · 자동 업데이트 꺼짐" : (DevelopmentBuild ? "개발판 시작 중 · 자동 업데이트 꺼짐" : "업데이트 확인 중"));
@@ -212,6 +243,14 @@ internal static class LakisLauncher
                     Close(); return;
                 }
 
+                // Recovery check must be reachable even when runtime files are missing.
+                if (!File.Exists(python) || !File.Exists(launcher))
+                {
+                    MessageBox.Show(this, "LAKIS 실행 파일을 찾을 수 없습니다. 설치를 다시 진행해 주세요.",
+                        "LAKIS 실행 오류", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    Close(); return;
+                }
+
                 SetStatus("ComfyUI 백엔드 시작 중");
                 var startInfo = new ProcessStartInfo {
                     FileName = python, Arguments = "-s \"" + launcher + "\"",
@@ -234,6 +273,7 @@ internal static class LakisLauncher
                     Path.Combine(root, "ComfyUI", "user", "default", "lora-manager");
                 Process process = Process.Start(startInfo);
                 startupProcess = process;
+                startupProcessStartedAt = process.StartTime;
                 string launcherState = Path.Combine(root, "ComfyUI", runtimeFolder,
                     PrivateLukeBuild ? "lakis_luke_launcher_state.json" :
                     (DevelopmentBuild ? "lakis_dev_launcher_state.json" : "lakis_launcher_state.json"));
@@ -258,6 +298,7 @@ internal static class LakisLauncher
                         "LAKIS 실행 오류", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return;
                 }
+                startupCompleted = true;
                 SetStatus((PrivateLukeBuild ? "LUKIS" : "LAKIS") + " Studio 실행 완료");
                 await Task.Delay(750);
                 Close();
@@ -402,7 +443,7 @@ internal static class LakisLauncher
             try
             {
                 var request = (HttpWebRequest)WebRequest.Create(url + "?t=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-                request.UserAgent = "LAKIS-Launcher/7.4.4";
+                request.UserAgent = "LAKIS-Launcher/7.4.5";
                 request.Timeout = 12000;
                 request.ReadWriteTimeout = 12000;
                 request.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
@@ -423,7 +464,7 @@ internal static class LakisLauncher
         try
         {
             var request = (HttpWebRequest)WebRequest.Create(LatestReleaseApiUrl + "?t=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-            request.UserAgent = "LAKIS-Launcher/7.4.4";
+            request.UserAgent = "LAKIS-Launcher/7.4.5";
             request.Accept = "application/vnd.github+json";
             request.Timeout = 12000;
             request.ReadWriteTimeout = 12000;
@@ -445,7 +486,7 @@ internal static class LakisLauncher
         try
         {
             var request = (HttpWebRequest)WebRequest.Create(LatestReleaseApiUrl + "?t=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-            request.UserAgent = "LAKIS-Launcher/7.4.4";
+            request.UserAgent = "LAKIS-Launcher/7.4.5";
             request.Accept = "application/vnd.github+json";
             request.Timeout = 12000; request.ReadWriteTimeout = 12000;
             request.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;

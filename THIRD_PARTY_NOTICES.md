@@ -121,3 +121,14 @@ user cache files are not silently deleted.
 
 Third-party names and marks identify compatible components only. Their inclusion
 does not imply endorsement of LAKIS by their authors or publishers.
+
+
+## Restored LAKIS runtime providers (recovery candidate)
+
+`ComfyUI-LAKIS-Detail` is restored from the supplied 7.3.6 source snapshot
+`571238fe535b8981b14c980d78713dc9592ae9d2`, with its GPL-3.0-only `LICENSE` and
+`NOTICE.md` retained. The machine-specific development loader is removed.
+`ComfyUI-LAKIS-Fast-Refiner` is restored from that same source snapshot with
+its MIT `LICENSE` and `NOTICE.md` retained. Its duplicate mask registration
+is omitted; `ComfyUI-LAKIS-Local-Inpaint` remains the owner of that type.
+This candidate does not include model weights or a new licence approval.

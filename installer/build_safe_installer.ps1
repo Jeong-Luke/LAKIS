@@ -1,11 +1,25 @@
 $ErrorActionPreference = "Stop"
 $repo = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$workspace = (Resolve-Path (Join-Path $repo "..\..")).Path
+$workspace = $repo
 $output = if ($env:LAKIS_INSTALLER_OUTPUT) { $env:LAKIS_INSTALLER_OUTPUT } else { Join-Path $workspace "dist\LAKIS_Setup.exe" }
 $stage = Join-Path $workspace ".safe-installer-build"
 $csc = Join-Path $env:WINDIR "Microsoft.NET\Framework64\v4.0.30319\csc.exe"
 $icon = Join-Path $repo "resources\LAKIS_windows_compatible.ico"
 New-Item -ItemType Directory -Force -Path $stage,(Split-Path $output) | Out-Null
+# Freeze the source revision used by this exact binary. Never package a live
+# dirty working tree while the installer later downloads a different tag.
+$sourceRevision = (& git -C $repo rev-parse HEAD).Trim()
+if ($LASTEXITCODE -ne 0 -or $sourceRevision -notmatch '^[a-fA-F0-9]{40}$') { throw "A committed source revision is required." }
+$dirty = & git -C $repo status --porcelain --untracked-files=normal -- . ":(exclude)dist" ":(exclude).safe-installer-build"
+if ($LASTEXITCODE -ne 0 -or $dirty) { throw "Commit/review candidate source before building; working tree is dirty." }
+$setupSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $PSScriptRoot "Setup_LAKIS_Safe.cs")
+$pinnedSetupSource = Join-Path $stage "Setup_LAKIS_SourcePinned.cs"
+$pattern = 'private const string Revision = "[^"]+";'
+if ([regex]::Matches($setupSource, $pattern).Count -ne 1) { throw "Installer revision declaration is ambiguous." }
+$setupSource = [regex]::Replace($setupSource, $pattern, ('private const string Revision = "' + $sourceRevision + '";'))
+[IO.File]::WriteAllText($pinnedSetupSource, $setupSource, [Text.UTF8Encoding]::new($false))
+Write-Output "INSTALLER_SOURCE_REVISION=$sourceRevision"
+
 $sevenZip = Join-Path $stage "7zr.exe"
 if (-not (Test-Path -LiteralPath $sevenZip)) {
     Invoke-WebRequest -UseBasicParsing "https://www.7-zip.org/a/7zr.exe" -OutFile $sevenZip
@@ -49,7 +63,7 @@ Copy-Item -LiteralPath (Join-Path $stage "WebView2Loader.dll") -Destination (Joi
 & $csc /nologo /target:winexe ("/out:" + (Join-Path $stage "Uninstall_LAKIS.exe")) ("/win32icon:" + $icon) /reference:System.Windows.Forms.dll /reference:System.Drawing.dll ("/resource:" + $splash1 + ",LAKIS.Splash1") ("/resource:" + $splash2 + ",LAKIS.Splash2") (Join-Path $PSScriptRoot "SplashArtwork.cs") (Join-Path $PSScriptRoot "LAKIS_Uninstaller.cs")
 if ($LASTEXITCODE) { throw "Uninstaller compilation failed" }
 Copy-Item -LiteralPath (Join-Path $stage "Uninstall_LAKIS.exe") -Destination (Join-Path (Split-Path $output) "Uninstall_LAKIS.exe") -Force
-& $csc /nologo /target:winexe ("/out:" + $output) ("/win32icon:" + $icon) /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll ("/resource:" + (Join-Path $stage "LAKIS.exe") + ",LAKIS.Launcher") ("/resource:" + (Join-Path $stage "LAKIS_Updater.exe") + ",LAKIS.Updater") ("/resource:" + (Join-Path $stage "LAKIS_Desktop.exe") + ",LAKIS.Desktop") ("/resource:" + (Join-Path $stage "LAKIS_Model_Importer.exe") + ",LAKIS.ModelImporter") ("/resource:" + $icon + ",LAKIS.Icon") ("/resource:" + $webViewCore + ",LAKIS.WebView2.Core") ("/resource:" + $webViewForms + ",LAKIS.WebView2.WinForms") ("/resource:" + $webViewLoader + ",LAKIS.WebView2.Loader") ("/resource:" + (Join-Path $stage "Uninstall_LAKIS.exe") + ",LAKIS.Uninstaller") ("/resource:" + $sevenZip + ",LAKIS.7zr") ("/resource:" + $splash1 + ",LAKIS.Splash1") ("/resource:" + $splash2 + ",LAKIS.Splash2") (Join-Path $PSScriptRoot "SplashArtwork.cs") (Join-Path $PSScriptRoot "Setup_LAKIS_Safe.cs")
+& $csc /nologo /target:winexe ("/out:" + $output) ("/win32icon:" + $icon) /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll ("/resource:" + (Join-Path $stage "LAKIS.exe") + ",LAKIS.Launcher") ("/resource:" + (Join-Path $stage "LAKIS_Updater.exe") + ",LAKIS.Updater") ("/resource:" + (Join-Path $stage "LAKIS_Desktop.exe") + ",LAKIS.Desktop") ("/resource:" + (Join-Path $stage "LAKIS_Model_Importer.exe") + ",LAKIS.ModelImporter") ("/resource:" + $icon + ",LAKIS.Icon") ("/resource:" + $webViewCore + ",LAKIS.WebView2.Core") ("/resource:" + $webViewForms + ",LAKIS.WebView2.WinForms") ("/resource:" + $webViewLoader + ",LAKIS.WebView2.Loader") ("/resource:" + (Join-Path $stage "Uninstall_LAKIS.exe") + ",LAKIS.Uninstaller") ("/resource:" + $sevenZip + ",LAKIS.7zr") ("/resource:" + $splash1 + ",LAKIS.Splash1") ("/resource:" + $splash2 + ",LAKIS.Splash2") (Join-Path $PSScriptRoot "SplashArtwork.cs") $pinnedSetupSource
 if ($LASTEXITCODE) { throw "Safe installer compilation failed" }
 Write-Output "INSTALLER=$output"
 Write-Output "LAUNCHER=$(Join-Path (Split-Path $output) 'LAKIS.exe')"

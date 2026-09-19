@@ -1,6 +1,7 @@
 import asyncio
 import json
 from pathlib import Path
+import struct
 import sys
 import unittest
 import tempfile
@@ -94,6 +95,52 @@ class ErrorCodeTests(unittest.TestCase):
             with self.subTest(message=message):
                 self.assertEqual(code, workflow_bridge.WorkflowBridge._public_error(ValueError(message))[0])
 
+    @staticmethod
+    def write_safetensors_header(path, tensors):
+        header = json.dumps(tensors, separators=(",", ":")).encode("utf-8")
+        path.write_bytes(struct.pack("<Q", len(header)) + header)
+
+    def test_anima_checkpoint_detection_uses_tensor_architecture_without_filename_metadata(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            model = root / "screenChantvMerge_v11.safetensors"
+            tensors = {
+                name: {"dtype": "BF16", "shape": shape, "data_offsets": [0, 0]}
+                for name, shape in workflow_bridge.ANIMA_TENSOR_SIGNATURE.items()
+            }
+            self.write_safetensors_header(model, tensors)
+            with patch.object(workflow_bridge, "_model_roots", return_value=[root]):
+                self.assertTrue(workflow_bridge._is_anima_checkpoint(model.name))
+
+    def test_anima_checkpoint_detection_accepts_wrapped_tensor_architecture(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            model = root / "creator_merge_v2.safetensors"
+            tensors = {
+                "model.diffusion_model." + name.removeprefix("net."): {
+                    "dtype": "BF16", "shape": shape, "data_offsets": [0, 0]
+                }
+                for name, shape in workflow_bridge.ANIMA_TENSOR_SIGNATURE.items()
+            }
+            self.write_safetensors_header(model, tensors)
+            with patch.object(workflow_bridge, "_model_roots", return_value=[root]):
+                self.assertTrue(workflow_bridge._is_anima_checkpoint(model.name))
+
+    def test_non_anima_or_invalid_safetensors_is_not_accepted(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            other = root / "other_model.safetensors"
+            invalid = root / "broken_model.safetensors"
+            self.write_safetensors_header(other, {
+                "net.x_embedder.proj.1.weight": {
+                    "dtype": "BF16", "shape": [1024, 16], "data_offsets": [0, 0]
+                }
+            })
+            invalid.write_bytes(struct.pack("<Q", 999_999_999))
+            with patch.object(workflow_bridge, "_model_roots", return_value=[root]):
+                self.assertFalse(workflow_bridge._is_anima_checkpoint(other.name))
+                self.assertFalse(workflow_bridge._is_anima_checkpoint(invalid.name))
+
     def test_missing_runtime_nodes_have_a_specific_code_and_sorted_detail(self):
         error = workflow_bridge.MissingRuntimeNodesError(["ZNode", "ANode", "ZNode"])
         code, message = workflow_bridge.WorkflowBridge._public_error(error)
@@ -167,23 +214,66 @@ class ErrorCodeTests(unittest.TestCase):
         self.assertEqual(125.0, report["received_value"])
         self.assertEqual(100.0, report["node_declaration"]["max"])
 
-    def test_lora_inventory_detects_nested_files_without_changing_state(self):
+    @staticmethod
+    def live_schema(checkpoints, loras=()):
+        return {
+            "DiffusionModelLoaderKJ": {"input": {"required": {"model_name": [list(checkpoints), {}]}}},
+            "VAELoader": {"input": {"required": {"vae_name": [["qwen_image_vae.safetensors"], {}]}}},
+            "CLIPLoader": {"input": {"required": {"clip_name": [["qwen_3_06b_base.safetensors"], {}]}}},
+            "LoraLoader": {"input": {"required": {"lora_name": [list(loras), {}]}}},
+        }
+
+    def test_model_inventory_uses_active_runtime_not_foreign_filesystem(self):
+        schema = self.live_schema(["anima_baseV10.safetensors"])
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            nested = root / "models" / "loras" / "characters"
-            nested.mkdir(parents=True)
-            (nested / "new_lora.safetensors").write_bytes(b"test")
-            (nested / "ignore.txt").write_text("ignored", encoding="utf-8")
-            # Isolate this inventory test from the real per-user shared-model
-            # fallback that may exist on the machine running the release gate.
-            with patch.object(workflow_bridge, "_model_roots", return_value=[root / "models" / "loras"]):
-                first = workflow_bridge.lora_inventory()
-                (root / "models" / "loras" / "style.pt").write_bytes(b"next")
-                second = workflow_bridge.lora_inventory()
-        self.assertEqual(["characters\\new_lora.safetensors"], first["options"])
-        self.assertEqual(1, first["count"])
-        self.assertEqual(2, second["count"])
-        self.assertNotEqual(first["signature"], second["signature"])
+            foreign = Path(directory)
+            (foreign / "foreign.safetensors").write_bytes(b"foreign")
+            with patch.object(workflow_bridge, "_comfy_object_info", return_value=schema), patch.object(
+                workflow_bridge, "_model_roots", return_value=[foreign]
+            ):
+                inventory = workflow_bridge.model_inventory()
+        self.assertEqual(["anima_baseV10.safetensors"], inventory["checkpoint"])
+
+    def test_registered_shared_model_is_visible_but_unregistered_file_is_not(self):
+        schema = self.live_schema(["anima_baseV10.safetensors", "shared\\registered.safetensors"])
+        with tempfile.TemporaryDirectory() as directory:
+            foreign = Path(directory)
+            (foreign / "unregistered.safetensors").write_bytes(b"foreign")
+            with patch.object(workflow_bridge, "_comfy_object_info", return_value=schema), patch.object(
+                workflow_bridge, "_model_roots", return_value=[foreign]
+            ):
+                inventory = workflow_bridge.model_inventory()
+        self.assertIn("shared\\registered.safetensors", inventory["checkpoint"])
+        self.assertNotIn("unregistered.safetensors", inventory["checkpoint"])
+
+    def test_persisted_live_model_is_preserved_and_stale_model_falls_back(self):
+        schema = self.live_schema(["anima_baseV10.safetensors", "other.safetensors"])
+        base_saved = {
+            "output": {}, "generation": {}, "camera": {}, "node_overrides": {},
+            "composition_enabled": True, "wildcard_enabled": False,
+        }
+        with patch.object(workflow_bridge, "TEMPLATE", REPOSITORY_ROOT / "workflows" / "LAKIS_runtime_api_v7.4.json"), patch.object(
+            workflow_bridge, "_comfy_object_info", return_value=schema
+        ), patch.object(
+            workflow_bridge, "_saved_lora_configuration", return_value={"current": [], "options": [], "enabled": True}
+        ), patch.object(workflow_bridge, "load_external_prompt_state", return_value={}), patch.object(
+            workflow_bridge, "load_external_prompt_enabled", return_value={}
+        ), patch.object(workflow_bridge, "load_external_prompt_bundle", return_value={}):
+            with patch.object(workflow_bridge, "load_external_generation_state", return_value={
+                **base_saved, "model": {"checkpoint": "other.safetensors"}
+            }):
+                self.assertEqual("other.safetensors", workflow_bridge.workflow_configuration()["checkpoint"]["current"])
+            with patch.object(workflow_bridge, "load_external_generation_state", return_value={
+                **base_saved, "model": {"checkpoint": "foreign.safetensors"}
+            }):
+                self.assertEqual("anima_baseV10.safetensors", workflow_bridge.workflow_configuration()["checkpoint"]["current"])
+
+    def test_lora_inventory_uses_active_runtime_enum(self):
+        schema = self.live_schema(["anima_baseV10.safetensors"], ["characters\\new_lora.safetensors"])
+        with patch.object(workflow_bridge, "_comfy_object_info", return_value=schema):
+            inventory = workflow_bridge.lora_inventory()
+        self.assertEqual(["characters\\new_lora.safetensors"], inventory["options"])
+        self.assertEqual(1, inventory["count"])
 
 
 if __name__ == "__main__":

@@ -170,6 +170,7 @@ internal sealed class UpdaterForm : Form
             {
                 status.Text = "업데이트 적용을 완료하고 있습니다…";
                 string arguments = "--finish-self-update \"" + targetRoot + "\" \"" + manifest.version + "\" " + Process.GetCurrentProcess().Id;
+                arguments += " --self-name=" + Path.GetFileName(Application.ExecutablePath);
                 if (launchAfterUpdate) arguments += " --launch-after-update";
                 Process.Start(new ProcessStartInfo(pendingSelfUpdate, arguments) { UseShellExecute = true, WorkingDirectory = Path.GetTempPath() });
                 Close();
@@ -200,7 +201,7 @@ internal sealed class UpdaterForm : Form
             try
             {
                 var request = (HttpWebRequest)WebRequest.Create(url + "?t=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-                request.UserAgent = "LAKIS-Updater/7.4.4";
+                request.UserAgent = "LAKIS-Updater/7.4.5";
                 request.Timeout = 20000;
                 request.ReadWriteTimeout = 20000;
                 request.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
@@ -361,7 +362,7 @@ internal sealed class UpdaterForm : Form
                 string requestUrl = url + separator + "lakis_update=" + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + "_" + attempt;
                 using (var client = new WebClient())
                 {
-                    client.Headers.Add(HttpRequestHeader.UserAgent, "LAKIS-Updater/7.4.4");
+                    client.Headers.Add(HttpRequestHeader.UserAgent, "LAKIS-Updater/7.4.5");
                     client.Headers.Add(HttpRequestHeader.CacheControl, "no-cache, no-store, must-revalidate");
                     client.DownloadFile(requestUrl, output);
                 }
@@ -408,13 +409,31 @@ internal sealed class UpdaterForm : Form
 
     private void StopInstalledProcesses()
     {
+        // A directory prefix does not prove ownership of Python/DEV/LUKIS.
+        // Until exact owned-process shutdown is verified, fail closed instead
+        // of terminating unrelated work. Allow a closing Launcher to exit.
         string prefix = targetRoot.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
-        foreach (Process process in Process.GetProcesses())
+        var remaining = new List<int>();
+        int ownPid = Process.GetCurrentProcess().Id;
+        for (int pass = 0; pass < 6; pass++)
         {
-            try { if (process.Id != Process.GetCurrentProcess().Id && process.MainModule.FileName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) { process.Kill(); process.WaitForExit(5000); } }
-            catch { }
-            finally { process.Dispose(); }
+            remaining.Clear();
+            foreach (Process process in Process.GetProcesses())
+            {
+                try
+                {
+                    if (process.Id != ownPid && !process.HasExited &&
+                        process.MainModule.FileName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                        remaining.Add(process.Id);
+                }
+                catch (System.ComponentModel.Win32Exception) { }
+                catch (InvalidOperationException) { }
+                finally { process.Dispose(); }
+            }
+            if (remaining.Count == 0) return;
+            System.Threading.Thread.Sleep(500);
         }
+        throw new IOException("업데이트 전에 이 설치를 사용하는 LAKIS/ComfyUI를 종료해 주세요. 다른 프로그램은 자동 종료하지 않습니다. PID: " + String.Join(",", remaining));
     }
 
     private void SetStatus(string text, int current, int total)
@@ -449,10 +468,76 @@ internal sealed class UpdaterForm : Form
         int oldProcessId;
         Int32.TryParse(args[3], out oldProcessId);
         bool launch = Array.Exists(args, value => value == "--launch-after-update");
+        string destination = null;
+        string retiredExecutable = null;
         try
         {
-            if (oldProcessId > 0) try { Process.GetProcessById(oldProcessId).WaitForExit(15000); } catch { }
-            string destination = Path.Combine(root, "LAKIS_Patcher.exe");
+            string selfName = null;
+            foreach (string value in args)
+                if (value.StartsWith("--self-name=", StringComparison.Ordinal)) selfName = value.Substring(12);
+
+            Process oldProcess = null;
+            try
+            {
+                string oldExecutable = null;
+                if (String.IsNullOrWhiteSpace(selfName) && oldProcessId > 0)
+                {
+                    try
+                    {
+                        oldProcess = Process.GetProcessById(oldProcessId);
+                        oldExecutable = Path.GetFullPath(oldProcess.MainModule.FileName);
+                    }
+                    catch (ArgumentException) { }
+                    catch (InvalidOperationException)
+                    {
+                        if (oldProcess != null) oldProcess.Dispose();
+                        oldProcess = null;
+                    }
+                    catch (System.ComponentModel.Win32Exception)
+                    {
+                        if (oldProcess != null) oldProcess.Dispose();
+                        oldProcess = null;
+                    }
+                }
+                if (String.IsNullOrWhiteSpace(selfName))
+                {
+                    string patcher = Path.GetFullPath(Path.Combine(root, "LAKIS_Patcher.exe"));
+                    string updater = Path.GetFullPath(Path.Combine(root, "LAKIS_Updater.exe"));
+                    if (!String.IsNullOrWhiteSpace(oldExecutable) && String.Equals(oldExecutable, patcher, StringComparison.OrdinalIgnoreCase))
+                        selfName = "LAKIS_Patcher.exe";
+                    else if (!String.IsNullOrWhiteSpace(oldExecutable) && String.Equals(oldExecutable, updater, StringComparison.OrdinalIgnoreCase))
+                        selfName = "LAKIS_Updater.exe";
+                    else if (!String.IsNullOrWhiteSpace(oldExecutable))
+                        throw new InvalidDataException("Legacy updater process is not an approved executable in the installation root.");
+                    else
+                    {
+                        string helperHash = ComputeSha256(Application.ExecutablePath);
+                        bool patcherIsCandidate = File.Exists(patcher) && String.Equals(
+                            ComputeSha256(patcher), helperHash, StringComparison.OrdinalIgnoreCase);
+                        bool updaterIsCandidate = File.Exists(updater) && String.Equals(
+                            ComputeSha256(updater), helperHash, StringComparison.OrdinalIgnoreCase);
+                        if (patcherIsCandidate == updaterIsCandidate)
+                            throw new InvalidDataException("Legacy updater alias cannot be determined safely from installation state.");
+                        selfName = patcherIsCandidate ? "LAKIS_Updater.exe" : "LAKIS_Patcher.exe";
+                    }
+                }
+                if (!String.Equals(selfName, "LAKIS_Patcher.exe", StringComparison.OrdinalIgnoreCase) &&
+                    !String.Equals(selfName, "LAKIS_Updater.exe", StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidDataException("Invalid updater self-update target.");
+                destination = Path.GetFullPath(Path.Combine(root, selfName));
+                if (File.Exists(destination))
+                {
+                    string retiredDirectory = Path.Combine(root, ".lakis", "self-update-retired");
+                    Directory.CreateDirectory(retiredDirectory);
+                    retiredExecutable = Path.Combine(retiredDirectory,
+                        selfName + "." + Guid.NewGuid().ToString("N") + ".old");
+                    File.Move(destination, retiredExecutable);
+                }
+                if (oldProcess != null &&
+                    !String.Equals(oldExecutable, destination, StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidDataException("Updater process identity does not match the approved self-update target.");
+            }
+            finally { }
             Exception last = null;
             for (int attempt = 0; attempt < 10; attempt++)
             {
@@ -463,10 +548,32 @@ internal sealed class UpdaterForm : Form
             File.WriteAllText(Path.Combine(root, "VERSION"), version);
             CreateOrRepairDesktopShortcut(root);
             if (launch) Process.Start(Path.Combine(root, "LAKIS.exe"));
+            if (oldProcess != null)
+            {
+                try
+                {
+                    if (!oldProcess.WaitForExit(1000)) oldProcess.Kill();
+                    oldProcess.WaitForExit(5000);
+                }
+                catch { }
+                finally { oldProcess.Dispose(); }
+            }
+            if (!String.IsNullOrWhiteSpace(retiredExecutable))
+                try { File.Delete(retiredExecutable); } catch { }
         }
         catch (Exception error)
         {
+            if (!String.IsNullOrWhiteSpace(destination) && !File.Exists(destination) &&
+                !String.IsNullOrWhiteSpace(retiredExecutable) && File.Exists(retiredExecutable))
+                try { File.Move(retiredExecutable, destination); } catch { }
             MessageBox.Show("업데이트 마무리에 실패했습니다.\n\n" + error.Message, "LAKIS 업데이트 오류", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
+    }
+
+    private static string ComputeSha256(string path)
+    {
+        using (var stream = File.OpenRead(path))
+        using (var sha = SHA256.Create())
+            return BitConverter.ToString(sha.ComputeHash(stream)).Replace("-", "");
     }
 }

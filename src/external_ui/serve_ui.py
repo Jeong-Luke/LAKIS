@@ -442,13 +442,16 @@ def stop_link_server() -> dict:
 
 def configured_output_root() -> Path:
     try:
-        payload = json.loads(OUTPUT_LOCATION_PATH.read_text(encoding="utf-8"))
-        candidate = Path(str(payload.get("path") or "")).expanduser().resolve()
-        if candidate.is_dir():
-            return candidate
-    except (OSError, ValueError, TypeError, json.JSONDecodeError):
+        payload = json.loads(OUTPUT_LOCATION_PATH.read_text(encoding="utf-8-sig"))
+        raw = payload.get("path") if isinstance(payload, dict) else None
+        if isinstance(raw, str) and raw.strip():
+            candidate = Path(raw).expanduser()
+            # Empty/relative configuration is not permission to scan CWD.
+            if candidate.is_absolute() and candidate.is_dir():
+                return candidate.resolve()
+    except (OSError, ValueError, TypeError):
         pass
-    return OUTPUT_ROOT
+    return OUTPUT_ROOT.resolve()
 
 
 def _prompt_graph_metadata(graph: object) -> dict:

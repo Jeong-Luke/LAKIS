@@ -8,15 +8,15 @@ LAKIS 애플리케이션, 사용자 인터페이스, 설치기, 업데이터, �
 
 ## 다운로드
 
-**[Windows용 LAKIS Studio v7.4.4 다운로드](https://github.com/Jeong-Luke/LAKIS/releases/download/v7.4.4/LAKIS_Setup.exe)**
+**[Windows용 LAKIS Studio v7.4.5 다운로드](https://github.com/Jeong-Luke/LAKIS/releases/download/v7.4.5/LAKIS_Setup.exe)**
 
-`LAKIS_Setup.exe`를 실행하면 LAKIS를 설치하거나 복구할 수 있습니다. [v7.4.4 릴리즈 설명과 개별 파일](https://github.com/Jeong-Luke/LAKIS/releases/tag/v7.4.4)도 확인할 수 있습니다.
+`LAKIS_Setup.exe`를 실행하면 LAKIS를 설치하거나 복구할 수 있습니다. [v7.4.5 릴리즈 설명과 개별 파일](https://github.com/Jeong-Luke/LAKIS/releases/tag/v7.4.5)도 확인할 수 있습니다.
 
 ## 안정 버전
 
-이 저장소는 LAKIS의 안정 배포 버전을 관리합니다. 현재 릴리즈 후보는 `v7.4.4`입니다. 이전 개발 패키지와 개발용 워크플로는 별도로 관리하며 신규 사용자에게 배포하지 않습니다.
+이 저장소는 LAKIS의 안정 배포 버전을 관리합니다. 현재 릴리즈 후보는 `v7.4.5`입니다. 이전 개발 패키지와 개발용 워크플로는 별도로 관리하며 신규 사용자에게 배포하지 않습니다.
 
-## v7.4.4 주요 기능
+## v7.4.5 주요 기능
 
 - FAST, DETAIL, LAKIS DETAIL 생성 모드와 Composition, i2i
 - 작은 영역을 수정하고 원본 영역을 보존하는 Local Inpaint V2와 Inpaint Delete
@@ -63,16 +63,16 @@ from AGPL software remain AGPL-3.0-or-later.
 
 ### Download
 
-**[Download LAKIS Studio v7.4.4 for Windows](https://github.com/Jeong-Luke/LAKIS/releases/download/v7.4.4/LAKIS_Setup.exe)**
+**[Download LAKIS Studio v7.4.5 for Windows](https://github.com/Jeong-Luke/LAKIS/releases/download/v7.4.5/LAKIS_Setup.exe)**
 
 Run `LAKIS_Setup.exe` to install or repair LAKIS. You can also view the
-[v7.4.4 release notes and individual files](https://github.com/Jeong-Luke/LAKIS/releases/tag/v7.4.4).
+[v7.4.5 release notes and individual files](https://github.com/Jeong-Luke/LAKIS/releases/tag/v7.4.5).
 
 ### Stable baseline
 
-This repository contains the stable LAKIS distribution line. The current release candidate is `v7.4.4`. Earlier development packages and workflows are maintained separately and are not distributed to new users.
+This repository contains the stable LAKIS distribution line. The current release candidate is `v7.4.5`. Earlier development packages and workflows are maintained separately and are not distributed to new users.
 
-### v7.4.4 features
+### v7.4.5 features
 
 - FAST, DETAIL, and LAKIS DETAIL generation modes with Composition and i2i
 - Local Inpaint V2 and Inpaint Delete for focused edits that preserve the source outside the edited area

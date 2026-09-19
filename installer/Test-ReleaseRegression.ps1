@@ -27,6 +27,7 @@ Require ($updater.Contains("lakis_update=")) "Updater downloads must use a uniqu
 Require ($updater.Contains("no-cache, no-store, must-revalidate")) "Updater must bypass HTTP caches."
 
 $generator = Read-RepoFile "installer\New-UpdateManifest.ps1"
+$nodePackages = Read-RepoFile "resources\PRODUCTION_NODE_PACKAGES.txt"
 Require ($generator.Contains("lakis-tag-hash-")) "Manifest hashes must come from published tagged bytes."
 Require ($generator.Contains("LICENSE.md")) "Existing users must receive the LAKIS licence."
 Require ($generator.Contains("THIRD_PARTY_NOTICES.md")) "Existing users must receive third-party notices."
@@ -34,8 +35,8 @@ Require (-not $generator.Contains('path = "ComfyUI/models/')) "Legacy updaters r
 Require (-not $generator.Contains('Add-UpdateFile "ComfyUI/custom_nodes/ComfyUI-LAKIS-Light-Control')) "Next manifest generator must not distribute retired Light Control."
 Require ($generator.Contains("ComfyUI/custom_nodes/ComfyUI-LAKIS-Light-Control/__init__.py")) "Next manifest must explicitly remove retired Light Control."
 Require (-not $generator.Contains("DSINE")) "Next manifest generator must not include DSINE."
-Require ($generator.Contains("ComfyUI-LAKIS-Local-Inpaint")) "Manifest generator must include the public Local Inpaint V2 custom node."
-Require ($generator.Contains("ComfyUI-Anima-LLLite")) "Manifest generator must include the Local Inpaint runtime node package."
+Require ($nodePackages.Contains("ComfyUI-LAKIS-Local-Inpaint")) "Manifest generator must include the public Local Inpaint V2 custom node."
+Require ($nodePackages.Contains("ComfyUI-Anima-LLLite")) "Manifest generator must include the Local Inpaint runtime node package."
 Require (-not $generator.Contains('ComfyUI/LAKIS_DEV/external_ui/')) "Public update files must target the production LAKIS runtime directory."
 Require ($generator.Contains('Add-UpdateFile "ComfyUI/LAKIS/STOP_AUTOMATION"')) "Every update must restore the generation safety marker."
 Require (-not $generator.Contains("'ComfyUI/LAKIS/STOP_AUTOMATION',")) "The generation safety marker must never be deleted."
@@ -162,6 +163,8 @@ foreach ($pythonSource in @(
 Require ($LASTEXITCODE -eq 0) "Cross-install external UI isolation regression failed."
 & $python (Join-Path $repo "installer\tests\test_ui_state_scoping.py")
 Require ($LASTEXITCODE -eq 0) "Per-install UI-state isolation regression failed."
+& $python (Join-Path $repo "installer\tests\test_error_codes.py")
+Require ($LASTEXITCODE -eq 0) "Error-code and model-compatibility regression failed."
 foreach ($jsonFile in $jsonFiles) {
     & $python -m json.tool $jsonFile 1>$null
     Require ($LASTEXITCODE -eq 0) "Invalid packaged workflow JSON: $jsonFile"
@@ -196,4 +199,6 @@ foreach ($required in @(
     Require (Test-Path -LiteralPath (Join-Path $repo $required) -PathType Leaf) "Missing release component: $required"
 }
 
+& $python (Join-Path $repo "installer\tests\test_release_component_contract.py")
+Require ($LASTEXITCODE -eq 0) "Recovery release component contract failed."
 Write-Output "RELEASE_REGRESSION_GATE_OK version=$ExpectedVersion"

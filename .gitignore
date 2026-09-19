@@ -20,3 +20,7 @@ dist/.lakis/
 installer/build_package.ps1
 installer/split_release.ps1
 src/custom_nodes/ComfyUI-LAKIS-Light-Control/TEST_NOTES.txt
+
+/.safe-installer-build/
+/.rc-channel-*/
+*_audit.jsonl

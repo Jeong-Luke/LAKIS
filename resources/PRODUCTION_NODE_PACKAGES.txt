@@ -1,0 +1,8 @@
+ComfyUI-Anima-LLLite
+ComfyUI-KR-Camera-Control
+ComfyUI-KR-Camera-PromptStudio-Bridge
+ComfyUI-LAKIS-AutoPatch
+ComfyUI-LAKIS-Detail
+ComfyUI-LAKIS-Fast-Refiner
+ComfyUI-LAKIS-Local-Inpaint
+ComfyUI-PreviewMonitor

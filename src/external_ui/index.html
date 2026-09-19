@@ -44,7 +44,7 @@
   <link rel="stylesheet" href="horizontal-overflow-fix.css?v=20260906-fixed-prompt-column">
   <link rel="stylesheet" href="upscaler-license-migration.css?v=20260906-first-run">
   <link rel="stylesheet" href="system-info-dialog.css?v=20260906-licenses">
-  <link rel="stylesheet" href="image-history.css?v=20260912-dekis-library-2">
+  <link rel="stylesheet" href="image-history.css?v=20260916-mobile-detail-close-bar">
   <link rel="stylesheet" href="lakis-link-mobile.css?v=20260913-link-1">
   <link rel="stylesheet" href="lakis-link-control.css?v=20260913-link-1">
   <link rel="stylesheet" href="lakis-link-sidebar.css?v=20260913-parity-1">
@@ -341,7 +341,7 @@
       <div id="imageHistoryNotice" class="image-history-notice" hidden></div>
       <div id="imageHistoryGroups" class="image-history-groups"></div>
       <aside id="imageHistoryInspector" class="image-history-inspector" hidden>
-        <button id="imageHistoryInspectorClose" type="button" aria-label="상세 정보 닫기">×</button>
+        <div class="image-history-inspector-bar"><span>이미지 상세</span><button id="imageHistoryInspectorClose" type="button" aria-label="라이브러리 목록으로 돌아가기" title="라이브러리 목록으로 돌아가기">×</button></div>
         <img id="imageHistoryLargeImage" alt="선택한 생성 이미지">
         <dl><div><dt>체크포인트</dt><dd id="historyCheckpoint"></dd></div><div><dt>LoRA</dt><dd id="historyLoras"></dd></div><div><dt>시드</dt><dd id="historySeed"></dd></div><div><dt>프롬프트</dt><dd id="historyPrompt"></dd></div><div><dt>네거티브 프롬프트</dt><dd id="historyNegative"></dd></div></dl>
         <div class="image-history-inspector-actions"><button id="historyUseInpaint" type="button">인페인트로 보내기</button><button id="historyUseI2i" type="button">I2I로 보내기</button></div>
@@ -416,7 +416,7 @@
   <script src="lakis-link-control.js?v=20260913-link-1"></script>
   <script src="lakis-link-mobile.js?v=20260913-link-1"></script>
   <script src="lakis-link-sidebar.js?v=20260913-parity-1"></script>
-  <script src="image-history-v2.js?v=20260914-viewport-lazy-1"></script>
+  <script src="image-history-v2.js?v=20260916-mobile-detail-close-bar"></script>
   <script src="mobile-image-pinch.js?v=20260914-mobile-pinch-1"></script>
 </body>
 </html>

@@ -1985,12 +1985,26 @@ function showGenerationError(message, errorCode = "", context = {}) {
     request_id: context.requestId || null,
     prompt_id: context.promptId || null,
     occurred_at: new Date().toISOString(),
+    error_detail: context.errorDetail || null,
     settings: context.diagnostics || null,
     setting_diagnostic: context.settingDiagnostic || null,
     runtime_trace: context.runtimeTrace || null,
-    error_detail: context.errorDetail || null,
   };
   showDevModal({type:"ERROR", title:"생성 오류", message:displayMessage, copyError:true, focusTarget:generateButton});
+}
+
+function compactDiagnosticValue(value, depth = 0) {
+  if (typeof value === "string") {
+    return value.length > 200 ? `<omitted string: ${value.length} chars>` : value;
+  }
+  if (depth >= 6) return "<omitted nested value>";
+  if (Array.isArray(value)) return value.slice(0, 64).map((item) => compactDiagnosticValue(item, depth + 1));
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).slice(0, 128).map(
+      ([key, item]) => [key, compactDiagnosticValue(item, depth + 1)],
+    ));
+  }
+  return value;
 }
 
 function clientGenerationDiagnostics(payload) {
@@ -2021,7 +2035,7 @@ function clientGenerationDiagnostics(payload) {
       strength: inpaint.strength ?? null,
       grow_mask_by: inpaint.grow_mask_by ?? null,
     },
-    advanced_node_settings: structuredClone(source.advanced_node_settings || {}),
+    advanced_node_settings: compactDiagnosticValue(source.advanced_node_settings || {}),
   };
 }
 
@@ -2149,6 +2163,7 @@ async function pollGenerationStatus() {
         nodeType: status.error_node_type, exceptionType: status.error_exception_type,
         requestId: status.request_id, promptId: status.prompt_id,
         diagnostics: status.diagnostic_context,
+        settingDiagnostic: status.setting_diagnostic,
         errorDetail: status.error_detail,
         runtimeTrace: {
           last_node_id: status.last_node_id || null,

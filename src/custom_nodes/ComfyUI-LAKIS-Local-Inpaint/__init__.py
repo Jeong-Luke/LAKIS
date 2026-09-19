@@ -140,6 +140,55 @@ class LAKISLocalInpaintComposite:
         return (result,)
 
 
+class LAKISInpaintColorMatch:
+    """Bounded colour shift for the legacy remove branch; no outside-mask edit."""
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {"required": {
+            "generated": ("IMAGE",), "original": ("IMAGE",), "mask": ("MASK",),
+            "radius": ("INT", {"default": 64, "min": 0, "max": 256}),
+            "strength": ("FLOAT", {"default": 0.85, "min": 0.0, "max": 1.0}),
+            "max_shift": ("FLOAT", {"default": 0.18, "min": 0.0, "max": 1.0}),
+        }}
+
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "match"
+    CATEGORY = "LAKIS/Inpaint"
+
+    def match(self, generated, original, mask, radius, strength, max_shift):
+        if generated.ndim != 4 or original.ndim != 4 or generated.shape[-1] < 3 or original.shape[-1] < 3:
+            raise ValueError("Colour matching requires BHWC RGB images")
+        if mask.ndim not in (2, 3):
+            raise ValueError("Colour matching mask must be HW or BHW")
+        if not all(math.isfinite(float(value)) for value in (radius, strength, max_shift)):
+            raise ValueError("Colour matching settings must be finite")
+        radius = max(0, min(256, int(radius)))
+        strength = max(0.0, min(1.0, float(strength)))
+        limit = max(0.0, min(1.0, float(max_shift)))
+        if radius == 0 or strength == 0 or limit == 0:
+            return (generated,)
+        batch, height, width, _ = generated.shape
+        if batch < 1 or height < 1 or width < 1:
+            raise ValueError("Colour matching image is empty")
+        original = original.to(device=generated.device, dtype=generated.dtype)
+        reference = _resize_image(original, height, width)
+        alpha = _resize_mask(mask.to(device=generated.device, dtype=generated.dtype), height, width)
+        if reference.shape[0] not in (1, batch) or alpha.shape[0] not in (1, batch):
+            raise ValueError("Colour matching batch sizes must match or be one")
+        reference = reference.expand(batch, -1, -1, -1)
+        alpha = alpha.expand(batch, -1, -1)
+        outer = F.max_pool2d(alpha.unsqueeze(1), radius * 2 + 1, 1, radius)[:, 0]
+        ring = (outer - alpha).clamp(0, 1).unsqueeze(-1)
+        # No valid surrounding context (e.g. full mask) means no correction.
+        count = ring.sum((1, 2), keepdim=True)
+        delta = ((reference - generated[..., :3]) * ring).sum((1, 2), keepdim=True)
+        shift = (delta / count.clamp_min(1.0)).clamp(-limit, limit) * strength
+        adjusted = (generated[..., :3] + shift).clamp(0, 1)
+        result = generated.clone()
+        result[..., :3] = torch.lerp(generated[..., :3], adjusted, alpha.unsqueeze(-1))
+        return (result,)
+
+
 class LAKISSafeMasksCombineBatch:
     """Combine detector mask batches and safely handle an empty result."""
     @classmethod
@@ -167,6 +216,7 @@ class LAKISSafeMasksCombineBatch:
 
 
 NODE_CLASS_MAPPINGS = {
+    "LAKIS_INPAINT_COLOR_MATCH": LAKISInpaintColorMatch,
     "LAKIS_LocalInpaintPrepare": LAKISLocalInpaintPrepare,
     "LAKIS_LocalInpaintComposite": LAKISLocalInpaintComposite,
     # Compatibility aliases for existing DEKIS development workflows.
@@ -175,6 +225,7 @@ NODE_CLASS_MAPPINGS = {
     "LAKIS_SafeMasksCombineBatch": LAKISSafeMasksCombineBatch,
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
+    "LAKIS_INPAINT_COLOR_MATCH": "LAKIS Inpaint Colour Match",
     "LAKIS_LocalInpaintPrepare": "LAKIS Local Inpaint V2 · Prepare",
     "LAKIS_LocalInpaintComposite": "LAKIS Local Inpaint V2 · Composite",
     "DEKIS_LocalInpaintPrepare": "LAKIS Local Inpaint V2 · Prepare (DEKIS alias)",

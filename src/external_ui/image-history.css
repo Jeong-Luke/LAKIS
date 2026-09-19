@@ -10,3 +10,10 @@
 @media(max-width:800px){.image-history-overlay{padding:0}.image-history-shell{border:0;border-radius:0}.image-history-header{align-items:flex-start;min-height:118px;padding:14px;gap:12px}.image-history-header h2{font-size:21px}.image-history-header small{max-width:48vw}.image-history-header>div:last-child{flex-wrap:wrap;justify-content:flex-end;margin-left:0}.image-history-header button{min-height:42px;padding:7px 9px}.image-history-header #imageHistoryOpenFolder,.image-history-header #imageHistoryChangePath{display:none}.image-history-groups{padding:18px 14px}.image-history-date h3{padding-top:2px;line-height:1.4}.image-history-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.image-history-card{border-radius:7px}.image-history-inspector{inset:0;width:100%;border:0;border-radius:0;padding:14px}.image-history-inspector img{max-height:52vh}}
 .image-history-inspector{top:192px}
 @media(max-width:800px){.image-history-inspector{top:118px;right:0;bottom:0;left:0;height:auto}}
+
+/* Keep the detail close control in reserved space above the image. */
+.image-history-inspector-bar{position:sticky;top:-18px;z-index:4;display:flex;align-items:center;justify-content:space-between;min-height:54px;margin:-18px -18px 14px;padding:8px 12px 8px 18px;border-bottom:1px solid #2c3548;background:#101520f7;backdrop-filter:blur(12px)}
+.image-history-inspector-bar span{color:#a995ff;font-size:13px;font-weight:800}
+.image-history-inspector .image-history-inspector-bar button{position:static;display:grid;place-items:center;width:40px;height:40px;padding:0;border:1px solid #48536b;border-radius:10px;background:#171d2a;color:#fff;font-size:24px;line-height:1}
+.image-history-inspector .image-history-inspector-bar button:hover{border-color:#8b6cff;background:#211a3b}
+@media(max-width:800px){.image-history-inspector-bar{top:-14px;min-height:58px;margin:-14px -14px 14px;padding:9px max(14px,env(safe-area-inset-right)) 9px max(14px,env(safe-area-inset-left))}.image-history-inspector .image-history-inspector-bar button{width:44px;height:44px}}

@@ -81,6 +81,7 @@
 | `LKS-CFG-1003` | 생성 요청 본문 허용 크기 초과 | 입력 상태를 다시 선택 후 재시도 |
 | `LKS-CFG-1102` | 지원하지 않는 스케줄러 | 스케줄러를 다시 선택 |
 | `LKS-CFG-1103` | 세부 설정 검증 실패 | 해당 세부 설정 초기화 |
+| `LKS-CFG-1104` | ComfyUI가 생성 요청 입력을 거부함 | 오류 정보의 노드·입력값 확인 |
 
 새 코드는 이 문서에 먼저 등록한다. 내부 예외 전문은 화면에 직접 노출하지 않고
 로그의 `error_detail`에만 남긴다.
@@ -100,3 +101,11 @@
 `setting_node_id`, `setting_node_type`, `setting_name`, `received_value`,
 `node_declaration`(min/max/step 또는 options), `internal_reason`이 포함된다. LAKIS가
 별도의 임의 범위를 추가하지 않는다.
+
+
+## Recovery candidate additions (not a published release)
+
+| Code | Meaning | Retry policy |
+|---|---|---|
+| LKS-GEN-1011 | Submission or monitor result is unknown; backend may still be running. | Never automatically resubmit. Preserve request evidence and block another request in this bridge until explicitly recovered/restarted. |
+| LKS-CFG-1104 | ComfyUI returned a definite 4xx validation rejection to /prompt. | Preserve HTTP status and node_errors; repair the request before a new user-approved generation. |
