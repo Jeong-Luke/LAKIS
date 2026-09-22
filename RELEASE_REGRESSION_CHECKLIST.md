@@ -7,7 +7,9 @@ item is failing or unverified.
 ## Automated release gates
 
 - [ ] `installer/Test-ReleaseRegression.ps1 -ExpectedVersion <version>` passes.
-- [ ] GPT, DeepSeek, and Codex all PASS the exact same frozen source fingerprint before any Private RC artifact is built.
+- [ ] Required auditors PASS the exact same frozen source fingerprint before any Private RC artifact is built: GPT + DeepSeek + Codex normally, or DeepSeek + Codex only under the explicit owner-approved GPT outage exception in `THREE_PARTY_AUDIT_POLICY.md`. An unavailable GPT is never recorded as PASS.
+- [ ] Setup and CMD use the same immutable source revision and source archive SHA-256. `build_cmd_installer.py` consumes the exact Setup build contract, RepairPack, and layout.
+- [ ] The versioned CMD ZIP is included in RC hashes and final owner approval; its published bytes pass three independent download/hash checks.
 - [ ] `.github/workflows/prepare-private-rc.yml` builds the final artifact set exactly once from that audited candidate and uploads it as the `lakis-private-rc` Actions artifact with its fingerprint and file hashes.
 - [ ] Private RC tests and explicit owner approval are recorded against that exact fingerprint and artifact-set SHA; `Test-ReleaseApprovalGate.ps1` passes before any public tag or release is created.
 - [ ] `.github/workflows/publish-installer.yml` downloads the explicitly selected `rc_run_id`, never rebuilds the approved binaries, and publishes only those exact bytes.

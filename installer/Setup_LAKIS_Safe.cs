@@ -13,6 +13,9 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using Microsoft.Win32;
 
+// Opt into modern System.IO handling before the first framework path lookup.
+[assembly: System.Runtime.Versioning.TargetFramework(".NETFramework,Version=v4.6.2")]
+
 internal sealed class DownloadItem
 {
     internal string Name, Url, Sha, Destination;
@@ -255,6 +258,11 @@ internal sealed class SafeSetupForm : Form
 internal static class SafeInstaller
 {
     private const string Revision = "v7.5.0";
+    // The release build injects the hash of the exact commit archive.
+    private const string SourceArchiveSha256 = "BUILD_REQUIRES_PINNED_SOURCE_SHA256";
+    private const string WebView2BootstrapperUrl = "BUILD_REQUIRES_PINNED_WEBVIEW2_URL";
+    private const string WebView2BootstrapperSha256 = "BUILD_REQUIRES_PINNED_WEBVIEW2_SHA256";
+    private const long WebView2BootstrapperBytes = 0;
     private const string ReleaseVersion = "7.5.0";
     private static readonly DownloadItem Portable = new DownloadItem("ComfyUI v0.21.1",
         "https://github.com/Comfy-Org/ComfyUI/releases/download/v0.21.1/ComfyUI_windows_portable_nvidia.7z",
@@ -288,9 +296,39 @@ internal static class SafeInstaller
 
     internal static void Install(string target, bool includeAnimeSharp, Action<string> report)
     {
+        InstallFresh(target, stage => InstallStaged(stage, includeAnimeSharp, report), report);
+        try { CreateDesktopShortcut(target,report); }
+        catch(Exception error) { report("설치는 완료되었지만 바로가기를 만들지 못했습니다: " + error.Message); }
+        report("설치 완료");
+    }
+
+    internal static void InstallFresh(string target, Action<string> build, Action<string> report)
+    {
+        target=Path.GetFullPath(target);
+        var parent=Directory.GetParent(target);
+        if(parent==null)throw new InvalidOperationException("드라이브 최상위 경로에는 설치할 수 없습니다. 새 하위 폴더를 선택하세요.");
+        PrepareTarget(target,report);
+        string stage=Path.Combine(parent.FullName,".LAKIS-setup-stage-"+Guid.NewGuid().ToString("N"));
+        // Build beside the target, then promote on the same volume. Never
+        // delete a non-empty target, even if another process changed it.
+        try
+        {
+            build(stage);
+            PrepareTarget(target,report);
+            Directory.Delete(target,false);
+            Directory.Move(stage,target);
+        }
+        catch(Exception error)
+        {
+            throw new InvalidOperationException("설치가 중단되었습니다. 임시 폴더: "+stage+"\n"+error.Message,error);
+        }
+    }
+
+    private static void InstallStaged(string target, bool includeAnimeSharp, Action<string> report)
+    {
         ServicePointManager.SecurityProtocol=(SecurityProtocolType)3072;
         ServicePointManager.DefaultConnectionLimit=8;
-        string cache=Path.Combine(Path.GetTempPath(),"LAKIS-safe-v7.1"); Directory.CreateDirectory(cache);
+        string cache=InstallerCache();
         var log=new List<string>(); Action<string> status=s=>{lock(log)log.Add(s);report(s);};
         // Refuse protected destinations before entering the failure logger.
         // This guarantees a mistaken "new install" does not even overwrite an
@@ -305,7 +343,7 @@ internal static class SafeInstaller
             if(Directory.Exists(custom))try{DeleteTree(custom);}catch{status("잠긴 커스텀 노드 폴더를 덮어써 복구합니다");} Directory.CreateDirectory(custom);
             foreach(var node in Nodes) InstallZip(node,cache,Path.Combine(custom,node.Destination),status);
             InstallZip(Usdu,cache,Path.Combine(custom,"comfyui_ultimatesdupscale","repositories","ultimate_sd_upscale"),status);
-            var lakisItem=new DownloadItem("LAKIS-"+Revision+".zip","https://codeload.github.com/Jeong-Luke/LAKIS/zip/"+Revision,"",null);
+            var lakisItem=SourceArchive("LAKIS-");
             string lakisZip=Fetch(lakisItem,cache,status);
             string lakisStage=Path.Combine(cache,"LAKIS-"+Revision);Reset(lakisStage);ExtractZip(lakisZip,lakisStage);string lakis=FirstDirectory(lakisStage);
             CopyManagedNodePackages(lakis, custom);
@@ -339,7 +377,6 @@ internal static class SafeInstaller
             File.WriteAllText(Path.Combine(target,".lakis","upscaler-license-choice.json"),includeAnimeSharp?"{\n  \"choice\": \"animesharp\",\n  \"model\": \"2x-AnimeSharpV4_Fast_RCAN_PU.safetensors\",\n  \"license\": \"CC-BY-NC-SA-4.0\",\n  \"noncommercial_acknowledged\": true\n}\n":"{\n  \"choice\": \"realesrgan\",\n  \"model\": \"RealESRGAN_x4plus_anime_6B.pth\",\n  \"license\": \"BSD-3-Clause\",\n  \"noncommercial_acknowledged\": false\n}\n",new System.Text.UTF8Encoding(false));
             string python=Path.Combine(target,"python_embeded","python.exe");foreach(string node in Directory.GetDirectories(custom)){string req=Path.Combine(node,"requirements.txt");if(File.Exists(req)){status("의존성 설치: "+Path.GetFileName(node));string safeReq=PrepareRequirements(req);Run(python,"-s -m pip install --disable-pip-version-check -r \""+safeReq+"\"",target,status);}}
             ExtractDesktopRuntime(target,status);
-            CreateDesktopShortcut(target,status);
             File.WriteAllText(Path.Combine(target,"VERSION"),ReleaseVersion);File.WriteAllText(Path.Combine(target,"install.complete"),DateTime.UtcNow.ToString("O"));File.WriteAllLines(Path.Combine(target,"network-install.log"),log.ToArray());if(previous!=null)try{DeleteTree(previous);}catch{status("이전 설치 폴더는 재부팅 후 삭제할 수 있습니다: "+previous);}status("설치 완료");
         }
         catch(Exception error){try{Directory.CreateDirectory(target);File.WriteAllLines(Path.Combine(target,"network-install.log"),log.ToArray());}catch{}throw new InvalidOperationException("설치 중 오류가 발생했습니다.\n"+error.Message+"\n\n로그: "+Path.Combine(target,"network-install.log"),error);}
@@ -353,13 +390,13 @@ internal static class SafeInstaller
         try
         {
             StopOwned(target);
-            string cache=Path.Combine(Path.GetTempPath(),"LAKIS-safe-v7.1");Directory.CreateDirectory(cache);
+            string cache=InstallerCache();
             string custom=Path.Combine(comfy,"custom_nodes");Directory.CreateDirectory(custom);
             status("LoRA Manager 다운로드 및 검증");InstallZip(LoraManager,cache,Path.Combine(custom,LoraManager.Destination),status);
             string req=Path.Combine(custom,LoraManager.Destination,"requirements.txt");status("LoRA Manager 의존성 복구");
             Run(python,"-s -m pip install --disable-pip-version-check -r \""+req+"\"",target,status);
             status("LAKIS 실행 구성 복구");
-            var uiItem=new DownloadItem("LAKIS-repair-"+Revision+".zip","https://codeload.github.com/Jeong-Luke/LAKIS/zip/"+Revision,"",null);
+            var uiItem=SourceArchive("LAKIS-repair-");
             string uiZip=Fetch(uiItem,cache,status);
             string uiStage=Path.Combine(cache,"LAKIS-repair-"+Revision);Reset(uiStage);ExtractZip(uiZip,uiStage);
             string uiRoot=FirstDirectory(uiStage);
@@ -414,8 +451,51 @@ internal static class SafeInstaller
             CopyTree(Path.Combine(sourceRoot, "src", "custom_nodes", name), Path.Combine(customRoot, name));
     }
 
-    private static string Fetch(DownloadItem item,string cache,Action<string> status){string path=Path.Combine(cache,item.Name.Replace('/','_'));if(File.Exists(path)&&(item.Bytes>0&&new FileInfo(path).Length!=item.Bytes||item.Sha.Length>0&&!String.Equals(Hash(path),item.Sha,StringComparison.OrdinalIgnoreCase)))File.Delete(path);if(!File.Exists(path))Download(item.Url,path,item.Name,item.Bytes,status);if(item.Bytes>0&&new FileInfo(path).Length!=item.Bytes)throw new IOException("크기 검증 실패: "+item.Name);if(item.Sha.Length>0&&!String.Equals(Hash(path),item.Sha,StringComparison.OrdinalIgnoreCase))throw new IOException("SHA-256 검증 실패: "+item.Name);return path;}
+    private static DownloadItem SourceArchive(string prefix)
+    {
+        if(!System.Text.RegularExpressions.Regex.IsMatch(Revision,"^[a-fA-F0-9]{40}$") ||
+           !System.Text.RegularExpressions.Regex.IsMatch(SourceArchiveSha256,"^[a-fA-F0-9]{64}$"))
+            throw new InvalidOperationException("Installer source archive has not been pinned by the release build.");
+        return new DownloadItem(prefix+Revision+".zip","https://codeload.github.com/Jeong-Luke/LAKIS/zip/"+Revision,SourceArchiveSha256,null);
+    }
+    private static DownloadItem WebView2Archive()
+    {
+        if(!WebView2BootstrapperUrl.StartsWith("https://",StringComparison.Ordinal) || WebView2BootstrapperBytes<=0 ||
+           !System.Text.RegularExpressions.Regex.IsMatch(WebView2BootstrapperSha256,"^[a-fA-F0-9]{64}$"))
+            throw new InvalidOperationException("WebView2 bootstrapper has not been pinned by the release build.");
+        return new DownloadItem("MicrosoftEdgeWebview2Setup.exe",WebView2BootstrapperUrl,WebView2BootstrapperSha256,null,WebView2BootstrapperBytes);
+    }
+    private static string Fetch(DownloadItem item,string cache,Action<string> status)
+    {
+        string path=Path.Combine(cache,item.Name.Replace('/','_')), part=path+".part";
+        if(File.Exists(path)&&(item.Bytes>0&&new FileInfo(path).Length!=item.Bytes ||
+           item.Sha.Length>0&&!String.Equals(Hash(path),item.Sha,StringComparison.OrdinalIgnoreCase)))File.Delete(path);
+        if(!File.Exists(path)&&File.Exists(part))
+        {
+            long size=new FileInfo(part).Length;
+            if((item.Bytes<=0||size==item.Bytes)&&item.Sha.Length>0&&String.Equals(Hash(part),item.Sha,StringComparison.OrdinalIgnoreCase))
+                File.Move(part,path);
+            else if(item.Bytes>0&&size>=item.Bytes)File.Delete(part);
+        }
+        if(!File.Exists(path))Download(item.Url,path,item.Name,item.Bytes,status);
+        if(item.Bytes>0&&new FileInfo(path).Length!=item.Bytes)throw new IOException("크기 검증 실패: "+item.Name);
+        if(item.Sha.Length>0&&!String.Equals(Hash(path),item.Sha,StringComparison.OrdinalIgnoreCase))throw new IOException("SHA-256 검증 실패: "+item.Name);
+        return path;
+    }
     private static void Download(string url,string path,string name,long expected,Action<string> status)
+    {
+        try { DownloadTransfer(url,path,name,expected,status); }
+        catch(WebException error)
+        {
+            var response=error.Response as HttpWebResponse;
+            if(response==null||response.StatusCode!=HttpStatusCode.RequestedRangeNotSatisfiable||!File.Exists(path+".part"))throw;
+            response.Close();
+            File.Delete(path+".part");
+            // One fresh transfer only; a second failure is reported.
+            DownloadTransfer(url,path,name,expected,status);
+        }
+    }
+    private static void DownloadTransfer(string url,string path,string name,long expected,Action<string> status)
     {
         if(expected>=1024L*1024*1024&&!File.Exists(path+".part"))
         {
@@ -490,9 +570,46 @@ internal static class SafeInstaller
         finally { foreach(string part in parts)try{if(File.Exists(part))File.Delete(part);}catch{} }
     }
     private static string Hash(string path){using(var s=File.OpenRead(path))using(var h=SHA256.Create())return BitConverter.ToString(h.ComputeHash(s)).Replace("-","");}
-    private static void InstallZip(DownloadItem item,string cache,string destination,Action<string> status){string zip=Fetch(item,cache,status),stage=Path.Combine(cache,"unpack-"+item.Name);Reset(stage);ExtractZip(zip,stage);string source=FirstDirectory(stage);if(Directory.Exists(destination))try{DeleteTree(destination);}catch{}Directory.CreateDirectory(Path.GetDirectoryName(destination));CopyTree(source,destination);try{DeleteTree(source);}catch{}}
-    private static void ExtractZip(string archive,string destination){string root=Path.GetFullPath(destination).TrimEnd(Path.DirectorySeparatorChar)+Path.DirectorySeparatorChar;using(var zip=ZipFile.OpenRead(archive)){foreach(var entry in zip.Entries){string output=Path.GetFullPath(Path.Combine(destination,entry.FullName.Replace('/',Path.DirectorySeparatorChar)));if(!output.StartsWith(root,StringComparison.OrdinalIgnoreCase))throw new IOException("Unsafe ZIP path: "+entry.FullName);if(String.IsNullOrEmpty(entry.Name)){Directory.CreateDirectory(output);continue;}Directory.CreateDirectory(Path.GetDirectoryName(output));using(Stream input=entry.Open())using(Stream file=new FileStream(output,FileMode.Create,FileAccess.Write,FileShare.None))input.CopyTo(file);}}}
-    private static void Extract7z(string archive,string destination){string tool=Path.Combine(Path.GetTempPath(),"LAKIS-safe-v7.1","7zr.exe");ExtractResource("LAKIS.7zr",tool);Run(tool,"x -y -o\""+destination+"\" \""+archive+"\"",destination,_=>{});if(!Directory.Exists(Path.Combine(destination,"ComfyUI_windows_portable")))throw new IOException("ComfyUI 압축 해제 결과를 확인할 수 없습니다.");}
+    private static void InstallZip(DownloadItem item,string cache,string destination,Action<string> status){string zip=Fetch(item,cache,status),stage=Path.Combine(cache,"unpack-"+item.Name);Reset(stage);ExtractZip(zip,stage);string source=FirstDirectory(stage);if(Object.ReferenceEquals(item,LoraManager)&&Directory.Exists(destination))CopyLoraManagerForRepair(source,destination);else{if(Directory.Exists(destination))try{DeleteTree(destination);}catch{}Directory.CreateDirectory(Path.GetDirectoryName(destination));CopyTree(source,destination);}try{DeleteTree(source);}catch{}}
+    private static void CopyLoraManagerForRepair(string source,string destination)
+    {
+        // Preserve both legacy package-local state and unknown user additions.
+        // These reserved roots match the pinned LoraManager updater contract.
+        var preserved=new HashSet<string>(new[]{"settings.json","civitai","wildcards","backups","stats","logs","cache","model_cache"},StringComparer.OrdinalIgnoreCase);
+        source=FileSystemPath(source).TrimEnd(Path.DirectorySeparatorChar)+Path.DirectorySeparatorChar;
+        destination=FileSystemPath(destination);
+        Directory.CreateDirectory(destination);
+        foreach(string file in Directory.GetFiles(source,"*",SearchOption.AllDirectories))
+        {
+            string relative=file.Substring(source.Length);
+            if(preserved.Contains(relative.Split(Path.DirectorySeparatorChar)[0]))continue;
+            string output=Path.Combine(destination,relative);
+            Directory.CreateDirectory(Path.GetDirectoryName(output));File.Copy(file,output,true);
+        }
+    }
+    private static void ExtractZip(string archive,string destination)
+    {
+        string root=Path.GetFullPath(destination).TrimEnd(Path.DirectorySeparatorChar)+Path.DirectorySeparatorChar;
+        using(var zip=ZipFile.OpenRead(FileSystemPath(archive))) foreach(var entry in zip.Entries)
+        {
+            string relative=entry.FullName.Replace('/',Path.DirectorySeparatorChar);
+            // Modern IO preserves more Windows path syntax. ZIP members must
+            // still be ordinary relative files, never ADS/device/rooted paths
+            // or names whose trailing dots/spaces have ambiguous semantics.
+            if(Path.IsPathRooted(relative)||relative.IndexOf(':')>=0)
+                throw new IOException("Unsafe ZIP path: "+entry.FullName);
+            foreach(string part in relative.Split(Path.DirectorySeparatorChar))
+                if(part=="."||part==".."||part.EndsWith(".",StringComparison.Ordinal)||part.EndsWith(" ",StringComparison.Ordinal))
+                    throw new IOException("Unsafe ZIP path: "+entry.FullName);
+            string output=Path.GetFullPath(Path.Combine(destination,relative));
+            if(!output.StartsWith(root,StringComparison.OrdinalIgnoreCase))throw new IOException("Unsafe ZIP path: "+entry.FullName);
+            output=FileSystemPath(output);
+            if(String.IsNullOrEmpty(entry.Name)){Directory.CreateDirectory(output);continue;}
+            Directory.CreateDirectory(Path.GetDirectoryName(output));
+            using(Stream input=entry.Open())using(Stream file=new FileStream(output,FileMode.Create,FileAccess.Write,FileShare.None))input.CopyTo(file);
+        }
+    }
+    private static void Extract7z(string archive,string destination){string tool=Path.Combine(InstallerCache(),"7zr.exe");ExtractResource("LAKIS.7zr",tool);RunInstallerTool(tool,"x -y -o\""+FileSystemPath(destination)+"\" \""+FileSystemPath(archive)+"\"",destination,_=>{});if(!Directory.Exists(FileSystemPath(Path.Combine(destination,"ComfyUI_windows_portable"))))throw new IOException("ComfyUI 압축 해제 결과를 확인할 수 없습니다.");}
     private static string PrepareRequirements(string source){string text=File.ReadAllText(source);text=text.Replace("git+https://github.com/facebookresearch/sam2","https://codeload.github.com/facebookresearch/sam2/zip/2b90b9f5ceec907a1c18123530e92e794ad901a4").Replace("git+https://github.com/ltdrdata/img2texture.git","https://codeload.github.com/ltdrdata/img2texture/zip/d6159abea44a0b2cf77454d3d46962c8b21eb9d3").Replace("git+https://github.com/ltdrdata/cstr","https://codeload.github.com/ltdrdata/cstr/zip/0520c29a18a7a869a6e5983861d6f7a4c86f8e9b").Replace("git+https://github.com/ltdrdata/ffmpy.git","https://codeload.github.com/ltdrdata/ffmpy/zip/f000737698b387ffaeab7cd871b0e9185811230d");string output=source+".lakis.txt";File.WriteAllText(output,text);return output;}
     internal static bool IsExistingInstallation(string target)
     {
@@ -522,11 +639,42 @@ internal static class SafeInstaller
         if(HasDirectoryEntries(target))throw new InvalidOperationException("설치 폴더가 비어 있지 않습니다. 기존 파일 보호를 위해 새 설치를 중단했습니다. 비어 있는 폴더를 선택하세요.");
         Directory.CreateDirectory(target);status("빈 설치 폴더 확인 완료");return null;
     }
-    private static void DeleteTree(string path){Exception last=null;for(int attempt=0;attempt<5;attempt++){try{if(!Directory.Exists(path))return;foreach(string file in Directory.GetFiles(path,"*",SearchOption.AllDirectories))try{File.SetAttributes(file,FileAttributes.Normal);}catch{}foreach(string dir in Directory.GetDirectories(path,"*",SearchOption.AllDirectories))try{File.SetAttributes(dir,FileAttributes.Normal);}catch{}File.SetAttributes(path,FileAttributes.Normal);Directory.Delete(path,true);return;}catch(Exception error){last=error;GC.Collect();GC.WaitForPendingFinalizers();System.Threading.Thread.Sleep(1000);}}throw last;}
-    private static void Reset(string path){if(Directory.Exists(path))Directory.Delete(path,true);Directory.CreateDirectory(path);}
-    private static string FirstDirectory(string path){string[] dirs=Directory.GetDirectories(path);if(dirs.Length==0)throw new IOException("빈 압축 파일: "+path);return dirs[0];}
+    private static void DeleteTree(string path){path=FileSystemPath(path);Exception last=null;for(int attempt=0;attempt<5;attempt++){try{if(!Directory.Exists(path))return;foreach(string file in Directory.GetFiles(path,"*",SearchOption.AllDirectories))try{File.SetAttributes(file,FileAttributes.Normal);}catch{}foreach(string dir in Directory.GetDirectories(path,"*",SearchOption.AllDirectories))try{File.SetAttributes(dir,FileAttributes.Normal);}catch{}File.SetAttributes(path,FileAttributes.Normal);Directory.Delete(path,true);return;}catch(Exception error){last=error;GC.Collect();GC.WaitForPendingFinalizers();System.Threading.Thread.Sleep(1000);}}throw last;}
+    private static void Reset(string path){path=FileSystemPath(path);if(Directory.Exists(path))Directory.Delete(path,true);Directory.CreateDirectory(path);}
+    private static string FirstDirectory(string path){string[] dirs=Directory.GetDirectories(FileSystemPath(path));if(dirs.Length==0)throw new IOException("빈 압축 파일: "+path);return dirs[0];}
     private static void Move(string entry,string target){string output=Path.Combine(target,Path.GetFileName(entry));bool sameRoot=String.Equals(Path.GetPathRoot(Path.GetFullPath(entry)),Path.GetPathRoot(Path.GetFullPath(output)),StringComparison.OrdinalIgnoreCase);if(Directory.Exists(entry)){if(Directory.Exists(output)||!sameRoot){CopyTree(entry,output);try{DeleteTree(entry);}catch{}}else Directory.Move(entry,output);}else{if(File.Exists(output))File.Delete(output);if(sameRoot)File.Move(entry,output);else{File.Copy(entry,output,true);try{File.Delete(entry);}catch{}}}}
-    private static void CopyTree(string source,string target){Directory.CreateDirectory(target);foreach(string dir in Directory.GetDirectories(source,"*",SearchOption.AllDirectories))Directory.CreateDirectory(dir.Replace(source,target));foreach(string file in Directory.GetFiles(source,"*",SearchOption.AllDirectories)){string output=file.Replace(source,target);Directory.CreateDirectory(Path.GetDirectoryName(output));File.Copy(file,output,true);}}
+    private static void CopyTree(string source,string target){source=FileSystemPath(source);target=FileSystemPath(target);Directory.CreateDirectory(target);foreach(string dir in Directory.GetDirectories(source,"*",SearchOption.AllDirectories))Directory.CreateDirectory(target+dir.Substring(source.Length));foreach(string file in Directory.GetFiles(source,"*",SearchOption.AllDirectories)){string output=target+file.Substring(source.Length);Directory.CreateDirectory(Path.GetDirectoryName(output));File.Copy(file,output,true);}}
+    private static string FileSystemPath(string path)
+    {
+        string full=Path.GetFullPath(path);
+        if(full.StartsWith(@"\\?\",StringComparison.Ordinal))return full;
+        return full.StartsWith(@"\\",StringComparison.Ordinal)?@"\\?\UNC\"+full.Substring(2):@"\\?\"+full;
+    }
+    private static string InstallerCache()
+    {
+        // GetTempPath on older Windows/.NET can lose paths beyond MAX_PATH.
+        // Preserve the documented TMP -> TEMP order without changing either value.
+        string temporary=Environment.GetEnvironmentVariable("TMP");
+        if(String.IsNullOrWhiteSpace(temporary))temporary=Environment.GetEnvironmentVariable("TEMP");
+        if(String.IsNullOrWhiteSpace(temporary))temporary=Path.GetTempPath();
+        string path=FileSystemPath(Path.Combine(temporary,"LAKIS-safe-v7.1"));
+        Directory.CreateDirectory(path);
+        return path;
+    }
+    private static void RunInstallerTool(string file,string args,string cwd,Action<string> status)
+    {
+        // CreateProcess still limits the executable path. Only self-contained,
+        // verified installer tools use this private, temporary launch location.
+        if(file.Length<260){Run(file,args,cwd,status);return;}
+        string local=Environment.GetEnvironmentVariable("LOCALAPPDATA");
+        if(String.IsNullOrWhiteSpace(local))local=Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        string directory=Path.GetFullPath(Path.Combine(local,"LAKIS Studio","setup-tools",Guid.NewGuid().ToString("N")));
+        string executable=Path.Combine(directory,Path.GetFileName(file));
+        if(executable.Length>=260)throw new IOException("설치 도구 실행 경로가 너무 깁니다.");
+        Directory.CreateDirectory(directory);
+        try{File.Copy(file,executable,false);Run(executable,args,directory,status);}
+        finally{DeleteTree(directory);}
+    }
     private static void Run(string file,string args,string cwd,Action<string> status){var info=new ProcessStartInfo(file,args){WorkingDirectory=cwd,UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true};using(var p=new Process{StartInfo=info}){p.OutputDataReceived+=(_,e)=>{if(!String.IsNullOrWhiteSpace(e.Data))status(e.Data);};p.ErrorDataReceived+=(_,e)=>{if(!String.IsNullOrWhiteSpace(e.Data))status(e.Data);};p.Start();p.BeginOutputReadLine();p.BeginErrorReadLine();p.WaitForExit();if(p.ExitCode!=0)throw new InvalidOperationException(Path.GetFileName(file)+" 종료 코드 "+p.ExitCode);}}
     private static void ExtractResource(string name,string path)
     {
@@ -593,23 +741,28 @@ internal static class SafeInstaller
                 {
                     string name=Convert.ToString(product.GetValue("name"));
                     string version=Convert.ToString(product.GetValue("pv"));
-                    if(name.IndexOf("WebView2",StringComparison.OrdinalIgnoreCase)>=0&&!String.IsNullOrWhiteSpace(version)&&version!="0.0.0.0")return true;
+                    if(name.IndexOf("WebView2",StringComparison.OrdinalIgnoreCase)>=0&&IsInstalledWebView2Version(version))return true;
                 }
             }
         }catch{}
         return false;
     }
+    private static bool IsInstalledWebView2Version(string version)
+    {
+        string value=(version??String.Empty).Trim(); Version parsed;
+        return System.Text.RegularExpressions.Regex.IsMatch(value,@"^[0-9]+(\.[0-9]+){3}$") &&
+            Version.TryParse(value,out parsed) && parsed>new Version(0,0,0,0);
+    }
     private static void EnsureWebView2Runtime(Action<string> status)
     {
         if(HasWebView2Runtime()){status("Microsoft WebView2 Runtime 확인 완료");return;}
-        string setup=Path.Combine(Path.GetTempPath(),"LAKIS-safe-v7.1","MicrosoftEdgeWebview2Setup.exe");
-        Directory.CreateDirectory(Path.GetDirectoryName(setup));
+        string cache=InstallerCache();
         status("Microsoft WebView2 Runtime 다운로드");
-        Download("https://go.microsoft.com/fwlink/p/?LinkId=2124703",setup,"Microsoft WebView2 Runtime",0,status);
+        string setup=Fetch(WebView2Archive(),cache,status);
         X509Certificate2 certificate=new X509Certificate2(X509Certificate.CreateFromSignedFile(setup));
         if(certificate.Subject.IndexOf("Microsoft Corporation",StringComparison.OrdinalIgnoreCase)<0)throw new InvalidDataException("WebView2 설치 파일의 Microsoft 서명을 확인할 수 없습니다.");
         status("Microsoft WebView2 Runtime 설치");
-        Run(setup,"/silent /install",Path.GetDirectoryName(setup),status);
+        RunInstallerTool(setup,"/silent /install",Path.GetDirectoryName(setup),status);
         if(!HasWebView2Runtime())throw new InvalidOperationException("WebView2 Runtime 설치를 확인할 수 없습니다. Windows를 다시 시작한 뒤 복구를 실행해 주세요.");
     }
     private static void CreateDesktopShortcut(string target,Action<string> status)

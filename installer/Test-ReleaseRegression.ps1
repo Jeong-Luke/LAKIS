@@ -109,6 +109,9 @@ foreach ($forbiddenAsset in @("LAKIS_DEV.exe", "LAKIS_DEV_Desktop.exe", "LUKIS_D
     Require (-not $workflow.Contains($forbiddenAsset)) "Public release workflow must not upload private/development asset: $forbiddenAsset"
 }
 Require ($rcWorkflow.Contains("build_safe_installer.ps1")) "Private RC workflow must build the candidate artifact set."
+Require ($rcWorkflow.Contains("build_cmd_installer.py")) "Private RC workflow must build the matching CMD package."
+Require ($workflow.Contains('gh release upload $env:RELEASE_TAG (".\dist\" + $cmdAsset')) "Public release must upload the approved CMD package."
+Require ($workflow.Contains('CMD package remote hash mismatch')) "CMD package downloads must be remotely hash verified."
 Require ($rcWorkflow.Contains("actions/upload-artifact@v4")) "Private RC workflow must preserve the exact built artifact set."
 Require ($rcWorkflow.Contains("Test-ThreePartyAuditGate.ps1 -Version")) "Private RC build must require three-party source audit PASS."
 Require ($rcWorkflow.Contains("Candidate ref must be a full 40-character commit SHA.")) "Private RC build must be pinned to an exact candidate commit SHA."
@@ -118,6 +121,8 @@ Require ($workflow.Contains("run-id: `${{ inputs.rc_run_id }}")) "Public publish
 Require (-not $workflow.Contains("build_safe_installer.ps1")) "Public publish must not rebuild artifacts after Private RC approval."
 Require ($workflow.Contains("Test-ReleaseApprovalGate.ps1 -Version")) "Public publish must enforce Private RC and explicit owner approval."
 Require ($workflow.Contains('buildRecord.source_commit -ne $resolvedCandidate')) "Public publish must bind the Private RC source commit to candidate_ref."
+Require ($workflow.Contains('Approval ref must be a full 40-character commit SHA.')) "Post-build approval evidence must have its own immutable ref."
+Require ($workflow.Contains('.release-approval-records\release_approvals\v')) "Approval evidence must not replace the frozen candidate source checkout."
 Require (-not [regex]::IsMatch($workflow, '(?m)^\\s*push:\\s*$')) "Public release workflow must not auto-publish from a tag push; approval must happen first."
 Require ($workflow.Contains("Release tag does not point to the approved candidate ref.")) "Public release workflow must bind the release tag to the approved candidate ref."
 Require ($workflow.Contains("-VerifyRemote -Passes 3")) "Release workflow must remotely verify every file three times."
@@ -277,6 +282,14 @@ Require ($LASTEXITCODE -eq 0) "Tester-only Private RC server regression failed."
 Require ($LASTEXITCODE -eq 0) "Error-code and model-compatibility regression failed."
 & $python (Join-Path $repo "installer\tests\test_release_gates.py")
 Require ($LASTEXITCODE -eq 0) "Three-party and release-approval fail-closed regression failed."
+& $python (Join-Path $repo "installer\tests\test_cmd_installer.py")
+Require ($LASTEXITCODE -eq 0) "CMD installer safety regression failed."
+& $python (Join-Path $repo "installer\tests\test_cmd_package.py")
+Require ($LASTEXITCODE -eq 0) "CMD package and Setup source contract regression failed."
+& $python (Join-Path $repo "installer\tests\test_setup_source_pin.py")
+Require ($LASTEXITCODE -eq 0) "Setup source pin runtime regression failed."
+& $python (Join-Path $repo "installer\tests\test_cmd_bootstrap.py")
+Require ($LASTEXITCODE -eq 0) "CMD bootstrap interruption recovery regression failed."
 foreach ($jsonFile in $jsonFiles) {
     & $python -m json.tool $jsonFile 1>$null
     Require ($LASTEXITCODE -eq 0) "Invalid packaged workflow JSON: $jsonFile"

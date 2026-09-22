@@ -41,7 +41,9 @@ $requiredAssets = @(
     "Microsoft.Web.WebView2.WinForms.dll",
     "WebView2Loader.dll",
     "release-layout.json",
-    "LAKIS_RepairPack.zip"
+    "LAKIS_RepairPack.zip",
+    ("LAKIS_CMD_Installer_" + $version + ".zip"),
+    "private-rc-build.json"
 )
 $artifactHashes = [ordered]@{}
 foreach ($name in $requiredAssets) {
@@ -70,25 +72,29 @@ $rc = Read-Evidence "private_rc.json"
 $owner = Read-Evidence "owner.json"
 foreach ($pair in @(@("private_rc.json",$rc), @("owner.json",$owner))) {
     $name = $pair[0]; $record = $pair[1]
+    if ($record -isnot [pscustomobject]) { throw "RELEASE_APPROVAL_INVALID_RECORD: $name must be an object" }
     foreach ($field in @("schema","version","fingerprint_sha256","status","artifact_set_sha256")) {
         if ($record.PSObject.Properties.Name -notcontains $field) {
             throw "RELEASE_APPROVAL_INVALID_RECORD: $name missing $field"
         }
     }
-    if ($record.schema -ne 1) { throw "RELEASE_APPROVAL_INVALID_RECORD: $name schema" }
-    if ([string]$record.version -ne $version) { throw "RELEASE_APPROVAL_VERSION_MISMATCH: $name" }
-    if ([string]$record.fingerprint_sha256 -ne [string]$current.fingerprint_sha256) {
+    if (($record.schema -isnot [int] -and $record.schema -isnot [long]) -or $record.schema -ne 1) { throw "RELEASE_APPROVAL_INVALID_RECORD: $name schema" }
+    foreach ($field in @("version","fingerprint_sha256","status","artifact_set_sha256")) {
+        if ($record.$field -isnot [string]) { throw "RELEASE_APPROVAL_INVALID_RECORD: $name $field must be a string" }
+    }
+    if ($record.version -cne $version) { throw "RELEASE_APPROVAL_VERSION_MISMATCH: $name" }
+    if ($record.fingerprint_sha256 -cne [string]$current.fingerprint_sha256) {
         throw "RELEASE_APPROVAL_STALE: $name fingerprint"
     }
-    if ([string]$record.artifact_set_sha256 -ne $artifactSetHash) {
+    if ($record.artifact_set_sha256 -cne $artifactSetHash) {
         throw "RELEASE_APPROVAL_ARTIFACT_MISMATCH: $name"
     }
 }
 
-if (([string]$rc.status).ToUpperInvariant() -ne "PASS") {
+if ($rc.status -cne "PASS") {
     throw "RELEASE_APPROVAL_BLOCKED: private RC status=$($rc.status)"
 }
-if ($rc.PSObject.Properties.Name -notcontains "checks" -or $null -eq $rc.checks) {
+if ($rc.PSObject.Properties.Name -notcontains "checks" -or $rc.checks -isnot [pscustomobject]) {
     throw "RELEASE_APPROVAL_INVALID_RECORD: private_rc.json missing checks"
 }
 $requiredChecks = @(
@@ -116,24 +122,25 @@ $requiredChecks = @(
 )
 foreach ($check in $requiredChecks) {
     $prop = $rc.checks.PSObject.Properties[$check]
-    if ($null -eq $prop -or $prop.Value -ne $true) {
+    if ($null -eq $prop -or $prop.Value -isnot [bool] -or $prop.Value -ne $true) {
         throw "RELEASE_APPROVAL_RC_CHECK_FAILED: $check"
     }
 }
-if ($rc.PSObject.Properties.Name -notcontains "artifacts" -or $null -eq $rc.artifacts) {
+if ($rc.PSObject.Properties.Name -notcontains "artifacts" -or $rc.artifacts -isnot [pscustomobject]) {
     throw "RELEASE_APPROVAL_INVALID_RECORD: private_rc.json missing artifacts"
 }
 foreach ($name in $requiredAssets) {
     $prop = $rc.artifacts.PSObject.Properties[$name]
-    if ($null -eq $prop -or ([string]$prop.Value).ToUpperInvariant() -ne $artifactHashes[$name]) {
+    if ($null -eq $prop -or $prop.Value -isnot [string] -or $prop.Value -cne $artifactHashes[$name]) {
         throw "RELEASE_APPROVAL_ARTIFACT_MISMATCH: private_rc.json $name"
     }
 }
 
-if (([string]$owner.status).ToUpperInvariant() -ne "APPROVED") {
+if ($owner.status -cne "APPROVED") {
     throw "RELEASE_APPROVAL_BLOCKED: owner status=$($owner.status)"
 }
 if ($owner.PSObject.Properties.Name -notcontains "approved_by" -or
+    $owner.approved_by -isnot [string] -or
     [string]::IsNullOrWhiteSpace([string]$owner.approved_by)) {
     throw "RELEASE_APPROVAL_INVALID_RECORD: owner.json missing approved_by"
 }

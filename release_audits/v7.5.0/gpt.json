@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "auditor": "gpt",
+  "version": "7.5.0",
+  "fingerprint_sha256": "E381C7B3724C6878693AF4F12EBBA2AD17803E3703F02D71EEE36480C34FF81D",
+  "status": "PASS",
+  "blockers": [],
+  "findings": [],
+  "notes": [
+    "Independent GPT primary source/release audit of exact fingerprint E381C7B3724C6878693AF4F12EBBA2AD17803E3703F02D71EEE36480C34FF81D.",
+    "Previously confirmed GPT-001 was fixed: public LAKIS verifies release integrity before any Patcher/Updater launch; the release regression gate now enforces this ordering.",
+    "Previously confirmed GPT-002 was fixed: public publish is manual-only, downloads an explicitly selected one-time Private RC artifact, does not rebuild it, requires Test-ReleaseApprovalGate, binds the release tag to the approved candidate commit SHA, and publishes only after approval and draft-byte verification.",
+    "The new prepare-private-rc workflow is included in the release fingerprint, so changing RC build semantics invalidates prior audit PASS records.",
+    "ReleaseApprovalGate now requires updater_interruption_recovery and one_prompt_per_click in addition to Setup/Update/Repair/runtime/generation/user-data checks.",
+    "Fail-closed gate tests passed for non-empty findings, stale fingerprint, TOKEN_LIMITED, missing primary auditor, missing Private RC, missing owner approval, and artifact mismatch.",
+    "Local verification passed: release regression gate; release integrity 7/7; public product boundary 9/9; API origin guard 7/7; recovery graphs 8/8; providers 16/16; error/model inventory 20/20; release-gate negative tests 9/9; workflow YAML parse; Launcher C# compile; git diff --check.",
+    "Private RC is a later independent release gate and has not been claimed as completed by this source audit. No public push, tag, release, or manifest activation was performed."
+  ]
+}

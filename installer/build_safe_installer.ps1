@@ -18,6 +18,29 @@ $pinnedSetupSource = Join-Path $stage "Setup_LAKIS_SourcePinned.cs"
 $pattern = 'private const string Revision = "[^"]+";'
 if ([regex]::Matches($setupSource, $pattern).Count -ne 1) { throw "Installer revision declaration is ambiguous." }
 $setupSource = [regex]::Replace($setupSource, $pattern, ('private const string Revision = "' + $sourceRevision + '";'))
+$sourceArchive = Join-Path $stage 'LAKIS-source.zip'
+# Fetch afresh from the immutable commit URL before recording the build hash.
+Invoke-WebRequest -UseBasicParsing ("https://codeload.github.com/Jeong-Luke/LAKIS/zip/" + $sourceRevision) -OutFile $sourceArchive
+$sourceHash = (Get-FileHash -LiteralPath $sourceArchive -Algorithm SHA256).Hash
+$hashPattern = 'private const string SourceArchiveSha256 = "[^"]+";'
+if ([regex]::Matches($setupSource, $hashPattern).Count -ne 1) { throw "Installer source hash declaration is ambiguous." }
+$setupSource = [regex]::Replace($setupSource, $hashPattern, ('private const string SourceArchiveSha256 = "' + $sourceHash + '";'))
+[ordered]@{ schema=1; revision=$sourceRevision; sha256=$sourceHash; bytes=(Get-Item -LiteralPath $sourceArchive).Length } |
+    ConvertTo-Json | Set-Content -Encoding UTF8 (Join-Path $stage 'source-contract.json')
+& (Join-Path $PSScriptRoot 'New-WebView2Bootstrapper.ps1') -OutputDirectory $stage
+$webviewPin = Get-Content -Raw -Encoding UTF8 (Join-Path $stage 'webview2-bootstrapper.json') | ConvertFrom-Json
+if ($webviewPin.url -match '["\\\r\n]' -or $webviewPin.sha256 -notmatch '^[A-F0-9]{64}$' -or $webviewPin.bytes -le 0) { throw 'Invalid WebView2 source pin.' }
+foreach ($binding in @(
+    @('WebView2BootstrapperUrl',[string]$webviewPin.url),
+    @('WebView2BootstrapperSha256',[string]$webviewPin.sha256)
+)) {
+    $declaration = 'private const string ' + $binding[0] + ' = "[^"]+";'
+    if ([regex]::Matches($setupSource,$declaration).Count -ne 1) { throw 'Ambiguous WebView2 source declaration.' }
+    $setupSource = [regex]::Replace($setupSource,$declaration,('private const string '+$binding[0]+' = "'+$binding[1]+'";'))
+}
+$bytesDeclaration = 'private const long WebView2BootstrapperBytes = [0-9]+;'
+if ([regex]::Matches($setupSource,$bytesDeclaration).Count -ne 1) { throw 'Ambiguous WebView2 size declaration.' }
+$setupSource = [regex]::Replace($setupSource,$bytesDeclaration,('private const long WebView2BootstrapperBytes = '+$webviewPin.bytes+';'))
 [IO.File]::WriteAllText($pinnedSetupSource, $setupSource, [Text.UTF8Encoding]::new($false))
 Write-Output "INSTALLER_SOURCE_REVISION=$sourceRevision"
 

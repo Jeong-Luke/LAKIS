@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "auditor": "codex",
+  "version": "7.5.0",
+  "fingerprint_sha256": "1485EF5A4E5515301E3BE527ADE26B18E90391172335D959BDF18E1E00DFCBD1",
+  "status": "PASS",
+  "blockers": [],
+  "findings": [],
+  "reviewed_at": "2026-09-22T16:13:24.689039+00:00",
+  "scope": "Focused long-TEMP and LoRA repair preservation follow-up. Full three-source review followed by exact final dispatch delta review; 229 other snapshot files verified unchanged.",
+  "notes": [
+    "GPT historical record preserved; owner-approved outage two-party mode continues.",
+    "No public release approval. Other-PC install/real download remains a separate validation.",
+    "Earlier raw findings remain preserved and their fixes are recorded; no silent deletion of findings."
+  ],
+  "raw_evidence": [
+    "runs/installer-long-path-20260923/deepseek-final/result.json",
+    "runs/installer-long-path-20260923/deepseek-dispatch/result.json"
+  ],
+  "local_adjudication": "runs/installer-long-path-20260923/finding_adjudication.json"
+}
