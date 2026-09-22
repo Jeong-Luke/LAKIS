@@ -76,7 +76,6 @@ class ReleaseLayoutTests(unittest.TestCase):
                 "ComfyUI/LAKIS/external_ui/serve_ui.py",
                 "ComfyUI/LAKIS/external_ui/workflow_bridge.py",
                 "ComfyUI/LAKIS/workflows/LAKIS_runtime_api_v7.4.json",
-                "ComfyUI/LAKIS/workflows/LAKIS_custom_v7.4_editable.json",
                 "ComfyUI/custom_nodes/ComfyUI-LAKIS-Local-Inpaint/__init__.py",
             ):
                 self.assertIn(required, files)
@@ -88,7 +87,7 @@ class ReleaseLayoutTests(unittest.TestCase):
                 "ComfyUI/output/",
             )
             self.assertFalse(any(path.startswith(forbidden_prefixes) for path in files))
-            self.assertFalse(any(path.startswith("ComfyUI/user/") for path in files))
+            self.assertNotIn("ComfyUI/LAKIS/workflows/LAKIS_custom_v7.4_editable.json", files)
             self.assertNotIn("ComfyUI/LAKIS/external_ui/release-integrity.json", files)
             self.assertIn(
                 "ComfyUI/custom_nodes/ComfyUI-LAKIS-Light-Control/__init__.py",

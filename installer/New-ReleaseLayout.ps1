@@ -80,8 +80,7 @@ try {
 
     foreach ($name in @(
         "LAKIS_runtime_api_v7.4.json",
-        "LAKIS_runtime_visual_v7.4.json",
-        "LAKIS_custom_v7.4_editable.json"
+        "LAKIS_runtime_visual_v7.4.json"
     )) {
         Copy-ManagedFile "ComfyUI/LAKIS/workflows/$name" (Join-Path $source "workflows\$name")
     }
@@ -113,9 +112,7 @@ try {
             if ($relative -match $protectedPattern) {
                 throw "User-owned path entered release layout: $relative"
             }
-            if ($relative -match '(?i)^ComfyUI/user/' -or
-                ($relative -match '(?i)(^|/)LAKIS_custom_.*_editable\.json$' -and
-                 $relative -ne "ComfyUI/LAKIS/workflows/LAKIS_custom_v7.4_editable.json")) {
+            if ($relative -match '(?i)(^|/)LAKIS_custom_.*_editable\.json$') {
                 throw "User-editable workflow entered release layout: $relative"
             }
             [ordered]@{
