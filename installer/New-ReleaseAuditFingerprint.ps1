@@ -14,7 +14,7 @@ $includeFiles = @(
     "RELEASE_REGRESSION_CHECKLIST.md",
     "THREE_PARTY_AUDIT_POLICY.md"
 )
-$includeRoots = @("installer","resources","src","workflows","third_party_licenses")
+$includeRoots = @("installer","resources","src","workflows","third_party_licenses","tools\rc_patcher")
 $script:records = @()
 
 function Get-CanonicalHash([string]$Path) {

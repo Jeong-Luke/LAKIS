@@ -186,7 +186,13 @@ internal sealed class UpdaterForm : Form
             MessageBox.Show("업데이트가 완료되었습니다.", "LAKIS 업데이트", MessageBoxButtons.OK, MessageBoxIcon.Information);
             if (launchAfterUpdate)
             {
-                Process.Start(Path.Combine(targetRoot, "LAKIS.exe"));
+                var launcherInfo = new ProcessStartInfo(Path.Combine(targetRoot, "LAKIS.exe"))
+                {
+                    UseShellExecute = false,
+                    WorkingDirectory = targetRoot
+                };
+                CopyRcEnvironment(launcherInfo);
+                Process.Start(launcherInfo);
                 Close();
             }
         }

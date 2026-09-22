@@ -43,6 +43,7 @@ class RcOverrideContractTests(unittest.TestCase):
         self.assertIn("CopyRcEnvironment(updaterInfo)", self.launcher)
         self.assertIn("CopyRcEnvironment(helperInfo)", self.updater)
         self.assertIn("CopyRcEnvironment(launcherInfo)", self.updater)
+        self.assertNotIn('Process.Start(Path.Combine(targetRoot, "LAKIS.exe"))', self.updater)
         self.assertIn("UseShellExecute = false", self.launcher)
         self.assertIn("UseShellExecute = false", self.updater)
 

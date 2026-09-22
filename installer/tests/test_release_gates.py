@@ -57,6 +57,10 @@ def write_json(path, payload):
 
 
 class ThreePartyAuditGateTests(unittest.TestCase):
+    def test_fingerprint_covers_private_rc_verification_tools(self):
+        source = (INSTALLER / "New-ReleaseAuditFingerprint.ps1").read_text(encoding="utf-8-sig")
+        self.assertIn('"tools\\rc_patcher"', source)
+
     def make_evidence(self, root, fingerprint):
         evidence = root / "audit"
         evidence.mkdir()
