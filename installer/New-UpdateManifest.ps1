@@ -109,12 +109,12 @@ foreach ($package in $packageNames) {
 Add-UpdateFile "ComfyUI/LAKIS/sync_runtime_workflow.py" (Join-Path $repo "src\runtime\sync_runtime_workflow.py") `
     "$rawBase/src/runtime/sync_runtime_workflow.py"
 
-# This is application-owned and safe to update. The editable workflow under
-# ComfyUI/user is deliberately excluded because it contains user changes.
+# Only release-owned runtime workflows are updated. Editable workflows may
+# contain user changes, including the packaged editable copy, so they are
+# deliberately excluded from update payloads.
 foreach ($runtimeName in @(
     "LAKIS_runtime_api_v7.4.json",
-    "LAKIS_runtime_visual_v7.4.json",
-    "LAKIS_custom_v7.4_editable.json"
+    "LAKIS_runtime_visual_v7.4.json"
 )) {
     Add-UpdateFile "ComfyUI/LAKIS/workflows/$runtimeName" `
         (Join-Path $repo "workflows\$runtimeName") "$rawBase/workflows/$runtimeName"

@@ -371,7 +371,9 @@ internal static class SafeInstaller
             CopyTree(Path.Combine(uiRoot,"src","external_ui"),Path.Combine(comfy,"LAKIS","external_ui"));
             string packaged=Path.Combine(comfy,"LAKIS","workflows");Directory.CreateDirectory(packaged);
             File.Copy(Path.Combine(uiRoot,"src","runtime","sync_runtime_workflow.py"),Path.Combine(comfy,"LAKIS","sync_runtime_workflow.py"),true);
-            foreach(string workflow in new[]{"LAKIS_runtime_api_v7.4.json","LAKIS_runtime_visual_v7.4.json","LAKIS_custom_v7.4_editable.json"})
+            // Repair restores release-owned runtime workflows only. The editable
+            // workflow may contain user changes and must survive Repair.
+            foreach(string workflow in new[]{"LAKIS_runtime_api_v7.4.json","LAKIS_runtime_visual_v7.4.json"})
                 File.Copy(Path.Combine(uiRoot,"workflows",workflow),Path.Combine(packaged,workflow),true);
             File.Copy(Path.Combine(uiRoot,"LICENSE.md"),Path.Combine(target,"LICENSE.md"),true);
             File.Copy(Path.Combine(uiRoot,"THIRD_PARTY_NOTICES.md"),Path.Combine(target,"THIRD_PARTY_NOTICES.md"),true);
