@@ -75,18 +75,31 @@ PUBLIC_DYNAMIC_NODE_TYPES = {
     "LAKIS_LocalInpaintComposite",
 }
 
+# These nodes carry LAKIS editor/build metadata. workflow_bridge removes them
+# before submitting an executable graph, so they must not be required from the
+# live ComfyUI node registry.
+WORKFLOW_METADATA_NODE_TYPES = {
+    "LAKIS_ExecutionSettings",
+}
+
+
+def required_runtime_node_types(workflow: dict) -> set[str]:
+    required = {
+        str(node.get("class_type") or "")
+        for node in workflow.values()
+        if isinstance(node, dict) and node.get("class_type")
+    }
+    required.difference_update(WORKFLOW_METADATA_NODE_TYPES)
+    required.update(PUBLIC_DYNAMIC_NODE_TYPES)
+    return required
+
 
 def runtime_capability_check() -> tuple[bool, list[str], str | None]:
     """Verify that the live ComfyUI can execute the packaged public runtime."""
     workflow_path = RUNTIME_ROOT / "workflows" / "LAKIS_runtime_api_v7.4.json"
     try:
         workflow = json.loads(workflow_path.read_text(encoding="utf-8-sig"))
-        required = {
-            str(node.get("class_type") or "")
-            for node in workflow.values()
-            if isinstance(node, dict) and node.get("class_type")
-        }
-        required.update(PUBLIC_DYNAMIC_NODE_TYPES)
+        required = required_runtime_node_types(workflow)
         with urlopen(
             Request(
                 f"http://127.0.0.1:{COMFY_PORT}/object_info",

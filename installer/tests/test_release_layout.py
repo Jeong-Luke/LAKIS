@@ -112,6 +112,13 @@ class ReleaseLayoutTests(unittest.TestCase):
     def test_launcher_uses_size_consistency_and_fail_open_network_policy(self):
         launcher = (INSTALLER / "LAKIS_Launcher.cs").read_text(encoding="utf-8")
         self.assertIn("TryGetReleaseLayout", launcher)
+        layout_method = launcher.index("private static bool TryGetReleaseLayout")
+        layout_request = launcher.index("WebRequest.Create(", layout_method)
+        tls_enable = launcher.index(
+            "ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;",
+            layout_method,
+        )
+        self.assertLess(tls_enable, layout_request)
         self.assertIn("new FileInfo(path).Length != entry.size", launcher)
         self.assertIn("GitHub와 설치 파일의 동일성 검사를 완료하지 못했습니다.", launcher)
         self.assertIn("동일성 검사 없이 LAKIS를 실행합니다.", launcher)

@@ -308,6 +308,9 @@ internal static class LakisLauncher
             layout = null; layoutJson = null; failure = null;
             try
             {
+                // Release-layout validation is the first HTTPS request on startup.
+                // Enable TLS 1.2 here instead of relying on the later update check.
+                ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
                 string versionPath = Path.Combine(installRoot, "VERSION");
                 string version = File.Exists(versionPath) ? File.ReadAllText(versionPath).Trim() : "";
                 Version parsed;
