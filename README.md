@@ -12,6 +12,18 @@ LAKIS 애플리케이션, 사용자 인터페이스, 설치기, 업데이터, �
 
 `LAKIS_Setup.exe`를 실행하면 LAKIS를 설치하거나 복구할 수 있습니다. [v7.4.5 릴리즈 설명과 개별 파일](https://github.com/Jeong-Luke/LAKIS/releases/tag/v7.4.5)도 확인할 수 있습니다.
 
+## 공개 Preview
+
+새 기능과 설치기 수정본을 먼저 사용하려면 v7.5.0 Preview를 선택하세요. 정식 버전 사용자는 자동으로 Preview로 업데이트되지 않습니다.
+
+**[Windows용 LAKIS Studio v7.5.0 Preview 다운로드](https://github.com/Jeong-Luke/LAKIS/releases/download/v7.5.0/LAKIS_Setup.exe)**
+
+**[Windows용 LAKIS Studio v7.5.0 Preview CMD Version 다운로드](https://github.com/Jeong-Luke/LAKIS/releases/download/v7.5.0/LAKIS_CMD_Installer_7.5.0.zip)**
+
+Windows Defender가 일반 Setup을 차단하거나 실행할 수 없다면 CMD Version ZIP을 완전히 압축 해제한 뒤 `LAKIS_CMD_Install.cmd`를 실행하세요. 보안 기능 비활성화나 Defender 예외 설정은 필요하지 않습니다.
+
+[Preview 변경 내용과 검증 범위](https://github.com/Jeong-Luke/LAKIS/releases/tag/v7.5.0)를 확인해 주세요.
+
 ## 안정 버전
 
 이 저장소는 LAKIS의 안정 배포 버전을 관리합니다. 현재 릴리즈 후보는 `v7.4.5`입니다. 이전 개발 패키지와 개발용 워크플로는 별도로 관리하며 신규 사용자에게 배포하지 않습니다.
@@ -67,6 +79,16 @@ from AGPL software remain AGPL-3.0-or-later.
 
 Run `LAKIS_Setup.exe` to install or repair LAKIS. You can also view the
 [v7.4.5 release notes and individual files](https://github.com/Jeong-Luke/LAKIS/releases/tag/v7.4.5).
+
+### Public Preview
+
+Try v7.5.0 Preview to test upcoming changes and installer fixes. Stable users are not automatically updated to Preview.
+
+**[Download LAKIS Studio v7.5.0 Preview for Windows](https://github.com/Jeong-Luke/LAKIS/releases/download/v7.5.0/LAKIS_Setup.exe)**
+
+**[Download LAKIS Studio v7.5.0 Preview CMD Version](https://github.com/Jeong-Luke/LAKIS/releases/download/v7.5.0/LAKIS_CMD_Installer_7.5.0.zip)**
+
+If Windows Defender blocks the regular Setup, fully extract the CMD Version ZIP and run `LAKIS_CMD_Install.cmd`. No security feature disabling or Defender exclusion is required. See the [Preview release notes and validation scope](https://github.com/Jeong-Luke/LAKIS/releases/tag/v7.5.0).
 
 ### Stable baseline
 
