@@ -6,5 +6,5 @@
   .mobile-sidebar-toggle span{display:block;width:18px;height:2px;border-radius:2px;background:white;transition:.2s}.sidebar.mobile-menu-open .mobile-sidebar-toggle span:nth-child(1){transform:translateY(6px) rotate(45deg)}.sidebar.mobile-menu-open .mobile-sidebar-toggle span:nth-child(2){opacity:0}.sidebar.mobile-menu-open .mobile-sidebar-toggle span:nth-child(3){transform:translateY(-6px) rotate(-45deg)}
   .sidebar nav{display:flex!important;width:calc(100% - 54px);height:44px;align-items:center;gap:3px;overflow:hidden;opacity:0;pointer-events:none;transform:translateX(12px);transition:.16s}.sidebar.mobile-menu-open nav{opacity:1;pointer-events:auto;transform:none}
   .sidebar nav>.nav-item,.sidebar nav>.workflow-launcher{flex:0 0 42px;width:42px;height:42px;margin:0;padding:0}.sidebar nav .nav-item{display:grid;place-items:center;border-radius:10px}.sidebar nav .nav-item svg,.sidebar nav .nav-item img{width:23px;height:23px}.sidebar .workflow-menu{top:auto;bottom:52px}
-  .sidebar nav>.workflow-launcher,.sidebar nav>a[aria-label="LoRA Manager"]{display:none!important}
+  .sidebar nav>.workflow-launcher,.sidebar nav>.sidebar-resource-launcher,.sidebar nav>a[aria-label="LoRA Manager"]{display:none!important}
 }

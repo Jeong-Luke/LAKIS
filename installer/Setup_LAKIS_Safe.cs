@@ -124,7 +124,7 @@ internal sealed class SafeSetupForm : Form
         repair.SetBounds(43,337,145,38); repair.Text="기존 설치 복구"; repair.Click += async (_,__) => await RepairAsync();
         install.SetBounds(201,337,157,38); install.Text="새로 설치"; install.Click += async (_,__) => await InstallAsync();
         foreach(Button button in new[]{repair,install}){button.FlatStyle=FlatStyle.Flat;button.FlatAppearance.BorderSize=0;button.BackColor=Color.FromArgb(111,82,225);button.ForeColor=Color.White;button.Font=new Font("Segoe UI",9F,FontStyle.Bold);button.Cursor=Cursors.Hand;}
-        var copyright=new Label{Left=43,Top=399,Width=335,Height=18,Text="© 2026 Luke Jeong. All rights reserved. · LAKIS v7.4.5",ForeColor=Color.FromArgb(104,112,137),Font=new Font("Segoe UI",8F)};
+        var copyright=new Label{Left=43,Top=399,Width=335,Height=18,Text="© 2026 Luke Jeong. All rights reserved. · LAKIS v7.5.0",ForeColor=Color.FromArgb(104,112,137),Font=new Font("Segoe UI",8F)};
         ConfigureCloseButton();
         Controls.AddRange(new Control[]{artwork,logo,destination,progress,status,launch,repair,install,copyright,closeButton});
         closeButton.BringToFront();
@@ -254,7 +254,8 @@ internal sealed class SafeSetupForm : Form
 
 internal static class SafeInstaller
 {
-    private const string Revision = "v7.4.5";
+    private const string Revision = "v7.5.0";
+    private const string ReleaseVersion = "7.5.0";
     private static readonly DownloadItem Portable = new DownloadItem("ComfyUI v0.21.1",
         "https://github.com/Comfy-Org/ComfyUI/releases/download/v0.21.1/ComfyUI_windows_portable_nvidia.7z",
         "7C380D4309BBDA395366C49564EDF8996181FD45E61B6F353EA417F32BC3B970",null,2001582790);
@@ -339,7 +340,7 @@ internal static class SafeInstaller
             string python=Path.Combine(target,"python_embeded","python.exe");foreach(string node in Directory.GetDirectories(custom)){string req=Path.Combine(node,"requirements.txt");if(File.Exists(req)){status("의존성 설치: "+Path.GetFileName(node));string safeReq=PrepareRequirements(req);Run(python,"-s -m pip install --disable-pip-version-check -r \""+safeReq+"\"",target,status);}}
             ExtractDesktopRuntime(target,status);
             CreateDesktopShortcut(target,status);
-            File.WriteAllText(Path.Combine(target,"VERSION"),"7.4.5");File.WriteAllText(Path.Combine(target,"install.complete"),DateTime.UtcNow.ToString("O"));File.WriteAllLines(Path.Combine(target,"network-install.log"),log.ToArray());if(previous!=null)try{DeleteTree(previous);}catch{status("이전 설치 폴더는 재부팅 후 삭제할 수 있습니다: "+previous);}status("설치 완료");
+            File.WriteAllText(Path.Combine(target,"VERSION"),ReleaseVersion);File.WriteAllText(Path.Combine(target,"install.complete"),DateTime.UtcNow.ToString("O"));File.WriteAllLines(Path.Combine(target,"network-install.log"),log.ToArray());if(previous!=null)try{DeleteTree(previous);}catch{status("이전 설치 폴더는 재부팅 후 삭제할 수 있습니다: "+previous);}status("설치 완료");
         }
         catch(Exception error){try{Directory.CreateDirectory(target);File.WriteAllLines(Path.Combine(target,"network-install.log"),log.ToArray());}catch{}throw new InvalidOperationException("설치 중 오류가 발생했습니다.\n"+error.Message+"\n\n로그: "+Path.Combine(target,"network-install.log"),error);}
     }
@@ -362,8 +363,8 @@ internal static class SafeInstaller
             string uiZip=Fetch(uiItem,cache,status);
             string uiStage=Path.Combine(cache,"LAKIS-repair-"+Revision);Reset(uiStage);ExtractZip(uiZip,uiStage);
             string uiRoot=FirstDirectory(uiStage);
-            // Copy only release-owned packages. Preserve user files and all
-            // third-party packages; do not delete entire custom_nodes folders.
+            // Copy only LAKIS-managed node packages. Preserve user data and
+            // unrelated third-party packages; managed dependencies may be restored.
             CopyManagedNodePackages(uiRoot, custom);
             Directory.CreateDirectory(Path.Combine(comfy,"LAKIS"));
             File.Copy(Path.Combine(uiRoot,"resources","STOP_AUTOMATION"),Path.Combine(comfy,"LAKIS","STOP_AUTOMATION"),true);
@@ -383,7 +384,7 @@ internal static class SafeInstaller
             File.Copy(upscalerCache,Path.Combine(upscalerFolder,defaultUpscaler.Name),true);
             ExtractDesktopRuntime(target,status);
             CreateDesktopShortcut(target,status);
-            File.WriteAllText(Path.Combine(target,"VERSION"),"7.4.5");File.WriteAllLines(Path.Combine(target,"repair.log"),log.ToArray());status("복구 완료");
+            File.WriteAllText(Path.Combine(target,"VERSION"),ReleaseVersion);string repairMarker=Path.Combine(target,".lakis","release-layout-repair.attempt");try{if(File.Exists(repairMarker))File.Delete(repairMarker);}catch{}File.WriteAllLines(Path.Combine(target,"repair.log"),log.ToArray());status("복구 완료");
         }
         catch(Exception error){try{File.WriteAllLines(Path.Combine(target,"repair.log"),log.ToArray());}catch{}throw new InvalidOperationException("복구 중 오류가 발생했습니다.\n"+error.Message+"\n\n로그: "+Path.Combine(target,"repair.log"),error);}
     }
@@ -650,6 +651,6 @@ internal static class SafeInstaller
             if(remaining.Count == 0)return;
             System.Threading.Thread.Sleep(500);
         }
-        throw new IOException("설치 폴더를 사용하는 프로그램이 실행 중입니다. LAKIS, DEKIS, LUKIS와 해당 ComfyUI를 종료한 뒤 다시 시도하세요. PID: " + String.Join(",", remaining));
+        throw new IOException("설치 폴더를 사용하는 프로그램이 실행 중입니다. LAKIS와 해당 ComfyUI를 종료한 뒤 다시 시도하세요. PID: " + String.Join(",", remaining));
     }
 }

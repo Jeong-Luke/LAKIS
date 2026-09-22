@@ -39,14 +39,18 @@ except ImportError:  # Keep the bridge usable in stripped-down repair builds.
     yaml = None
 
 
-DEVELOPMENT = os.environ.get("LAKIS_DEVELOPMENT") == "1"
-COMFY_PORT = int(os.environ.get("LAKIS_COMFY_PORT") or (8190 if DEVELOPMENT else 8189))
-FULL_TURBO_EXPERIMENT = (
+RUNTIME_ROOT = Path(__file__).resolve().parent.parent
+DEVELOPMENT = (
     os.environ.get("LAKIS_DEVELOPMENT") == "1"
+    and RUNTIME_ROOT.name.casefold() == "lakis_dev"
+)
+COMFY_PORT = int(os.environ.get("LAKIS_COMFY_PORT") or 8190) if DEVELOPMENT else 8189
+FULL_TURBO_EXPERIMENT = (
+    DEVELOPMENT
     and os.environ.get("LAKIS_FULL_TURBO_EXPERIMENT") == "1"
 )
 HALF_RES_FAST_EXPERIMENT = (
-    os.environ.get("LAKIS_DEVELOPMENT") == "1"
+    DEVELOPMENT
     and os.environ.get("LAKIS_HALF_RES_FAST_EXPERIMENT", "0") == "1"
 )
 LOCAL_INPAINT_V2 = os.environ.get("LAKIS_LOCAL_INPAINT_V2", "1") == "1"
@@ -60,7 +64,7 @@ LOCAL_INPAINT_V2_LARGE_EDIT_RATIO = 0.35
 LOCAL_INPAINT_V2_OUTFIT_COVERAGE_HALO = 64
 COMFY_SERVER = f"http://127.0.0.1:{COMFY_PORT}"
 FINAL_NODE = "775"
-DEV_ROOT = Path(__file__).resolve().parent.parent
+DEV_ROOT = RUNTIME_ROOT
 COMFY_ROOT = DEV_ROOT.parent
 OUTPUT_ROOT = COMFY_ROOT / "output"
 OUTPUT_LOCATION_PATH = DEV_ROOT / "output-location.json"
@@ -79,10 +83,9 @@ if not SAVED_WORKFLOW.is_file() and not DEVELOPMENT:
     SAVED_WORKFLOW = next(iter(sorted((COMFY_ROOT / "user" / "default" / "workflows").glob(
         "LAKIS_custom_v*.json"
     ), reverse=True)), SAVED_WORKFLOW)
-AUDIT_PATH = DEV_ROOT / "external_ui_bridge_audit.jsonl"
 LEGACY_UI_STATE_PATH = DEV_ROOT / "external_ui_user_state.json"
 USER_STATE_ROOT = Path(os.environ.get("LOCALAPPDATA", str(DEV_ROOT))) / (
-    "LAKIS Studio DEV" if os.environ.get("LAKIS_DEVELOPMENT") == "1" else "LAKIS Studio"
+    "LAKIS Studio DEV" if DEVELOPMENT else "LAKIS Studio"
 )
 UNSCOPED_UI_STATE_PATH = USER_STATE_ROOT / "external_ui_user_state.json"
 GENERATION_JOURNAL_PATH = USER_STATE_ROOT / "generation-runtime-journal.json"
@@ -115,6 +118,7 @@ def _ui_state_path_for_install(install_root: Path, user_state_root: Path = USER_
 
 
 UI_STATE_PATH = _ui_state_path_for_install(COMFY_ROOT.parent)
+AUDIT_PATH = UI_STATE_PATH.with_name("external_ui_bridge_audit.jsonl")
 # A journal belongs to one installation, just like its durable settings. Leave
 # legacy unscoped journals untouched: they do not identify their installation.
 GENERATION_JOURNAL_PATH = UI_STATE_PATH.with_name("generation-runtime-journal.json")
@@ -998,10 +1002,20 @@ def _live_loader_inventory(class_type: str, input_name: str,
     return [str(value) for value in values if isinstance(value, str) and value]
 
 
+def _is_user_selectable_checkpoint(name: str) -> bool:
+    normalized = name.replace("/", "\\").casefold()
+    basename = normalized.rsplit("\\", 1)[-1]
+    return not (
+        normalized.startswith("ic-light\\")
+        or basename.startswith("iclight_")
+    )
+
+
 def _live_model_inventories(object_info: dict[str, Any] | None = None) -> dict[str, list[str]]:
     info = object_info if object_info is not None else _comfy_object_info()
+    checkpoints = _live_loader_inventory("DiffusionModelLoaderKJ", "model_name", info)
     return {
-        "checkpoint": _live_loader_inventory("DiffusionModelLoaderKJ", "model_name", info),
+        "checkpoint": [name for name in checkpoints if _is_user_selectable_checkpoint(name)],
         "vae": _live_loader_inventory("VAELoader", "vae_name", info),
         "clip": _live_loader_inventory("CLIPLoader", "clip_name", info),
     }
@@ -1060,9 +1074,7 @@ def _safetensors_has_anima_architecture(model_path: Path) -> bool:
 
 
 def _is_anima_checkpoint(checkpoint: str) -> bool:
-    """Identify Anima derivatives by name, sidecar metadata, or tensor layout."""
-    if "anima" in checkpoint.lower():
-        return True
+    """Identify Anima derivatives from sidecar metadata or tensor layout."""
     model_paths = [root / checkpoint for root in _model_roots("diffusion_models")]
     for model_path in model_paths:
         for metadata_path in (
@@ -1262,6 +1274,7 @@ def _saved_prompt_defaults() -> dict[str, str]:
 def _audit(event: str, **details: Any) -> None:
     record = {"timestamp": time.time(), "event": event, **details}
     try:
+        AUDIT_PATH.parent.mkdir(parents=True, exist_ok=True)
         with AUDIT_PATH.open("a", encoding="utf-8") as stream:
             stream.write(json.dumps(record, ensure_ascii=False) + "\n")
     except OSError:
@@ -1496,7 +1509,8 @@ def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dic
         "camisole", "tube top", "수영복", "반팔", "민소매",
     )
     exposure_outfit_edit = (
-        inpaint_requested
+        DEVELOPMENT
+        and inpaint_requested
         and not inpaint_removal_mode
         and any(term in inpaint_prompt.lower() for term in exposure_outfit_terms)
     )
@@ -2176,7 +2190,7 @@ def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dic
                 "lora_name": "anima-turbo-lora-v0.2.safetensors",
                 "strength_model": 1.0,
             },
-            "_meta": {"title": "LAKIS DEV - Turbo Initial"},
+            "_meta": {"title": "LAKIS - Turbo Initial (Experimental)"},
         }
         spectrum["model"] = [initial_turbo_id, 0]
         sampler_config.update({

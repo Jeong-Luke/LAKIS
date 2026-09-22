@@ -136,6 +136,18 @@ $retiredFiles = @(
 )
 
 $filePaths = @($files | ForEach-Object { [string]$_.path })
+
+# Public update manifests must never contain DEKIS/LUKIS runtime paths or
+# development-only version/icon artifacts. This is a hard product-boundary gate.
+$forbiddenProductPathPattern = '(?i)(LAKIS_DEV|DEKIS|LUKIS|LAKIS_LUKE|DEV_VERSION|LUKE_VERSION|LAKIS_DEV_red|LUKIS_Desktop|Start_LUKIS_Mobile)'
+$forbiddenProductPaths = @(
+    @($filePaths) + @($retiredFiles) |
+    Where-Object { $_ -match $forbiddenProductPathPattern }
+)
+if ($forbiddenProductPaths.Count) {
+    throw "Public update manifest contains development/private product paths: $($forbiddenProductPaths -join ', ')"
+}
+
 $duplicatePaths = @($filePaths | Group-Object | Where-Object Count -gt 1 | ForEach-Object Name)
 if ($duplicatePaths.Count) {
     throw "Update manifest contains duplicate file paths: $($duplicatePaths -join ', ')"

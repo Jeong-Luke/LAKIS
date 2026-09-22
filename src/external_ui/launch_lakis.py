@@ -12,7 +12,7 @@ import secrets
 import subprocess
 import time
 from urllib.error import URLError
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
 try:
     import psutil
@@ -21,22 +21,30 @@ except ImportError:  # ComfyUI portable normally includes psutil.
 
 
 UI_ROOT = Path(__file__).resolve().parent
-DEVELOPMENT = os.environ.get("LAKIS_DEVELOPMENT") == "1"
+RUNTIME_ROOT = UI_ROOT.parent
+DEVELOPMENT = (
+    os.environ.get("LAKIS_DEVELOPMENT") == "1"
+    and RUNTIME_ROOT.name.casefold() == "lakis_dev"
+)
 COMFY_ROOT = UI_ROOT.parents[1]
 PORTABLE_ROOT = COMFY_ROOT.parent
 PYTHON = PORTABLE_ROOT / "python_embeded" / "python.exe"
 COMFY_MAIN = COMFY_ROOT / "main.py"
 UI_SERVER = UI_ROOT / "serve_ui.py"
-DESKTOP_HOST = Path(os.environ.get("LAKIS_DESKTOP_HOST", PORTABLE_ROOT / "LAKIS_Desktop.exe"))
-DEV_ROOT = UI_ROOT.parent
+DESKTOP_HOST = (
+    Path(os.environ.get("LAKIS_DESKTOP_HOST", PORTABLE_ROOT / "LAKIS_DEV_Desktop.exe"))
+    if DEVELOPMENT
+    else PORTABLE_ROOT / "LAKIS_Desktop.exe"
+)
+DEV_ROOT = RUNTIME_ROOT
 STATE_PATH = DEV_ROOT / ("lakis_dev_launcher_state.json" if DEVELOPMENT else "lakis_launcher_state.json")
 LOG_ROOT = DEV_ROOT / ("launcher_logs_dev" if DEVELOPMENT else "launcher_logs")
-COMFY_PORT = int(os.environ.get("LAKIS_COMFY_PORT") or (8190 if DEVELOPMENT else 8189))
+COMFY_PORT = int(os.environ.get("LAKIS_COMFY_PORT") or 8190) if DEVELOPMENT else 8189
 COMFY_URL = f"http://127.0.0.1:{COMFY_PORT}/system_stats"
 INSTALLATION_ID = hashlib.sha256(
     os.path.normcase(str(PORTABLE_ROOT.resolve())).encode("utf-8")
 ).hexdigest()
-LAUNCH_MUTEX_NAME = f"Local\\LAKIS-{INSTALLATION_ID[:24]}-dev-launcher"
+LAUNCH_MUTEX_NAME = f"Local\\LAKIS-{INSTALLATION_ID[:24]}-{'dev-' if DEVELOPMENT else ''}launcher"
 ERROR_ALREADY_EXISTS = 183
 
 
@@ -57,6 +65,44 @@ def wait_ready(url: str, process: subprocess.Popen | None, timeout: float) -> bo
             return False
         time.sleep(0.5)
     return False
+
+
+PUBLIC_DYNAMIC_NODE_TYPES = {
+    "LAKIS_DETAIL",
+    "LAKIS_SCOPE",
+    "LAKIS_VRAM_GATE",
+    "LAKIS_LocalInpaintPrepare",
+    "LAKIS_LocalInpaintComposite",
+}
+
+
+def runtime_capability_check() -> tuple[bool, list[str], str | None]:
+    """Verify that the live ComfyUI can execute the packaged public runtime."""
+    workflow_path = RUNTIME_ROOT / "workflows" / "LAKIS_runtime_api_v7.4.json"
+    try:
+        workflow = json.loads(workflow_path.read_text(encoding="utf-8-sig"))
+        required = {
+            str(node.get("class_type") or "")
+            for node in workflow.values()
+            if isinstance(node, dict) and node.get("class_type")
+        }
+        required.update(PUBLIC_DYNAMIC_NODE_TYPES)
+        with urlopen(
+            Request(
+                f"http://127.0.0.1:{COMFY_PORT}/object_info",
+                headers={"Accept": "application/json", "Cache-Control": "no-cache"},
+            ),
+            timeout=20,
+        ) as response:
+            if not 200 <= response.status < 300:
+                return False, [], f"object_info HTTP {response.status}"
+            object_info = json.loads(response.read().decode("utf-8"))
+        if not isinstance(object_info, dict) or not object_info:
+            return False, [], "object_info response is empty"
+        missing = sorted(node_type for node_type in required if node_type not in object_info)
+        return not missing, missing, None
+    except Exception as error:
+        return False, [], f"{type(error).__name__}: {error}"
 
 
 def fetch_json(url: str, timeout: float = 1.0) -> dict | None:
@@ -389,6 +435,28 @@ def main() -> int:
                 save_state(state)
                 show_error("ComfyUI 백엔드를 시작할 수 없습니다. LAKIS 런처 로그를 확인하십시오.\n\n오류 코드: LKS-RUN-1002")
                 return 1
+
+        capability_ok, missing_node_types, capability_error = runtime_capability_check()
+        state["runtime_capability_checked"] = True
+        state["runtime_missing_node_types"] = missing_node_types
+        if not capability_ok:
+            state["classification"] = "COMFYUI_RUNTIME_CAPABILITY_FAILED"
+            state["error_code"] = "LKS-RUN-1003"
+            state["runtime_capability_error"] = capability_error
+            save_state(state)
+            details = (
+                "누락된 필수 노드:\n" + "\n".join(missing_node_types)
+                if missing_node_types else
+                "노드 목록을 확인하지 못했습니다.\n" + str(capability_error or "unknown")
+            )
+            show_error(
+                "현재 ComfyUI Runtime이 LAKIS 공개 패키지의 필수 기능을 충족하지 않습니다.\n\n"
+                + details +
+                "\n\nRepair로 복구한 뒤 다시 실행하십시오.\n\n오류 코드: LKS-RUN-1003"
+            )
+            return 1
+        state["runtime_capability_ok"] = True
+        save_state(state)
 
         command = [
             str(PYTHON), "-s", str(UI_SERVER),

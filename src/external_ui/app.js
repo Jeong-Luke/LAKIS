@@ -50,7 +50,8 @@ setInterval(pollLakisDevRevision, 1500);
 const loraManagerLink = document.querySelector('a[aria-label="LoRA Manager"]');
 
 const COMFYUI_SEED_MAX = 1125899906842624;
-const PROMPT_STORAGE_KEY = "lakis.dekis.promptState.v1";
+const PROMPT_STORAGE_KEY = "lakis.promptState.v3";
+const LEGACY_DEKIS_PROMPT_STORAGE_KEY = "lakis.dekis.promptState.v1";
 const LEGACY_PROMPT_STORAGE_KEY = "lakis.prompt-state.v2";
 const TRANSLATION_STORAGE_KEY = "lakis.prompt-translation-enabled.v1";
 let promptStateHydrated = false;
@@ -840,14 +841,35 @@ document.querySelector("#outputFolderButton").addEventListener("click", () => {
 
 const workflowButton = document.querySelector("#workflowButton");
 const workflowMenu = document.querySelector("#workflowMenu");
+const sidebarResourceButton = document.querySelector("#sidebarResourceButton");
+const sidebarResourceMenu = document.querySelector("#sidebarResourceMenu");
 function closeWorkflowMenu() {
   workflowMenu.hidden = true;
   workflowButton.setAttribute("aria-expanded", "false");
 }
+function closeSidebarResourceMenu() {
+  if (!sidebarResourceMenu || !sidebarResourceButton) return;
+  sidebarResourceMenu.hidden = true;
+  sidebarResourceButton.setAttribute("aria-expanded", "false");
+}
 workflowButton.addEventListener("click", event => {
   event.stopPropagation();
+  closeSidebarResourceMenu();
   workflowMenu.hidden = !workflowMenu.hidden;
   workflowButton.setAttribute("aria-expanded", String(!workflowMenu.hidden));
+});
+sidebarResourceButton?.addEventListener("click", event => {
+  event.stopPropagation();
+  closeWorkflowMenu();
+  sidebarResourceMenu.hidden = !sidebarResourceMenu.hidden;
+  sidebarResourceButton.setAttribute("aria-expanded", String(!sidebarResourceMenu.hidden));
+});
+sidebarResourceMenu?.addEventListener("click", event => {
+  const option = event.target.closest("[data-resource-url]");
+  if (!option) return;
+  const url = String(option.dataset.resourceUrl || "");
+  closeSidebarResourceMenu();
+  if (url) window.open(url, "_blank", "noopener,noreferrer");
 });
 workflowMenu.addEventListener("click", async event => {
   const option = event.target.closest("[data-workflow-kind]");
@@ -917,6 +939,110 @@ document.querySelectorAll("[data-prompt-panel]").forEach(button => {
     markPromptStateDirty();
   });
 });
+
+const promptMaximizeMedia = window.matchMedia("(min-width: 1181px)");
+const promptColumn = document.querySelector(".prompt-column");
+const previewColumn = document.querySelector(".preview-column");
+const positivePromptPanel = promptColumn?.querySelector(".prompt-panel:not(.negative-prompt-panel)");
+const negativePromptPanel = promptColumn?.querySelector(".negative-prompt-panel");
+const positivePromptMaximizeButton = document.querySelector("#positivePromptMaximizeButton");
+const negativePromptMaximizeButton = document.querySelector("#negativePromptMaximizeButton");
+const promptTranslationControl = document.querySelector(".prompt-translation-toggle");
+const positivePromptHeadingRow = positivePromptPanel?.querySelector(".prompt-heading-row");
+const positivePromptTools = positivePromptPanel?.querySelector(".prompt-tools");
+
+function syncPromptDesktopControls() {
+  if (!promptTranslationControl || !positivePromptHeadingRow || !positivePromptTools) return;
+  if (promptMaximizeMedia.matches) positivePromptHeadingRow.append(promptTranslationControl);
+  else positivePromptTools.insertBefore(promptTranslationControl, positivePromptMaximizeButton);
+}
+
+function activePromptTextarea(panel) {
+  const activePanel = panel?.querySelector(".fixed-prompt-panel:not([hidden])");
+  return activePanel?.querySelector("textarea") || panel?.querySelector("textarea");
+}
+
+function updatePromptMaximizeButton(button, maximized, label) {
+  if (!button) return;
+  button.classList.toggle("active", maximized);
+  button.setAttribute("aria-expanded", String(maximized));
+  const icon = button.querySelector("span");
+  if (icon) icon.textContent = maximized ? ">>" : "<<";
+  const text = button.querySelector("strong");
+  if (text) text.textContent = maximized ? "축소" : "확장";
+}
+
+function restorePromptPanel(panel, button, label) {
+  if (!panel) return;
+  panel.classList.remove("prompt-panel-maximized");
+  panel.style.removeProperty("--prompt-max-offset-left");
+  panel.style.removeProperty("--prompt-max-width");
+  updatePromptMaximizeButton(button, false, label);
+}
+
+function setPromptPanelMaximized(panel, button, label, enabled) {
+  if (!panel || !promptColumn) return;
+  const maximized = Boolean(enabled && promptMaximizeMedia.matches && previewColumn);
+  const otherPanel = panel === positivePromptPanel ? negativePromptPanel : positivePromptPanel;
+  const otherButton = panel === positivePromptPanel ? negativePromptMaximizeButton : positivePromptMaximizeButton;
+  const otherLabel = panel === positivePromptPanel ? "네거티브 프롬프트" : "긍정 프롬프트";
+  restorePromptPanel(otherPanel, otherButton, otherLabel);
+
+  if (!maximized) {
+    restorePromptPanel(panel, button, label);
+    promptColumn.classList.remove("prompt-panel-maximize-active");
+    document.body.classList.remove("prompt-maximize-active");
+    return;
+  }
+
+  const panelRect = panel.getBoundingClientRect();
+  const previewRect = previewColumn.getBoundingClientRect();
+  const promptRect = promptColumn.getBoundingClientRect();
+  panel.style.setProperty("--prompt-max-offset-left", (previewRect.left - panelRect.left) + "px");
+  panel.style.setProperty("--prompt-max-width", (promptRect.right - previewRect.left) + "px");
+  panel.classList.add("prompt-panel-maximized");
+  promptColumn.classList.add("prompt-panel-maximize-active");
+  document.body.classList.add("prompt-maximize-active");
+  updatePromptMaximizeButton(button, true, label);
+  requestAnimationFrame(() => activePromptTextarea(panel)?.focus({ preventScroll: true }));
+}
+
+positivePromptMaximizeButton?.addEventListener("click", () => {
+  setPromptPanelMaximized(
+    positivePromptPanel,
+    positivePromptMaximizeButton,
+    "긍정 프롬프트",
+    !positivePromptPanel?.classList.contains("prompt-panel-maximized"),
+  );
+});
+negativePromptMaximizeButton?.addEventListener("click", () => {
+  setPromptPanelMaximized(
+    negativePromptPanel,
+    negativePromptMaximizeButton,
+    "네거티브 프롬프트",
+    !negativePromptPanel?.classList.contains("prompt-panel-maximized"),
+  );
+});
+document.addEventListener("keydown", event => {
+  if (event.key !== "Escape") return;
+  if (positivePromptPanel?.classList.contains("prompt-panel-maximized")) {
+    setPromptPanelMaximized(positivePromptPanel, positivePromptMaximizeButton, "긍정 프롬프트", false);
+  } else if (negativePromptPanel?.classList.contains("prompt-panel-maximized")) {
+    setPromptPanelMaximized(negativePromptPanel, negativePromptMaximizeButton, "네거티브 프롬프트", false);
+  }
+});
+const handlePromptMaximizeMediaChange = event => {
+  syncPromptDesktopControls();
+  if (event.matches) return;
+  restorePromptPanel(positivePromptPanel, positivePromptMaximizeButton, "긍정 프롬프트");
+  restorePromptPanel(negativePromptPanel, negativePromptMaximizeButton, "네거티브 프롬프트");
+  promptColumn?.classList.remove("prompt-panel-maximize-active");
+  document.body.classList.remove("prompt-maximize-active");
+};
+syncPromptDesktopControls();
+if (promptMaximizeMedia.addEventListener) promptMaximizeMedia.addEventListener("change", handlePromptMaximizeMediaChange);
+else promptMaximizeMedia.addListener(handlePromptMaximizeMediaChange);
+
 const promptInputBindings = [
   ["fixedPromptInput", "fixed"], ["generalPromptInput", "general"],
   ["qualityPromptInput", "quality"], ["artistPromptInput", "artist"],
@@ -990,9 +1116,19 @@ function loadLocalPromptState() {
       const value = JSON.parse(raw);
       return value && typeof value === "object" ? value : {};
     }
+    const legacyDekisRaw = localStorage.getItem(LEGACY_DEKIS_PROMPT_STORAGE_KEY);
+    if (legacyDekisRaw) {
+      const legacyDekis = JSON.parse(legacyDekisRaw);
+      if (legacyDekis && typeof legacyDekis === "object") {
+        localStorage.setItem(PROMPT_STORAGE_KEY, JSON.stringify(legacyDekis));
+        return legacyDekis;
+      }
+    }
     const legacy = JSON.parse(localStorage.getItem(LEGACY_PROMPT_STORAGE_KEY) || "null");
     if (legacy && typeof legacy === "object") {
-      return { schema: 1, prompt: legacy, dirty: true, revision: 0, updated_at: Date.now() / 1000 };
+      const migrated = { schema: 1, prompt: legacy, dirty: true, revision: 0, updated_at: Date.now() / 1000 };
+      localStorage.setItem(PROMPT_STORAGE_KEY, JSON.stringify(migrated));
+      return migrated;
     }
     return {};
   } catch (_) {
@@ -1314,12 +1450,50 @@ document.querySelectorAll("[data-seed-mode]").forEach(button => button.addEventL
   scheduleGenerationStateSave();
 }));
 
-document.querySelector(".history-strip").addEventListener("click", event => {
+const previewHistoryStrip = document.querySelector(".history-strip");
+const previewThumbnailObserver = "IntersectionObserver" in window
+  ? new IntersectionObserver(entries => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        const image = entry.target;
+        if (image.dataset.src && !image.src) image.src = image.dataset.src;
+        delete image.dataset.src;
+        previewThumbnailObserver.unobserve(image);
+      }
+    }, { root: previewHistoryStrip, rootMargin: "0px 150%", threshold: 0.01 })
+  : null;
+const previewHistoryMutationObserver = previewThumbnailObserver
+  ? new MutationObserver(records => {
+      for (const record of records) for (const node of record.removedNodes) {
+        if (!(node instanceof Element)) continue;
+        if (node.matches("img")) previewThumbnailObserver.unobserve(node);
+        node.querySelectorAll?.("img").forEach(image => previewThumbnailObserver.unobserve(image));
+      }
+    })
+  : null;
+previewHistoryMutationObserver?.observe(previewHistoryStrip, { childList: true, subtree: true });
+window.addEventListener("beforeunload", () => {
+  previewThumbnailObserver?.disconnect();
+  previewHistoryMutationObserver?.disconnect();
+}, { once: true });
+
+function observePreviewThumbnail(image, source) {
+  image.loading = "lazy";
+  image.decoding = "async";
+  if (!previewThumbnailObserver) {
+    image.src = source;
+    return;
+  }
+  image.dataset.src = source;
+  previewThumbnailObserver.observe(image);
+}
+
+previewHistoryStrip.addEventListener("click", event => {
   const button = event.target.closest(".history-thumb");
   if (!button) return;
   document.querySelectorAll(".history-thumb").forEach(item => item.classList.remove("selected"));
   button.classList.add("selected");
-  document.querySelector("#previewImage").src = button.querySelector("img").src;
+  document.querySelector("#previewImage").src = button.dataset.sourceUrl || button.querySelector("img").src;
   setCurrentPreviewPrompt(button._lakisPrompt || null);
   if (button.dataset.mode) {
     setPreviewModeLabel(button.dataset.mode);
@@ -1384,6 +1558,31 @@ function sameOriginMediaUrl(sourceUrl) {
     : sourceUrl;
 }
 
+function thumbnailMediaUrl(sourceUrl) {
+  const original = sameOriginMediaUrl(sourceUrl);
+  const parsed = new URL(original, window.location.href);
+  const query = new URLSearchParams();
+  if (parsed.pathname === "/api/history-image") {
+    query.set("id", parsed.searchParams.get("id") || "");
+  } else if (parsed.pathname === "/api/comfy-view") {
+    query.set("filename", parsed.searchParams.get("filename") || "");
+    query.set("subfolder", parsed.searchParams.get("subfolder") || "");
+    query.set("type", parsed.searchParams.get("type") || "output");
+  } else {
+    return original;
+  }
+  return `/api/thumbnail?${query.toString()}`;
+}
+
+const PREVIEW_HISTORY_MAX_ITEMS = 20;
+
+function trimPreviewHistory() {
+  if (!previewHistoryStrip) return;
+  while (previewHistoryStrip.children.length > PREVIEW_HISTORY_MAX_ITEMS) {
+    previewHistoryStrip.lastElementChild?.remove();
+  }
+}
+
 function syncInpaintGeneratedGallery() {
   const history = [...document.querySelectorAll(".history-strip .history-thumb")];
   inpaintGeneratedGallery.replaceChildren();
@@ -1396,14 +1595,17 @@ function syncInpaintGeneratedGallery() {
   }
   history.slice(0, 12).forEach((historyButton, index) => {
     const sourceImage = historyButton.querySelector("img");
-    if (!sourceImage?.src) return;
+    const originalSource = historyButton.dataset.sourceUrl;
+    if (!sourceImage?.src || !originalSource) return;
     const button = document.createElement("button");
     button.type = "button";
     button.className = "inpaint-generated-thumb";
-    button.dataset.sourceUrl = sameOriginMediaUrl(sourceImage.src);
+    button.dataset.sourceUrl = originalSource;
     button.title = `최근 생성 이미지 ${index + 1}을 LLLite 원본으로 사용`;
     const image = document.createElement("img");
-    image.src = sameOriginMediaUrl(sourceImage.src);
+    image.src = sourceImage.src;
+    image.loading = "lazy";
+    image.decoding = "async";
     image.alt = `최근 생성 이미지 ${index + 1}`;
     button.append(image);
     inpaintGeneratedGallery.append(button);
@@ -2136,15 +2338,20 @@ async function pollGenerationStatus() {
         thumb.dataset.seed = String(status.seed ?? state.output.seed);
         thumb.dataset.mode = status.mode === "lakis_detail" ? "LAKIS DETAIL" : (status.mode === "detail" ? "DETAIL" : "FAST");
         thumb.dataset.i2i = String(status.i2i_enabled === true);
+        thumb.dataset.sourceUrl = imageUrl;
         thumb._lakisPrompt = status.prompt_used && typeof status.prompt_used === "object"
           ? structuredClone(status.prompt_used)
           : null;
         const durationSeconds = Math.max(0, Number(status.finished_at || 0) - Number(status.started_at || 0));
         thumb.dataset.duration = durationSeconds.toFixed(3);
-        thumb.innerHTML = `<img src="${imageUrl}" alt="LAKIS generated image">`;
+        const thumbnail = document.createElement("img");
+        thumbnail.alt = "LAKIS generated image";
+        observePreviewThumbnail(thumbnail, thumbnailMediaUrl(imageUrl));
+        thumb.append(thumbnail);
         document.querySelectorAll(".history-thumb").forEach(item => item.classList.remove("selected"));
         const historyStrip = document.querySelector(".history-strip");
         historyStrip.prepend(thumb);
+        trimPreviewHistory();
         historyStrip.scrollLeft = 0;
         syncInpaintGeneratedGallery();
         setPreviewModeLabel(thumb.dataset.mode);
@@ -2325,9 +2532,13 @@ window.addEventListener("lakis:wildcard-exclusions", event => {
 });
 document.addEventListener("click", event => {
   if (!event.target.closest(".workflow-launcher")) closeWorkflowMenu();
+  if (!event.target.closest(".sidebar-resource-launcher")) closeSidebarResourceMenu();
 });
 document.addEventListener("keydown", event => {
-  if (event.key === "Escape") closeWorkflowMenu();
+  if (event.key === "Escape") {
+    closeWorkflowMenu();
+    closeSidebarResourceMenu();
+  }
 });
 
 window.addEventListener("lakis:generate", async event => {

@@ -43,6 +43,7 @@ from workflow_bridge import (
     remove_persisted_upscaler_override,
     save_external_generation_state,
     save_external_prompt_state,
+    UI_STATE_PATH,
     load_external_prompt_bundle,
     upscaler_choice_status,
     workflow_configuration,
@@ -56,7 +57,11 @@ except ImportError:  # optional in prototype runtime
 
 COMFY_ROOT = UI_ROOT.parents[1].resolve()
 INSTALL_ROOT = COMFY_ROOT.parent.resolve()
-DEVELOPMENT = os.environ.get("LAKIS_DEVELOPMENT") == "1"
+RUNTIME_ROOT = UI_ROOT.parent.resolve()
+DEVELOPMENT = (
+    os.environ.get("LAKIS_DEVELOPMENT") == "1"
+    and RUNTIME_ROOT.name.casefold() == "lakis_dev"
+)
 USER_STATE_ROOT = Path(os.environ.get("LOCALAPPDATA", str(INSTALL_ROOT))) / (
     "LAKIS Studio DEV" if DEVELOPMENT else "LAKIS Studio"
 )
@@ -74,18 +79,18 @@ LLLITE_INPAINT_SOURCE = "https://huggingface.co/kohya-ss/Anima-LLLite"
 LLLITE_INPAINT_LICENSE = "CircleStone Labs Non-Commercial License"
 LLLITE_INPAINT_LICENSE_PATH = INSTALL_ROOT / "third_party_licenses" / "Anima-LLLite-CircleStone-Non-Commercial-License.txt"
 LAKIS_VERSION_PATH = (
-    UI_ROOT.parent / "DEV_VERSION" if DEVELOPMENT else COMFY_ROOT.parent / "VERSION"
+    RUNTIME_ROOT / "DEV_VERSION" if DEVELOPMENT else COMFY_ROOT.parent / "VERSION"
 )
 OUTPUT_ROOT = (COMFY_ROOT / "output").resolve()
 OUTPUT_LOCATION_PATH = UI_ROOT.parent / "output-location.json"
 INPUT_ROOT = (COMFY_ROOT / "input").resolve()
-AUDIT_PATH = UI_ROOT.parent / "process_audit.jsonl"
+AUDIT_PATH = UI_STATE_PATH.with_name("process_audit.jsonl")
 HOST = "127.0.0.1"
 PORT = 8766
-COMFY_PORT = int(os.environ.get("LAKIS_COMFY_PORT") or (8190 if DEVELOPMENT else 8189))
+COMFY_PORT = int(os.environ.get("LAKIS_COMFY_PORT") or 8190) if DEVELOPMENT else 8189
 COMFY_SERVER = f"http://127.0.0.1:{COMFY_PORT}"
 WORKFLOW_ROOT = COMFY_ROOT / "user" / "default" / "workflows"
-PACKAGED_WORKFLOW_ROOT = (UI_ROOT.parent / "workflows") if DEVELOPMENT else (COMFY_ROOT / "LAKIS" / "workflows")
+PACKAGED_WORKFLOW_ROOT = (RUNTIME_ROOT / "workflows") if DEVELOPMENT else (COMFY_ROOT / "LAKIS" / "workflows")
 PREFERRED_LAKIS_WORKFLOW = PACKAGED_WORKFLOW_ROOT / "LAKIS_runtime_api_v7.4.json"
 RUNTIME_LAKIS_WORKFLOW = PACKAGED_WORKFLOW_ROOT / "LAKIS_runtime_api_v7.4.json"
 RUNTIME_LAKIS_SOURCE_NAME = RUNTIME_LAKIS_WORKFLOW.name
@@ -112,6 +117,11 @@ BUILTIN_WILDCARD_LABELS = {
 INSTALLATION_ID = hashlib.sha256(
     os.path.normcase(str(INSTALL_ROOT.resolve())).encode("utf-8")
 ).hexdigest()
+THUMBNAIL_SCHEMA = "preview-webp-v1"
+THUMBNAIL_MAX_EDGE = 320
+THUMBNAIL_QUALITY = 80
+THUMBNAIL_CACHE_ROOT = USER_STATE_ROOT / "installations" / INSTALLATION_ID / "cache" / "thumbnails"
+THUMBNAIL_LOCK = threading.Lock()
 SERVER_SESSION_TOKEN = ""
 SERVER_PORT = PORT
 
@@ -544,6 +554,58 @@ def _history_target(item_id: str) -> tuple[Path, Path]:
     return root, target
 
 
+def _thumbnail_target(query: dict[str, list[str]]) -> Path:
+    item_id = query.get("id", [""])[0]
+    if item_id:
+        _, target = _history_target(item_id)
+        return target
+    filename = query.get("filename", [""])[0]
+    subfolder = query.get("subfolder", [""])[0]
+    image_type = query.get("type", ["output"])[0]
+    if not filename or image_type != "output":
+        raise ValueError("invalid thumbnail source")
+    root = OUTPUT_ROOT.resolve()
+    target = (root / subfolder / filename).resolve()
+    if (target.parent != root and root not in target.parents) or target.suffix.lower() not in {".png", ".jpg", ".jpeg", ".webp"}:
+        raise ValueError("invalid thumbnail path")
+    return target
+
+
+def _thumbnail_cache_path(source: Path) -> Path:
+    stat = source.stat()
+    identity = "\n".join((os.path.normcase(str(source.resolve())), str(stat.st_size), str(stat.st_mtime_ns), THUMBNAIL_SCHEMA))
+    return THUMBNAIL_CACHE_ROOT / (hashlib.sha256(identity.encode("utf-8")).hexdigest() + ".webp")
+
+
+def cached_thumbnail(source: Path) -> Path:
+    if Image is None:
+        raise RuntimeError("Pillow is required for thumbnails")
+    source = source.resolve()
+    if not source.is_file():
+        raise FileNotFoundError(source)
+    target = _thumbnail_cache_path(source)
+    with THUMBNAIL_LOCK:
+        if target.is_file():
+            try:
+                with Image.open(target) as cached:
+                    cached.verify()
+                return target
+            except (OSError, ValueError):
+                target.unlink(missing_ok=True)
+        THUMBNAIL_CACHE_ROOT.mkdir(parents=True, exist_ok=True)
+        temporary = target.with_suffix(f".{os.getpid()}.{threading.get_ident()}.tmp")
+        try:
+            with Image.open(source) as loaded:
+                image = loaded.copy()
+            resampling = getattr(Image, "Resampling", Image).LANCZOS
+            image.thumbnail((THUMBNAIL_MAX_EDGE, THUMBNAIL_MAX_EDGE), resampling)
+            image.save(temporary, "WEBP", quality=THUMBNAIL_QUALITY, method=6)
+            temporary.replace(target)
+        finally:
+            temporary.unlink(missing_ok=True)
+    return target
+
+
 def image_history() -> dict:
     roots = _history_roots()
     paths = sorted(
@@ -561,7 +623,7 @@ def image_history() -> dict:
         stat = path.stat()
         relative = path.relative_to(root).as_posix()
         item_id = f"{root_key}:{relative}"
-        items.append({"id": item_id, "name": path.name, "date": time.strftime("%Y/%m/%d", time.localtime(stat.st_mtime)), "modified": stat.st_mtime, "url": "/api/history-image?id=" + quote(item_id), **_image_prompt_metadata(path)})
+        items.append({"id": item_id, "name": path.name, "date": time.strftime("%Y/%m/%d", time.localtime(stat.st_mtime)), "modified": stat.st_mtime, "url": "/api/history-image?id=" + quote(item_id), "thumbnail_url": "/api/thumbnail?id=" + quote(item_id), **_image_prompt_metadata(path)})
     configured = roots[0][1]
     return {
         "ok": True, "root": str(configured), "default_root": str(OUTPUT_ROOT),
@@ -787,6 +849,7 @@ def translate_prompt_payload(prompt: object) -> dict:
 def audit(event: dict) -> None:
     event = {"timestamp": time.time(), **event}
     try:
+        AUDIT_PATH.parent.mkdir(parents=True, exist_ok=True)
         with AUDIT_PATH.open("a", encoding="utf-8") as stream:
             stream.write(json.dumps(event, ensure_ascii=False) + "\n")
     except OSError:
@@ -1182,12 +1245,51 @@ class Handler(SimpleHTTPRequestHandler):
         }
 
     def end_headers(self) -> None:
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
-        self.send_header("Pragma", "no-cache")
+        if urlparse(self.path).path != "/api/thumbnail":
+            self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
+            self.send_header("Pragma", "no-cache")
         super().end_headers()
 
+    def _api_request_allowed(self) -> bool:
+        """Reject browser requests that did not originate from this loopback UI."""
+        expected_port = int(getattr(self.server, "server_port", SERVER_PORT))
+        host = self.headers.get("Host", "")
+        try:
+            parsed_host = urlparse("//" + host)
+            host_name = (parsed_host.hostname or "").casefold()
+            host_port = parsed_host.port or expected_port
+        except ValueError:
+            return False
+        if host_name not in {"127.0.0.1", "localhost"} or host_port != expected_port:
+            return False
+        if self.headers.get("Sec-Fetch-Site", "").casefold() == "cross-site":
+            return False
+        origin = self.headers.get("Origin")
+        if not origin:
+            return True
+        try:
+            parsed_origin = urlparse(origin)
+            origin_host = (parsed_origin.hostname or "").casefold()
+            origin_port = parsed_origin.port or (80 if parsed_origin.scheme == "http" else 443)
+        except ValueError:
+            return False
+        return (
+            parsed_origin.scheme == "http"
+            and origin_host in {"127.0.0.1", "localhost"}
+            and origin_port == expected_port
+        )
+
+    def _authorize_api_request(self) -> bool:
+        if not urlparse(self.path).path.startswith("/api/"):
+            return True
+        if self._api_request_allowed():
+            return True
+        self._send_json(403, {"ok": False, "error": "Cross-origin API request denied"})
+        return False
+
     def do_GET(self) -> None:  # noqa: N802
+        if not self._authorize_api_request():
+            return
         if urlparse(self.path).path == "/api/inpaint-model-notice":
             self._send_json(200, inpaint_model_notice_status())
             return
@@ -1214,6 +1316,20 @@ class Handler(SimpleHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(payload)
             except (OSError, ValueError):
+                self.send_error(404)
+            return
+        if urlparse(self.path).path == "/api/thumbnail":
+            try:
+                target = _thumbnail_target(parse_qs(urlparse(self.path).query))
+                thumbnail = cached_thumbnail(target)
+                payload = thumbnail.read_bytes()
+                self.send_response(200)
+                self.send_header("Content-Type", "image/webp")
+                self.send_header("Cache-Control", "public, max-age=31536000, immutable")
+                self.send_header("Content-Length", str(len(payload)))
+                self.end_headers()
+                self.wfile.write(payload)
+            except (OSError, ValueError, RuntimeError):
                 self.send_error(404)
             return
         if urlparse(self.path).path == "/api/comfy-view":
@@ -1350,6 +1466,8 @@ class Handler(SimpleHTTPRequestHandler):
         return json.loads(self.rfile.read(size).decode("utf-8"))
 
     def do_POST(self) -> None:  # noqa: N802
+        if not self._authorize_api_request():
+            return
         if self.path == "/api/inpaint-model-notice":
             try:
                 self._send_json(200, acknowledge_inpaint_model_notice(self._read_json()))
@@ -1649,6 +1767,10 @@ class LinkHandler(Handler):
             return False
         cookie = self.headers.get("Cookie", "")
         return any(part.strip() == f"lakis_link={LINK_SESSION}" for part in cookie.split(";"))
+
+    def _api_request_allowed(self) -> bool:
+        """Use the Link session as the API authority on the tailnet listener."""
+        return self._authorized()
 
     def _login_page(self, failed: bool = False) -> None:
         message = "PIN이 올바르지 않습니다." if failed else "PC의 LAKIS Link PIN을 입력하세요."

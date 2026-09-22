@@ -12,6 +12,7 @@ $sourceRevision = (& git -C $repo rev-parse HEAD).Trim()
 if ($LASTEXITCODE -ne 0 -or $sourceRevision -notmatch '^[a-fA-F0-9]{40}$') { throw "A committed source revision is required." }
 $dirty = & git -C $repo status --porcelain --untracked-files=normal -- . ":(exclude)dist" ":(exclude).safe-installer-build"
 if ($LASTEXITCODE -ne 0 -or $dirty) { throw "Commit/review candidate source before building; working tree is dirty." }
+
 $setupSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $PSScriptRoot "Setup_LAKIS_Safe.cs")
 $pinnedSetupSource = Join-Path $stage "Setup_LAKIS_SourcePinned.cs"
 $pattern = 'private const string Revision = "[^"]+";'
@@ -44,7 +45,7 @@ Copy-Item -LiteralPath $webViewLoader -Destination (Join-Path $stage "WebView2Lo
 
 $splash1 = Join-Path $repo "resources\splash\lakis-splash-01.png"
 $splash2 = Join-Path $repo "resources\splash\lakis-splash-02.png"
-& $csc /nologo /target:winexe ("/out:" + (Join-Path $stage "LAKIS.exe")) ("/win32icon:" + $icon) /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll ("/resource:" + $splash1 + ",LAKIS.Splash1") ("/resource:" + $splash2 + ",LAKIS.Splash2") (Join-Path $PSScriptRoot "SplashArtwork.cs") (Join-Path $PSScriptRoot "LAKIS_Launcher.cs")
+& $csc /nologo /target:winexe ("/out:" + (Join-Path $stage "LAKIS.exe")) ("/win32icon:" + $icon) /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll ("/resource:" + $splash1 + ",LAKIS.Splash1") ("/resource:" + $splash2 + ",LAKIS.Splash2") (Join-Path $PSScriptRoot "SplashArtwork.cs") (Join-Path $PSScriptRoot "LAKIS_Launcher.cs")
 if ($LASTEXITCODE) { throw "Launcher compilation failed" }
 & $csc /nologo /target:winexe ("/out:" + (Join-Path $stage "LAKIS_Updater.exe")) ("/win32icon:" + $icon) /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll ("/resource:" + $splash1 + ",LAKIS.Splash1") ("/resource:" + $splash2 + ",LAKIS.Splash2") (Join-Path $PSScriptRoot "SplashArtwork.cs") (Join-Path $PSScriptRoot "LAKIS_Updater.cs")
 if ($LASTEXITCODE) { throw "Updater compilation failed" }

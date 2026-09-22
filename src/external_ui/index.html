@@ -17,7 +17,7 @@
   <link rel="stylesheet" href="brand-position-fix.css">
   <link rel="stylesheet" href="seed-controls.css?v=20260906-i2i-result-badge">
   <link rel="stylesheet" href="seed-layout-fix.css?v=20260906-aspect-ratio-lock">
-  <link rel="stylesheet" href="sidebar-links.css?v=20260905-sidebar-centerline">
+  <link rel="stylesheet" href="sidebar-links.css?v=20260920-arca-tooltip-v2">
   <link rel="stylesheet" href="status-footer.css?v=20260905-copyright">
   <link rel="stylesheet" href="status-footer-large.css?v=20260905-copyright">
   <link rel="stylesheet" href="prompt-width.css?v=20260905-ratio-1-1-25-15">
@@ -32,7 +32,7 @@
   <link rel="stylesheet" href="composition-toggle.css">
   <link rel="stylesheet" href="i2i-control.css?v=20260906-composition-notice">
   <link rel="stylesheet" href="i2i-preview-contain.css?v=20260906-auto-size-option">
-  <link rel="stylesheet" href="inpaint-control.css?v=20260911-prompt-font-stable">
+  <link rel="stylesheet" href="inpaint-control.css?v=20260921-cover-wildcard">
   <link rel="stylesheet" href="wildcard-control.css?v=20260913-experiment-1">
   <link rel="stylesheet" href="wildcard-refinement.css?v=20260913-mockup-1">
   <link rel="stylesheet" href="continuous-generation.css?v=20260913-mockup-1">
@@ -42,6 +42,7 @@
   <link rel="stylesheet" href="panel-height-polish.css?v=20260913-mockup-1">
   <link rel="stylesheet" href="advanced-node-settings.css?v=20260906-advanced-audit">
   <link rel="stylesheet" href="horizontal-overflow-fix.css?v=20260906-fixed-prompt-column">
+  <link rel="stylesheet" href="prompt-maximize.css?v=20260920-split-panels-v2">
   <link rel="stylesheet" href="upscaler-license-migration.css?v=20260906-first-run">
   <link rel="stylesheet" href="system-info-dialog.css?v=20260906-licenses">
   <link rel="stylesheet" href="image-history.css?v=20260916-mobile-detail-close-bar">
@@ -55,7 +56,7 @@
       <button id="mobileSidebarToggle" class="mobile-sidebar-toggle" type="button" aria-label="빠른 메뉴 열기" aria-expanded="false"><span></span><span></span><span></span></button>
       <div class="brand"><strong>LAKIS</strong></div>
       <nav>
-        <button id="outputFolderButton" class="nav-item sidebar-output-link" aria-label="ComfyUI 출력 폴더 열기" title="ComfyUI 출력 폴더"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h6.8l2 2H21v2H6.2L4.4 18H19l2-8"/><path d="M3 6v12h1.4"/></svg></button>
+        <button id="outputFolderButton" class="nav-item sidebar-output-link" aria-label="LAKIS 라이브러리" title="LAKIS 라이브러리"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h6.8l2 2H21v2H6.2L4.4 18H19l2-8"/><path d="M3 6v12h1.4"/></svg></button>
         <div class="workflow-launcher">
           <button id="workflowButton" class="nav-item" type="button" aria-label="ComfyUI 워크플로 선택" title="ComfyUI Workflow" aria-haspopup="menu" aria-expanded="false"><svg class="workflow-brand-icon" viewBox="0 0 204 192" aria-hidden="true"><rect width="204" height="192" rx="5" fill="#2037db"/><path fill="#efff2d" d="M105 32h45c10 0 15 7 12 17l-4 14c-2 8-8 13-17 13h-42l-12 42h37c10 0 15 7 12 17l-4 14c-2 8-8 13-17 13H75c-11 0-16-7-13-17l3-11H55c-10 0-15-7-12-17l12-43c2-9 8-14 17-14h15l5-17c2-9 7-14 13-15z"/></svg></button>
           <div id="workflowMenu" class="workflow-menu" role="menu" hidden>
@@ -63,9 +64,16 @@
             <button type="button" role="menuitem" data-workflow-kind="editable" data-tooltip="사용자 편집 워크플로" aria-label="사용자 편집 워크플로"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4.5 21c.7-4.1 3.2-6 7.5-6s6.8 1.9 7.5 6"/></svg></button>
           </div>
         </div>
-        <button id="lakisLinkButton" class="nav-item sidebar-lakis-link" type="button" aria-label="LAKIS Link" title="LAKIS Link"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2.5" width="10" height="19" rx="2"/><path d="M10 5h4m-3 13.5h2"/></svg></button>
         <a class="nav-item sidebar-danbooru-link" href="https://danbooru-tag.mephistopheles.moe/" target="_blank" rel="noopener noreferrer" aria-label="Danbooru 태그 툴" title="Danbooru 태그 툴"><svg class="danbooru-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h9.2L20 11.8 11.8 20 4 12.2z"/><circle cx="8.1" cy="9" r="1.4"/><path d="m11 12 4-4m-2 7 4-4"/></svg></a>
         <a class="nav-item sidebar-civitai-link" href="https://civitai.red/" target="_blank" rel="noopener noreferrer" aria-label="Civitai" title="Civitai"><svg class="civitai-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2.8 7.9 4.6v9.2L12 21.2l-7.9-4.6V7.4z"/><path d="M15.7 8.5 12 6.4 8.3 8.5v7L12 17.6l3.7-2.1"/></svg></a>
+        <div class="sidebar-resource-launcher">
+          <button id="sidebarResourceButton" class="nav-item" type="button" aria-label="LAKIS" title="LAKIS" aria-haspopup="menu" aria-expanded="false"><img class="sidebar-lakis-brand-icon" src="assets/lakis-la-outline-v3.png" alt=""></button>
+          <div id="sidebarResourceMenu" class="workflow-menu sidebar-resource-menu" role="menu" hidden>
+            <button type="button" role="menuitem" data-resource-url="https://github.com/Jeong-Luke/LAKIS" data-tooltip="LAKIS GitHub" aria-label="LAKIS GitHub 열기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 18c-4 1.2-4-2-5-2.5M13 21v-3.1c0-.9.1-1.5-.4-2 2.7-.3 5.5-1.3 5.5-6a4.7 4.7 0 0 0-1.3-3.3A4.4 4.4 0 0 0 16.7 3S15.7 2.7 13 4.3a11.3 11.3 0 0 0-5 0C5.3 2.7 4.3 3 4.3 3a4.4 4.4 0 0 0-.1 3.6A4.7 4.7 0 0 0 3 9.9c0 4.7 2.8 5.7 5.5 6-.4.4-.5 1-.5 1.9V21"/></svg></button>
+            <button type="button" role="menuitem" class="arcalive-resource-button" data-resource-url="https://arca.live/b/aiart/182153778" data-tooltip-top="아카라이브" data-tooltip-bottom="LAKIS 게시글" aria-label="아카라이브 LAKIS 게시글 열기"><img class="arcalive-icon" src="assets/arcalive-logo.svg" alt=""></button>
+          </div>
+        </div>
+        <button id="lakisLinkButton" class="nav-item sidebar-lakis-link" type="button" aria-label="LAKIS Link" title="LAKIS Link"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2.5" width="10" height="19" rx="2"/><path d="M10 5h4m-3 13.5h2"/></svg></button>
         <a class="nav-item" href="http://127.0.0.1:8188/loras" target="_blank" rel="noopener" aria-label="LoRA Manager" title="LoRA Manager"><img class="lora-manager-icon" alt="" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAD1klEQVRYR62Wy4sURxzHv33wZCIeJIRcEkEFE3J0IYoRgoa4LgbjZBYhQWd3zYpREfZgiM+b4EUWRERBEgiB3AK55ZRb/oI9Jig6D5NZN8ruznR3df1CPbuqunp2F/0cpuvxe3zrV9U1nSw87hIAJCAQEtGUPUAO+4ghY6KpWhJAibZz23ESJcCEMOGqHtFEEbuN4ghQwcpE7rCbaO1VrUecyaMFaORIzNkZI9JN38YErMaIxROohSQLjzqEJPHsbDCPukAlpd9atuV8WQG7MvEQR3IUaySw07oxwjxZeNzRmU1K13KEZ4URtp4gQWnnCBDUBXHGqzF8ZCWDSekexNZx/ENoMW9AmfTc3G30/noCzlMUeYbG5GF83To2QomLSi4sTTLVprACIcqRiDA9N4/O309BL5cBPkTzxDimZ5vWxjw2SqQCJlL5FFWduXQXnSc98OcvgDzF5IlPMXX6uPWqEtwX4dbIrKICj7QAO6cTCwfxlE3CzHf30O71QYwBKyuYnNiPqZnPjZNPLJnTdVEVcA1CZzlEOP39A7S7/4A4AYNVTH62D62pCeUn/ddzQ1aJbEFVsRAwe/kh2t0+iHJQztA8OIZWa9wYeAfWE2HEeYdQGwk3X0DorSFg9soPUgAnBiKG5vhetJqfWBOXMpFo6OT6nHpIAeYq9qgKOXPtJzxt9wEw8ILhy4kxtBpaQNV8fVQrIIhEI+DM9Z/R7S2CcwbiDI3xMZxqHLAmCuMbiVFB2dQIEJSBxO/ZG7+g3VtEwjk4y9A4sgcnj+/XtgHhQQ77hngFIhDh7M1f0e0sylsQBcOeD9/DgbGdco6Ig3iOt7Ztxfu7t1u3ErUQ8xDY5VkBzqTEeavEAr699Ru6z5ZAaQaep0h4gYLl4CwHsRRFlmJTuoz523PYsetdG8bHpC1RF1GkOur0Cgt1FZ+f/x2d7pK8iGg4BBeVYEw+ORuCsgzF8z7eeXsL7ty/ijfe3GxXVU1r4kfPgPWzCNsL9/5A/+UA4AXSxRfgqwPwbAhw0iIy8HQVfLCMj/Z9gBuXp/W2x1anqX8NDVoJARd//BP9/1bkkRz8uwQ+SEFpCsrEdnAwISJPAZ6j4Dm++eoQvjj6sa56/Q1ZvwVBGbgIYsdU0aJuDrXrcohvQZBc7kEYzTVxdYVj1Y7Xr/8eCH0MdeMe2igmXGKCyA+SripuEFhNv15UTP9rKziEOqX3IeELG402dpVL3+ATzzDyJvQSr/FfH4qUfTMYTjqo19ARIO3iDjKU3tLSYeMYSYb6ClSoKeMrUhEQKvQKItvuQA1REzdIyf+19Emx4bfaCQAAAABJRU5ErkJggg=="></a>
       </nav>
     </aside>
@@ -219,6 +227,7 @@
                   <input id="promptTranslationToggle" type="checkbox" checked>
                   <i aria-hidden="true"></i>
                 </label>
+                <button id="positivePromptMaximizeButton" class="prompt-maximize-button" type="button" aria-expanded="false"><span aria-hidden="true">&lt;&lt;</span><strong>확장</strong></button>
               </div>
               <div id="fixedPromptPanel" class="fixed-prompt-panel" hidden>
                 <div class="fixed-prompt-heading"><span>항상 적용되는 프롬프트</span><span class="fixed-badge">FIXED</span></div>
@@ -244,12 +253,15 @@
           </article>
           <article class="panel prompt-panel negative-prompt-panel">
             <div class="field-label prompt-field-title" data-prompt-group>
-              <span class="prompt-section-heading">네거티브 프롬프트</span>
+              <div class="prompt-heading-row">
+                <span class="prompt-section-heading">네거티브 프롬프트</span>
+              </div>
               <div class="prompt-tools">
                 <button class="prompt-tool" data-prompt-panel="negativeArtistPromptPanel" aria-expanded="false">작가</button>
                 <button class="prompt-tool" data-prompt-panel="negativeQualityPromptPanel" aria-expanded="false">품질</button>
                 <button class="prompt-tool" data-prompt-panel="negativeFixedPromptPanel" aria-expanded="false">고정</button>
                 <button class="prompt-tool active" data-prompt-panel="negativeGeneralPromptPanel" aria-expanded="true">일반</button>
+                <button id="negativePromptMaximizeButton" class="prompt-maximize-button" type="button" aria-expanded="false"><span aria-hidden="true">&lt;&lt;</span><strong>확장</strong></button>
               </div>
               <div id="negativeArtistPromptPanel" class="fixed-prompt-panel prompt-category-panel" hidden>
                 <div class="fixed-prompt-heading"><span>제외할 작가 태그</span><span class="fixed-badge">ARTIST</span></div>
@@ -343,8 +355,8 @@
       <aside id="imageHistoryInspector" class="image-history-inspector" hidden>
         <div class="image-history-inspector-bar"><span>이미지 상세</span><button id="imageHistoryInspectorClose" type="button" aria-label="라이브러리 목록으로 돌아가기" title="라이브러리 목록으로 돌아가기">×</button></div>
         <img id="imageHistoryLargeImage" alt="선택한 생성 이미지">
-        <dl><div><dt>체크포인트</dt><dd id="historyCheckpoint"></dd></div><div><dt>LoRA</dt><dd id="historyLoras"></dd></div><div><dt>시드</dt><dd id="historySeed"></dd></div><div><dt>프롬프트</dt><dd id="historyPrompt"></dd></div><div><dt>네거티브 프롬프트</dt><dd id="historyNegative"></dd></div></dl>
         <div class="image-history-inspector-actions"><button id="historyUseInpaint" type="button">인페인트로 보내기</button><button id="historyUseI2i" type="button">I2I로 보내기</button></div>
+        <dl><div><dt>체크포인트</dt><dd id="historyCheckpoint"></dd></div><div><dt>LoRA</dt><dd id="historyLoras"></dd></div><div><dt>시드</dt><dd id="historySeed"></dd></div><div><dt>프롬프트</dt><dd id="historyPrompt"></dd></div><div><dt>네거티브 프롬프트</dt><dd id="historyNegative"></dd></div></dl>
       </aside>
     </section>
   </div>
@@ -407,9 +419,9 @@
     </section>
   </div>
   <div id="wildcardOverlay" class="wildcard-overlay" hidden><section class="wildcard-card" role="dialog" aria-modal="true" aria-labelledby="wildcardTitle"><header><div><span>LAKIS</span><h2 id="wildcardTitle">와일드카드</h2></div><button id="wildcardClose" type="button" aria-label="닫기">×</button></header><nav><button type="button" data-wildcard-source="BUILT_IN" class="active">기본 제공</button><button type="button" data-wildcard-source="USER">내 와일드카드</button></nav><input id="wildcardSearch" type="search" placeholder="와일드카드 검색"><div class="wildcard-browser"><div id="wildcardList" class="wildcard-list"></div><div class="wildcard-preview"><div class="wildcard-selection-head"><div><strong id="wildcardSelectionName">목록에서 선택하세요</strong><small id="wildcardSelectionMeta"></small><small id="wildcardUseCount"></small></div><div><button id="wildcardIncludeAll" type="button">전체 포함</button><button id="wildcardReset" type="button">초기화</button></div></div><div id="wildcardEntries" class="wildcard-entry-list"></div></div><aside><h3>사용 중인 와일드카드</h3><div id="activeWildcards" class="active-wildcard-list"><small>프롬프트에 삽입된 와일드카드가 없습니다.</small></div><code id="wildcardToken">__name__</code><button id="wildcardInsert" type="button" disabled>프롬프트에 삽입</button></aside></div><footer><button id="wildcardFolder" type="button">폴더 열기</button><button id="wildcardRefresh" type="button">새로고침</button><span id="wildcardStatus"></span></footer></section></div>
-  <script src="app.js?v=20260913-continuous-mockup-1"></script>
+  <script src="app.js?v=20260920-sidebar-resource-menu"></script>
   <script src="wildcard-control.js?v=20260913-refinement-mockup-10"></script>
-  <script src="advanced-node-settings.js?v=20260907-upscale-engine-dev"></script>
+  <script src="advanced-node-settings.js?v=20260920-settings-gear"></script>
   <script type="module" src="prompt-highlighting.js?v=20260913-wildcard-experiment-1"></script>
   <script src="upscaler-license-migration.js?v=20260906-first-run"></script>
   <script src="system-info-dialog.js?v=20260906-licenses"></script>

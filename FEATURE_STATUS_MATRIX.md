@@ -1,14 +1,15 @@
 # LAKIS Feature Status Matrix
 
-기준 버전: `v7.4.4`  
-기준 릴리즈: `https://github.com/Jeong-Luke/LAKIS/releases/tag/v7.4.4`  
-최종 갱신: 2026-09-15 Asia/Seoul
+기준 버전: `v7.4.5`
+기준 릴리즈: `https://github.com/Jeong-Luke/LAKIS/releases/tag/v7.4.5`
+최종 갱신: 2026-09-21 Asia/Seoul
 
 ## 상태 정의
 
 | 상태 | 의미 |
 |---|---|
-| RELEASED | v7.4.4 공개 릴리즈와 업데이트 매니페스트에 포함 |
+| RELEASED | v7.4.5 공개 릴리즈와 업데이트 매니페스트에 포함 |
+| CANDIDATE | 현재 release-prep 후보에 포함됐지만 아직 공개되지 않음 |
 | VERIFIED | 정적 검사 또는 실제 실행으로 확인 완료 |
 | OWNER VERIFIED | 프로젝트 소유자가 실제 환경에서 확인 |
 | CONDITIONAL | 외부 모델, 환경 또는 사용자 설정이 필요 |
@@ -87,6 +88,10 @@ FAST, DETAIL, LAKIS DETAIL은 공식 생성 모드다. Composition, i2i, Inpaint
 | Viewport Lazy Load | RELEASED | RELEASED | OWNER VERIFIED | `loading=lazy`, `decoding=async`, IntersectionObserver |
 | Custom Save Path | RELEASED | 미노출 | OWNER VERIFIED | Link Library에서는 폴더 열기와 저장 경로 변경을 숨김 |
 | Pinch Zoom | RELEASED | RELEASED | OWNER VERIFIED | 미리보기 및 Library 상세 이미지에서만 허용 |
+| 320px WebP Thumbnail Cache | CANDIDATE | CANDIDATE | VERIFIED | 카드/최근 생성에는 캐시 썸네일을 사용하고 메인 프리뷰·상세 이미지는 원본 유지 |
+| Progressive Card Rendering | CANDIDATE | CANDIDATE | VERIFIED | 최초 20개 렌더 후 스크롤 시 20개씩 추가 |
+| Preview Session History Cap | CANDIDATE | 해당 없음 | VERIFIED | 시작 시 과거 이미지 미리 로드 없음, 현재 세션 최근 20개 유지 |
+| Library Inspector Layout | CANDIDATE | CANDIDATE | VERIFIED | 데스크톱 상세 패널 폭 확대 및 이미지 바로 아래 Inpaint/I2I 액션 배치 |
 
 ## LAKIS Link / Mobile
 
@@ -105,7 +110,11 @@ FAST, DETAIL, LAKIS DETAIL은 공식 생성 모드다. Composition, i2i, Inpaint
 | 기능 | 상태 | 검증 | 비고 |
 |---|---|---|---|
 | External UI | RELEASED | VERIFIED | LAKIS public runtime 경로 사용 |
-| Desktop WebView2 Host | RELEASED | VERIFIED | v7.4.4 실행 파일 배포 |
+| Desktop WebView2 Host | RELEASED | VERIFIED | v7.4.5 실행 파일 배포 |
+| Prompt Panel Expand | CANDIDATE | VERIFIED | 데스크톱 전용, 긍정/네거티브 독립 확장, 모바일 레이아웃 유지 |
+| Advanced Settings Gear Icon | CANDIDATE | VERIFIED | 세부설정 진입 아이콘을 돋보기에서 톱니바퀴로 변경 |
+| LAKIS Sidebar Resources | CANDIDATE | VERIFIED | 데스크톱 전용 GitHub/Arcalive 링크 메뉴 및 LAKIS Link 순서 조정 |
+| Inpaint Workspace Coverage | CANDIDATE | VERIFIED | Inpaint ON 동안 Wildcard·Composition·I2I 패널 제외 |
 | Generation Monitor Button | RELEASED | OWNER VERIFIED | Runtime/API workflow visual 화면을 표시 |
 | Runtime Visual Workflow | RELEASED | VERIFIED | 사람이 runtime 구조를 확인하는 counterpart |
 | Editable Workflow | RELEASED | VERIFIED | ComfyUI에서 읽고 편집 가능 |
@@ -149,7 +158,7 @@ Editable과 Runtime Visual은 현재 release convention에서 같은 시각적 g
 
 | 기능 | 상태 | 검증 | 비고 |
 |---|---|---|---|
-| Safe Installer | RELEASED | PASS | v7.4.4 신규 설치 및 복구 자산 공개 |
+| Safe Installer | RELEASED | PASS | v7.4.5 신규 설치 및 복구 자산 공개 |
 | Patcher/Updater | RELEASED | PASS | staging, SHA-256, rollback 및 cache bypass |
 | Model Importer | RELEASED | PASS | 외부 모델을 사용자 선택으로 가져오기 |
 | Uninstaller | RELEASED | PASS | 사용자 데이터 보호 계약 유지 |
@@ -157,8 +166,12 @@ Editable과 Runtime Visual은 현재 release convention에서 같은 시각적 g
 | Manifest Duplicate Guard | RELEASED | PASS | 중복 path 발견 시 생성 중단 |
 | Install/Delete Overlap Guard | RELEASED | PASS | 현재 overlap 0 |
 | Remote Byte Verification | RELEASED | PASS | draft asset와 raw file을 3회 검증 |
-| v7.4.4 Assets | RELEASED | PASS | GitHub Release 자산 10개 |
-| Public Update Manifest | RELEASED | PASS | 파일 102개, 삭제 12개 |
+| v7.4.5 Assets | RELEASED | PASS | GitHub Release 자산 10개 |
+| Public Update Manifest | RELEASED | PASS | 파일 131개, 삭제 12개 |
+| Current Candidate Local Manifest | CANDIDATE | PASS | provisional 135개, 삭제 12개; 최종 frozen binary build 후 manifest/hash 재생성 필요 |
+| Public Product Boundary Guard | CANDIDATE | PASS | 8 tests + dist의 모든 EXE 검사; manifest/runtime/build/GitHub upload 경계 차단 |
+| Startup Release Integrity | CANDIDATE | PASS | 정확한 release-owned 114개 집합 + managed-node inventory + Launcher 내장 manifest trust hash; manifest/runtime 변조 시 Python 시작 전 차단 |
+| Runtime Capability Preflight | CANDIDATE | PASS | ComfyUI /object_info와 runtime workflow + 동적 필수 LAKIS 노드 대조, 실패 시 LKS-RUN-1003 |
 
 ## Data Safety and Compliance
 
@@ -173,7 +186,9 @@ Editable과 Runtime Visual은 현재 release convention에서 같은 시각적 g
 | Health Monitor public nodes | PRIVATE | 0 |
 | SamplerSPEED/ComfyUI-SPEED | PRIVATE | 0 |
 | LUKIS-only files | PRIVATE | 0 |
-| New third-party dependency in v7.4.4 fix | NONE | 0 |
+| DEKIS/LUKIS public artifact leak | CANDIDATE VERIFIED | 0 · negative injection tests PASS |
+| New executable/runtime dependency in v7.4.5 | NONE | 0 |
+| Arcalive navigation logo | CANDIDATE | 단순 로고 public-domain 분류, 출처 THIRD_PARTY_NOTICES 기록 |
 | LLLite weight redistribution | DISABLED | 사용자 직접 설치만 허용 |
 
 ## Environment Coverage
@@ -184,20 +199,30 @@ Editable과 Runtime Visual은 현재 release convention에서 같은 시각적 g
 | Tester Windows PCs | OWNER/TEAM VERIFIED | v7.4 RC 및 후속 오류 보고 기반 수정 |
 | iPhone Safari | OWNER VERIFIED | Link UI, Library, wildcard, zoom, Inpaint drawing |
 | Android browser | UNTESTED | 다음 검증 대상 |
-| Production LAKIS v7.4.4 update | RELEASED | GitHub 자동화와 공개 manifest 확인 |
+| Production LAKIS v7.4.5 update | RELEASED | GitHub 자동화와 공개 manifest 확인 |
 | LUKIS | OUT OF SCOPE FOR THIS MATRIX | 별도 제품 handoff와 상태표 필요 |
 
 ## Current Release Decision
 
 | 판정 | 상태 |
 |---|---|
-| Functional regression | PASS |
-| One Click / One Prompt | PASS |
-| Final Saver 775 | PASS |
+| Functional regression (v7.4.5 stable) | PASS |
+| One Click / One Prompt (v7.4.5 stable) | PASS |
+| Final Saver 775 (v7.4.5 stable) | PASS |
 | User data safety | PASS |
 | Private/retired leak | 0 |
 | License blocker | NONE |
-| Open v7.4.4 release blocker | 0 |
-| v7.4.4 public release | COMPLETE |
+| Open v7.4.5 release blocker | 0 |
+| v7.4.5 public release | COMPLETE |
+| Current candidate version | v7.5.0 |
+| Current candidate automated regression | PASS · RELEASE_REGRESSION_GATE_OK version=7.5.0 |
+| Current candidate manifest safety | PASS |
+| Current candidate LAKIS/DEKIS/LUKIS boundary | PASS · 8 runtime/source tests + manifest negative test + DEKIS/LUKIS artifact negative tests + 7 public EXE scan |
+| Current candidate startup integrity | PASS · exact 114-file set + managed-node inventory + embedded normalized manifest trust hash + compiled Launcher manifest/runtime corruption rejection |
+| Current candidate licence blocker | NONE |
+| Independent DeepSeek Scout | COMPLETED · 32K re-audit finish_reason=stop, 8 findings; confirmed blockers fixed locally and full gate re-PASS; updater interruption remains Private RC risk |
+| Current candidate desktop UI visual check | PENDING |
+| Current candidate real-generation regression | REQUIRED · PENDING because launcher/runtime integrity and capability preflight changed |
+| Current candidate Private RC | NOT STARTED |
 
 새 오류나 기능 변경이 생기면 관련 행의 제품 상태, 검증 수준, 환경 범위와 마지막 갱신일을 함께 수정한다.
