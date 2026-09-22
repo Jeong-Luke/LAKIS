@@ -88,6 +88,7 @@ class ReleaseLayoutTests(unittest.TestCase):
             )
             self.assertFalse(any(path.startswith(forbidden_prefixes) for path in files))
             self.assertNotIn("ComfyUI/LAKIS/workflows/LAKIS_custom_v7.4_editable.json", files)
+            self.assertNotIn("ComfyUI/LAKIS/workflows/LAKIS_custom_v7.3_editable.json", payload["retired"])
             self.assertNotIn("ComfyUI/LAKIS/external_ui/release-integrity.json", files)
             self.assertIn(
                 "ComfyUI/custom_nodes/ComfyUI-LAKIS-Light-Control/__init__.py",

@@ -46,6 +46,8 @@ class ReleaseSourceContracts(unittest.TestCase):
         self.assertNotIn('Add-UpdateFile "ComfyUI/user',g)
         update_workflows=g[g.index('foreach ($runtimeName'):g.index('$retiredFiles')]
         self.assertNotIn('LAKIS_custom_v7.4_editable.json',update_workflows)
+        retired=g[g.index('$retiredFiles'):g.index('$filePaths')]
+        self.assertNotIn('LAKIS_custom_v7.3_editable.json',retired)
     def test_setup_and_repair_verify_cached_source_archive(self):
         s=self.text('installer/Setup_LAKIS_Safe.cs')
         install=s[s.index('internal static void Install'):s.index('internal static void Repair')]

@@ -126,7 +126,6 @@ try {
         "ComfyUI/LAKIS/external_ui/light-control-prototype.css",
         "ComfyUI/LAKIS/external_ui/lightmap-knob-mockup.js",
         "ComfyUI/LAKIS/workflows/LAKIS_DETAIL_runtime_api_v7.3.json",
-        "ComfyUI/LAKIS/workflows/LAKIS_custom_v7.3_editable.json",
         "ComfyUI/LAKIS/workflows/LAKIS_runtime_api_v7.1.json",
         "ComfyUI/LAKIS/workflows/LAKIS_runtime_visual_v7.3.json",
         "ComfyUI/custom_nodes/ComfyUI-LAKIS-Light-Control/INSTALL_REQUIREMENTS.bat",
