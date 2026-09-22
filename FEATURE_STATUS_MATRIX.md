@@ -218,7 +218,7 @@ Editable과 Runtime Visual은 현재 release convention에서 같은 시각적 g
 | Current candidate automated regression | PASS · RELEASE_REGRESSION_GATE_OK version=7.5.0 |
 | Current candidate manifest safety | PASS |
 | Current candidate LAKIS/DEKIS/LUKIS boundary | PASS · 8 runtime/source tests + manifest negative test + DEKIS/LUKIS artifact negative tests + 7 public EXE scan |
-| Current candidate startup integrity | PASS · exact 114-file set + managed-node inventory + embedded normalized manifest trust hash + compiled Launcher manifest/runtime corruption rejection |
+| Current candidate release-layout consistency | PASS · managed release payload inventory + size/retired-file comparison + staged RepairPack validation + compiled Launcher/runtime capability checks |
 | Current candidate licence blocker | NONE |
 | Independent DeepSeek Scout | COMPLETED · 32K re-audit finish_reason=stop, 8 findings; confirmed blockers fixed locally and full gate re-PASS; updater interruption remains Private RC risk |
 | Current candidate desktop UI visual check | PENDING |

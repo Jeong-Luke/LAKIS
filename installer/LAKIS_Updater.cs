@@ -7,6 +7,8 @@ using System.IO;
 using System.Net;
 using System.Security.Cryptography;
 using System.Reflection;
+using System.Linq;
+using System.Text.RegularExpressions;
 using System.Text;
 using System.Threading.Tasks;
 using System.Web.Script.Serialization;
@@ -34,6 +36,8 @@ internal sealed class UpdaterForm : Form
         "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/main/manifests/update-latest.json",
         "https://cdn.jsdelivr.net/gh/Jeong-Luke/LAKIS@main/manifests/update-latest.json"
     };
+    private const string RcReleaseBaseVariable = "LAKIS_RC_RELEASE_BASE_URL";
+    private const string RcManifestVariable = "LAKIS_RC_MANIFEST_URL";
     private readonly Label status = new Label();
     private readonly LakisProgressBar progress = new LakisProgressBar();
     private readonly Button update = new Button();
@@ -172,7 +176,9 @@ internal sealed class UpdaterForm : Form
                 string arguments = "--finish-self-update \"" + targetRoot + "\" \"" + manifest.version + "\" " + Process.GetCurrentProcess().Id;
                 arguments += " --self-name=" + Path.GetFileName(Application.ExecutablePath);
                 if (launchAfterUpdate) arguments += " --launch-after-update";
-                Process.Start(new ProcessStartInfo(pendingSelfUpdate, arguments) { UseShellExecute = true, WorkingDirectory = Path.GetTempPath() });
+                var helperInfo = new ProcessStartInfo(pendingSelfUpdate, arguments) { UseShellExecute = false, WorkingDirectory = Path.GetTempPath() };
+                CopyRcEnvironment(helperInfo);
+                Process.Start(helperInfo);
                 Close();
                 return;
             }
@@ -196,7 +202,7 @@ internal sealed class UpdaterForm : Form
     {
         ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
         Exception last = null;
-        foreach (string url in ManifestUrls)
+        foreach (string url in EffectiveManifestUrls())
         {
             try
             {
@@ -218,6 +224,40 @@ internal sealed class UpdaterForm : Form
             catch (Exception error) { last = error; }
         }
         throw new WebException("모든 업데이트 서버 연결에 실패했습니다.", last);
+    }
+
+    private static string ValidateRcLoopbackUrl(string value, string variable)
+    {
+        Uri uri;
+        if (!Uri.TryCreate(value, UriKind.Absolute, out uri) ||
+            !String.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) ||
+            !Regex.IsMatch(uri.Authority, "^(127\\.0\\.0\\.1|localhost):[0-9]+$", RegexOptions.IgnoreCase) ||
+            !String.IsNullOrEmpty(uri.UserInfo) || !String.IsNullOrEmpty(uri.Fragment) ||
+            !String.IsNullOrEmpty(uri.Query) || uri.Port < 1 || value.IndexOf('\\') >= 0 ||
+            Regex.IsMatch(value, "(^|/)\\.{1,2}(/|$)|%2e|%2f|%5c", RegexOptions.IgnoreCase))
+            throw new InvalidDataException(variable + " must be an http loopback URL (127.0.0.1 or localhost) with an explicit port.");
+        string decodedPath;
+        try { decodedPath = Uri.UnescapeDataString(uri.AbsolutePath); }
+        catch (UriFormatException) { throw new InvalidDataException(variable + " contains malformed escaping."); }
+        if (decodedPath.Replace('\\', '/').Split('/').Any(part => part == "." || part == ".."))
+            throw new InvalidDataException(variable + " must not contain path traversal.");
+        return uri.AbsoluteUri.TrimEnd('/');
+    }
+
+    private static IEnumerable<string> EffectiveManifestUrls()
+    {
+        string overrideUrl = Environment.GetEnvironmentVariable(RcManifestVariable);
+        if (String.IsNullOrWhiteSpace(overrideUrl)) return ManifestUrls;
+        return new[] { ValidateRcLoopbackUrl(overrideUrl, RcManifestVariable) };
+    }
+
+    private static void CopyRcEnvironment(ProcessStartInfo info)
+    {
+        foreach (string name in new[] { RcReleaseBaseVariable, RcManifestVariable })
+        {
+            string value = Environment.GetEnvironmentVariable(name);
+            if (!String.IsNullOrWhiteSpace(value)) info.EnvironmentVariables[name] = value;
+        }
     }
 
     private void ApplyUpdate(UpdateManifest manifest)
@@ -547,7 +587,12 @@ internal sealed class UpdaterForm : Form
             if (last != null) throw last;
             File.WriteAllText(Path.Combine(root, "VERSION"), version);
             CreateOrRepairDesktopShortcut(root);
-            if (launch) Process.Start(Path.Combine(root, "LAKIS.exe"));
+            if (launch)
+            {
+                var launcherInfo = new ProcessStartInfo(Path.Combine(root, "LAKIS.exe")) { UseShellExecute = false, WorkingDirectory = root };
+                CopyRcEnvironment(launcherInfo);
+                Process.Start(launcherInfo);
+            }
             if (oldProcess != null)
             {
                 try

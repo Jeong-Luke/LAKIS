@@ -90,6 +90,8 @@ $devBuild = Read-RepoFile "installer\build_dev_launcher.ps1"
 $productBoundary = Read-RepoFile "installer\Test-PublicProductBoundary.ps1"
 Require (-not $releaseBuild.Contains("New-ReleaseIntegrity.ps1")) "Public build must not use the retired embedded-SHA startup integrity chain."
 Require (-not $releaseBuild.Contains("LAKIS.ReleaseIntegritySha256")) "Public Launcher must not embed the retired integrity-manifest SHA."
+Require ($devBuild.Contains("System.IO.Compression.dll")) "DEV Launcher build must reference System.IO.Compression.dll."
+Require ($devBuild.Contains("System.IO.Compression.FileSystem.dll")) "DEV Launcher build must reference System.IO.Compression.FileSystem.dll."
 Require ($rcWorkflow.Contains("New-ReleaseLayout.ps1")) "Private RC workflow must generate release-layout.json and the RepairPack after the exact binaries are built."
 Require ($rcWorkflow.Contains("LAKIS_RepairPack.zip")) "Private RC artifact set must include the automatic RepairPack."
 Require ($workflow.Contains("release-layout.json#release-layout.json")) "Public release must upload release-layout.json."
@@ -115,6 +117,7 @@ Require ($workflow.Contains("actions/download-artifact@v4")) "Public publish mus
 Require ($workflow.Contains("run-id: `${{ inputs.rc_run_id }}")) "Public publish must bind to an explicit private RC workflow run."
 Require (-not $workflow.Contains("build_safe_installer.ps1")) "Public publish must not rebuild artifacts after Private RC approval."
 Require ($workflow.Contains("Test-ReleaseApprovalGate.ps1 -Version")) "Public publish must enforce Private RC and explicit owner approval."
+Require ($workflow.Contains('buildRecord.source_commit -ne $resolvedCandidate')) "Public publish must bind the Private RC source commit to candidate_ref."
 Require (-not [regex]::IsMatch($workflow, '(?m)^\\s*push:\\s*$')) "Public release workflow must not auto-publish from a tag push; approval must happen first."
 Require ($workflow.Contains("Release tag does not point to the approved candidate ref.")) "Public release workflow must bind the release tag to the approved candidate ref."
 Require ($workflow.Contains("-VerifyRemote -Passes 3")) "Release workflow must remotely verify every file three times."
@@ -261,6 +264,15 @@ Require ($LASTEXITCODE -eq 0) "Per-install UI-state isolation regression failed.
 Require ($LASTEXITCODE -eq 0) "Public LAKIS / DEKIS/LUKIS product-boundary regression failed."
 & $python (Join-Path $repo "installer\tests\test_release_layout.py")
 Require ($LASTEXITCODE -eq 0) "Release layout / RepairPack regression failed."
+& $python (Join-Path $repo "installer\tests\test_rc_overrides.py")
+Require ($LASTEXITCODE -eq 0) "Private RC override contract regression failed."
+Push-Location (Join-Path $repo "tools\rc_patcher")
+try {
+    & $python ".\test_rc_patcher.py"
+    Require ($LASTEXITCODE -eq 0) "Tester-only RC patcher regression failed."
+} finally { Pop-Location }
+& $python (Join-Path $repo "tools\rc_patcher\test_private_rc_server.py")
+Require ($LASTEXITCODE -eq 0) "Tester-only Private RC server regression failed."
 & $python (Join-Path $repo "installer\tests\test_error_codes.py")
 Require ($LASTEXITCODE -eq 0) "Error-code and model-compatibility regression failed."
 & $python (Join-Path $repo "installer\tests\test_release_gates.py")
@@ -303,7 +315,10 @@ foreach ($required in @(
     "installer\tests\test_ui_state_scoping.py",
     "installer\tests\test_public_product_boundary.py",
     "installer\tests\test_release_layout.py",
+    "installer\tests\test_rc_overrides.py",
     "installer\tests\test_release_gates.py",
+    "tools\rc_patcher\serve_private_rc.py",
+    "tools\rc_patcher\test_private_rc_server.py",
     "RELEASE_REGRESSION_CHECKLIST.md"
 )) {
     Require (Test-Path -LiteralPath (Join-Path $repo $required) -PathType Leaf) "Missing release component: $required"

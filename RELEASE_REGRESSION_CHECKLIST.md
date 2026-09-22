@@ -25,6 +25,7 @@ item is failing or unverified.
   `LUKIS`, `LAKIS_LUKE`, `DEV_VERSION`, `LUKE_VERSION`, or private/development asset paths.
 - [ ] `New-ReleaseLayout.ps1` generates `release-layout.json` and `LAKIS_RepairPack.zip` from the same exact release payload; `test_release_layout.py` confirms every layout path/size matches the corresponding packed file.
 - [ ] The layout covers only LAKIS-managed application/runtime files and explicitly excludes `ComfyUI/models`, `ComfyUI/user`, `ComfyUI/input`, `ComfyUI/output`, user workflows/state, logs and caches.
+- [ ] Editable workflows, including `ComfyUI/LAKIS/workflows/LAKIS_custom_v7.4_editable.json`, are excluded from layout and RepairPack so automatic Repair cannot overwrite user customization.
 - [ ] Public Launcher fetches the matching GitHub Release `release-layout.json` before update/runtime startup and compares required-file existence, byte size, and retired-file absence.
 - [ ] If GitHub comparison cannot be completed, the exact warning text is shown and LAKIS continues without the comparison; a confirmed mismatch instead schedules one automatic RepairPack replacement cycle.
 - [ ] Automatic Repair validates the staged RepairPack against the same layout before replacing files, runs only after the Launcher exits, removes retired files, restarts LAKIS, and uses a marker to prevent repair loops.
@@ -42,10 +43,9 @@ item is failing or unverified.
 
 ## Update and installation regressions
 
-- [ ] Starting from the actual public v7.4.5 installation and its shipped
-  Patcher/Updater, update to v7.5.0 through the production path. Confirm
+- [ ] Starting from a disposable public v7.4.5 clone, record the tester-only candidate Launcher/Updater bootstrap separately, then use the loopback Private RC helper and candidate production binaries to update to v7.5.0. Do not claim the shipped v7.4.5 updater fetched the private manifest. Confirm
   download/SHA validation, staging/replacement, updater self-update, VERSION
-  transition, automatic restart, and the v7.5.0 GitHub size/layout consistency check all succeed.
+  transition, inherited RC environment, automatic restart, and the v7.5.0 loopback-served exact layout/RepairPack consistency check all succeed.
 - [ ] Restart v7.5.0 a second time without running Repair. It must not re-offer
   v7.5.0, must bind to `ComfyUI/LAKIS`, and must pass layout consistency and runtime
   capability checks again.

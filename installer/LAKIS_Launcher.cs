@@ -43,6 +43,8 @@ internal static class LakisLauncher
         "https://cdn.jsdelivr.net/gh/Jeong-Luke/LAKIS@main/manifests/update-latest.json"
     };
     private const string LatestReleaseApiUrl = "https://api.github.com/repos/Jeong-Luke/LAKIS/releases/latest";
+    private const string RcReleaseBaseVariable = "LAKIS_RC_RELEASE_BASE_URL";
+    private const string RcManifestVariable = "LAKIS_RC_MANIFEST_URL";
 
     private sealed class ReleaseLayoutFile
     {
@@ -250,8 +252,45 @@ internal static class LakisLauncher
 
         private static string ReleaseAssetUrl(string version, string asset)
         {
+            string overrideUrl = Environment.GetEnvironmentVariable(RcReleaseBaseVariable);
+            if (!String.IsNullOrWhiteSpace(overrideUrl))
+                return ValidateRcLoopbackUrl(overrideUrl, RcReleaseBaseVariable).TrimEnd('/') + "/" + asset;
             return "https://github.com/Jeong-Luke/LAKIS/releases/download/v" +
                 version + "/" + asset;
+        }
+
+        private static string ValidateRcLoopbackUrl(string value, string variable)
+        {
+            Uri uri;
+            if (!Uri.TryCreate(value, UriKind.Absolute, out uri) ||
+                !String.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) ||
+                !Regex.IsMatch(uri.Authority, "^(127\\.0\\.0\\.1|localhost):[0-9]+$", RegexOptions.IgnoreCase) ||
+                !String.IsNullOrEmpty(uri.UserInfo) || !String.IsNullOrEmpty(uri.Fragment) ||
+                !String.IsNullOrEmpty(uri.Query) || uri.Port < 1 || value.IndexOf('\\') >= 0 ||
+                Regex.IsMatch(value, "(^|/)\\.{1,2}(/|$)|%2e|%2f|%5c", RegexOptions.IgnoreCase))
+                throw new InvalidDataException(variable + " must be an http loopback URL (127.0.0.1 or localhost) with an explicit port.");
+            string decodedPath;
+            try { decodedPath = Uri.UnescapeDataString(uri.AbsolutePath); }
+            catch (UriFormatException) { throw new InvalidDataException(variable + " contains malformed escaping."); }
+            if (decodedPath.Replace('\\', '/').Split('/').Any(part => part == "." || part == ".."))
+                throw new InvalidDataException(variable + " must not contain path traversal.");
+            return uri.AbsoluteUri.TrimEnd('/');
+        }
+
+        private static IEnumerable<string> EffectiveManifestUrls()
+        {
+            string overrideUrl = Environment.GetEnvironmentVariable(RcManifestVariable);
+            if (String.IsNullOrWhiteSpace(overrideUrl)) return ManifestUrls;
+            return new[] { ValidateRcLoopbackUrl(overrideUrl, RcManifestVariable) };
+        }
+
+        private static void CopyRcEnvironment(ProcessStartInfo info)
+        {
+            foreach (string name in new[] { RcReleaseBaseVariable, RcManifestVariable })
+            {
+                string value = Environment.GetEnvironmentVariable(name);
+                if (!String.IsNullOrWhiteSpace(value)) info.EnvironmentVariables[name] = value;
+            }
         }
 
         private static bool UsesReleaseLayout(string installRoot)
@@ -570,11 +609,13 @@ internal static class LakisLauncher
                     ShowUpdatePrompt(this, check.Item2, GetLatestReleaseNotes(check.Item2)))
                 {
                     SetStatus("업데이트 프로그램 여는 중");
-                    Process.Start(new ProcessStartInfo {
+                    var updaterInfo = new ProcessStartInfo {
                         FileName = updater,
                         Arguments = "\"" + root.TrimEnd(Path.DirectorySeparatorChar) + "\" --launch-after-update",
-                        WorkingDirectory = root, UseShellExecute = true,
-                    });
+                        WorkingDirectory = root, UseShellExecute = false,
+                    };
+                    CopyRcEnvironment(updaterInfo);
+                    Process.Start(updaterInfo);
                     Close(); return;
                 }
 
@@ -694,6 +735,26 @@ internal static class LakisLauncher
         catch { return false; }
     }
 
+    private static IEnumerable<string> EffectiveManifestUrls()
+    {
+        string overrideUrl = Environment.GetEnvironmentVariable(RcManifestVariable);
+        if (String.IsNullOrWhiteSpace(overrideUrl)) return ManifestUrls;
+        Uri uri;
+        if (!Uri.TryCreate(overrideUrl, UriKind.Absolute, out uri) ||
+            !String.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) ||
+            !Regex.IsMatch(uri.Authority, "^(127\\.0\\.0\\.1|localhost):[0-9]+$", RegexOptions.IgnoreCase) ||
+            !String.IsNullOrEmpty(uri.UserInfo) || !String.IsNullOrEmpty(uri.Fragment) ||
+            !String.IsNullOrEmpty(uri.Query) || uri.Port < 1 || overrideUrl.IndexOf('\\') >= 0 ||
+            Regex.IsMatch(overrideUrl, "(^|/)\\.{1,2}(/|$)|%2e|%2f|%5c", RegexOptions.IgnoreCase))
+            throw new InvalidDataException(RcManifestVariable + " must be an http loopback URL (127.0.0.1 or localhost) with an explicit port.");
+        string decodedPath;
+        try { decodedPath = Uri.UnescapeDataString(uri.AbsolutePath); }
+        catch (UriFormatException) { throw new InvalidDataException(RcManifestVariable + " contains malformed escaping."); }
+        if (decodedPath.Replace('\\', '/').Split('/').Any(part => part == "." || part == ".."))
+            throw new InvalidDataException(RcManifestVariable + " must not contain path traversal.");
+        return new[] { uri.AbsoluteUri.TrimEnd('/') };
+    }
+
     private static bool WaitForLauncherReady(Process process, string statePath, int timeoutSeconds)
     {
         DateTime deadline = DateTime.UtcNow.AddSeconds(timeoutSeconds);
@@ -786,7 +847,10 @@ internal static class LakisLauncher
         latest = null;
         failure = "업데이트 서버에 연결할 수 없습니다.";
         ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
-        foreach (string url in ManifestUrls)
+        IEnumerable<string> manifestUrls;
+        try { manifestUrls = EffectiveManifestUrls(); }
+        catch (Exception error) { failure = error.Message; return false; }
+        foreach (string url in manifestUrls)
         {
             try
             {
@@ -806,6 +870,7 @@ internal static class LakisLauncher
             }
             catch (Exception error) { failure = error.Message; }
         }
+        if (!String.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(RcManifestVariable))) return false;
         // The manifest hosts can be cached or blocked independently.  GitHub's
         // release API is a third, metadata-only route, so a launcher never gets
         // stranded merely because raw.githubusercontent.com is unavailable.

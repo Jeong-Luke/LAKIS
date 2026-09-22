@@ -10,6 +10,8 @@ For every public LAKIS release, "3자 감사" means three independent primary au
 
 A public release is blocked unless all three primary audit records are PASS for the exact same candidate fingerprint and release version, and the Private RC full-chain also passes.
 
+The pre-public Private RC full-chain may use the tester-only bootstrap and loopback server documented under `tools/rc_patcher`. Its checks must be named honestly: "tester bootstrap from v7.4.5" is separate from the production-identical candidate Launcher/Updater path. The shipped v7.4.5 updater is not credited with private-manifest support. A check that cannot execute is recorded as skipped/blocked, never asserted PASS.
+
 Any executable/runtime/build/installer/updater/workflow/release-gate change that changes the candidate fingerprint invalidates every previous audit PASS. All three primary audits must then be repeated against the new fingerprint. Mutable audit evidence, FEATURE_STATUS_MATRIX.md, NEXT_RELEASE.md, and final release-note/report updates are intentionally outside the fingerprint so recording completed audits does not invalidate the audited candidate.
 
 ## Token/resource shortage rule
@@ -53,4 +55,4 @@ installer/Test-ThreePartyAuditGate.ps1 verifies the records against the current 
 
 candidate freeze -> GPT audit -> DeepSeek audit -> Codex audit -> all three PASS on same fingerprint -> build the Private RC artifact set exactly once -> product-boundary checks -> Private RC full-chain PASS on those exact bytes -> explicit owner approval bound to the same fingerprint and artifact-set SHA -> publish those exact bytes without rebuilding -> public tag/release/manifest activation.
 
-`.github/workflows/prepare-private-rc.yml` owns the one-time RC build and preserves it as a GitHub Actions artifact. `.github/workflows/publish-installer.yml` is manual-only, downloads the explicitly selected RC run, rechecks the three-party and release-approval gates, verifies the release tag points at the approved candidate ref, and must never rebuild the approved binaries.
+`.github/workflows/prepare-private-rc.yml` owns the one-time RC build and preserves it as a GitHub Actions artifact. The tester-only loopback route exercises those exact bytes before publication without changing public defaults. `.github/workflows/publish-installer.yml` is manual-only, downloads the explicitly selected RC run, rechecks the three-party and release-approval gates, verifies both the recorded source commit and release tag against the approved candidate ref, and must never rebuild the approved binaries.

@@ -78,6 +78,7 @@ jobs:
         shell: powershell
         env:
           RELEASE_TAG: ${{ inputs.tag }}
+          CANDIDATE_REF: ${{ inputs.candidate_ref }}
         run: |
           $releaseVersion = (($env:RELEASE_TAG) -replace '^v', '')
           $dist = Join-Path $env:GITHUB_WORKSPACE "dist"
@@ -92,6 +93,8 @@ jobs:
           .\installer\New-ReleaseAuditFingerprint.ps1 -OutputPath $fpPath | Out-Null
           $current = Get-Content -Raw -Encoding UTF8 $fpPath | ConvertFrom-Json
           if ([string]$buildRecord.fingerprint_sha256 -ne [string]$current.fingerprint_sha256) { throw "Private RC artifact was built from a different candidate fingerprint." }
+          $resolvedCandidate = (git rev-parse $env:CANDIDATE_REF).Trim()
+          if ([string]$buildRecord.source_commit -ne $resolvedCandidate) { throw "Private RC artifact was built from a different source commit." }
       - name: Create or restore draft release and upload assets
         if: steps.identity.outputs.complete != 'true'
         shell: powershell
