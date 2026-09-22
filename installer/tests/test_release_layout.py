@@ -45,7 +45,6 @@ class ReleaseLayoutTests(unittest.TestCase):
                 str(layout),
                 "-RepairPackPath",
                 str(pack),
-                "-UseWorkingTree",
             ],
             cwd=ROOT,
             capture_output=True,
@@ -96,12 +95,19 @@ class ReleaseLayoutTests(unittest.TestCase):
             )
 
             with zipfile.ZipFile(pack) as archive:
+                self.assertEqual(payload["version"].encode("utf-8"), archive.read("VERSION"))
                 packed = {
                     info.filename.replace("\\", "/").rstrip("/"): info.file_size
                     for info in archive.infolist()
                     if not info.is_dir()
                 }
             self.assertEqual(files, packed)
+
+    def test_release_layout_cannot_package_windows_working_tree_bytes(self):
+        script = LAYOUT_SCRIPT.read_text(encoding="utf-8")
+        self.assertNotIn("UseWorkingTree", script)
+        self.assertIn("git -c core.autocrlf=false -C $repo archive", script)
+        self.assertIn("Setup and Updater write VERSION without a trailing newline", script)
 
     def test_launcher_uses_size_consistency_and_fail_open_network_policy(self):
         launcher = (INSTALLER / "LAKIS_Launcher.cs").read_text(encoding="utf-8")

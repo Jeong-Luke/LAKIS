@@ -1,8 +1,7 @@
 param(
     [string]$DistDirectory = "",
     [string]$OutputPath = "",
-    [string]$RepairPackPath = "",
-    [switch]$UseWorkingTree
+    [string]$RepairPackPath = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -21,15 +20,15 @@ $payload = Join-Path $temp "payload"
 New-Item -ItemType Directory -Force $snapshot,$payload | Out-Null
 
 try {
+    # Release-owned text must come from committed Git blob bytes. A Windows
+    # working tree may contain CRLF conversions while GitHub codeload archives
+    # contain the committed bytes, which would make Fresh Setup and Repair
+    # disagree immediately after installation.
     $source = $snapshot
-    if ($UseWorkingTree) {
-        $source = $repo
-    } else {
-        $archive = Join-Path $temp "source.zip"
-        & git -C $repo archive --format=zip -o $archive HEAD -- VERSION LICENSE.md THIRD_PARTY_NOTICES.md third_party_licenses resources src workflows
-        if ($LASTEXITCODE -ne 0) { throw "git archive failed." }
-        Expand-Archive -LiteralPath $archive -DestinationPath $snapshot
-    }
+    $archive = Join-Path $temp "source.zip"
+    & git -c core.autocrlf=false -C $repo archive --format=zip -o $archive HEAD -- VERSION LICENSE.md THIRD_PARTY_NOTICES.md third_party_licenses resources src workflows
+    if ($LASTEXITCODE -ne 0) { throw "git archive failed." }
+    Expand-Archive -LiteralPath $archive -DestinationPath $snapshot
 
     function Copy-ManagedFile([string]$InstallPath, [string]$SourcePath) {
         if (-not (Test-Path -LiteralPath $SourcePath -PathType Leaf)) {
@@ -55,9 +54,12 @@ try {
         Copy-ManagedFile $name (Join-Path $dist $name)
     }
 
-    foreach ($name in @("VERSION","LICENSE.md","THIRD_PARTY_NOTICES.md")) {
+    foreach ($name in @("LICENSE.md","THIRD_PARTY_NOTICES.md")) {
         Copy-ManagedFile $name (Join-Path $source $name)
     }
+    # Setup and Updater write VERSION without a trailing newline.
+    $versionTarget = Join-Path $payload "VERSION"
+    [IO.File]::WriteAllText($versionTarget,$version,[Text.UTF8Encoding]::new($false))
 
     $licenseRoot = Join-Path $source "third_party_licenses"
     Get-ChildItem -LiteralPath $licenseRoot -File -Recurse | Sort-Object FullName | ForEach-Object {
