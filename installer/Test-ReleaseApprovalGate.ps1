@@ -10,6 +10,13 @@ $version = $Version.TrimStart("v")
 $evidence = [IO.Path]::GetFullPath($EvidenceDirectory)
 $dist = [IO.Path]::GetFullPath($DistDirectory)
 
+function Get-Sha256Hex([string]$Path) {
+    $stream = [IO.File]::OpenRead($Path)
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try { return ([BitConverter]::ToString($sha.ComputeHash($stream))).Replace("-","") }
+    finally { $sha.Dispose(); $stream.Dispose() }
+}
+
 if (-not (Test-Path -LiteralPath $evidence -PathType Container)) {
     throw "RELEASE_APPROVAL_MISSING: evidence directory"
 }
@@ -51,7 +58,7 @@ foreach ($name in $requiredAssets) {
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
         throw "RELEASE_APPROVAL_ARTIFACT_MISSING: $name"
     }
-    $artifactHashes[$name] = (Get-FileHash -Algorithm SHA256 -LiteralPath $path).Hash.ToUpperInvariant()
+    $artifactHashes[$name] = Get-Sha256Hex $path
 }
 $canonical = ($artifactHashes.GetEnumerator() | ForEach-Object { $_.Key + [char]9 + $_.Value }) -join [char]10
 $sha = [Security.Cryptography.SHA256]::Create()

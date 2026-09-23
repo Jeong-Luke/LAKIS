@@ -15,6 +15,7 @@ lakis_launcher_state.json
 .local-build/
 .manifest-audit-*/
 .release-audit-*/
+/release_audits/
 dist/.lakis/
 
 installer/build_package.ps1

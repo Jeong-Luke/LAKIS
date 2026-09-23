@@ -11,9 +11,7 @@ $includeFiles = @(
     "VERSION",
     "LICENSE.md",
     "THIRD_PARTY_NOTICES.md",
-    "ERROR_CODES.md",
-    "RELEASE_REGRESSION_CHECKLIST.md",
-    "THREE_PARTY_AUDIT_POLICY.md"
+    "ERROR_CODES.md"
 )
 $includeRoots = @("installer","resources","src","workflows","third_party_licenses","tools\rc_patcher")
 $script:records = @()

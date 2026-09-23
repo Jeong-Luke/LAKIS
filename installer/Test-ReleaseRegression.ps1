@@ -323,7 +323,6 @@ foreach ($required in @(
     "installer\Test-ThreePartyAuditGate.ps1",
     "installer\Test-ReleaseApprovalGate.ps1",
     ".github\workflows\prepare-private-rc.yml",
-    "THREE_PARTY_AUDIT_POLICY.md",
     "installer\tests\test_installation_isolation.py",
     "installer\tests\test_ui_state_scoping.py",
     "installer\tests\test_public_product_boundary.py",
@@ -331,8 +330,7 @@ foreach ($required in @(
     "installer\tests\test_rc_overrides.py",
     "installer\tests\test_release_gates.py",
     "tools\rc_patcher\serve_private_rc.py",
-    "tools\rc_patcher\test_private_rc_server.py",
-    "RELEASE_REGRESSION_CHECKLIST.md"
+    "tools\rc_patcher\test_private_rc_server.py"
 )) {
     Require (Test-Path -LiteralPath (Join-Path $repo $required) -PathType Leaf) "Missing release component: $required"
 }

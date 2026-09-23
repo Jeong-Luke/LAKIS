@@ -1,15 +1,11 @@
 param(
     [Parameter(Mandatory=$true)][string]$Version,
-    [string]$EvidenceDirectory = ""
+    [Parameter(Mandatory=$true)][string]$EvidenceDirectory
 )
 $ErrorActionPreference = "Stop"
 $repo = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $version = $Version.TrimStart("v")
-$evidence = if ($EvidenceDirectory) {
-    [IO.Path]::GetFullPath($EvidenceDirectory)
-} else {
-    Join-Path $repo ("release_audits\v" + $version)
-}
+$evidence = [IO.Path]::GetFullPath($EvidenceDirectory)
 if (-not (Test-Path -LiteralPath $evidence -PathType Container)) {
     throw "THREE_PARTY_AUDIT_MISSING: $evidence"
 }
