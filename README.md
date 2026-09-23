@@ -8,25 +8,24 @@ LAKIS 애플리케이션, 사용자 인터페이스, 설치기, 업데이터, �
 
 ## 다운로드
 
-**[Windows용 LAKIS Studio v7.4.5 다운로드](https://github.com/Jeong-Luke/LAKIS/releases/download/v7.4.5/LAKIS_Setup.exe)**
+**[Windows용 LAKIS Studio v7.5.0 다운로드](https://github.com/Jeong-Luke/LAKIS/releases/download/v7.5.0/LAKIS_Setup.exe)**
 
-`LAKIS_Setup.exe`를 실행하면 LAKIS를 설치하거나 복구할 수 있습니다. [v7.4.5 릴리즈 설명과 개별 파일](https://github.com/Jeong-Luke/LAKIS/releases/tag/v7.4.5)도 확인할 수 있습니다.
+**[Windows용 LAKIS Studio v7.5.0 CMD Version 다운로드](https://github.com/Jeong-Luke/LAKIS/releases/download/v7.5.0/LAKIS_CMD_Installer_7.5.0.zip)**
 
-## 공개 Preview
+`LAKIS_Setup.exe`로 설치하거나 복구할 수 있습니다. Windows Defender가 일반 Setup을 차단하면 CMD Version ZIP을 완전히 압축 해제한 뒤 `LAKIS_CMD_Install.cmd`를 실행하세요. 보안 기능을 끄거나 Defender 예외를 추가할 필요가 없습니다. [v7.5.0 전체 변경사항과 검증 범위](https://github.com/Jeong-Luke/LAKIS/releases/tag/v7.5.0)
 
-새 기능과 설치기 수정본을 먼저 사용하려면 v7.5.0 Preview를 선택하세요. 정식 버전 사용자는 자동으로 Preview로 업데이트되지 않습니다.
+## v7.5.0 주요 개선사항
 
-**[Windows용 LAKIS Studio v7.5.0 Preview 다운로드](https://github.com/Jeong-Luke/LAKIS/releases/download/v7.5.0/LAKIS_Setup.exe)**
-
-**[Windows용 LAKIS Studio v7.5.0 Preview CMD Version 다운로드](https://github.com/Jeong-Luke/LAKIS/releases/download/v7.5.0/LAKIS_CMD_Installer_7.5.0.zip)**
-
-Windows Defender가 일반 Setup을 차단하거나 실행할 수 없다면 CMD Version ZIP을 완전히 압축 해제한 뒤 `LAKIS_CMD_Install.cmd`를 실행하세요. 보안 기능 비활성화나 Defender 예외 설정은 필요하지 않습니다.
-
-[Preview 변경 내용과 검증 범위](https://github.com/Jeong-Luke/LAKIS/releases/tag/v7.5.0)를 확인해 주세요.
+- 시작할 때 LAKIS 관리 파일의 누락·버전 혼합을 확인해 필요하면 자동 복구합니다. 사용자 모델, 개인 설정, 워크플로, 생성물과 LoRA Manager 데이터는 보호합니다.
+- 긴 Windows 경로와 복구 실행 문제를 수정하고, 첫 생성에 필요한 기본 워크플로와 입력 파일을 설치 패키지에 포함했습니다.
+- CMD 설치기에 한글 안내, 현재 파일·압축 해제 진행 표시, 회전 표시와 바탕화면 바로가기를 추가했습니다.
+- 실행 전 필수 ComfyUI 기능을 확인하고, Anima 체크포인트 감지 및 제거 모드 인페인트 호환성을 개선했습니다.
+- 이미지 라이브러리의 미리보기와 점진적 목록 로딩을 개선하고, 프롬프트 확장·축소, LAKIS 메뉴와 모바일 이미지 상세 화면을 추가했습니다.
+- 공개 업데이트에서 개발용·비공개 파일이 섞이지 않도록 빌드 검사와 배포 차단을 강화했습니다.
 
 ## 안정 버전
 
-이 저장소는 LAKIS의 안정 배포 버전을 관리합니다. 현재 릴리즈 후보는 `v7.4.5`입니다. 이전 개발 패키지와 개발용 워크플로는 별도로 관리하며 신규 사용자에게 배포하지 않습니다.
+현재 안정 버전은 `v7.5.0`입니다. 이전 개발 패키지와 개발용 워크플로는 별도로 관리하며 신규 사용자에게 배포하지 않습니다.
 
 ## v7.4.5 주요 기능
 
@@ -75,24 +74,24 @@ from AGPL software remain AGPL-3.0-or-later.
 
 ### Download
 
-**[Download LAKIS Studio v7.4.5 for Windows](https://github.com/Jeong-Luke/LAKIS/releases/download/v7.4.5/LAKIS_Setup.exe)**
+**[Download LAKIS Studio v7.5.0 for Windows](https://github.com/Jeong-Luke/LAKIS/releases/download/v7.5.0/LAKIS_Setup.exe)**
 
-Run `LAKIS_Setup.exe` to install or repair LAKIS. You can also view the
-[v7.4.5 release notes and individual files](https://github.com/Jeong-Luke/LAKIS/releases/tag/v7.4.5).
+**[Download LAKIS Studio v7.5.0 CMD Version](https://github.com/Jeong-Luke/LAKIS/releases/download/v7.5.0/LAKIS_CMD_Installer_7.5.0.zip)**
 
-### Public Preview
+Run `LAKIS_Setup.exe` to install or repair LAKIS. If Windows Defender blocks the regular Setup, fully extract the CMD Version ZIP and run `LAKIS_CMD_Install.cmd`. You do not need to disable security features or add a Defender exclusion. See the [full v7.5.0 changes and validation scope](https://github.com/Jeong-Luke/LAKIS/releases/tag/v7.5.0).
 
-Try v7.5.0 Preview to test upcoming changes and installer fixes. Stable users are not automatically updated to Preview.
+### v7.5.0 highlights
 
-**[Download LAKIS Studio v7.5.0 Preview for Windows](https://github.com/Jeong-Luke/LAKIS/releases/download/v7.5.0/LAKIS_Setup.exe)**
-
-**[Download LAKIS Studio v7.5.0 Preview CMD Version](https://github.com/Jeong-Luke/LAKIS/releases/download/v7.5.0/LAKIS_CMD_Installer_7.5.0.zip)**
-
-If Windows Defender blocks the regular Setup, fully extract the CMD Version ZIP and run `LAKIS_CMD_Install.cmd`. No security feature disabling or Defender exclusion is required. See the [Preview release notes and validation scope](https://github.com/Jeong-Luke/LAKIS/releases/tag/v7.5.0).
+- Detects missing or mixed-version LAKIS-managed files at startup and automatically repairs them when needed, while protecting user models, settings, workflows, generated files, and LoRA Manager data.
+- Fixes long Windows paths and repair launch handling; includes the default workflow and input files needed for the first generation.
+- Adds Korean guidance, current-file and extraction progress, a spinner, and a desktop shortcut to the CMD installer.
+- Checks required ComfyUI capabilities before launch and improves Anima checkpoint detection and removal-mode inpaint compatibility.
+- Improves Library thumbnails and progressive loading, and adds prompt expand/collapse controls, a LAKIS menu, and mobile image details.
+- Strengthens build and release checks to prevent development or private-product files from entering public updates.
 
 ### Stable baseline
 
-This repository contains the stable LAKIS distribution line. The current release candidate is `v7.4.5`. Earlier development packages and workflows are maintained separately and are not distributed to new users.
+The current stable release is `v7.5.0`. Earlier development packages and workflows are maintained separately and are not distributed to new users.
 
 ### v7.4.5 features
 
