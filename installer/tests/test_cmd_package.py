@@ -71,6 +71,20 @@ class CmdPackageTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'source archive does not match'):
                 builder.build(*args)
 
+    def test_github_api_archive_root_is_accepted(self):
+        with tempfile.TemporaryDirectory() as directory:
+            args = list(self.fixture(Path(directory)))
+            revision = 'a' * 40
+            with zipfile.ZipFile(args[2], 'w') as z:
+                z.writestr('Jeong-Luke-LAKIS-a1b2c3d/VERSION', '7.5.0\n')
+            digest = builder.sha256(args[2])
+            args[3].write_text(json.dumps({'schema': 1, 'revision': revision, 'sha256': digest, 'bytes': args[2].stat().st_size}))
+            args[4].write_text(args[4].read_text().replace(
+                next(line.split('"')[1] for line in args[4].read_text().splitlines() if 'SourceArchiveSha256' in line),
+                digest,
+            ))
+            self.assertTrue(builder.build(*args).is_file())
+
     def test_setup_cmd_pin_mismatch_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             args = self.fixture(Path(directory))

@@ -34,7 +34,11 @@ def build(repo: Path, dist: Path, archive: Path, contract_path: Path, pinned_set
             or f'private const string SourceArchiveSha256 = "{digest}";' not in compiled_source):
         raise ValueError("Setup and CMD source pins differ")
     with zipfile.ZipFile(archive) as source:
-        if source.read(f"LAKIS-{revision}/VERSION").decode("utf-8-sig").strip() != version:
+        roots = {name.split("/", 1)[0] for name in source.namelist() if "/" in name}
+        if len(roots) != 1:
+            raise ValueError("source archive must contain one repository root")
+        source_root = next(iter(roots))
+        if source.read(f"{source_root}/VERSION").decode("utf-8-sig").strip() != version:
             raise ValueError("source archive version mismatch")
 
     installer = repo / "installer"
