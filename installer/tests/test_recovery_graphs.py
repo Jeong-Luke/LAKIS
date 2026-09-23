@@ -18,7 +18,7 @@ import workflow_bridge as m
 class GraphContracts(unittest.TestCase):
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory(prefix='lakis-graph-');self.addCleanup(self.tmp.cleanup)
-        self.root=Path(self.tmp.name);(self.root/'input').mkdir()
+        self.root=Path(self.tmp.name);(self.root/'input').mkdir();(self.root/'output').mkdir()
         for n in ('LAKIS_i2i_input_fixture.png','LAKIS_inpaint_input_fixture.png','LAKIS_inpaint_mask_fixture.png'):
             (self.root/'input'/n).write_bytes(b'path-only fixture; builder does not decode')
         template=ROOT/'workflows/LAKIS_runtime_api_v7.4.json'
@@ -27,9 +27,13 @@ class GraphContracts(unittest.TestCase):
         config={'checkpoint':{'current':checkpoint,'options':[checkpoint]},'vae':{'current':vae,'options':[vae]},
             'clip':{'current':clip,'options':[clip]},'sampler':{'options':list(m.SAMPLER_OPTIONS)},
             'scheduler':{'options':list(m.SCHEDULER_OPTIONS)},'lora':{'current':[]}}
-        for p in (patch.multiple(m,COMFY_ROOT=self.root,TEMPLATE=template,DEVELOPMENT=False,
+        for p in (patch.multiple(m,COMFY_ROOT=self.root,OUTPUT_ROOT=self.root/'output',
+                                 OUTPUT_LOCATION_PATH=self.root/'state'/'output-location.json',
+                                 LEGACY_OUTPUT_LOCATION_PATH=self.root/'legacy-output-location.json',
+                                 TEMPLATE=template,DEVELOPMENT=False,
                                  FULL_TURBO_EXPERIMENT=False,HALF_RES_FAST_EXPERIMENT=False),
                   patch.object(m,'workflow_configuration',return_value=config),
+                  patch.object(m,'_wait_for_comfy_object_info',return_value={'fixture':{}}),
                   patch.object(m,'_preferred_upscaler',return_value=None),
                   patch.object(m,'_comfy_object_info',return_value={}),
                   patch.object(m,'_is_anima_checkpoint',return_value=True),
@@ -47,6 +51,8 @@ class GraphContracts(unittest.TestCase):
         if i2i:state['i2i']={'enabled':True,'image_name':'LAKIS_i2i_input_fixture.png','denoise':.5}
         with patch.object(m,'LOCAL_INPAINT_V2',v2):prompt,assertions=m.build_prompt(state)
         self.assertIn('775',prompt);self.assertEqual('Image Saver',prompt['775']['class_type'])
+        self.assertEqual(['lakis:configured_output_path',0],prompt['775']['inputs']['path'])
+        self.assertEqual(str((m.configured_output_root()/'LAKIS').resolve()),prompt['lakis:configured_output_path']['inputs']['string_a'])
         self.assertEqual(set(prompt),set(m._final_only(prompt)))
         for node in prompt.values():
             self.assertNotIn(node['class_type'],['LAKIS_Relight','LAKIS_ExecutionSettings'])
@@ -54,11 +60,13 @@ class GraphContracts(unittest.TestCase):
                 if isinstance(v,list) and len(v)==2 and isinstance(v[0],str) and isinstance(v[1],int):
                     self.assertIn(v[0],prompt,'dangling executable reference')
         key=f'{mode}:{inpaint or "off"}:{v2}:{i2i}'
-        digest=hashlib.sha256(json.dumps(prompt,sort_keys=True,ensure_ascii=False,separators=(',',':')).encode()).hexdigest()
+        digest_prompt=json.loads(json.dumps(prompt))
+        digest_prompt['lakis:configured_output_path']['inputs']['string_a']='<OUTPUT_ROOT>/LAKIS'
+        digest=hashlib.sha256(json.dumps(digest_prompt,sort_keys=True,ensure_ascii=False,separators=(',',':')).encode()).hexdigest()
         # Full builder parity fixture captured from original 744, not a second
         # implementation of the expected graph. Tests below also enforce mode contracts.
         fixture=Path(__file__).with_name('recovery_graph_baseline.json')
-        if fixture.exists():self.assertEqual(json.loads(fixture.read_text())[key],digest)
+        if fixture.exists() and not os.environ.get('LAKIS_CAPTURE_GRAPH_HASHES'):self.assertEqual(json.loads(fixture.read_text())[key],digest)
         if os.environ.get('LAKIS_CAPTURE_GRAPH_HASHES'):
             out=Path(os.environ['LAKIS_CAPTURE_GRAPH_HASHES'])
             hashes=json.loads(out.read_text()) if out.exists() else {};hashes[key]=digest
@@ -66,6 +74,12 @@ class GraphContracts(unittest.TestCase):
         return prompt,assertions
     def test_fast(self):
         p,a=self.graph();self.assertNotIn('lakis:face_scope',p);self.assertTrue(a['initial_spectrum'])
+    def test_custom_output_root_reaches_final_saver_dependency(self):
+        custom=self.root/'chosen-output';custom.mkdir()
+        m.OUTPUT_LOCATION_PATH.parent.mkdir(parents=True,exist_ok=True)
+        m.OUTPUT_LOCATION_PATH.write_text(json.dumps({'path':str(custom)}),encoding='utf-8')
+        p,_=self.graph()
+        self.assertEqual(str((custom/'LAKIS').resolve()),p['lakis:configured_output_path']['inputs']['string_a'])
     def test_legacy_detail(self):
         p,a=self.graph('detail');self.assertNotIn('lakis:face_scope',p);self.assertIn('1541:1538',p)
     def test_lakis_detail(self):

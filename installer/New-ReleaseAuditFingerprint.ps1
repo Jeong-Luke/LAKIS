@@ -5,14 +5,13 @@ $ErrorActionPreference = "Stop"
 $repo = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $textExtensions = @(".py",".js",".css",".html",".json",".md",".txt",".csv",".yml",".yaml",".toml",".ps1",".cs",".svg")
 $includeFiles = @(
+    ".gitignore",
     ".github\workflows\publish-installer.yml",
     ".github\workflows\prepare-private-rc.yml",
     "VERSION",
     "LICENSE.md",
     "THIRD_PARTY_NOTICES.md",
-    "ERROR_CODES.md",
-    "RELEASE_REGRESSION_CHECKLIST.md",
-    "THREE_PARTY_AUDIT_POLICY.md"
+    "ERROR_CODES.md"
 )
 $includeRoots = @("installer","resources","src","workflows","third_party_licenses","tools\rc_patcher")
 $script:records = @()
@@ -21,7 +20,8 @@ function Get-CanonicalHash([string]$Path) {
     $ext = [IO.Path]::GetExtension($Path).ToLowerInvariant()
     $sha = [Security.Cryptography.SHA256]::Create()
     try {
-        if ($textExtensions -contains $ext -or [string]::IsNullOrEmpty($ext)) {
+        if ($textExtensions -contains $ext -or [string]::IsNullOrEmpty($ext) -or
+            [IO.Path]::GetFileName($Path) -eq ".gitignore") {
             $text = [IO.File]::ReadAllText($Path,[Text.Encoding]::UTF8)
             $text = $text.Replace(([char]13 + [char]10),[string][char]10).Replace([string][char]13,[string][char]10)
             $bytes = [Text.UTF8Encoding]::new($false).GetBytes($text)
@@ -38,6 +38,9 @@ function Add-File([string]$Path) {
     $rel = [IO.Path]::GetFullPath($Path).Substring($repo.Length).TrimStart("\").Replace("\","/")
     if ($rel -match '(^|/)(__pycache__|dist|build|runs|state|release_audits)(/|$)' -or
         $rel -match '(?i)(\.pyc$|\.bak$|\.tmp$|\.old$)') { return }
+    # Runtime bridge audit output is not release input. Keep this path-specific:
+    # JSONL fixtures and other source data must still participate in the audit.
+    if ($rel -match '^src/external_ui_bridge_audit\.jsonl(?:\.[^/]*)?$') { return }
     $h = Get-CanonicalHash $Path
     $script:records += [pscustomobject]@{ path=$rel; mode=$h[0]; sha256=$h[1] }
 }

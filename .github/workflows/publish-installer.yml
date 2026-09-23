@@ -7,7 +7,10 @@ on:
         description: Public release tag to create or resume
         required: true
       candidate_ref:
-        description: Approved candidate commit/ref containing release approval evidence
+        description: Exact source commit used to build the tested Private RC
+        required: true
+      approval_ref:
+        description: Exact commit containing approval records for those RC artifacts
         required: true
       rc_run_id:
         description: Prepare private RC workflow run ID containing the exact tested artifact set
@@ -32,9 +35,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.tag }}
           CANDIDATE_REF: ${{ inputs.candidate_ref }}
+          APPROVAL_REF: ${{ inputs.approval_ref }}
         run: |
           $version = $env:RELEASE_TAG -replace '^v', ''
           if ($env:CANDIDATE_REF -notmatch '^[a-fA-F0-9]{40}$') { throw "Candidate ref must be a full 40-character commit SHA." }
+          if ($env:APPROVAL_REF -notmatch '^[a-fA-F0-9]{40}$') { throw "Approval ref must be a full 40-character commit SHA." }
           $sourceVersion = (Get-Content -Raw .\VERSION).Trim()
           if ($version -ne $sourceVersion) { throw "Tag $env:RELEASE_TAG does not match VERSION $sourceVersion" }
           $publishedUrl = "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/main/manifests/update-latest.json?prepublish=" + [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
@@ -73,6 +78,14 @@ jobs:
           path: dist
           github-token: ${{ github.token }}
           run-id: ${{ inputs.rc_run_id }}
+      - name: Read approval records without changing candidate source
+        if: steps.identity.outputs.complete != 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.approval_ref }}
+          path: .release-approval-records
+          sparse-checkout: release_approvals
+          persist-credentials: false
       - name: Verify exact approved private RC artifact
         if: steps.identity.outputs.complete != 'true'
         shell: powershell
@@ -82,8 +95,8 @@ jobs:
         run: |
           $releaseVersion = (($env:RELEASE_TAG) -replace '^v', '')
           $dist = Join-Path $env:GITHUB_WORKSPACE "dist"
-          $evidence = Join-Path $env:GITHUB_WORKSPACE ("release_approvals\v" + $releaseVersion)
-          .\installer\Test-ThreePartyAuditGate.ps1 -Version $releaseVersion
+          $evidence = Join-Path $env:GITHUB_WORKSPACE (".release-approval-records\release_approvals\v" + $releaseVersion)
+          .\installer\Test-ThreePartyAuditGate.ps1 -Version $releaseVersion -EvidenceDirectory $evidence
           .\installer\Test-ReleaseRegression.ps1 -ExpectedVersion $releaseVersion
           .\installer\Test-InstallerDataSafety.ps1 -InstallerPath (Join-Path $dist "LAKIS_Setup.exe")
           .\installer\Test-PublicProductBoundary.ps1 -DistDirectory $dist
@@ -122,6 +135,25 @@ jobs:
           if ($tagCommit -ne $candidateCommit) { throw "Release tag does not point to the approved candidate ref." }
           gh release upload $env:RELEASE_TAG ".\dist\LAKIS_Setup.exe#LAKIS_Setup.exe" ".\dist\LAKIS.exe#LAKIS.exe" ".\dist\LAKIS_Patcher.exe#LAKIS_Patcher.exe" ".\dist\LAKIS_Updater.exe#LAKIS_Updater.exe" ".\dist\LAKIS_Desktop.exe#LAKIS_Desktop.exe" ".\dist\LAKIS_Model_Importer.exe#LAKIS_Model_Importer.exe" ".\dist\Uninstall_LAKIS.exe#Uninstall_LAKIS.exe" ".\dist\Microsoft.Web.WebView2.Core.dll#Microsoft.Web.WebView2.Core.dll" ".\dist\Microsoft.Web.WebView2.WinForms.dll#Microsoft.Web.WebView2.WinForms.dll" ".\dist\WebView2Loader.dll#WebView2Loader.dll" ".\dist\release-layout.json#release-layout.json" ".\dist\LAKIS_RepairPack.zip#LAKIS_RepairPack.zip" --clobber
           if ($LASTEXITCODE -ne 0) { throw "Failed to upload one or more release assets" }
+          $cmdAsset = "LAKIS_CMD_Installer_" + ($env:RELEASE_TAG -replace '^v', '') + ".zip"
+          gh release upload $env:RELEASE_TAG (".\dist\" + $cmdAsset + "#" + $cmdAsset) --clobber
+          if ($LASTEXITCODE -ne 0) { throw "Failed to upload CMD installer asset" }
+      - name: Verify exact CMD package downloads three times
+        if: steps.identity.outputs.complete != 'true'
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          $cmdAsset = "LAKIS_CMD_Installer_" + ($env:RELEASE_TAG -replace '^v', '') + ".zip"
+          $expectedHash = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path '.\dist' $cmdAsset)).Hash
+          for ($pass = 1; $pass -le 3; $pass++) {
+            $downloadDir = Join-Path $env:RUNNER_TEMP ("cmd-release-verification-" + [guid]::NewGuid().ToString('N'))
+            New-Item -ItemType Directory -Path $downloadDir | Out-Null
+            gh release download $env:RELEASE_TAG --pattern $cmdAsset --dir $downloadDir
+            if ($LASTEXITCODE -ne 0) { throw "CMD package remote download failed on pass $pass" }
+            if ((Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $downloadDir $cmdAsset)).Hash -ne $expectedHash) { throw "CMD package remote hash mismatch on pass $pass" }
+          }
       - name: Build and verify update manifest from published bytes
         if: steps.identity.outputs.complete != 'true'
         shell: powershell

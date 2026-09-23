@@ -9,6 +9,9 @@ on:
       version:
         description: Release version, with or without leading v
         required: true
+      approval_ref:
+        description: Exact commit containing private audit and approval records
+        required: true
 
 permissions:
   contents: read
@@ -21,16 +24,26 @@ jobs:
         with:
           ref: ${{ inputs.candidate_ref }}
           fetch-depth: 0
+      - name: Read private audit records without changing candidate source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.approval_ref }}
+          path: .release-approval-records
+          sparse-checkout: release_approvals
+          persist-credentials: false
       - name: Verify frozen candidate
         shell: powershell
         env:
           RELEASE_VERSION: ${{ inputs.version }}
           CANDIDATE_REF: ${{ inputs.candidate_ref }}
+          APPROVAL_REF: ${{ inputs.approval_ref }}
         run: |
           $version = $env:RELEASE_VERSION -replace '^v', ''
+          $evidence = Join-Path $env:GITHUB_WORKSPACE (".release-approval-records\release_approvals\v" + $version)
           if ($env:CANDIDATE_REF -notmatch '^[a-fA-F0-9]{40}$') { throw "Candidate ref must be a full 40-character commit SHA." }
+          if ($env:APPROVAL_REF -notmatch '^[a-fA-F0-9]{40}$') { throw "Approval ref must be a full 40-character commit SHA." }
           if ((Get-Content -Raw .\VERSION).Trim() -ne $version) { throw "VERSION does not match requested RC version." }
-          .\installer\Test-ThreePartyAuditGate.ps1 -Version $version
+          .\installer\Test-ThreePartyAuditGate.ps1 -Version $version -EvidenceDirectory $evidence
           .\installer\Test-ReleaseRegression.ps1 -ExpectedVersion $version
           .\installer\New-ReleaseAuditFingerprint.ps1 -OutputPath (Join-Path $env:RUNNER_TEMP "candidate-fingerprint.json")
       - name: Build private RC once
@@ -41,6 +54,8 @@ jobs:
           .\installer\Test-InstallerDataSafety.ps1 -InstallerPath $env:LAKIS_INSTALLER_OUTPUT
           .\installer\Test-PublicProductBoundary.ps1 -DistDirectory (Join-Path $env:GITHUB_WORKSPACE "dist")
           .\installer\New-ReleaseLayout.ps1 -DistDirectory (Join-Path $env:GITHUB_WORKSPACE "dist") -OutputPath (Join-Path $env:GITHUB_WORKSPACE "dist\release-layout.json") -RepairPackPath (Join-Path $env:GITHUB_WORKSPACE "dist\LAKIS_RepairPack.zip")
+          python .\installer\build_cmd_installer.py --dist .\dist --source-archive .\.safe-installer-build\LAKIS-source.zip --source-contract .\.safe-installer-build\source-contract.json --pinned-setup .\.safe-installer-build\Setup_LAKIS_SourcePinned.cs
+          if ($LASTEXITCODE -ne 0) { throw "CMD installer package build failed." }
       - name: Record exact RC artifact hashes
         shell: powershell
         run: |

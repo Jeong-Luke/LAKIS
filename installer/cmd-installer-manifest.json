@@ -1,0 +1,57 @@
+{
+  "schema": 1,
+  "version": "7.5.1",
+  "webview2": {
+    "name": "MicrosoftEdgeWebview2Setup.exe",
+    "url": "https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/1c9db68b-8343-4d70-85c2-d3e3735cdf15/MicrosoftEdgeWebview2Setup.exe",
+    "sha256": "81C01751C8CC385A5991ABB104205D42AC70094350EE8FB9E8EA580B51BB9554",
+    "bytes": 1844944
+  },
+  "release_base": "https://github.com/Jeong-Luke/LAKIS/releases/download/v7.5.0",
+  "base": {
+    "name": "ComfyUI_windows_portable_nvidia.7z",
+    "url": "https://github.com/Comfy-Org/ComfyUI/releases/download/v0.21.1/ComfyUI_windows_portable_nvidia.7z",
+    "sha256": "7C380D4309BBDA395366C49564EDF8996181FD45E61B6F353EA417F32BC3B970",
+    "bytes": 2001582790
+  },
+  "repair_pack": {
+    "name": "LAKIS_RepairPack.zip",
+    "sha256": "17C110D8368EC8FB727D08C1C5098AB3597728039D997E4137B964563CB78211"
+  },
+  "release_layout": {
+    "name": "release-layout.json",
+    "sha256": "D5FEA10F18F1D696ED961EDC844DED1AC885BA5F5CDA16F43737F943992B0607"
+  },
+  "source": {
+    "name": "LAKIS-373cbf40a2f94553dde26ccad31c33275e27babc.zip",
+    "url": "https://codeload.github.com/Jeong-Luke/LAKIS/zip/373cbf40a2f94553dde26ccad31c33275e27babc",
+    "sha256": "D6D8BC920C7A74BE4728C0F7703744469E62E80502F297E582EE1A1406FA052D",
+    "bytes": 58797241
+  },
+  "nodes": [
+    ["ultimate.zip", "https://codeload.github.com/ssitu/ComfyUI_UltimateSDUpscale/zip/a5547db9e1d07d3318bb21e9e9c474f4c1e9c8df", "47EF9D567D20A2EF8B96FF9A3E1BBED8F764FFB04988D0D4B32D020281FC73D1", "comfyui_ultimatesdupscale"],
+    ["anima-dave.zip", "https://codeload.github.com/sorryhyun/ComfyUI-Anima-DAVE/zip/83143e8d84768e25f72755ec00ea00ded07ee06e", "730728376A7C6F8948E87D1ABCC021B55D5DEEACA251EFC5C9EB748BF386717E", "comfyui-anima-dave"],
+    ["custom-scripts.zip", "https://codeload.github.com/pythongosssss/ComfyUI-Custom-Scripts/zip/609f3afaa74b2f88ef9ce8d939626065e3247469", "C82B520F2A1EB769742EA1C385D2C3522257A8B6A732F7DEF128871352334337", "comfyui-custom-scripts"],
+    ["dcw.zip", "https://codeload.github.com/namemechan/ComfyUI-DCW/zip/66aaf9dddb03bad031c1e8443e255a811008e477", "E8364A6D88540CF22D771203A336BAB98C78FE4FB9E49607624EEC316CBE22DA", "ComfyUI-DCW"],
+    ["easy-use.zip", "https://codeload.github.com/yolain/ComfyUI-Easy-Use/zip/b5e31ef12ad9d0b187b545c2707735cc7d581c52", "7894B746CF576BE4FF9A4DAD056D0D214E8946344BC359273AC3339500BE7BD3", "comfyui-easy-use"],
+    ["easyuse-anima.zip", "https://codeload.github.com/n0va39/ComfyUI-EasyUseAnima/zip/c64236a5b64db3c1b5db4e333931ab7128a70200", "9F4B6970FDC88768F83AD40974B38B7056DE8E07735532446587D97C808FDCDB", "comfyui-easyuse-anima"],
+    ["image-saver.zip", "https://codeload.github.com/alexopus/ComfyUI-Image-Saver/zip/2ba0f2bc4ee5235a0f9299f415fb2fb6be78f9e9", "72C8D32675802D3014B88792CFEA44E3082949AA1AF2981A8615CF81801B6EE2", "comfyui-image-saver"],
+    ["lora-manager.zip", "https://codeload.github.com/willmiao/ComfyUI-Lora-Manager/zip/df34efafbc604fa81fbd58f09f723842a73dadfd", "CC037E1AD77AAA092F81928BCEE1E0313687EA0B8A6BE7827D131C0C0D15C605", "ComfyUI-Lora-Manager"],
+    ["impact-pack.zip", "https://codeload.github.com/ltdrdata/ComfyUI-Impact-Pack/zip/429d0159ad429e64d2b3916e6e7be9c22d025c3c", "017BD1DDB7D17C923A1309FF1251379EAF65B71A9AC8FA91D384BB275BF000CE", "comfyui-impact-pack"],
+    ["kjnodes.zip", "https://codeload.github.com/kijai/ComfyUI-KJNodes/zip/e8e88f7c88e3f6205b122f5de87e69a09fbce5ac", "A07EE4454557012F4640FDF0C0C96EAD1B960D2A07D02F10037F63B7E2A0339E", "comfyui-kjnodes"],
+    ["rvtools.zip", "https://codeload.github.com/r-vage/ComfyUI-RvTools_v2/zip/d3f7e8beb477dff6c0fac44b298ab74ac433d93e", "AC92C92CF6454E850E6A2B5053D13962BC2936539F669B910C4A49EDB875ECBD", "comfyui-rvtools_v2"],
+    ["spectrum.zip", "https://codeload.github.com/sorryhyun/ComfyUI-Spectrum-KSampler/zip/b46a364aec3b161b889c9cc26cd976a49eb537ae", "3347FE5B9FA25C53E1FA45343BD04AE984A4BE32FCF83F3B520A473596EB3F88", "comfyui-spectrum-ksampler"],
+    ["rgthree.zip", "https://codeload.github.com/rgthree/rgthree-comfy/zip/13b4399c00b5ef5a97b1b6800fc1185874740f5d", "99C509D618E9380C8D4ACC6990C7A62AE8B6765D2B6B26272BD711276E0FA8CE", "rgthree-comfy"],
+    ["was.zip", "https://codeload.github.com/ltdrdata/was-node-suite-comfyui/zip/44de705818d4663fefefde57ffe0ea5a9ea39df4", "1512EE7897052BF55AA472425BFABBBE6462D01F91684EB4494D4A6C3EC79DE5", "was-ns"]
+  ],
+  "nested_node": ["ultimate-upstream.zip", "https://codeload.github.com/Coyote-A/ultimate-upscale-for-automatic1111/zip/2322caa480535b1011a1f9c18126d85ea444f146", "0797D41BAD17B4BD9C41FAE0FF4EA110CC364C1D2A06E13B27CA78FD0D4C57D7", "comfyui_ultimatesdupscale/repositories/ultimate_sd_upscale"],
+  "models": [
+    ["anima_baseV10.safetensors", "https://huggingface.co/circlestone-labs/Anima/resolve/457fbf842cb86e96af72c65bdd13e3f1c448de84/split_files/diffusion_models/anima-base-v1.0.safetensors", "BD43B7CFFE1ED1153D9C41E7BEB2F18CB1273EAFBAA3AF3EDD6A173DC90A006E", "diffusion_models", 4182218328],
+    ["qwen_3_06b_base.safetensors", "https://huggingface.co/circlestone-labs/Anima/resolve/e26179e4b23bcb3a9e91b4ad2961a76ab9644d43/split_files/text_encoders/qwen_3_06b_base.safetensors", "CD2A512003E2F9F3CD3C32A9C3573F820BB28C940F73C57B1DDAA983D9223EBA", "text_encoders", 1192135096],
+    ["qwen_image_vae.safetensors", "https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/7beb7b647f04469fbe64ba8adc2bb0d7e5e9f73f/split_files/vae/qwen_image_vae.safetensors", "A70580F0213E67967EE9C95F05BB400E8FB08307E017A924BF3441223E023D1F", "vae", 253806246],
+    ["anima-turbo-lora-v0.2.safetensors", "https://huggingface.co/circlestone-labs/Anima-Official-LoRAs/resolve/218b5466a07e8a79328dd8b73ff810706d73cb86/anima-turbo-lora-v0.2.safetensors", "1B55E40BDB1D0E5A78CB498F245FCCFDAAE97823265DB957D2AABDCF4CD3CAF1", "loras", 148902616],
+    ["sam3.1_multiplex_fp16.safetensors", "https://huggingface.co/Comfy-Org/sam3.1/resolve/f38cd62b71494b53ac2b56ca36e24f3c8d565581/checkpoints/sam3.1_multiplex_fp16.safetensors", "9BA99C92703C2E8B4F47DE2D34A539BB8E18923049E238B780D70DBE6368EB03", "checkpoints", 1745546848],
+    ["RealESRGAN_x4plus_anime_6B.pth", "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.2.4/RealESRGAN_x4plus_anime_6B.pth", "F872D837D3C90ED2E05227BED711AF5671A6FD1C9F7D7E91C911A61F155E99DA", "upscale_models", 17938799],
+    ["pooled_text_proj-0611.safetensors", "https://github.com/sorryhyun/ComfyUI-Spectrum-KSampler/releases/download/0605/pooled_text_proj-0611.safetensors", "C8B33DD35F9DF2AAA54224278417A4BBC0DDE695F38A1DB1581E2E9E7E87C040", "anima_mod_guidance", 12591416]
+  ]
+}

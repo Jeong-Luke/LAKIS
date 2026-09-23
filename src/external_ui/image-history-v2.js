@@ -209,7 +209,7 @@
     try {
       const response = await fetch(apiUrl('/api/choose-output-folder'), {method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'}, body:'{}'}), data = await response.json();
       if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
-      if (data.ok) { notice(`저장 경로를 ${data.path}(으)로 변경했습니다. 다음 실행부터 적용됩니다.`); load(); }
+      if (data.ok) { notice(`저장 경로를 ${data.path}(으)로 변경했습니다. 다음 생성부터 적용됩니다.`); load(); }
       else if (data.cancelled) notice('저장 경로 변경을 취소했습니다.');
     } catch (error) { notice(error?.message || '저장 경로를 변경하지 못했습니다.'); }
   });

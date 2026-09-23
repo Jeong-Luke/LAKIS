@@ -67,7 +67,7 @@ FINAL_NODE = "775"
 DEV_ROOT = RUNTIME_ROOT
 COMFY_ROOT = DEV_ROOT.parent
 OUTPUT_ROOT = COMFY_ROOT / "output"
-OUTPUT_LOCATION_PATH = DEV_ROOT / "output-location.json"
+LEGACY_OUTPUT_LOCATION_PATH = DEV_ROOT / "output-location.json"
 STOP_FILE = DEV_ROOT / "STOP_AUTOMATION"
 ALLOW_FILE = DEV_ROOT / "ALLOW_ONE_GENERATION"
 TEMPLATE = COMFY_ROOT / "LAKIS" / "workflows" / "LAKIS_runtime_api_v7.4.json"
@@ -93,16 +93,17 @@ GENERATION_STALL_SECONDS = 300
 
 
 def configured_output_root() -> Path:
-    try:
-        payload = json.loads(OUTPUT_LOCATION_PATH.read_text(encoding="utf-8-sig"))
-        raw = payload.get("path") if isinstance(payload, dict) else None
-        if isinstance(raw, str) and raw.strip():
-            candidate = Path(raw).expanduser()
-            # Empty/relative configuration is not permission to scan CWD.
-            if candidate.is_absolute() and candidate.is_dir():
-                return candidate.resolve()
-    except (OSError, ValueError, TypeError):
-        pass
+    for location_path in (OUTPUT_LOCATION_PATH, LEGACY_OUTPUT_LOCATION_PATH):
+        try:
+            payload = json.loads(location_path.read_text(encoding="utf-8-sig"))
+            raw = payload.get("path") if isinstance(payload, dict) else None
+            if isinstance(raw, str) and raw.strip():
+                candidate = Path(raw).expanduser()
+                # Empty/relative configuration is not permission to scan CWD.
+                if candidate.is_absolute() and candidate.is_dir():
+                    return candidate.resolve()
+        except (OSError, ValueError, TypeError):
+            continue
     return OUTPUT_ROOT.resolve()
 
 
@@ -118,6 +119,7 @@ def _ui_state_path_for_install(install_root: Path, user_state_root: Path = USER_
 
 
 UI_STATE_PATH = _ui_state_path_for_install(COMFY_ROOT.parent)
+OUTPUT_LOCATION_PATH = UI_STATE_PATH.with_name("output-location.json")
 AUDIT_PATH = UI_STATE_PATH.with_name("external_ui_bridge_audit.jsonl")
 # A journal belongs to one installation, just like its durable settings. Leave
 # legacy unscoped journals untouched: they do not identify their installation.
@@ -314,13 +316,13 @@ def _preferred_upscaler() -> str | None:
     return status.get("model") if status.get("required") is False else None
 
 
-def _comfy_object_info() -> dict[str, Any]:
+def _comfy_object_info(request_timeout: float = 3) -> dict[str, Any]:
     """Return live ComfyUI input schemas, retaining the last successful snapshot."""
     global _OBJECT_INFO_CACHE, _OBJECT_INFO_CACHE_AT
     if _OBJECT_INFO_CACHE and time.time() - _OBJECT_INFO_CACHE_AT < 300:
         return _OBJECT_INFO_CACHE
     try:
-        with urlopen(COMFY_SERVER + "/object_info", timeout=3) as response:
+        with urlopen(COMFY_SERVER + "/object_info", timeout=request_timeout) as response:
             payload = json.loads(response.read().decode("utf-8"))
         if isinstance(payload, dict) and payload:
             _OBJECT_INFO_CACHE = payload
@@ -328,6 +330,19 @@ def _comfy_object_info() -> dict[str, Any]:
     except Exception:
         pass
     return _OBJECT_INFO_CACHE
+
+
+def _wait_for_comfy_object_info(max_wait_seconds: float = 20) -> dict[str, Any]:
+    """Wait briefly for ComfyUI's loader inventory during desktop startup."""
+    deadline = time.monotonic() + max(0.0, max_wait_seconds)
+    while True:
+        remaining = deadline - time.monotonic()
+        info = _comfy_object_info(request_timeout=max(0.5, min(5.0, remaining)))
+        if info:
+            return info
+        if remaining <= 0:
+            return {}
+        time.sleep(min(0.5, remaining))
 
 
 def _missing_runtime_node_types(prompt: dict[str, Any], object_info: dict[str, Any]) -> list[str]:
@@ -1119,9 +1134,9 @@ def lora_inventory() -> dict[str, Any]:
     return {"options": options, "signature": signature, "count": len(options)}
 
 
-def workflow_configuration() -> dict[str, Any]:
+def workflow_configuration(object_info: dict[str, Any] | None = None) -> dict[str, Any]:
     template = json.loads(TEMPLATE.read_text(encoding="utf-8"))
-    object_info = _comfy_object_info()
+    object_info = object_info if object_info is not None else _comfy_object_info()
     prompt_defaults = dict(FIRST_RUN_PROMPT)
     prompt_defaults.update(load_external_prompt_state())
     inventories = _live_model_inventories(object_info)
@@ -1477,11 +1492,15 @@ def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dic
     if missing:
         raise RuntimeError(f"Validated prompt contract changed; missing {missing}")
 
+    live_object_info = _wait_for_comfy_object_info()
+    if not live_object_info:
+        raise RuntimeError("ComfyUI model inventory is not ready")
+    live_configuration = workflow_configuration(live_object_info)
     generation = application_state.get("generation", {})
     output = application_state.get("output", {})
     camera = application_state.get("camera", {})
     prompt_state = application_state.get("prompt", {})
-    lora_state = application_state.get("loras", workflow_configuration()["lora"]["current"])
+    lora_state = application_state.get("loras", live_configuration["lora"]["current"])
     model = application_state.get("model", {})
     i2i = application_state.get("i2i", {})
     inpaint = application_state.get("inpaint", {})
@@ -2071,7 +2090,7 @@ def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dic
     checkpoint = str(model.get("checkpoint", prompt["890:1365"]["inputs"]["model_name"]))
     vae = str(model.get("vae", prompt["890:159"]["inputs"]["vae_name"]))
     clip = str(model.get("clip", prompt["890:164"]["inputs"]["clip_name"]))
-    available = workflow_configuration()
+    available = live_configuration
     if checkpoint not in available["checkpoint"]["options"]:
         raise ValueError(f"Unknown diffusion model: {checkpoint}")
     if not _is_anima_checkpoint(checkpoint):
@@ -2247,6 +2266,20 @@ def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dic
     # Advanced-panel values intentionally run after the friendly controls so
     # an explicit node-level edit is the final authority for this generation.
     _apply_advanced_node_overrides(prompt, requested_overrides)
+
+    # Prefix the workflow's existing LAKIS/<style> layout with the folder
+    # selected in Library. Without this node Final Saver keeps writing under
+    # ComfyUI/output even though the Library displays the custom selection.
+    prompt["lakis:configured_output_path"] = {
+        "inputs": {
+            "string_a": str(configured_output_root() / "LAKIS"),
+            "string_b": ["1784", 0],
+            "delimiter": "\\",
+        },
+        "class_type": "StringConcatenate",
+        "_meta": {"title": "LAKIS 사용자 지정 저장 경로"},
+    }
+    prompt[FINAL_NODE]["inputs"]["path"] = ["lakis:configured_output_path", 0]
 
     wildcard_metadata = application_state.get("wildcard", {})
     if isinstance(wildcard_metadata, dict) and wildcard_metadata.get("selections"):
@@ -3049,6 +3082,12 @@ class WorkflowBridge:
         detail = str(error)
         lowered = detail.lower()
         node_id = getattr(error, "node_id", None)
+        if "generation is already active or awaiting cleanup" in lowered:
+            return "LKS-GEN-1010", "이미 진행 중인 생성 요청이 있어 새 요청을 시작하지 않았어요. 현재 작업이 끝난 뒤 다시 시도해 주세요."
+        if "stop_automation safety lock is missing" in lowered:
+            return "LKS-GEN-1014", "생성 안전 잠금 파일을 확인하지 못했어요. LAKIS를 다시 실행해 주세요."
+        if "comfyui model inventory is not ready" in lowered:
+            return "LKS-GEN-1015", "ComfyUI가 모델 목록을 준비 중이에요. 초기화가 끝난 뒤 다시 시도해 주세요."
         if isinstance(error, SubmissionOutcomeUnknownError):
             return "LKS-GEN-1011", "생성 요청의 최종 상태를 확인하지 못했어요. 중복 생성을 막기 위해 재요청을 차단했어요."
         if isinstance(error, PromptRejectedError):
@@ -3111,6 +3150,10 @@ class WorkflowBridge:
             return "LKS-GEN-1704", "저장 공간이 부족해 이미지를 저장하지 못했어요."
         if "i2i 입력 이미지를 다시 선택" in detail:
             return "LKS-I2I-1101", "i2i 입력 이미지를 다시 선택해 주세요."
+        if "LLLite 원본 이미지를 다시 선택" in detail:
+            return "LKS-INP-1101", "인페인트 원본 이미지를 다시 선택해 주세요."
+        if "인페인트 마스크를 다시 그려" in detail:
+            return "LKS-INP-1102", "인페인트 마스크를 다시 그려 주세요."
         if "unsupported sampler" in lowered:
             return "LKS-CFG-1101", "지원하지 않는 샘플러가 선택됐어요."
         if "unsupported scheduler" in lowered:

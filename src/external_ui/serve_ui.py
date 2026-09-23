@@ -82,7 +82,8 @@ LAKIS_VERSION_PATH = (
     RUNTIME_ROOT / "DEV_VERSION" if DEVELOPMENT else COMFY_ROOT.parent / "VERSION"
 )
 OUTPUT_ROOT = (COMFY_ROOT / "output").resolve()
-OUTPUT_LOCATION_PATH = UI_ROOT.parent / "output-location.json"
+LEGACY_OUTPUT_LOCATION_PATH = UI_ROOT.parent / "output-location.json"
+OUTPUT_LOCATION_PATH = UI_STATE_PATH.with_name("output-location.json")
 INPUT_ROOT = (COMFY_ROOT / "input").resolve()
 AUDIT_PATH = UI_STATE_PATH.with_name("process_audit.jsonl")
 HOST = "127.0.0.1"
@@ -451,16 +452,17 @@ def stop_link_server() -> dict:
 
 
 def configured_output_root() -> Path:
-    try:
-        payload = json.loads(OUTPUT_LOCATION_PATH.read_text(encoding="utf-8-sig"))
-        raw = payload.get("path") if isinstance(payload, dict) else None
-        if isinstance(raw, str) and raw.strip():
-            candidate = Path(raw).expanduser()
-            # Empty/relative configuration is not permission to scan CWD.
-            if candidate.is_absolute() and candidate.is_dir():
-                return candidate.resolve()
-    except (OSError, ValueError, TypeError):
-        pass
+    for location_path in (OUTPUT_LOCATION_PATH, LEGACY_OUTPUT_LOCATION_PATH):
+        try:
+            payload = json.loads(location_path.read_text(encoding="utf-8-sig"))
+            raw = payload.get("path") if isinstance(payload, dict) else None
+            if isinstance(raw, str) and raw.strip():
+                candidate = Path(raw).expanduser()
+                # Empty/relative configuration is not permission to scan CWD.
+                if candidate.is_absolute() and candidate.is_dir():
+                    return candidate.resolve()
+        except (OSError, ValueError, TypeError):
+            continue
     return OUTPUT_ROOT.resolve()
 
 
@@ -636,12 +638,41 @@ def delete_history_image(relative: str) -> dict:
     _, target = _history_target(relative)
     if not target.is_file():
         raise FileNotFoundError(target)
-    escaped = str(target).replace("'", "''")
-    command = "Add-Type -AssemblyName Microsoft.VisualBasic;" + f"[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile('{escaped}',[Microsoft.VisualBasic.FileIO.UIOption]::OnlyErrorDialogs,[Microsoft.VisualBasic.FileIO.RecycleOption]::SendToRecycleBin)"
-    completed = subprocess.run(["powershell", "-NoProfile", "-STA", "-Command", command], capture_output=True, text=True, timeout=30, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-    if completed.returncode != 0 or target.exists():
-        raise OSError(completed.stderr.strip() or "failed to move image to recycle bin")
+    _send_to_recycle_bin(target)
     return {"ok": True, "id": str(relative), "recycled": True}
+
+
+def _send_to_recycle_bin(target: Path) -> None:
+    """Move one file to the Windows Recycle Bin without launching a shell."""
+    if os.name != "nt":
+        raise OSError("Recycle Bin is available only on Windows")
+
+    import ctypes
+    from ctypes import wintypes
+
+    class SHFILEOPSTRUCTW(ctypes.Structure):
+        _fields_ = [
+            ("hwnd", wintypes.HWND),
+            ("wFunc", wintypes.UINT),
+            ("pFrom", wintypes.LPCWSTR),
+            ("pTo", wintypes.LPCWSTR),
+            ("fFlags", ctypes.c_ushort),
+            ("fAnyOperationsAborted", wintypes.BOOL),
+            ("hNameMappings", wintypes.LPVOID),
+            ("lpszProgressTitle", wintypes.LPCWSTR),
+        ]
+
+    operation = SHFILEOPSTRUCTW()
+    operation.wFunc = 3
+    operation.pFrom = str(target.resolve()) + "\0\0"
+    operation.fFlags = 0x0040 | 0x0010 | 0x0004 | 0x0400
+    result = ctypes.windll.shell32.SHFileOperationW(ctypes.byref(operation))
+    if result != 0:
+        raise OSError(result, "Windows could not move the image to the Recycle Bin")
+    if operation.fAnyOperationsAborted:
+        raise OSError("moving the image to the Recycle Bin was cancelled")
+    if target.exists():
+        raise OSError("image still exists after the Recycle Bin operation")
 
 
 def delete_history_images_batch(values) -> dict:
@@ -673,18 +704,23 @@ $owner.ShowInTaskbar = $false; $owner.TopMost = $true; $owner.StartPosition = 'C
 $owner.Show(); $owner.Activate()
 $dialog = New-Object System.Windows.Forms.FolderBrowserDialog
 $dialog.Description = 'LAKIS 이미지 저장 폴더 선택'
+$dialog.ShowNewFolderButton = $true
+if ($env:LAKIS_CURRENT_OUTPUT_PATH -and (Test-Path -LiteralPath $env:LAKIS_CURRENT_OUTPUT_PATH)) { $dialog.SelectedPath = $env:LAKIS_CURRENT_OUTPUT_PATH }
 try { if ($dialog.ShowDialog($owner) -eq 'OK') { $dialog.SelectedPath } } finally { $dialog.Dispose(); $owner.Close(); $owner.Dispose() }
 """
-    completed = subprocess.run(["powershell", "-NoProfile", "-STA", "-Command", command], capture_output=True, text=True, timeout=120, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    environment = os.environ.copy()
+    environment["LAKIS_CURRENT_OUTPUT_PATH"] = str(configured_output_root())
+    completed = subprocess.run(["powershell", "-NoProfile", "-STA", "-Command", command], capture_output=True, text=True, timeout=120, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0), env=environment)
     selected = completed.stdout.strip()
     if not selected:
         return {"ok": False, "cancelled": True}
     target = Path(selected).resolve()
     target.mkdir(parents=True, exist_ok=True)
+    OUTPUT_LOCATION_PATH.parent.mkdir(parents=True, exist_ok=True)
     temporary = OUTPUT_LOCATION_PATH.with_suffix(".tmp")
     temporary.write_text(json.dumps({"path": str(target)}, ensure_ascii=False, indent=2), encoding="utf-8")
     os.replace(temporary, OUTPUT_LOCATION_PATH)
-    return {"ok": True, "path": str(target), "restart_required": True}
+    return {"ok": True, "path": str(target), "restart_required": False}
 
 
 def launcher_identity() -> dict:
