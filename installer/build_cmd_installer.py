@@ -71,7 +71,7 @@ def build(repo: Path, dist: Path, archive: Path, contract_path: Path, pinned_set
         raise ValueError("release layout version mismatch")
     manifest.update(version=version, release_base=f"https://github.com/Jeong-Luke/LAKIS/releases/download/v{version}")
     manifest["source"] = {"name": f"LAKIS-{revision}.zip",
-                          "url": f"https://codeload.github.com/Jeong-Luke/LAKIS/zip/{revision}",
+                          "url": f"https://api.github.com/repos/Jeong-Luke/LAKIS/zipball/{revision}",
                           "sha256": digest, "bytes": archive.stat().st_size}
     for key, name in (("repair_pack", "LAKIS_RepairPack.zip"), ("release_layout", "release-layout.json")):
         asset = dist / name

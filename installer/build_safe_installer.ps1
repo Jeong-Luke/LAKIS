@@ -20,7 +20,7 @@ if ([regex]::Matches($setupSource, $pattern).Count -ne 1) { throw "Installer rev
 $setupSource = [regex]::Replace($setupSource, $pattern, ('private const string Revision = "' + $sourceRevision + '";'))
 $sourceArchive = Join-Path $stage 'LAKIS-source.zip'
 # Fetch afresh from the immutable commit URL before recording the build hash.
-Invoke-WebRequest -UseBasicParsing ("https://codeload.github.com/Jeong-Luke/LAKIS/zip/" + $sourceRevision) -OutFile $sourceArchive
+Invoke-WebRequest -UseBasicParsing -Headers @{ "User-Agent" = "LAKIS-Release-Builder" } ("https://api.github.com/repos/Jeong-Luke/LAKIS/zipball/" + $sourceRevision) -OutFile $sourceArchive
 $sourceHash = (Get-FileHash -LiteralPath $sourceArchive -Algorithm SHA256).Hash
 $hashPattern = 'private const string SourceArchiveSha256 = "[^"]+";'
 if ([regex]::Matches($setupSource, $hashPattern).Count -ne 1) { throw "Installer source hash declaration is ambiguous." }

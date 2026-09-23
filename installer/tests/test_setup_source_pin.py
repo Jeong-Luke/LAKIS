@@ -22,7 +22,7 @@ internal static class PinProbe {
                 var item = (DownloadItem)method.Invoke(null, new object[] {prefix});
                 if (args.Length == 0) return 10;
                 if (item.Sha != new string('B', 64) ||
-                    item.Url != "https://codeload.github.com/Jeong-Luke/LAKIS/zip/" + new string('a', 40) ||
+                    item.Url != "https://api.github.com/repos/Jeong-Luke/LAKIS/zipball/" + new string('a', 40) ||
                     item.Name != prefix + new string('a', 40) + ".zip") return 11;
             } catch (TargetInvocationException error) {
                 if (args.Length != 0 || !(error.InnerException is InvalidOperationException)) return 12;

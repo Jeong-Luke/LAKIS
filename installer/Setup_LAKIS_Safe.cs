@@ -456,7 +456,7 @@ internal static class SafeInstaller
         if(!System.Text.RegularExpressions.Regex.IsMatch(Revision,"^[a-fA-F0-9]{40}$") ||
            !System.Text.RegularExpressions.Regex.IsMatch(SourceArchiveSha256,"^[a-fA-F0-9]{64}$"))
             throw new InvalidOperationException("Installer source archive has not been pinned by the release build.");
-        return new DownloadItem(prefix+Revision+".zip","https://codeload.github.com/Jeong-Luke/LAKIS/zip/"+Revision,SourceArchiveSha256,null);
+        return new DownloadItem(prefix+Revision+".zip","https://api.github.com/repos/Jeong-Luke/LAKIS/zipball/"+Revision,SourceArchiveSha256,null);
     }
     private static DownloadItem WebView2Archive()
     {
