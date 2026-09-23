@@ -27,16 +27,6 @@ LAKIS 애플리케이션, 사용자 인터페이스, 설치기, 업데이터, �
 
 현재 안정 버전은 `v7.5.0`입니다. 이전 개발 패키지와 개발용 워크플로는 별도로 관리하며 신규 사용자에게 배포하지 않습니다.
 
-## v7.4.5 주요 기능
-
-- FAST, DETAIL, LAKIS DETAIL 생성 모드와 Composition, i2i
-- 작은 영역을 수정하고 원본 영역을 보존하는 Local Inpaint V2와 Inpaint Delete
-- 이미지 메타데이터, 다중 선택, 일괄 삭제 및 화면 근처 지연 로드를 지원하는 LAKIS Library
-- 모바일에서 생성 화면과 Library를 사용하는 LAKIS Link
-- 일반 프롬프트에 추가되는 와일드카드 / 랜덤 선택과 연속 생성
-- 모바일·PC 프롬프트 및 Composition 설정 유지
-- Editable, Runtime Visual, Runtime API로 구성된 공식 v7.4 workflow
-- 단계별 생성 오류 코드, 필수 노드 사전 검사 및 진단 정보가 보존되는 오류 보고
 
 Local Inpaint V2에 필요한 `anima-lllite-inpainting-v2.safetensors`는 LAKIS에 포함되거나 자동 다운로드되지 않습니다. 사용자가 공식 배포처에서 직접 설치해야 합니다.
 
