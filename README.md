@@ -18,7 +18,7 @@ LAKIS 애플리케이션, 사용자 인터페이스, 설치기, 업데이터, �
 
 ## 안정 버전
 
-이 저장소는 LAKIS의 안정 배포 버전을 관리합니다. 현재 릴리즈 후보는 `v7.5.1`입니다. 이전 개발 패키지와 개발용 워크플로는 별도로 관리하며 신규 사용자에게 배포하지 않습니다.
+이 저장소는 LAKIS의 안정 배포 버전을 관리합니다. 현재 안정 버전은 `v7.5.1`입니다. 이전 개발 패키지와 개발용 워크플로는 별도로 관리하며 신규 사용자에게 배포하지 않습니다.
 
 ## v7.5.1 수정 사항
 
@@ -86,7 +86,7 @@ You can also view the [v7.5.1 release notes and individual files](https://github
 
 ### Stable baseline
 
-This repository contains the stable LAKIS distribution line. The current release candidate is `v7.5.1`. Earlier development packages and workflows are maintained separately and are not distributed to new users.
+This repository contains the stable LAKIS distribution line. The current stable release is `v7.5.1`. Earlier development packages and workflows are maintained separately and are not distributed to new users.
 
 ### v7.5.1 fixes
 

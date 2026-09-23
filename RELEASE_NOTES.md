@@ -33,7 +33,7 @@
 
 ## 업데이트 안전성
 
-기존 안정 버전 사용자는 v7.5.1 공개 후 자동 업데이트로 전환할 수 있습니다. 사용자 모델, LoRA, workflow, 입력·출력 이미지, Library, 사용자 와일드카드와 설치별 설정은 유지됩니다.
+기존 안정 버전 사용자는 자동 업데이트로 v7.5.1로 전환할 수 있습니다. 사용자 모델, LoRA, workflow, 입력·출력 이미지, Library, 사용자 와일드카드와 설치별 설정은 유지됩니다.
 
 ---
 
@@ -66,4 +66,4 @@
 
 The `anima-lllite-inpainting-v2.safetensors` weight is not bundled or downloaded automatically. Users install it manually from the official publisher.
 
-Existing stable installations can move to v7.5.1 after the release is published. User models, LoRAs, workflows, input/output images, Library data, wildcards, and installation-specific settings are preserved.
+Existing stable installations can update automatically to v7.5.1. User models, LoRAs, workflows, input/output images, Library data, wildcards, and installation-specific settings are preserved.
