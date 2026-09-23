@@ -219,17 +219,12 @@ NODE_CLASS_MAPPINGS = {
     "LAKIS_INPAINT_COLOR_MATCH": LAKISInpaintColorMatch,
     "LAKIS_LocalInpaintPrepare": LAKISLocalInpaintPrepare,
     "LAKIS_LocalInpaintComposite": LAKISLocalInpaintComposite,
-    # Compatibility aliases for existing DEKIS development workflows.
-    "DEKIS_LocalInpaintPrepare": LAKISLocalInpaintPrepare,
-    "DEKIS_LocalInpaintComposite": LAKISLocalInpaintComposite,
     "LAKIS_SafeMasksCombineBatch": LAKISSafeMasksCombineBatch,
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
     "LAKIS_INPAINT_COLOR_MATCH": "LAKIS Inpaint Colour Match",
     "LAKIS_LocalInpaintPrepare": "LAKIS Local Inpaint V2 · Prepare",
     "LAKIS_LocalInpaintComposite": "LAKIS Local Inpaint V2 · Composite",
-    "DEKIS_LocalInpaintPrepare": "LAKIS Local Inpaint V2 · Prepare (DEKIS alias)",
-    "DEKIS_LocalInpaintComposite": "LAKIS Local Inpaint V2 · Composite (DEKIS alias)",
     "LAKIS_SafeMasksCombineBatch": "LAKIS Safe Masks Combine Batch",
 }
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]

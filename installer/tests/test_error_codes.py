@@ -141,6 +141,18 @@ class ErrorCodeTests(unittest.TestCase):
                 self.assertFalse(workflow_bridge._is_anima_checkpoint(other.name))
                 self.assertFalse(workflow_bridge._is_anima_checkpoint(invalid.name))
 
+    def test_anima_filename_does_not_bypass_architecture_validation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            mislabeled = root / "not_really_anima_model.safetensors"
+            self.write_safetensors_header(mislabeled, {
+                "net.x_embedder.proj.1.weight": {
+                    "dtype": "BF16", "shape": [1024, 16], "data_offsets": [0, 0]
+                }
+            })
+            with patch.object(workflow_bridge, "_model_roots", return_value=[root]):
+                self.assertFalse(workflow_bridge._is_anima_checkpoint(mislabeled.name))
+
     def test_missing_runtime_nodes_have_a_specific_code_and_sorted_detail(self):
         error = workflow_bridge.MissingRuntimeNodesError(["ZNode", "ANode", "ZNode"])
         code, message = workflow_bridge.WorkflowBridge._public_error(error)
@@ -245,6 +257,21 @@ class ErrorCodeTests(unittest.TestCase):
                 inventory = workflow_bridge.model_inventory()
         self.assertIn("shared\\registered.safetensors", inventory["checkpoint"])
         self.assertNotIn("unregistered.safetensors", inventory["checkpoint"])
+
+    def test_ic_light_weights_are_hidden_from_checkpoint_selector(self):
+        schema = self.live_schema([
+            "IC-Light\\iclight_sd15_fbc.safetensors",
+            "IC-Light/iclight_sd15_fc.safetensors",
+            "iclight_sd15_fc.safetensors",
+            "anima_baseV10.safetensors",
+            "shared\\novaAnimeAM_v40.safetensors",
+        ])
+        with patch.object(workflow_bridge, "_comfy_object_info", return_value=schema):
+            inventory = workflow_bridge.model_inventory()
+        self.assertEqual(
+            ["anima_baseV10.safetensors", "shared\\novaAnimeAM_v40.safetensors"],
+            inventory["checkpoint"],
+        )
 
     def test_persisted_live_model_is_preserved_and_stale_model_falls_back(self):
         schema = self.live_schema(["anima_baseV10.safetensors", "other.safetensors"])

@@ -23,4 +23,5 @@ src/custom_nodes/ComfyUI-LAKIS-Light-Control/TEST_NOTES.txt
 
 /.safe-installer-build/
 /.rc-channel-*/
-*_audit.jsonl
+/src/external_ui_bridge_audit.jsonl
+/src/external_ui_bridge_audit.jsonl.*

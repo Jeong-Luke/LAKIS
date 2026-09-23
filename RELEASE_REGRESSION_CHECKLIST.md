@@ -7,14 +7,34 @@ item is failing or unverified.
 ## Automated release gates
 
 - [ ] `installer/Test-ReleaseRegression.ps1 -ExpectedVersion <version>` passes.
-- [ ] All installer executables are rebuilt from the tagged source.
+- [ ] Required auditors PASS the exact same frozen source fingerprint before any Private RC artifact is built: GPT + DeepSeek + Codex normally, or DeepSeek + Codex only under the explicit owner-approved GPT outage exception in `THREE_PARTY_AUDIT_POLICY.md`. An unavailable GPT is never recorded as PASS.
+- [ ] Setup and CMD use the same immutable source revision and source archive SHA-256. `build_cmd_installer.py` consumes the exact Setup build contract, RepairPack, and layout.
+- [ ] The versioned CMD ZIP is included in RC hashes and final owner approval; its published bytes pass three independent download/hash checks.
+- [ ] `.github/workflows/prepare-private-rc.yml` builds the final artifact set exactly once from that audited candidate and uploads it as the `lakis-private-rc` Actions artifact with its fingerprint and file hashes.
+- [ ] Private RC tests and explicit owner approval are recorded against that exact fingerprint and artifact-set SHA; `Test-ReleaseApprovalGate.ps1` passes before any public tag or release is created.
+- [ ] `.github/workflows/publish-installer.yml` downloads the explicitly selected `rc_run_id`, never rebuilds the approved binaries, and publishes only those exact bytes.
 - [ ] Every manifest URL and SHA-256 passes
   `Test-UpdateManifest.ps1 -VerifyRemote -Passes 3`.
 - [ ] GitHub release remains a draft while assets are uploaded and checked;
   publish it only after all three verification passes complete.
-- [ ] `ComfyUI/LAKIS_DEV/external_ui/app.js` passes all three independent
+- [ ] `ComfyUI/LAKIS/external_ui/app.js` passes all three independent
   downloads. Hashes must be calculated from GitHub's tagged bytes, never the
   Windows working-tree copy (LF/CRLF may differ).
+- [ ] `Test-PublicProductBoundary.ps1` passes on the freshly built `dist`
+  directory before any draft release asset upload and scans every public EXE:
+  Launcher, Patcher, Updater, Desktop, Model Importer, Setup, and Uninstaller.
+- [ ] The generated update manifest contains no `LAKIS_DEV`, `DEKIS`,
+  `LUKIS`, `LAKIS_LUKE`, `DEV_VERSION`, `LUKE_VERSION`, or private/development asset paths.
+- [ ] `New-ReleaseLayout.ps1` generates `release-layout.json` and `LAKIS_RepairPack.zip` from the same exact release payload; `test_release_layout.py` confirms every layout path/size matches the corresponding packed file.
+- [ ] The layout covers only LAKIS-managed application/runtime files and explicitly excludes `ComfyUI/models`, `ComfyUI/user`, `ComfyUI/input`, `ComfyUI/output`, user workflows/state, logs and caches.
+- [ ] Editable workflows, including `ComfyUI/LAKIS/workflows/LAKIS_custom_v7.4_editable.json`, are excluded from layout and RepairPack so automatic Repair cannot overwrite user customization.
+- [ ] Public Launcher fetches the matching GitHub Release `release-layout.json` before update/runtime startup and compares required-file existence, byte size, and retired-file absence.
+- [ ] If GitHub comparison cannot be completed, the exact warning text is shown and LAKIS continues without the comparison; a confirmed mismatch instead schedules one automatic RepairPack replacement cycle.
+- [ ] Automatic Repair validates the staged RepairPack against the same layout before replacing files, runs only after the Launcher exits, removes retired files, restarts LAKIS, and uses a marker to prevent repair loops.
+- [ ] Fresh Setup and Repair both write `VERSION` from the candidate
+  `ReleaseVersion`; no direct semantic-version string write is allowed.
+- [ ] The live ComfyUI runtime-capability preflight confirms packaged workflow node
+  types plus LAKIS_DETAIL, LAKIS_SCOPE, LAKIS_VRAM_GATE and Local Inpaint core nodes.
 - [ ] The release asset set includes Launcher, Patcher, fallback Updater, Desktop host, Model
   Importer, Uninstaller, WebView2 libraries, and Setup.
 - [ ] No path below `ComfyUI/models`, `ComfyUI/user`, `ComfyUI/input`, or
@@ -25,14 +45,25 @@ item is failing or unverified.
 
 ## Update and installation regressions
 
+- [ ] Starting from a disposable public v7.4.5 clone, record the tester-only candidate Launcher/Updater bootstrap separately, then use the loopback Private RC helper and candidate production binaries to update to v7.5.0. Do not claim the shipped v7.4.5 updater fetched the private manifest. Confirm
+  download/SHA validation, staging/replacement, updater self-update, VERSION
+  transition, inherited RC environment, automatic restart, and the v7.5.0 loopback-served exact layout/RepairPack consistency check all succeed.
+- [ ] Restart v7.5.0 a second time without running Repair. It must not re-offer
+  v7.5.0, must bind to `ComfyUI/LAKIS`, and must pass layout consistency and runtime
+  capability checks again.
+- [ ] Interrupt/fail the updater self-update helper in a controlled RC copy and
+  verify the installation remains fail-closed/recoverable rather than silently
+  starting a mixed runtime. Restore Stable before the next RC attempt.
 - [ ] Update a copied 7.2.2 installation to the candidate. Confirm no checksum
   error, especially for `external_ui/app.js`, and confirm rollback data exists.
 - [ ] Repeat the same update from a copied 7.2.3 installation.
 - [ ] Run clean installation on the default drive and on a different drive.
   Confirm the previous cross-volume move error does not recur.
-- [ ] Run **repair** on an existing installation. Confirm version, external UI,
-  packaged workflows, licence notices, desktop runtime,
-  Model Importer, and RealESRGAN are present.
+- [ ] Run **repair** on an existing installation. Confirm VERSION is v7.5.0
+  and the repaired external UI, packaged workflows, managed public nodes, licence
+  notices, desktop runtime, Model Importer, and RealESRGAN are present. Manual Repair
+  must clear any automatic-repair retry marker; launch immediately and require the
+  GitHub layout consistency check plus runtime-capability PASS.
 - [ ] Confirm the candidate manifest, installer, external UI, and packaged
   workflows contain no retired Light Control or DSINE product dependency.
 - [ ] Before and after Repair, hash representative files under
@@ -84,8 +115,18 @@ item is failing or unverified.
 
 ## Generation regressions
 
+- [ ] On the frozen v7.5.0 Private RC, confirm release-layout consistency and live
+  runtime-capability preflight complete before the Desktop UI opens. Also verify a forced
+  managed-file size mismatch triggers one automatic RepairPack cycle, while a blocked GitHub
+  layout request shows the warning and continues without the comparison.
 - [ ] FAST and DETAIL text-to-image each complete once with positive and
   negative prompts demonstrably applied.
+- [ ] Run two ordinary generations consecutively from the same launched RC
+  session. Each click must submit exactly one `/prompt`, each result must reach
+  Final Saver node 775, save an actual output file, and return the same final
+  image to the LAKIS UI/Library.
+- [ ] Local Inpaint completes once through its v2 path with the edited region
+  reflected in the saved Final Saver 775 output and returned UI image.
 - [ ] i2i completes three consecutive runs using the same input. On every run,
   input influence, positive prompt, negative prompt, strength, dimensions, and
   i2i badge must be correct.

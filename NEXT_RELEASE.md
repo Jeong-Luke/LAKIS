@@ -5,7 +5,47 @@
 - Add long-path-safe rollback storage for deeply nested installations.
 - Preserve the primary ApplyUpdate exception when rollback also fails.
 
-## Next release (unreleased)
+## v7.5.0
+
+### Public LAKIS / DEKIS boundary hardening
+
+- Added a hard manifest guard that rejects any public update path containing `LAKIS_DEV`, `DEKIS`, `LUKIS`, `DEV_VERSION`, or development-only icon names.
+- Public LAKIS now forces development/private environment flags off before launching and the Python runtime additionally requires the actual `ComfyUI/LAKIS_DEV` folder before development mode can activate.
+- Migrated browser prompt persistence to the public `lakis.promptState.v3` key while retaining the former DEKIS key only as a read-only migration source for existing user data.
+- Removed the visible `LAKIS DEV` badge and legacy DEV experiment title from public UI/runtime source.
+- Added source/runtime product-boundary tests and a post-build binary/artifact scan; GitHub Actions now blocks draft upload if private/development output is detected.
+- Corrected the release checklist to verify `ComfyUI/LAKIS/external_ui/app.js`, not the old `LAKIS_DEV` path.
+- Added v7.5.0+ GitHub `release-layout.json` consistency checks for LAKIS-managed files. The layout records version, install-relative path, and byte size so the Launcher can detect missing files, mixed-version files, and retired leftovers without treating the check as a security signature system.
+- Added `LAKIS_RepairPack.zip`, generated from the same payload as `release-layout.json`. A confirmed mismatch stages and validates the matching RepairPack, replaces only LAKIS-managed files after the Launcher exits, removes retired files, and restarts LAKIS. User-owned models, workflows/state, input/output and `%LOCALAPPDATA%\\LAKIS Studio` remain outside the layout and RepairPack.
+- If GitHub consistency data cannot be reached, the Launcher warns that the comparison could not be completed and continues without blocking startup.
+- Added a live ComfyUI runtime-capability preflight before the UI opens. Missing packaged workflow node types or critical dynamic LAKIS nodes now fail closed as `LKS-RUN-1003`.
+- Public artifact scanning now checks every EXE in `dist`, including Launcher, Patcher, Updater, Desktop, Model Importer, Setup, and Uninstaller, for DEKIS/LUKIS/private-development markers.
+- Fresh Setup and Repair now share the explicit v7.5.0 `ReleaseVersion` instead of hard-coding the previous release version; the release gate rejects direct semantic-version writes to `VERSION`.
+- Removed DEKIS/LUKIS product labels from the public Setup safety message so public-facing recovery UI does not imply mixed-product ownership.
+
+### Library and preview performance
+
+- Added cached 320 px WebP thumbnails for recent-generation previews and Library cards while keeping original files for the main preview and Library inspector.
+- Limited the desktop recent-generation strip to the latest 20 images from the current session without preloading older images at startup.
+- Changed Library card rendering to progressive 20-item batches loaded as the user scrolls, reducing initial DOM and image work for large libraries.
+- Moved Library Inpaint/I2I actions directly below the enlarged image and widened the desktop inspector for easier metadata review.
+
+### Prompt workspace
+
+- Added independent desktop-only expand/collapse controls for positive and negative prompt panels. Expanded panels cover the preview column without changing mobile layout.
+- Moved the automatic-translation control beside the positive Prompt heading on desktop and kept the original mobile placement.
+- Renamed the controls to `<< 확장` and `>> 축소`.
+
+### Navigation and settings UI
+
+- Replaced advanced-setting magnifier icons with small gear icons.
+- Added a desktop LAKIS sidebar menu with direct links to the public LAKIS GitHub repository and the LAKIS Arcalive post.
+- Moved LAKIS Link below the new LAKIS menu and renamed the Library folder tooltip to `LAKIS 라이브러리`.
+- Added bundled LAKIS and Arcalive navigation icons; the Arcalive logo provenance is documented in `THIRD_PARTY_NOTICES.md`.
+
+### Inpaint workspace
+
+- Updated the exclusive Inpaint layout so the Wildcard panel is hidden together with Composition and I2I while Inpaint is active.
 
 ### Link Library mobile detail navigation
 

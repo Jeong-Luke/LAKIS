@@ -32,6 +32,7 @@ class GraphContracts(unittest.TestCase):
                   patch.object(m,'workflow_configuration',return_value=config),
                   patch.object(m,'_preferred_upscaler',return_value=None),
                   patch.object(m,'_comfy_object_info',return_value={}),
+                  patch.object(m,'_is_anima_checkpoint',return_value=True),
                   patch.object(m,'_model_files',return_value=[])):
             p.start();self.addCleanup(p.stop)
         self.base={'generation':{'mode':'fast'},'output':{'seed':123,'width':1024,'height':768},

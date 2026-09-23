@@ -4,6 +4,8 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.IO;
+using System.IO.Compression;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Reflection;
@@ -41,6 +43,23 @@ internal static class LakisLauncher
         "https://cdn.jsdelivr.net/gh/Jeong-Luke/LAKIS@main/manifests/update-latest.json"
     };
     private const string LatestReleaseApiUrl = "https://api.github.com/repos/Jeong-Luke/LAKIS/releases/latest";
+    private const string RcReleaseBaseVariable = "LAKIS_RC_RELEASE_BASE_URL";
+    private const string RcManifestVariable = "LAKIS_RC_MANIFEST_URL";
+
+    private sealed class ReleaseLayoutFile
+    {
+        public string path { get; set; }
+        public long size { get; set; }
+    }
+
+    private sealed class ReleaseLayout
+    {
+        public int schema { get; set; }
+        public string product { get; set; }
+        public string version { get; set; }
+        public List<ReleaseLayoutFile> files { get; set; }
+        public List<string> retired { get; set; }
+    }
 
     private sealed class StartupForm : Form
     {
@@ -204,6 +223,333 @@ internal static class LakisLauncher
             catch { return "LAKIS Studio"; }
         }
 
+        private static bool IsProtectedUserPath(string relative)
+        {
+            string normalized = relative.Replace('\\', '/').TrimStart('/');
+            foreach (string prefix in new[] {
+                "ComfyUI/models/", "ComfyUI/user/", "ComfyUI/input/", "ComfyUI/output/"
+            })
+                if (normalized.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return true;
+            return false;
+        }
+
+        private static string ResolveManagedPath(string installRoot, string relative)
+        {
+            if (String.IsNullOrWhiteSpace(relative) || Path.IsPathRooted(relative))
+                throw new InvalidDataException("잘못된 관리 파일 경로입니다.");
+            string normalized = relative.Replace('\\', '/');
+            if (normalized.Split('/').Any(part => part == "..") || IsProtectedUserPath(normalized))
+                throw new InvalidDataException("사용자 데이터 또는 설치 루트 밖 경로는 복구할 수 없습니다: " + relative);
+            string rootFull = Path.GetFullPath(installRoot)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                + Path.DirectorySeparatorChar;
+            string full = Path.GetFullPath(Path.Combine(installRoot,
+                normalized.Replace('/', Path.DirectorySeparatorChar)));
+            if (!full.StartsWith(rootFull, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("설치 루트 밖 경로입니다: " + relative);
+            return full;
+        }
+
+        private static string ReleaseAssetUrl(string version, string asset)
+        {
+            string overrideUrl = Environment.GetEnvironmentVariable(RcReleaseBaseVariable);
+            if (!String.IsNullOrWhiteSpace(overrideUrl))
+                return ValidateRcLoopbackUrl(overrideUrl, RcReleaseBaseVariable).TrimEnd('/') + "/" + asset;
+            return "https://github.com/Jeong-Luke/LAKIS/releases/download/v" +
+                version + "/" + asset;
+        }
+
+        private static string ValidateRcLoopbackUrl(string value, string variable)
+        {
+            Uri uri;
+            if (!Uri.TryCreate(value, UriKind.Absolute, out uri) ||
+                !String.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) ||
+                !Regex.IsMatch(uri.Authority, "^(127\\.0\\.0\\.1|localhost):[0-9]+$", RegexOptions.IgnoreCase) ||
+                !String.IsNullOrEmpty(uri.UserInfo) || !String.IsNullOrEmpty(uri.Fragment) ||
+                !String.IsNullOrEmpty(uri.Query) || uri.Port < 1 || value.IndexOf('\\') >= 0 ||
+                Regex.IsMatch(value, "(^|/)\\.{1,2}(/|$)|%2e|%2f|%5c", RegexOptions.IgnoreCase))
+                throw new InvalidDataException(variable + " must be an http loopback URL (127.0.0.1 or localhost) with an explicit port.");
+            string decodedPath;
+            try { decodedPath = Uri.UnescapeDataString(uri.AbsolutePath); }
+            catch (UriFormatException) { throw new InvalidDataException(variable + " contains malformed escaping."); }
+            if (decodedPath.Replace('\\', '/').Split('/').Any(part => part == "." || part == ".."))
+                throw new InvalidDataException(variable + " must not contain path traversal.");
+            return uri.AbsoluteUri.TrimEnd('/');
+        }
+
+        private static IEnumerable<string> EffectiveManifestUrls()
+        {
+            string overrideUrl = Environment.GetEnvironmentVariable(RcManifestVariable);
+            if (String.IsNullOrWhiteSpace(overrideUrl)) return ManifestUrls;
+            return new[] { ValidateRcLoopbackUrl(overrideUrl, RcManifestVariable) };
+        }
+
+        private static void CopyRcEnvironment(ProcessStartInfo info)
+        {
+            foreach (string name in new[] { RcReleaseBaseVariable, RcManifestVariable })
+            {
+                string value = Environment.GetEnvironmentVariable(name);
+                if (!String.IsNullOrWhiteSpace(value)) info.EnvironmentVariables[name] = value;
+            }
+        }
+
+        private static bool UsesReleaseLayout(string installRoot)
+        {
+            string versionPath = Path.Combine(installRoot, "VERSION");
+            Version version;
+            return File.Exists(versionPath) &&
+                Version.TryParse(File.ReadAllText(versionPath).Trim(), out version) &&
+                version >= new Version(7, 5, 0);
+        }
+
+        private static bool TryGetReleaseLayout(string installRoot,
+            out ReleaseLayout layout, out string layoutJson, out string failure)
+        {
+            layout = null; layoutJson = null; failure = null;
+            try
+            {
+                // Release-layout validation is the first HTTPS request on startup.
+                // Enable TLS 1.2 here instead of relying on the later update check.
+                ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
+                string versionPath = Path.Combine(installRoot, "VERSION");
+                string version = File.Exists(versionPath) ? File.ReadAllText(versionPath).Trim() : "";
+                Version parsed;
+                if (!Version.TryParse(version, out parsed))
+                    throw new InvalidDataException("VERSION을 확인할 수 없습니다.");
+
+                var request = (HttpWebRequest)WebRequest.Create(
+                    ReleaseAssetUrl(version, "release-layout.json") +
+                    "?t=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+                request.UserAgent = "LAKIS-Consistency/" + version;
+                request.Timeout = 10000;
+                request.ReadWriteTimeout = 10000;
+                request.CachePolicy = new System.Net.Cache.RequestCachePolicy(
+                    System.Net.Cache.RequestCacheLevel.NoCacheNoStore);
+                using (var response = request.GetResponse())
+                using (var reader = new StreamReader(response.GetResponseStream(), Encoding.UTF8, true))
+                    layoutJson = reader.ReadToEnd();
+
+                var serializer = new JavaScriptSerializer { MaxJsonLength = 16 * 1024 * 1024 };
+                layout = serializer.Deserialize<ReleaseLayout>(layoutJson);
+                if (layout == null || layout.schema != 1 ||
+                    !String.Equals(layout.product, "LAKIS", StringComparison.Ordinal) ||
+                    !String.Equals(layout.version, version, StringComparison.Ordinal) ||
+                    layout.files == null || layout.files.Count < 10)
+                    throw new InvalidDataException("release-layout.json 내용이 올바르지 않습니다.");
+
+                var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (ReleaseLayoutFile entry in layout.files)
+                {
+                    if (entry == null || entry.size < 0 || !seen.Add(entry.path ?? ""))
+                        throw new InvalidDataException("release-layout.json 파일 목록이 올바르지 않습니다.");
+                    ResolveManagedPath(installRoot, entry.path);
+                }
+                foreach (string retired in layout.retired ?? new List<string>())
+                    ResolveManagedPath(installRoot, retired);
+                return true;
+            }
+            catch (Exception error)
+            {
+                failure = error.Message;
+                layout = null; layoutJson = null;
+                return false;
+            }
+        }
+
+        private static List<string> FindLayoutProblems(string installRoot, ReleaseLayout layout)
+        {
+            var failures = new List<string>();
+            foreach (ReleaseLayoutFile entry in layout.files)
+            {
+                string path = ResolveManagedPath(installRoot, entry.path);
+                if (!File.Exists(path)) failures.Add("누락: " + entry.path);
+                else if (new FileInfo(path).Length != entry.size)
+                    failures.Add("크기 불일치: " + entry.path);
+                if (failures.Count >= 8) return failures;
+            }
+            foreach (string retired in layout.retired ?? new List<string>())
+            {
+                string path = ResolveManagedPath(installRoot, retired);
+                if (File.Exists(path) || Directory.Exists(path))
+                    failures.Add("구버전 잔재: " + retired);
+                if (failures.Count >= 8) break;
+            }
+            return failures;
+        }
+
+        private static void DownloadFile(string url, string destination, string userAgent)
+        {
+            string temporary = destination + ".part";
+            if (File.Exists(temporary)) File.Delete(temporary);
+            var request = (HttpWebRequest)WebRequest.Create(
+                url + "?t=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+            request.UserAgent = userAgent;
+            request.Timeout = 30000;
+            request.ReadWriteTimeout = 30000;
+            request.CachePolicy = new System.Net.Cache.RequestCachePolicy(
+                System.Net.Cache.RequestCacheLevel.NoCacheNoStore);
+            using (var response = request.GetResponse())
+            using (var input = response.GetResponseStream())
+            using (var output = new FileStream(temporary, FileMode.Create, FileAccess.Write, FileShare.None))
+                input.CopyTo(output);
+            if (File.Exists(destination)) File.Delete(destination);
+            File.Move(temporary, destination);
+        }
+
+        private static void ExtractRepairPack(string archivePath, string payloadRoot)
+        {
+            if (Directory.Exists(payloadRoot)) Directory.Delete(payloadRoot, true);
+            Directory.CreateDirectory(payloadRoot);
+            string rootFull = Path.GetFullPath(payloadRoot)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                + Path.DirectorySeparatorChar;
+            using (ZipArchive archive = ZipFile.OpenRead(archivePath))
+            {
+                foreach (ZipArchiveEntry entry in archive.Entries)
+                {
+                    string relative = entry.FullName.Replace('\\', '/');
+                    if (String.IsNullOrWhiteSpace(relative)) continue;
+                    string target = Path.GetFullPath(Path.Combine(payloadRoot,
+                        relative.Replace('/', Path.DirectorySeparatorChar)));
+                    if (!target.StartsWith(rootFull, StringComparison.OrdinalIgnoreCase))
+                        throw new InvalidDataException("RepairPack 경로가 올바르지 않습니다.");
+                    if (String.IsNullOrEmpty(entry.Name))
+                    {
+                        Directory.CreateDirectory(target);
+                        continue;
+                    }
+                    Directory.CreateDirectory(Path.GetDirectoryName(target));
+                    entry.ExtractToFile(target, true);
+                }
+            }
+        }
+
+        private static string QuoteNativeArgument(string value)
+        {
+            var quoted = new StringBuilder("\"");
+            int backslashes = 0;
+            foreach (char character in value)
+            {
+                if (character == '\\')
+                {
+                    backslashes++;
+                    continue;
+                }
+                if (character == '"')
+                {
+                    quoted.Append('\\', backslashes * 2 + 1);
+                    quoted.Append('"');
+                }
+                else
+                {
+                    quoted.Append('\\', backslashes);
+                    quoted.Append(character);
+                }
+                backslashes = 0;
+            }
+            quoted.Append('\\', backslashes * 2);
+            quoted.Append('"');
+            return quoted.ToString();
+        }
+
+        private static bool ScheduleAutomaticRepair(string installRoot,
+            ReleaseLayout layout, string layoutJson, out string failure)
+        {
+            failure = null;
+            string staging = Path.Combine(Path.GetTempPath(),
+                "LAKIS-AutoRepair-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                Directory.CreateDirectory(staging);
+                string zip = Path.Combine(staging, "LAKIS_RepairPack.zip");
+                string payload = Path.Combine(staging, "payload");
+                DownloadFile(ReleaseAssetUrl(layout.version, "LAKIS_RepairPack.zip"),
+                    zip, "LAKIS-AutoRepair/" + layout.version);
+                ExtractRepairPack(zip, payload);
+
+                List<string> stagedProblems = FindLayoutProblems(payload, layout);
+                if (stagedProblems.Count > 0)
+                    throw new InvalidDataException("복구 패키지 검증 실패:\n" +
+                        String.Join("\n", stagedProblems.ToArray()));
+
+                string layoutPath = Path.Combine(staging, "release-layout.json");
+                File.WriteAllText(layoutPath, layoutJson, new UTF8Encoding(false));
+                string helper = Path.Combine(staging, "apply-repair.ps1");
+                string script = String.Join("\r\n", new[] {
+                    "param([string]$InstallRoot,[string]$PayloadRoot,[string]$LayoutPath,[int]$ParentPid,[string]$StagingRoot)",
+                    "$ErrorActionPreference='Stop'",
+                    "Add-Type -AssemblyName System.Windows.Forms",
+                    "$failed=$false",
+                    "try {",
+                    "try { Wait-Process -Id $ParentPid -ErrorAction SilentlyContinue } catch {}",
+                    "Start-Sleep -Milliseconds 700",
+                    "$layout=Get-Content -Raw -Encoding UTF8 -LiteralPath $LayoutPath | ConvertFrom-Json",
+                    "$root=[IO.Path]::GetFullPath($InstallRoot).TrimEnd('\\')+'\\'",
+                    "foreach($entry in $layout.files){",
+                    "  $rel=([string]$entry.path).Replace('/','\\')",
+                    "  $src=[IO.Path]::GetFullPath((Join-Path $PayloadRoot $rel))",
+                    "  $dst=[IO.Path]::GetFullPath((Join-Path $InstallRoot $rel))",
+                    "  if(-not $dst.StartsWith($root,[StringComparison]::OrdinalIgnoreCase)){throw 'Unsafe repair path'}",
+                    "  if((-not [IO.File]::Exists($dst)) -or ([IO.FileInfo]$dst).Length -ne [int64]$entry.size){",
+                    "    [IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($dst)) | Out-Null",
+                    "    Copy-Item -LiteralPath $src -Destination $dst -Force",
+                    "  }",
+                    "}",
+                    "foreach($retired in @($layout.retired)){",
+                    "  $dst=[IO.Path]::GetFullPath((Join-Path $InstallRoot (([string]$retired).Replace('/','\\'))))",
+                    "  if(-not $dst.StartsWith($root,[StringComparison]::OrdinalIgnoreCase)){throw 'Unsafe retired path'}",
+                    "  if(Test-Path -LiteralPath $dst -PathType Leaf){Remove-Item -LiteralPath $dst -Force}",
+                    "  elseif(Test-Path -LiteralPath $dst -PathType Container){Remove-Item -LiteralPath $dst -Recurse -Force}",
+                    "}",
+                    "foreach($entry in $layout.files){",
+                    "  $dst=[IO.Path]::GetFullPath((Join-Path $InstallRoot (([string]$entry.path).Replace('/','\\'))))",
+                    "  if((-not [IO.File]::Exists($dst)) -or ([IO.FileInfo]$dst).Length -ne [int64]$entry.size){throw ('Repair post-check failed: '+$entry.path)}",
+                    "}",
+                    "foreach($retired in @($layout.retired)){",
+                    "  $dst=[IO.Path]::GetFullPath((Join-Path $InstallRoot (([string]$retired).Replace('/','\\'))))",
+                    "  if(Test-Path -LiteralPath $dst){throw ('Repair retired-path post-check failed: '+$retired)}",
+                    "}",
+                    "Start-Process -FilePath (Join-Path $InstallRoot 'LAKIS.exe') -WorkingDirectory $InstallRoot",
+                    "} catch {",
+                    "  $failed=$true",
+                    "  [Windows.Forms.MessageBox]::Show('자동 복구에 실패했습니다.`nLAKIS Setup을 다시 실행하여 Repair를 진행해 주세요.','LAKIS 자동 복구 실패','OK','Error') | Out-Null",
+                    "}",
+                    "Start-Sleep -Seconds 1",
+                    "Remove-Item -LiteralPath $StagingRoot -Recurse -Force -ErrorAction SilentlyContinue",
+                    "if($failed){exit 1}"
+                });
+                // Windows PowerShell 5 treats BOM-less scripts as the active ANSI code page.
+                // Keep Korean recovery messages readable by writing the script with a UTF-8 BOM.
+                File.WriteAllText(helper, script, new UTF8Encoding(true));
+
+                string stateRoot = Path.Combine(installRoot, ".lakis");
+                Directory.CreateDirectory(stateRoot);
+                File.WriteAllText(Path.Combine(stateRoot, "release-layout-repair.attempt"),
+                    layout.version, new UTF8Encoding(false));
+
+                var info = new ProcessStartInfo {
+                    FileName = "powershell.exe",
+                    Arguments = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File " +
+                        QuoteNativeArgument(helper) + " -InstallRoot " + QuoteNativeArgument(installRoot) +
+                        " -PayloadRoot " + QuoteNativeArgument(payload) +
+                        " -LayoutPath " + QuoteNativeArgument(layoutPath) +
+                        " -ParentPid " + Process.GetCurrentProcess().Id +
+                        " -StagingRoot " + QuoteNativeArgument(staging),
+                    WorkingDirectory = installRoot,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                };
+                Process.Start(info);
+                return true;
+            }
+            catch (Exception error)
+            {
+                failure = error.Message;
+                try { if (Directory.Exists(staging)) Directory.Delete(staging, true); } catch { }
+                return false;
+            }
+        }
+
         private void SetStatus(string text)
         {
             if (!IsDisposed) status.Text = text;
@@ -216,6 +562,62 @@ internal static class LakisLauncher
             string launcher = Path.Combine(root, "ComfyUI", runtimeFolder, "external_ui", "launch_lakis.py");
             try
             {
+                if (!DevelopmentBuild && !PrivateLukeBuild && UsesReleaseLayout(root))
+                {
+                    SetStatus("GitHub와 설치 파일 동일성 검사 중");
+                    ReleaseLayout layout = null;
+                    string layoutJson = null;
+                    string layoutFailure = null;
+                    bool layoutLoaded = await Task.Run(() =>
+                        TryGetReleaseLayout(root, out layout, out layoutJson, out layoutFailure));
+                    if (!layoutLoaded)
+                    {
+                        MessageBox.Show(this,
+                            "GitHub와 설치 파일의 동일성 검사를 완료하지 못했습니다.\n" +
+                            "네트워크 연결을 확인해 주세요.\n" +
+                            "동일성 검사 없이 LAKIS를 실행합니다.",
+                            "LAKIS 동일성 검사", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                    else
+                    {
+                        List<string> layoutProblems = FindLayoutProblems(root, layout);
+                        string attemptMarker = Path.Combine(root, ".lakis", "release-layout-repair.attempt");
+                        if (layoutProblems.Count == 0)
+                        {
+                            try { if (File.Exists(attemptMarker)) File.Delete(attemptMarker); } catch { }
+                            SetStatus("설치 파일 동일성 확인 완료");
+                        }
+                        else if (File.Exists(attemptMarker))
+                        {
+                            progress.MarqueeAnimationSpeed = 0;
+                            MessageBox.Show(this,
+                                "자동 복구에 실패했습니다.\n" +
+                                "LAKIS Setup을 다시 실행하여 Repair를 진행해 주세요.",
+                                "LAKIS 자동 복구 실패", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            Close(); return;
+                        }
+                        else
+                        {
+                            MessageBox.Show(this,
+                                "설치 파일이 현재 버전과 일치하지 않습니다.\n자동 복구를 시작합니다.",
+                                "LAKIS 자동 복구", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            SetStatus("자동 복구 준비 중");
+                            string repairFailure = null;
+                            bool repairScheduled = await Task.Run(() =>
+                                ScheduleAutomaticRepair(root, layout, layoutJson, out repairFailure));
+                            if (!repairScheduled)
+                            {
+                                progress.MarqueeAnimationSpeed = 0;
+                                MessageBox.Show(this,
+                                    "자동 복구에 실패했습니다.\n" +
+                                    "LAKIS Setup을 다시 실행하여 Repair를 진행해 주세요.",
+                                    "LAKIS 자동 복구 실패", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            }
+                            Close(); return;
+                        }
+                    }
+                }
+
                 SetStatus(PrivateLukeBuild ? "개인판 시작 중 · 자동 업데이트 꺼짐" : (DevelopmentBuild ? "개발판 시작 중 · 자동 업데이트 꺼짐" : "업데이트 확인 중"));
                 string patcher = Path.Combine(root, "LAKIS_Patcher.exe");
                 string updater = File.Exists(patcher) ? patcher : Path.Combine(root, "LAKIS_Updater.exe");
@@ -235,11 +637,13 @@ internal static class LakisLauncher
                     ShowUpdatePrompt(this, check.Item2, GetLatestReleaseNotes(check.Item2)))
                 {
                     SetStatus("업데이트 프로그램 여는 중");
-                    Process.Start(new ProcessStartInfo {
+                    var updaterInfo = new ProcessStartInfo {
                         FileName = updater,
                         Arguments = "\"" + root.TrimEnd(Path.DirectorySeparatorChar) + "\" --launch-after-update",
-                        WorkingDirectory = root, UseShellExecute = true,
-                    });
+                        WorkingDirectory = root, UseShellExecute = false,
+                    };
+                    CopyRcEnvironment(updaterInfo);
+                    Process.Start(updaterInfo);
                     Close(); return;
                 }
 
@@ -268,6 +672,19 @@ internal static class LakisLauncher
                     startInfo.EnvironmentVariables["LAKIS_LUKE"] = "1";
                     startInfo.EnvironmentVariables["LAKIS_DESKTOP_HOST"] =
                         Path.Combine(root, "LUKIS_Desktop.exe");
+                }
+                else
+                {
+                    // Public LAKIS must not inherit DEKIS/LUKIS identity or experiment
+                    // flags from the parent environment. Fail closed to the public runtime.
+                    startInfo.EnvironmentVariables["LAKIS_DEVELOPMENT"] = "0";
+                    startInfo.EnvironmentVariables["LAKIS_LUKE"] = "0";
+                    startInfo.EnvironmentVariables["LAKIS_FULL_TURBO_EXPERIMENT"] = "0";
+                    startInfo.EnvironmentVariables["LAKIS_HALF_RES_FAST_EXPERIMENT"] = "0";
+                    startInfo.EnvironmentVariables["LAKIS_LOCAL_INPAINT_V2"] = "1";
+                    startInfo.EnvironmentVariables["LAKIS_COMFY_PORT"] = "8189";
+                    startInfo.EnvironmentVariables["LAKIS_DESKTOP_HOST"] =
+                        Path.Combine(root, "LAKIS_Desktop.exe");
                 }
                 startInfo.EnvironmentVariables["LORA_MANAGER_SETTINGS_DIR"] =
                     Path.Combine(root, "ComfyUI", "user", "default", "lora-manager");
@@ -344,6 +761,26 @@ internal static class LakisLauncher
             return true;
         }
         catch { return false; }
+    }
+
+    private static IEnumerable<string> EffectiveManifestUrls()
+    {
+        string overrideUrl = Environment.GetEnvironmentVariable(RcManifestVariable);
+        if (String.IsNullOrWhiteSpace(overrideUrl)) return ManifestUrls;
+        Uri uri;
+        if (!Uri.TryCreate(overrideUrl, UriKind.Absolute, out uri) ||
+            !String.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) ||
+            !Regex.IsMatch(uri.Authority, "^(127\\.0\\.0\\.1|localhost):[0-9]+$", RegexOptions.IgnoreCase) ||
+            !String.IsNullOrEmpty(uri.UserInfo) || !String.IsNullOrEmpty(uri.Fragment) ||
+            !String.IsNullOrEmpty(uri.Query) || uri.Port < 1 || overrideUrl.IndexOf('\\') >= 0 ||
+            Regex.IsMatch(overrideUrl, "(^|/)\\.{1,2}(/|$)|%2e|%2f|%5c", RegexOptions.IgnoreCase))
+            throw new InvalidDataException(RcManifestVariable + " must be an http loopback URL (127.0.0.1 or localhost) with an explicit port.");
+        string decodedPath;
+        try { decodedPath = Uri.UnescapeDataString(uri.AbsolutePath); }
+        catch (UriFormatException) { throw new InvalidDataException(RcManifestVariable + " contains malformed escaping."); }
+        if (decodedPath.Replace('\\', '/').Split('/').Any(part => part == "." || part == ".."))
+            throw new InvalidDataException(RcManifestVariable + " must not contain path traversal.");
+        return new[] { uri.AbsoluteUri.TrimEnd('/') };
     }
 
     private static bool WaitForLauncherReady(Process process, string statePath, int timeoutSeconds)
@@ -438,7 +875,10 @@ internal static class LakisLauncher
         latest = null;
         failure = "업데이트 서버에 연결할 수 없습니다.";
         ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
-        foreach (string url in ManifestUrls)
+        IEnumerable<string> manifestUrls;
+        try { manifestUrls = EffectiveManifestUrls(); }
+        catch (Exception error) { failure = error.Message; return false; }
+        foreach (string url in manifestUrls)
         {
             try
             {
@@ -458,6 +898,7 @@ internal static class LakisLauncher
             }
             catch (Exception error) { failure = error.Message; }
         }
+        if (!String.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(RcManifestVariable))) return false;
         // The manifest hosts can be cached or blocked independently.  GitHub's
         // release API is a third, metadata-only route, so a launcher never gets
         // stranded merely because raw.githubusercontent.com is unavailable.

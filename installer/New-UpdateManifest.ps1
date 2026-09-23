@@ -109,12 +109,12 @@ foreach ($package in $packageNames) {
 Add-UpdateFile "ComfyUI/LAKIS/sync_runtime_workflow.py" (Join-Path $repo "src\runtime\sync_runtime_workflow.py") `
     "$rawBase/src/runtime/sync_runtime_workflow.py"
 
-# This is application-owned and safe to update. The editable workflow under
-# ComfyUI/user is deliberately excluded because it contains user changes.
+# Only release-owned runtime workflows are updated. Editable workflows may
+# contain user changes, including the packaged editable copy, so they are
+# deliberately excluded from update payloads.
 foreach ($runtimeName in @(
     "LAKIS_runtime_api_v7.4.json",
-    "LAKIS_runtime_visual_v7.4.json",
-    "LAKIS_custom_v7.4_editable.json"
+    "LAKIS_runtime_visual_v7.4.json"
 )) {
     Add-UpdateFile "ComfyUI/LAKIS/workflows/$runtimeName" `
         (Join-Path $repo "workflows\$runtimeName") "$rawBase/workflows/$runtimeName"
@@ -124,7 +124,6 @@ $retiredFiles = @(
     'ComfyUI/LAKIS/external_ui/light-control-prototype.css',
     'ComfyUI/LAKIS/external_ui/lightmap-knob-mockup.js',
     'ComfyUI/LAKIS/workflows/LAKIS_DETAIL_runtime_api_v7.3.json',
-    'ComfyUI/LAKIS/workflows/LAKIS_custom_v7.3_editable.json',
     'ComfyUI/LAKIS/workflows/LAKIS_runtime_api_v7.1.json',
     'ComfyUI/LAKIS/workflows/LAKIS_runtime_visual_v7.3.json',
     'ComfyUI/custom_nodes/ComfyUI-LAKIS-Light-Control/INSTALL_REQUIREMENTS.bat',
@@ -136,6 +135,18 @@ $retiredFiles = @(
 )
 
 $filePaths = @($files | ForEach-Object { [string]$_.path })
+
+# Public update manifests must never contain DEKIS/LUKIS runtime paths or
+# development-only version/icon artifacts. This is a hard product-boundary gate.
+$forbiddenProductPathPattern = '(?i)(LAKIS_DEV|DEKIS|LUKIS|LAKIS_LUKE|DEV_VERSION|LUKE_VERSION|LAKIS_DEV_red|LUKIS_Desktop|Start_LUKIS_Mobile)'
+$forbiddenProductPaths = @(
+    @($filePaths) + @($retiredFiles) |
+    Where-Object { $_ -match $forbiddenProductPathPattern }
+)
+if ($forbiddenProductPaths.Count) {
+    throw "Public update manifest contains development/private product paths: $($forbiddenProductPaths -join ', ')"
+}
+
 $duplicatePaths = @($filePaths | Group-Object | Where-Object Count -gt 1 | ForEach-Object Name)
 if ($duplicatePaths.Count) {
     throw "Update manifest contains duplicate file paths: $($duplicatePaths -join ', ')"

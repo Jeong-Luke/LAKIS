@@ -1,17 +1,24 @@
 name: Publish installer
 
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing release tag to update
+        description: Public release tag to create or resume
+        required: true
+      candidate_ref:
+        description: Exact source commit used to build the tested Private RC
+        required: true
+      approval_ref:
+        description: Exact commit containing approval records for those RC artifacts
+        required: true
+      rc_run_id:
+        description: Prepare private RC workflow run ID containing the exact tested artifact set
         required: true
 
 permissions:
   contents: write
+  actions: read
 
 jobs:
   build-and-publish:
@@ -19,16 +26,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.tag || github.ref_name }}
+          ref: ${{ inputs.candidate_ref }}
           fetch-depth: 0
       - name: Verify release identity
         id: identity
         shell: powershell
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          CANDIDATE_REF: ${{ inputs.candidate_ref }}
+          APPROVAL_REF: ${{ inputs.approval_ref }}
         run: |
           $version = $env:RELEASE_TAG -replace '^v', ''
+          if ($env:CANDIDATE_REF -notmatch '^[a-fA-F0-9]{40}$') { throw "Candidate ref must be a full 40-character commit SHA." }
+          if ($env:APPROVAL_REF -notmatch '^[a-fA-F0-9]{40}$') { throw "Approval ref must be a full 40-character commit SHA." }
           $sourceVersion = (Get-Content -Raw .\VERSION).Trim()
           if ($version -ne $sourceVersion) { throw "Tag $env:RELEASE_TAG does not match VERSION $sourceVersion" }
           $publishedUrl = "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/main/manifests/update-latest.json?prepublish=" + [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
@@ -56,30 +67,59 @@ jobs:
         if: steps.identity.outputs.complete == 'true'
         shell: powershell
         env:
-          RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+          RELEASE_TAG: ${{ inputs.tag }}
         run: |
           .\installer\Test-UpdateManifest.ps1 -ExpectedVersion (($env:RELEASE_TAG) -replace '^v', '') -VerifyRemote -Passes 3
-      - name: Build verified installer
+      - name: Download exact private RC artifact set
+        if: steps.identity.outputs.complete != 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: lakis-private-rc
+          path: dist
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.rc_run_id }}
+      - name: Read approval records without changing candidate source
+        if: steps.identity.outputs.complete != 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.approval_ref }}
+          path: .release-approval-records
+          sparse-checkout: release_approvals
+          persist-credentials: false
+      - name: Verify exact approved private RC artifact
         if: steps.identity.outputs.complete != 'true'
         shell: powershell
         env:
-          RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          CANDIDATE_REF: ${{ inputs.candidate_ref }}
         run: |
-          .\installer\Test-ReleaseRegression.ps1 -ExpectedVersion (($env:RELEASE_TAG) -replace '^v', '')
-          $env:LAKIS_INSTALLER_OUTPUT = Join-Path $env:GITHUB_WORKSPACE "dist\LAKIS_Setup.exe"
-          .\installer\build_safe_installer.ps1
-          .\installer\Test-InstallerDataSafety.ps1 -InstallerPath $env:LAKIS_INSTALLER_OUTPUT
+          $releaseVersion = (($env:RELEASE_TAG) -replace '^v', '')
+          $dist = Join-Path $env:GITHUB_WORKSPACE "dist"
+          $evidence = Join-Path $env:GITHUB_WORKSPACE (".release-approval-records\release_approvals\v" + $releaseVersion)
+          .\installer\Test-ThreePartyAuditGate.ps1 -Version $releaseVersion
+          .\installer\Test-ReleaseRegression.ps1 -ExpectedVersion $releaseVersion
+          .\installer\Test-InstallerDataSafety.ps1 -InstallerPath (Join-Path $dist "LAKIS_Setup.exe")
+          .\installer\Test-PublicProductBoundary.ps1 -DistDirectory $dist
+          .\installer\Test-ReleaseApprovalGate.ps1 -Version $releaseVersion -EvidenceDirectory $evidence -DistDirectory $dist
+          $buildRecord = Get-Content -Raw -Encoding UTF8 (Join-Path $dist "private-rc-build.json") | ConvertFrom-Json
+          $fpPath = Join-Path $env:RUNNER_TEMP "publish-candidate-fingerprint.json"
+          .\installer\New-ReleaseAuditFingerprint.ps1 -OutputPath $fpPath | Out-Null
+          $current = Get-Content -Raw -Encoding UTF8 $fpPath | ConvertFrom-Json
+          if ([string]$buildRecord.fingerprint_sha256 -ne [string]$current.fingerprint_sha256) { throw "Private RC artifact was built from a different candidate fingerprint." }
+          $resolvedCandidate = (git rev-parse $env:CANDIDATE_REF).Trim()
+          if ([string]$buildRecord.source_commit -ne $resolvedCandidate) { throw "Private RC artifact was built from a different source commit." }
       - name: Create or restore draft release and upload assets
         if: steps.identity.outputs.complete != 'true'
         shell: powershell
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          CANDIDATE_REF: ${{ inputs.candidate_ref }}
         run: |
           $releaseJson = $null
           try { $releaseJson = gh release view $env:RELEASE_TAG --json isDraft 2>$null } catch { $releaseJson = $null }
           if (-not $releaseJson) {
-            gh release create $env:RELEASE_TAG --draft --title "LAKIS $env:RELEASE_TAG" --notes-file .\RELEASE_NOTES.md
+            gh release create $env:RELEASE_TAG --target $env:CANDIDATE_REF --draft --title "LAKIS $env:RELEASE_TAG" --notes-file .\RELEASE_NOTES.md
             if ($LASTEXITCODE -ne 0) { throw "Failed to create draft release $env:RELEASE_TAG" }
           } elseif (-not (($releaseJson | ConvertFrom-Json).isDraft)) {
             # A previous attempt may have stopped after publishing but before
@@ -88,14 +128,38 @@ jobs:
             gh release edit $env:RELEASE_TAG --draft
             if ($LASTEXITCODE -ne 0) { throw "Failed to restore $env:RELEASE_TAG to draft state" }
           }
-          gh release upload $env:RELEASE_TAG ".\dist\LAKIS_Setup.exe#LAKIS_Setup.exe" ".\dist\LAKIS.exe#LAKIS.exe" ".\dist\LAKIS_Patcher.exe#LAKIS_Patcher.exe" ".\dist\LAKIS_Updater.exe#LAKIS_Updater.exe" ".\dist\LAKIS_Desktop.exe#LAKIS_Desktop.exe" ".\dist\LAKIS_Model_Importer.exe#LAKIS_Model_Importer.exe" ".\dist\Uninstall_LAKIS.exe#Uninstall_LAKIS.exe" ".\dist\Microsoft.Web.WebView2.Core.dll#Microsoft.Web.WebView2.Core.dll" ".\dist\Microsoft.Web.WebView2.WinForms.dll#Microsoft.Web.WebView2.WinForms.dll" ".\dist\WebView2Loader.dll#WebView2Loader.dll" --clobber
+          git fetch origin ("refs/tags/" + $env:RELEASE_TAG + ":refs/tags/" + $env:RELEASE_TAG) --force
+          if ($LASTEXITCODE -ne 0) { throw "Failed to fetch release tag $env:RELEASE_TAG" }
+          $tagCommit = (git rev-list -n 1 $env:RELEASE_TAG).Trim()
+          $candidateCommit = (git rev-parse $env:CANDIDATE_REF).Trim()
+          if ($tagCommit -ne $candidateCommit) { throw "Release tag does not point to the approved candidate ref." }
+          gh release upload $env:RELEASE_TAG ".\dist\LAKIS_Setup.exe#LAKIS_Setup.exe" ".\dist\LAKIS.exe#LAKIS.exe" ".\dist\LAKIS_Patcher.exe#LAKIS_Patcher.exe" ".\dist\LAKIS_Updater.exe#LAKIS_Updater.exe" ".\dist\LAKIS_Desktop.exe#LAKIS_Desktop.exe" ".\dist\LAKIS_Model_Importer.exe#LAKIS_Model_Importer.exe" ".\dist\Uninstall_LAKIS.exe#Uninstall_LAKIS.exe" ".\dist\Microsoft.Web.WebView2.Core.dll#Microsoft.Web.WebView2.Core.dll" ".\dist\Microsoft.Web.WebView2.WinForms.dll#Microsoft.Web.WebView2.WinForms.dll" ".\dist\WebView2Loader.dll#WebView2Loader.dll" ".\dist\release-layout.json#release-layout.json" ".\dist\LAKIS_RepairPack.zip#LAKIS_RepairPack.zip" --clobber
           if ($LASTEXITCODE -ne 0) { throw "Failed to upload one or more release assets" }
+          $cmdAsset = "LAKIS_CMD_Installer_" + ($env:RELEASE_TAG -replace '^v', '') + ".zip"
+          gh release upload $env:RELEASE_TAG (".\dist\" + $cmdAsset + "#" + $cmdAsset) --clobber
+          if ($LASTEXITCODE -ne 0) { throw "Failed to upload CMD installer asset" }
+      - name: Verify exact CMD package downloads three times
+        if: steps.identity.outputs.complete != 'true'
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          $cmdAsset = "LAKIS_CMD_Installer_" + ($env:RELEASE_TAG -replace '^v', '') + ".zip"
+          $expectedHash = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path '.\dist' $cmdAsset)).Hash
+          for ($pass = 1; $pass -le 3; $pass++) {
+            $downloadDir = Join-Path $env:RUNNER_TEMP ("cmd-release-verification-" + [guid]::NewGuid().ToString('N'))
+            New-Item -ItemType Directory -Path $downloadDir | Out-Null
+            gh release download $env:RELEASE_TAG --pattern $cmdAsset --dir $downloadDir
+            if ($LASTEXITCODE -ne 0) { throw "CMD package remote download failed on pass $pass" }
+            if ((Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $downloadDir $cmdAsset)).Hash -ne $expectedHash) { throw "CMD package remote hash mismatch on pass $pass" }
+          }
       - name: Build and verify update manifest from published bytes
         if: steps.identity.outputs.complete != 'true'
         shell: powershell
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+          RELEASE_TAG: ${{ inputs.tag }}
         run: |
           $version = $env:RELEASE_TAG -replace '^v', ''
           .\installer\New-UpdateManifest.ps1 -Version $version -DistDirectory (Join-Path $env:GITHUB_WORKSPACE "dist")
@@ -108,7 +172,7 @@ jobs:
         shell: powershell
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+          RELEASE_TAG: ${{ inputs.tag }}
         run: |
           gh release edit $env:RELEASE_TAG --draft=false --latest
           if ($LASTEXITCODE -ne 0) { throw "Failed to publish verified release $env:RELEASE_TAG" }
@@ -116,7 +180,7 @@ jobs:
         if: steps.identity.outputs.complete != 'true'
         shell: powershell
         env:
-          RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+          RELEASE_TAG: ${{ inputs.tag }}
         run: |
           git restore .\manifests\update-latest.json
           git fetch origin main

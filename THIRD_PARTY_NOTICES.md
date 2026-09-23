@@ -53,6 +53,12 @@ available in this repository and through the upstream links.
   modifications in source control.
 - Original LAKIS nodes are covered by `LICENSE.md` unless their directory states
   a different licence.
+- The bundled `src/external_ui/assets/arcalive-logo.svg` is the Arcalive logo
+  by umanle S.R.L., sourced from
+  `https://commons.wikimedia.org/wiki/File:Arcalive_logo.svg` from the
+  publisher's `https://arca.live/` artwork. Wikimedia Commons classifies this
+  simple logo as public domain; it is used only to identify the external
+  Arcalive link.
 
 ## Models and weights
 

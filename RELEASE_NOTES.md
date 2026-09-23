@@ -1,4 +1,4 @@
-# LAKIS v7.4.5
+# LAKIS v7.5.0
 
 ## 주요 변경 사항
 
@@ -15,6 +15,11 @@
 - 공개 업데이트에 Local Inpaint V2용 `ComfyUI-Anima-LLLite` 실행 노드를 포함하고 안전 마커를 항상 복구하도록 수정했습니다.
 - 업데이트가 같은 파일을 설치한 뒤 삭제하지 못하도록 매니페스트 충돌 검사를 추가했습니다.
 - 폐기된 Light/DSINE 경로와 비공개 연구 기능을 공개 배포에서 제외했습니다.
+- Windows Defender가 일반 Setup을 차단하는 환경을 위한 공식 CMD Version 설치 경로를 추가했습니다.
+- CMD 설치기도 다운로드 자산의 SHA-256, 설치 파일 목록과 크기를 검증하고 staging 완료 후에만 설치 위치로 승격합니다.
+- 실행 전에 공개 `release-layout.json`으로 관리 파일의 누락과 크기를 확인하고, 확인된 손상은 한 번의 자동 Repair로 복구합니다.
+- 자동 Repair와 업데이트가 사용자 workflow, 모델, LoRA, 입력·출력 이미지와 설치별 설정을 덮어쓰지 않도록 보호 범위를 강화했습니다.
+- 신규 설치에 기본 입력 이미지와 Editable workflow를 포함하여 첫 생성과 LoRA Manager 초기화를 안정화했습니다.
 
 ## Local Inpaint 모델
 
@@ -22,7 +27,7 @@
 
 ## 업데이트 안전성
 
-기존 v7.4.x 및 v7.3.6 설치에서 v7.4.5로 업데이트할 수 있습니다. 사용자 모델, LoRA, workflow, 입력·출력 이미지, Library, 사용자 와일드카드와 설치별 설정은 유지됩니다.
+기존 안정 버전 사용자는 v7.5.0 공개 후 자동 업데이트로 전환할 수 있습니다. 사용자 모델, LoRA, workflow, 입력·출력 이미지, Library, 사용자 와일드카드와 설치별 설정은 유지됩니다.
 
 ---
 
@@ -41,5 +46,12 @@
 - Added the `ComfyUI-Anima-LLLite` runtime nodes to public updates and ensured the required safety marker is restored.
 - Added manifest validation that rejects any path scheduled for both installation and deletion.
 - Removed retired Light/DSINE paths and private research features from the public distribution.
+- Added an official CMD Version installation path for systems where Windows Defender blocks the regular Setup.
+- The CMD installer verifies downloaded assets, the managed-file inventory, and file sizes before promoting its staging tree.
+- Added a public `release-layout.json` consistency check and a single automatic Repair cycle for confirmed managed-file damage.
+- Strengthened update and Repair protection for user workflows, models, LoRAs, input/output images, and installation-specific state.
+- Included the default input image and Editable workflow in fresh installations to stabilize first generation and LoRA Manager initialization.
 
 The `anima-lllite-inpainting-v2.safetensors` weight is not bundled or downloaded automatically. Users install it manually from the official publisher.
+
+Existing stable installations can move to v7.5.0 after the release is published. User models, LoRAs, workflows, input/output images, Library data, wildcards, and installation-specific settings are preserved.

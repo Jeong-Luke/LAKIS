@@ -11,6 +11,15 @@
   if (!overlay || !groups || !inspector || !deleteButton || !selectModeButton || !selectionBar || !selectedCount || !batchDeleteButton || !selectionCancel) return;
   let items = [], selected = null, selectionMode = false, batchDeleting = false;
   const selectedItems = new Set();
+  const LIBRARY_RENDER_BATCH_SIZE = 20;
+  let renderedCount = 0;
+  const renderedDateGrids = new Map();
+  const loadMoreSentinel = document.createElement('div');
+  loadMoreSentinel.className = 'image-history-load-more-sentinel';
+  loadMoreSentinel.setAttribute('aria-hidden', 'true');
+  Object.assign(loadMoreSentinel.style, {height:'1px', width:'100%', pointerEvents:'none'});
+  groups.after(loadMoreSentinel);
+  let loadMoreObserver = null;
   const viewportLazyLoadEnabled = localStorage.getItem('lakis.libraryViewportLazyLoad') !== '0';
   const VIEWPORT_PRELOAD_MARGIN = '150% 0px';
   let imageObserver = null;
@@ -62,6 +71,25 @@
     imageObserver.observe(image);
     publishLazyStats();
   };
+  const stopLoadMoreObserver = () => {
+    loadMoreObserver?.disconnect();
+    loadMoreObserver = null;
+  };
+  const observeLoadMoreSentinel = () => {
+    if (renderedCount >= items.length) {
+      loadMoreSentinel.hidden = true;
+      stopLoadMoreObserver();
+      return;
+    }
+    loadMoreSentinel.hidden = false;
+    if (!('IntersectionObserver' in window)) return;
+    if (!loadMoreObserver) {
+      loadMoreObserver = new IntersectionObserver(entries => {
+        if (entries.some(entry => entry.isIntersecting)) renderNextBatch();
+      }, {root:null, rootMargin:'600px 0px', threshold:0});
+    }
+    loadMoreObserver.observe(loadMoreSentinel);
+  };
   const clearDetail = () => { selected = null; deleteButton.disabled = true; inspector.hidden = true; document.querySelectorAll('.image-history-card.selected').forEach(el => el.classList.remove('selected')); };
   const syncSelectionUi = () => {
     selectionBar.hidden = !selectionMode;
@@ -83,31 +111,73 @@
     document.querySelector('#historyPrompt').textContent = item.prompt || '이미지 메타데이터에 없음';
     document.querySelector('#historyNegative').textContent = item.negative_prompt || '이미지 메타데이터에 없음'; inspector.hidden = false;
   };
+  const renderNextBatch = () => {
+    if (renderedCount >= items.length) {
+      observeLoadMoreSentinel();
+      return;
+    }
+    const end = Math.min(items.length, renderedCount + LIBRARY_RENDER_BATCH_SIZE);
+    for (let index = renderedCount; index < end; index += 1) {
+      const item = items[index];
+      const date = String(item.date || '날짜 미상');
+      let grid = renderedDateGrids.get(date);
+      if (!grid) {
+        const section = document.createElement('section');
+        const heading = document.createElement('h3');
+        grid = document.createElement('div');
+        section.className = 'image-history-date';
+        heading.textContent = date;
+        grid.className = 'image-history-grid';
+        section.append(heading, grid);
+        groups.append(section);
+        renderedDateGrids.set(date, grid);
+      }
+
+      const button = document.createElement('button');
+      const image = document.createElement('img');
+      const name = document.createElement('span');
+      button.type = 'button';
+      button.className = 'image-history-card';
+      button.setAttribute('data-history-index', String(index));
+      image.dataset.src = apiUrl(item.thumbnail_url || item.url);
+      image.alt = String(item.name || 'LAKIS 이미지');
+      name.textContent = String(item.name || '이미지');
+      if (selectionMode) button.classList.add('selection-mode');
+      if (selectedItems.has(item.id)) button.classList.add('multi-selected');
+      button.setAttribute('aria-pressed', selectionMode ? String(selectedItems.has(item.id)) : 'false');
+      button.append(image, name);
+      observeImage(image);
+      button.addEventListener('click', () => {
+        if (!selectionMode) { show(item, button); return; }
+        if (selectedItems.has(item.id)) selectedItems.delete(item.id); else selectedItems.add(item.id);
+        button.classList.toggle('multi-selected', selectedItems.has(item.id));
+        button.setAttribute('aria-pressed', String(selectedItems.has(item.id)));
+        syncSelectionUi();
+      });
+      grid.append(button);
+    }
+    renderedCount = end;
+    overlay.dataset.libraryRenderedItems = String(renderedCount);
+    observeLoadMoreSentinel();
+  };
   const render = () => {
     resetImageObserver();
+    stopLoadMoreObserver();
     groups.replaceChildren();
-    if (!items.length) { const empty = document.createElement('div'); empty.className = 'image-history-empty'; empty.textContent = '저장된 이미지가 없습니다.'; groups.append(empty); return; }
-    const byDate = new Map();
-    items.forEach((item, index) => { const date = String(item.date || '날짜 미상'); if (!byDate.has(date)) byDate.set(date, []); byDate.get(date).push({item, index}); });
-    for (const [date, entries] of byDate.entries()) {
-      const section = document.createElement('section'), heading = document.createElement('h3'), grid = document.createElement('div');
-      section.className = 'image-history-date'; heading.textContent = date; grid.className = 'image-history-grid';
-      for (const entry of entries) {
-        const button = document.createElement('button'), image = document.createElement('img'), name = document.createElement('span');
-        button.type = 'button'; button.className = 'image-history-card'; button.setAttribute('data-history-index', String(entry.index));
-        image.dataset.src = apiUrl(entry.item.url); image.alt = String(entry.item.name || 'LAKIS 이미지'); name.textContent = String(entry.item.name || '이미지');
-        if (selectionMode) button.classList.add('selection-mode');
-        if (selectedItems.has(entry.item.id)) button.classList.add('multi-selected');
-        button.setAttribute('aria-pressed', selectionMode ? String(selectedItems.has(entry.item.id)) : 'false');
-        button.append(image, name); observeImage(image); button.addEventListener('click', () => {
-          if (!selectionMode) { show(entry.item, button); return; }
-          if (selectedItems.has(entry.item.id)) selectedItems.delete(entry.item.id); else selectedItems.add(entry.item.id);
-          button.classList.toggle('multi-selected', selectedItems.has(entry.item.id));
-          button.setAttribute('aria-pressed', String(selectedItems.has(entry.item.id)));
-          syncSelectionUi();
-        }); grid.append(button);
-      }
-      section.append(heading, grid); groups.append(section);
+    renderedDateGrids.clear();
+    renderedCount = 0;
+    overlay.dataset.libraryRenderedItems = '0';
+    if (!items.length) {
+      const empty = document.createElement('div');
+      empty.className = 'image-history-empty';
+      empty.textContent = '저장된 이미지가 없습니다.';
+      groups.append(empty);
+      loadMoreSentinel.hidden = true;
+      return;
+    }
+    renderNextBatch();
+    if (!('IntersectionObserver' in window)) {
+      while (renderedCount < items.length) renderNextBatch();
     }
   };
   const load = async () => {
@@ -121,7 +191,7 @@
       notice(''); render();
     } catch (error) { notice(`라키스 라이브러리를 불러오지 못했습니다: ${error?.message || String(error)}`); }
   };
-  const close = () => { overlay.hidden = true; document.body.style.overflow = ''; resetImageObserver(); clear(); };
+  const close = () => { overlay.hidden = true; document.body.style.overflow = ''; resetImageObserver(); stopLoadMoreObserver(); loadMoreSentinel.hidden = true; clear(); };
   window.addEventListener('lakis:open-image-history', () => { overlay.hidden = false; document.body.style.overflow = 'hidden'; load(); });
   document.querySelector('#imageHistoryClose')?.addEventListener('click', close); overlay.addEventListener('click', event => { if (event.target === overlay) close(); });
   selectModeButton.addEventListener('click', () => { clearDetail(); selectedItems.clear(); selectionMode = true; syncSelectionUi(); render(); });
