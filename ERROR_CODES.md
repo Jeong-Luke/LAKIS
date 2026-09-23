@@ -92,16 +92,16 @@
 생성 실패 시 `/api/generation-status`와 `external_ui_bridge_audit.jsonl`에
 `error_code`, `request_id`, `prompt_id`, `error_stage`, `error_node_id`,
 `error_node_type`, `error_exception_type`, `error_detail`, `finished_at`을 함께
-남긴다. 화면에는 코드·단계·노드·축약 추적 ID만 표시한다.
+남기고, 화면에는 코드·단계·노드·축약 추적 ID만 표시합니다.
 
 오류창의 **오류 정보 복사하기**는 위 식별 정보와 재현용 생성 설정을 JSON으로
 복사한다. 프롬프트 원문, 입력 이미지 데이터, 시드와 사용자 절대 경로는 포함하지
-않는다.
+않습니다.
 
-`LKS-CFG-1103`에는 해당 노드가 ComfyUI에서 선언한 당시의 입력 규격만 기록한다.
+`LKS-CFG-1103`에는 해당 노드가 ComfyUI에서 선언한 당시의 입력 규격만 기록합니다.
 `setting_node_id`, `setting_node_type`, `setting_name`, `received_value`,
-`node_declaration`(min/max/step 또는 options), `internal_reason`이 포함된다. LAKIS가
-별도의 임의 범위를 추가하지 않는다.
+`node_declaration`(min/max/step 또는 options), `internal_reason`이 포함되며. LAKIS가
+별도의 임의 범위를 추가하지 않습니다.
 
 
 ## Recovery candidate additions (not a published release)
