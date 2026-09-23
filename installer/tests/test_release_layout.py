@@ -127,6 +127,16 @@ class ReleaseLayoutTests(unittest.TestCase):
         self.assertIn("version >= new Version(7, 5, 0)", launcher)
         self.assertIn("LAKIS_RepairPack.zip", launcher)
         self.assertIn("release-layout-repair.attempt", launcher)
+        argument_quote_start = launcher.index("private static string QuoteNativeArgument")
+        argument_quote_end = launcher.index(
+            "private static bool ScheduleAutomaticRepair", argument_quote_start
+        )
+        argument_quote = launcher[argument_quote_start:argument_quote_end]
+        self.assertIn("backslashes * 2 + 1", argument_quote)
+        self.assertIn("backslashes * 2", argument_quote)
+        self.assertIn(
+            "File.WriteAllText(helper, script, new UTF8Encoding(true));", launcher
+        )
         self.assertIn("Repair post-check failed", launcher)
         self.assertIn("Repair retired-path post-check failed", launcher)
         self.assertIn("if((-not [IO.File]::Exists($dst))", launcher)

@@ -426,7 +426,30 @@ internal static class LakisLauncher
 
         private static string QuoteNativeArgument(string value)
         {
-            return "\"" + value.Replace("\"", "\\\"") + "\"";
+            var quoted = new StringBuilder("\"");
+            int backslashes = 0;
+            foreach (char character in value)
+            {
+                if (character == '\\')
+                {
+                    backslashes++;
+                    continue;
+                }
+                if (character == '"')
+                {
+                    quoted.Append('\\', backslashes * 2 + 1);
+                    quoted.Append('"');
+                }
+                else
+                {
+                    quoted.Append('\\', backslashes);
+                    quoted.Append(character);
+                }
+                backslashes = 0;
+            }
+            quoted.Append('\\', backslashes * 2);
+            quoted.Append('"');
+            return quoted.ToString();
         }
 
         private static bool ScheduleAutomaticRepair(string installRoot,
@@ -495,7 +518,9 @@ internal static class LakisLauncher
                     "Remove-Item -LiteralPath $StagingRoot -Recurse -Force -ErrorAction SilentlyContinue",
                     "if($failed){exit 1}"
                 });
-                File.WriteAllText(helper, script, new UTF8Encoding(false));
+                // Windows PowerShell 5 treats BOM-less scripts as the active ANSI code page.
+                // Keep Korean recovery messages readable by writing the script with a UTF-8 BOM.
+                File.WriteAllText(helper, script, new UTF8Encoding(true));
 
                 string stateRoot = Path.Combine(installRoot, ".lakis");
                 Directory.CreateDirectory(stateRoot);
