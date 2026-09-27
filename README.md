@@ -8,20 +8,23 @@ LAKIS 애플리케이션, 사용자 인터페이스, 설치기, 업데이터, �
 
 ## 다운로드
 
-**[Windows용 LAKIS Studio v7.5.1 다운로드](https://github.com/Jeong-Luke/LAKIS/releases/download/v7.5.1/LAKIS_Setup.exe)**
+**[Windows용 LAKIS Studio v7.5.2 다운로드](https://github.com/Jeong-Luke/LAKIS/releases/download/v7.5.2/LAKIS_Setup.exe)**
 
-**[Windows용 LAKIS Studio v7.5.1 CMD Version 다운로드](https://github.com/Jeong-Luke/LAKIS/releases/download/v7.5.1/LAKIS_CMD_Installer_7.5.1.zip)**
+**[Windows용 LAKIS Studio v7.5.2 CMD Version 다운로드](https://github.com/Jeong-Luke/LAKIS/releases/download/v7.5.2/LAKIS_CMD_Installer_7.5.2.zip)**
 
 일반적으로 `LAKIS_Setup.exe`를 사용하세요. Windows Defender가 Setup을 차단하거나 설치 파일을 실행할 수 없다면 CMD Version ZIP의 압축을 완전히 푼 뒤 `LAKIS_CMD_Install.cmd`를 실행하세요. CMD Version은 관리자 권한이나 Defender 예외 설정을 요구하지 않는 공식 대체 설치 방법입니다.
 
-[v7.5.1 릴리즈 설명과 개별 파일](https://github.com/Jeong-Luke/LAKIS/releases/tag/v7.5.1)도 확인할 수 있습니다.
+[v7.5.2 릴리즈 설명과 개별 파일](https://github.com/Jeong-Luke/LAKIS/releases/tag/v7.5.2)도 확인할 수 있습니다.
 
 ## 안정 버전
 
-이 저장소는 LAKIS의 안정 배포 버전을 관리합니다. 현재 안정 버전은 `v7.5.1`입니다. 이전 개발 패키지와 개발용 워크플로는 별도로 관리하며 신규 사용자에게 배포하지 않습니다.
+이 저장소는 LAKIS의 안정 배포 버전을 관리합니다. 현재 안정 버전은 `v7.5.2`입니다. 이전 개발 패키지와 개발용 워크플로는 별도로 관리하며 신규 사용자에게 배포하지 않습니다.
 
-## v7.5.1 수정 사항
+## v7.5.2 수정 사항
 
+- i2i를 끈 뒤에도 저장된 고급 설정이 입력 경로를 다시 켜 일반 생성 결과를 오염시키는 문제 수정
+- Windows에 설치된 WebView2 Runtime을 공식 제품 키로 정확히 감지하도록 GUI 설치기 개선
+- CMD 설치기의 압축 해제 임시 경로를 단축하여 Windows 260자 경로 제한으로 인한 설치 실패 수정
 - Library에서 선택한 이미지 저장 폴더를 실제 Final Saver 출력에 연결
 - 사용자별 저장 경로 유지와 현재 폴더에서 다시 열리는 선택창
 - 기본·사용자 지정 경로의 Library 단일/일괄 삭제를 Windows 휴지통으로 직접 처리
@@ -76,20 +79,23 @@ from AGPL software remain AGPL-3.0-or-later.
 
 ### Download
 
-**[Download LAKIS Studio v7.5.1 for Windows](https://github.com/Jeong-Luke/LAKIS/releases/download/v7.5.1/LAKIS_Setup.exe)**
+**[Download LAKIS Studio v7.5.2 for Windows](https://github.com/Jeong-Luke/LAKIS/releases/download/v7.5.2/LAKIS_Setup.exe)**
 
-**[Download LAKIS Studio v7.5.1 CMD Version](https://github.com/Jeong-Luke/LAKIS/releases/download/v7.5.1/LAKIS_CMD_Installer_7.5.1.zip)**
+**[Download LAKIS Studio v7.5.2 CMD Version](https://github.com/Jeong-Luke/LAKIS/releases/download/v7.5.2/LAKIS_CMD_Installer_7.5.2.zip)**
 
 Use `LAKIS_Setup.exe` for normal installation and repair. If Windows Defender blocks Setup or prevents it from running, fully extract the CMD Version ZIP and run `LAKIS_CMD_Install.cmd`. CMD Version is an official alternative installation method that does not require administrator access or a Defender exclusion.
 
-You can also view the [v7.5.1 release notes and individual files](https://github.com/Jeong-Luke/LAKIS/releases/tag/v7.5.1).
+You can also view the [v7.5.2 release notes and individual files](https://github.com/Jeong-Luke/LAKIS/releases/tag/v7.5.2).
 
 ### Stable baseline
 
-This repository contains the stable LAKIS distribution line. The current stable release is `v7.5.1`. Earlier development packages and workflows are maintained separately and are not distributed to new users.
+This repository contains the stable LAKIS distribution line. The current stable release is `v7.5.2`. Earlier development packages and workflows are maintained separately and are not distributed to new users.
 
-### v7.5.1 fixes
+### v7.5.2 fixes
 
+- Prevents persisted advanced settings from re-enabling I2I after it is turned off and contaminating later text-to-image generations
+- Detects an installed WebView2 Runtime through its official product registration key in the GUI installer
+- Uses a short CMD extraction staging path to avoid Windows 260-character path failures
 - Connects the Library save-folder selection to the actual Final Saver output
 - Persists the selected folder per installation and reopens the picker at the current folder
 - Moves Library single and batch deletions from default or custom roots directly to the Windows Recycle Bin

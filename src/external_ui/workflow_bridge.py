@@ -202,7 +202,10 @@ ADVANCED_NODE_GROUPS = {
     "model": ("890:1365", "890:159", "890:164", "890:905"),
     "lora": ("1925",),
     "composition": ("2135",),
-    "i2i": ("1744", "1736:1737", "1634:1760"),
+    # I2I source, enable switch and denoise are authoritative friendly-control
+    # state.  Persisting them as advanced overrides can leave the source path
+    # enabled after I2I is turned off, including across reinstallations because
+    # external UI state intentionally survives an application reinstall.
     "prompt": ("2133",),
     "generation": (
         "1541:1536", "2140", "2138", "2139",

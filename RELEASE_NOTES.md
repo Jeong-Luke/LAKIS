@@ -1,7 +1,10 @@
-# LAKIS v7.5.1
+# LAKIS v7.5.2
 
 ## 주요 변경 사항
 
+- i2i 사용 후 기능을 꺼도 저장된 고급 설정이 입력 스위치를 다시 켜 일반 생성에 이전 이미지를 사용하는 문제를 수정했습니다.
+- GUI 설치기가 공식 제품 등록 키로 WebView2 Runtime을 감지하여 이미 설치된 환경에서 잘못 중단되지 않도록 수정했습니다.
+- CMD 설치기의 압축 해제 임시 경로를 짧게 유지하여 Windows 260자 경로 제한으로 인한 설치 실패를 수정했습니다.
 - Library 저장 폴더 선택을 실제 Final Saver 출력에 연결하고, 설치별 사용자 설정으로 유지합니다.
 - 저장 폴더 선택창이 현재 폴더에서 열리며 변경 사항은 다음 생성부터 적용됩니다.
 - Library 단일·일괄 삭제를 기본 경로와 사용자 지정 경로 모두에서 Windows 휴지통으로 직접 처리합니다.
@@ -33,12 +36,15 @@
 
 ## 업데이트 안전성
 
-기존 안정 버전 사용자는 자동 업데이트로 v7.5.1로 전환할 수 있습니다. 사용자 모델, LoRA, workflow, 입력·출력 이미지, Library, 사용자 와일드카드와 설치별 설정은 유지됩니다.
+기존 안정 버전 사용자는 자동 업데이트로 v7.5.2로 전환할 수 있습니다. 사용자 모델, LoRA, workflow, 입력·출력 이미지, Library, 사용자 와일드카드와 설치별 설정은 유지됩니다.
 
 ---
 
 ## English
 
+- Prevented persisted advanced settings from re-enabling I2I after it is turned off and feeding an old image into later text-to-image generations.
+- Updated the GUI installer to detect WebView2 Runtime through its official product registration key.
+- Shortened CMD extraction staging paths to prevent installation failures at the Windows 260-character path limit.
 - Connected the Library save-folder selection to Final Saver and persisted it in per-installation user state.
 - Reopens the folder picker at the current folder and applies a successful change to the next generation.
 - Moves Library single and batch deletions from default or custom roots directly to the Windows Recycle Bin.
@@ -66,4 +72,4 @@
 
 The `anima-lllite-inpainting-v2.safetensors` weight is not bundled or downloaded automatically. Users install it manually from the official publisher.
 
-Existing stable installations can update automatically to v7.5.1. User models, LoRAs, workflows, input/output images, Library data, wildcards, and installation-specific settings are preserved.
+Existing stable installations can update automatically to v7.5.2. User models, LoRAs, workflows, input/output images, Library data, wildcards, and installation-specific settings are preserved.
