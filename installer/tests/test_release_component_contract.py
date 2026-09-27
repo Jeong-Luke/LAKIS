@@ -56,6 +56,11 @@ class ReleaseSourceContracts(unittest.TestCase):
         self.assertIn('string uiZip=Fetch(uiItem,cache,status);',repair)
         self.assertNotIn('if(!File.Exists(lakisZip))',install)
         self.assertNotIn('if(!File.Exists(uiZip))',repair)
+    def test_setup_uses_official_webview_product_registration(self):
+        s=self.text('installer/Setup_LAKIS_Safe.cs')
+        self.assertIn('{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}',s)
+        self.assertIn('IsInstalledWebView2Version(Convert.ToString(key.GetValue("pv")))',s)
+        self.assertNotIn('name.IndexOf("WebView2"',s)
     def test_every_managed_provider_has_source_and_no_retired_package(self):
         names=self.names();self.assertEqual(len(names),len(set(n.casefold() for n in names)))
         for n in names:

@@ -777,20 +777,12 @@ internal static class SafeInstaller
     }
     private static bool HasWebView2Runtime()
     {
-        string[] paths={@"SOFTWARE\Microsoft\EdgeUpdate\Clients",@"SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients"};
+        const string product=@"{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}";
+        string[] paths={@"SOFTWARE\Microsoft\EdgeUpdate\Clients\"+product,@"SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\"+product};
         RegistryKey[] roots={Registry.LocalMachine,Registry.CurrentUser};
         foreach(RegistryKey root in roots)foreach(string path in paths)try
         {
-            using(RegistryKey clients=root.OpenSubKey(path))
-            {
-                if(clients==null)continue;
-                foreach(string keyName in clients.GetSubKeyNames())using(RegistryKey product=clients.OpenSubKey(keyName))
-                {
-                    string name=Convert.ToString(product.GetValue("name"));
-                    string version=Convert.ToString(product.GetValue("pv"));
-                    if(name.IndexOf("WebView2",StringComparison.OrdinalIgnoreCase)>=0&&IsInstalledWebView2Version(version))return true;
-                }
-            }
+            using(RegistryKey key=root.OpenSubKey(path))if(key!=null&&IsInstalledWebView2Version(Convert.ToString(key.GetValue("pv"))))return true;
         }catch{}
         return false;
     }
