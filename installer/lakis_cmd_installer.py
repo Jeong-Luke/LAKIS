@@ -582,16 +582,22 @@ def install(manifest_path: Path, portable_root: Path, target: Path, cache: Path,
 
     custom = portable_root / "ComfyUI" / "custom_nodes"
     models_root = portable_root / "ComfyUI" / "models"
-    scratch = Path(tempfile.mkdtemp(prefix=".lakis-cmd-unpack-", dir=portable_root.parent))
+    # Keep extraction paths short. The verified cache filename intentionally
+    # includes the full SHA-256, but reusing that long name below a staging
+    # directory can hit the legacy Windows MAX_PATH limit (260 characters).
+    # The install is sequential and install_archive resets this slot each time.
+    scratch = portable_root.parent / ".u"
+    scratch.mkdir(parents=True, exist_ok=True)
+    node_stage = scratch / "n"
     custom.mkdir(parents=True, exist_ok=True)
     cache.mkdir(parents=True, exist_ok=True)
 
     for name, url, digest, relative in manifest["nodes"]:
         archive = download(url, cache_path(cache, name, digest), digest, display_name=name)
-        install_archive(archive, custom / safe_relative(relative), scratch / archive.name)
+        install_archive(archive, custom / safe_relative(relative), node_stage)
     name, url, digest, relative = manifest["nested_node"]
     archive = download(url, cache_path(cache, name, digest), digest, display_name=name)
-    install_archive(archive, custom / safe_relative(relative), scratch / archive.name)
+    install_archive(archive, custom / safe_relative(relative), node_stage)
 
     for name, url, digest, relative, size in manifest["models"]:
         cached = download(url, cache_path(cache, name, digest), digest, int(size), display_name=name)

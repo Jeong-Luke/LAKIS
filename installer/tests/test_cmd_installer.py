@@ -41,6 +41,17 @@ class CmdInstallerTests(unittest.TestCase):
         self.assertEqual(len(data["models"]), 7)
         self.assertEqual(data["source"]["sha256"], "D6D8BC920C7A74BE4728C0F7703744469E62E80502F297E582EE1A1406FA052D")
 
+    def test_node_unpack_path_stays_below_legacy_windows_limit(self):
+        stage = Path(r"C:\Users\L\AppData\Local\Programs\.LAKIS-cmd-stage-4336-22026")
+        output = (stage / ".u" / "n" /
+                  "ComfyUI_UltimateSDUpscale-a5547db9e1d07d3318bb21e9e9c474f4c1e9c8df" /
+                  "example_workflows" / "basic-usdu.json")
+        self.assertLess(len(str(output)), 260)
+        source = SCRIPT.read_text(encoding="utf-8")
+        self.assertIn('scratch = portable_root.parent / ".u"', source)
+        self.assertIn('node_stage = scratch / "n"', source)
+        self.assertNotIn('scratch / archive.name', source)
+
     def test_manifest_dependency_contract_matches_setup(self):
         data = json.loads(MANIFEST.read_text(encoding="utf-8"))
         setup = (ROOT / "installer" / "Setup_LAKIS_Safe.cs").read_text(encoding="utf-8")
