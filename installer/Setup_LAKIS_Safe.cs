@@ -575,39 +575,38 @@ internal static class SafeInstaller
         ExtractResource("LAKIS.WebView2.Loader",Path.Combine(target,"WebView2Loader.dll"));
         ExtractResource("LAKIS.Uninstaller",Path.Combine(target,"Uninstall_LAKIS.exe"));
         ExtractResource("LAKIS.ModelImporter",Path.Combine(target,"LAKIS_Model_Importer.exe"));
-        EnsureWebView2Runtime(status);
+        EnsureWebView2Runtime(target,status);
     }
     private static bool HasWebView2Runtime()
     {
-        string[] paths={@"SOFTWARE\Microsoft\EdgeUpdate\Clients",@"SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients"};
+        const string product=@"{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}";
+        string[] paths={@"SOFTWARE\Microsoft\EdgeUpdate\Clients\"+product,@"SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\"+product};
         RegistryKey[] roots={Registry.LocalMachine,Registry.CurrentUser};
         foreach(RegistryKey root in roots)foreach(string path in paths)try
         {
-            using(RegistryKey clients=root.OpenSubKey(path))
-            {
-                if(clients==null)continue;
-                foreach(string keyName in clients.GetSubKeyNames())using(RegistryKey product=clients.OpenSubKey(keyName))
-                {
-                    string name=Convert.ToString(product.GetValue("name"));
-                    string version=Convert.ToString(product.GetValue("pv"));
-                    if(name.IndexOf("WebView2",StringComparison.OrdinalIgnoreCase)>=0&&!String.IsNullOrWhiteSpace(version)&&version!="0.0.0.0")return true;
-                }
-            }
+            using(RegistryKey key=root.OpenSubKey(path))if(key!=null&&IsInstalledWebView2Version(Convert.ToString(key.GetValue("pv"))))return true;
         }catch{}
         return false;
     }
-    private static void EnsureWebView2Runtime(Action<string> status)
+    private static bool IsInstalledWebView2Version(string version)
+    {
+        string value=(version??String.Empty).Trim();Version parsed;
+        return System.Text.RegularExpressions.Regex.IsMatch(value,@"^[0-9]+(\.[0-9]+){3}$")&&Version.TryParse(value,out parsed)&&parsed>new Version(0,0,0,0);
+    }
+    private static void EnsureWebView2Runtime(string target,Action<string> status)
     {
         if(HasWebView2Runtime()){status("Microsoft WebView2 Runtime 확인 완료");return;}
-        string setup=Path.Combine(Path.GetTempPath(),"LAKIS-safe-v7.1","MicrosoftEdgeWebview2Setup.exe");
-        Directory.CreateDirectory(Path.GetDirectoryName(setup));
-        status("Microsoft WebView2 Runtime 다운로드");
-        Download("https://go.microsoft.com/fwlink/p/?LinkId=2124703",setup,"Microsoft WebView2 Runtime",0,status);
+        string runtimeStage=Path.Combine(target,".lakis","installer-runtime");
+        string setup=Path.Combine(runtimeStage,"MicrosoftEdgeWebview2Setup.exe");
+        Directory.CreateDirectory(runtimeStage);
+        status("Microsoft WebView2 Runtime 설치 준비");
+        ExtractResource("LAKIS.WebView2.Bootstrapper",setup);
         X509Certificate2 certificate=new X509Certificate2(X509Certificate.CreateFromSignedFile(setup));
         if(certificate.Subject.IndexOf("Microsoft Corporation",StringComparison.OrdinalIgnoreCase)<0)throw new InvalidDataException("WebView2 설치 파일의 Microsoft 서명을 확인할 수 없습니다.");
         status("Microsoft WebView2 Runtime 설치");
-        Run(setup,"/silent /install",Path.GetDirectoryName(setup),status);
+        Run(setup,"/silent /install",runtimeStage,status);
         if(!HasWebView2Runtime())throw new InvalidOperationException("WebView2 Runtime 설치를 확인할 수 없습니다. Windows를 다시 시작한 뒤 복구를 실행해 주세요.");
+        try{File.Delete(setup);Directory.Delete(runtimeStage);}catch{}
     }
     private static void CreateDesktopShortcut(string target,Action<string> status)
     {

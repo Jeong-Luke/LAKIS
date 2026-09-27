@@ -50,6 +50,22 @@ class ReleaseSourceContracts(unittest.TestCase):
         self.assertIn('string uiZip=Fetch(uiItem,cache,status);',repair)
         self.assertNotIn('if(!File.Exists(lakisZip))',install)
         self.assertNotIn('if(!File.Exists(uiZip))',repair)
+    def test_webview_bootstrapper_uses_install_local_staging(self):
+        s=self.text('installer/Setup_LAKIS_Safe.cs')
+        self.assertIn('{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}',s)
+        self.assertIn('IsInstalledWebView2Version(Convert.ToString(key.GetValue("pv")))',s)
+        self.assertNotIn('name.IndexOf("WebView2"',s)
+        start=s.index('private static void EnsureWebView2Runtime')
+        end=s.index('private static void CreateDesktopShortcut',start)
+        method=s[start:end]
+        self.assertIn('Path.Combine(target,".lakis","installer-runtime")',method)
+        self.assertIn('ExtractResource("LAKIS.WebView2.Bootstrapper",setup)',method)
+        self.assertIn('X509Certificate.CreateFromSignedFile(setup)',method)
+        self.assertNotIn('Path.GetTempPath()',method)
+        self.assertNotIn('Download("https://go.microsoft.com',method)
+        build=self.text('installer/build_safe_installer.ps1')
+        self.assertIn('Get-AuthenticodeSignature -LiteralPath $webViewBootstrapper',build)
+        self.assertIn('$webViewBootstrapper + ",LAKIS.WebView2.Bootstrapper"',build)
     def test_every_managed_provider_has_source_and_no_retired_package(self):
         names=self.names();self.assertEqual(len(names),len(set(n.casefold() for n in names)))
         for n in names:

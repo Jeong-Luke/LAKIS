@@ -30,6 +30,13 @@ if (-not (Test-Path -LiteralPath $webViewPackage)) {
     Invoke-WebRequest -UseBasicParsing "https://www.nuget.org/api/v2/package/Microsoft.Web.WebView2/1.0.4191.47" -OutFile $webViewPackage
 }
 if ((Get-FileHash -Algorithm SHA256 -LiteralPath $webViewPackage).Hash -ne "F492BBF547D0DA329553B6727435B677579B1E9F91CC9E4A1AD029366D5F23D0") { throw "Microsoft WebView2 SDK verification failed" }
+$webViewBootstrapper = Join-Path $stage "MicrosoftEdgeWebview2Setup.exe"
+Invoke-WebRequest -UseBasicParsing "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -OutFile $webViewBootstrapper
+$webViewBootstrapperSignature = Get-AuthenticodeSignature -LiteralPath $webViewBootstrapper
+if ($webViewBootstrapperSignature.Status -ne 'Valid' -or $null -eq $webViewBootstrapperSignature.SignerCertificate -or
+    $webViewBootstrapperSignature.SignerCertificate.GetNameInfo([Security.Cryptography.X509Certificates.X509NameType]::SimpleName,$false) -cne 'Microsoft Corporation') {
+    throw "Microsoft WebView2 bootstrapper signature verification failed"
+}
 $webViewZip = Join-Path $stage "webview2.zip"
 $webViewRoot = Join-Path $stage "webview2"
 Copy-Item -LiteralPath $webViewPackage -Destination $webViewZip -Force
@@ -63,7 +70,7 @@ Copy-Item -LiteralPath (Join-Path $stage "WebView2Loader.dll") -Destination (Joi
 & $csc /nologo /target:winexe ("/out:" + (Join-Path $stage "Uninstall_LAKIS.exe")) ("/win32icon:" + $icon) /reference:System.Windows.Forms.dll /reference:System.Drawing.dll ("/resource:" + $splash1 + ",LAKIS.Splash1") ("/resource:" + $splash2 + ",LAKIS.Splash2") (Join-Path $PSScriptRoot "SplashArtwork.cs") (Join-Path $PSScriptRoot "LAKIS_Uninstaller.cs")
 if ($LASTEXITCODE) { throw "Uninstaller compilation failed" }
 Copy-Item -LiteralPath (Join-Path $stage "Uninstall_LAKIS.exe") -Destination (Join-Path (Split-Path $output) "Uninstall_LAKIS.exe") -Force
-& $csc /nologo /target:winexe ("/out:" + $output) ("/win32icon:" + $icon) /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll ("/resource:" + (Join-Path $stage "LAKIS.exe") + ",LAKIS.Launcher") ("/resource:" + (Join-Path $stage "LAKIS_Updater.exe") + ",LAKIS.Updater") ("/resource:" + (Join-Path $stage "LAKIS_Desktop.exe") + ",LAKIS.Desktop") ("/resource:" + (Join-Path $stage "LAKIS_Model_Importer.exe") + ",LAKIS.ModelImporter") ("/resource:" + $icon + ",LAKIS.Icon") ("/resource:" + $webViewCore + ",LAKIS.WebView2.Core") ("/resource:" + $webViewForms + ",LAKIS.WebView2.WinForms") ("/resource:" + $webViewLoader + ",LAKIS.WebView2.Loader") ("/resource:" + (Join-Path $stage "Uninstall_LAKIS.exe") + ",LAKIS.Uninstaller") ("/resource:" + $sevenZip + ",LAKIS.7zr") ("/resource:" + $splash1 + ",LAKIS.Splash1") ("/resource:" + $splash2 + ",LAKIS.Splash2") (Join-Path $PSScriptRoot "SplashArtwork.cs") $pinnedSetupSource
+& $csc /nologo /target:winexe ("/out:" + $output) ("/win32icon:" + $icon) /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll ("/resource:" + (Join-Path $stage "LAKIS.exe") + ",LAKIS.Launcher") ("/resource:" + (Join-Path $stage "LAKIS_Updater.exe") + ",LAKIS.Updater") ("/resource:" + (Join-Path $stage "LAKIS_Desktop.exe") + ",LAKIS.Desktop") ("/resource:" + (Join-Path $stage "LAKIS_Model_Importer.exe") + ",LAKIS.ModelImporter") ("/resource:" + $icon + ",LAKIS.Icon") ("/resource:" + $webViewCore + ",LAKIS.WebView2.Core") ("/resource:" + $webViewForms + ",LAKIS.WebView2.WinForms") ("/resource:" + $webViewLoader + ",LAKIS.WebView2.Loader") ("/resource:" + $webViewBootstrapper + ",LAKIS.WebView2.Bootstrapper") ("/resource:" + (Join-Path $stage "Uninstall_LAKIS.exe") + ",LAKIS.Uninstaller") ("/resource:" + $sevenZip + ",LAKIS.7zr") ("/resource:" + $splash1 + ",LAKIS.Splash1") ("/resource:" + $splash2 + ",LAKIS.Splash2") (Join-Path $PSScriptRoot "SplashArtwork.cs") $pinnedSetupSource
 if ($LASTEXITCODE) { throw "Safe installer compilation failed" }
 Write-Output "INSTALLER=$output"
 Write-Output "LAUNCHER=$(Join-Path (Split-Path $output) 'LAKIS.exe')"
