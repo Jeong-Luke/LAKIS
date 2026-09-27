@@ -1,6 +1,6 @@
 {
   "version": "7.5.2",
-  "release_notes": "LAKIS 7.5.2 update",
+  "release_notes": "- 안정성 개선\n- i2i 오류 수정",
   "files": [
     {
       "path": "LAKIS.exe",
