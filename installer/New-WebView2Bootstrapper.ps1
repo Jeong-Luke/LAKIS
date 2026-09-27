@@ -7,6 +7,11 @@ $path = Join-Path $output 'MicrosoftEdgeWebview2Setup.exe'
 # this resolved URL plus the reviewed SHA/size, never unverified latest bytes.
 $response = Invoke-WebRequest -UseBasicParsing 'https://go.microsoft.com/fwlink/p/?LinkId=2124703' -OutFile $path -PassThru
 $url = [string]$response.BaseResponse.ResponseUri.AbsoluteUri
+if ([string]::IsNullOrWhiteSpace($url) -and $null -ne $response.BaseResponse.RequestMessage) {
+    # PowerShell 7 uses HttpResponseMessage. Its final redirected URI lives on
+    # RequestMessage, while the legacy WebResponse exposed ResponseUri.
+    $url = [string]$response.BaseResponse.RequestMessage.RequestUri.AbsoluteUri
+}
 if (-not $url.StartsWith('https://') -or $url -eq 'https://go.microsoft.com/fwlink/p/?LinkId=2124703') {
     throw 'WebView2 bootstrapper did not resolve to a fixed HTTPS download URL.'
 }
