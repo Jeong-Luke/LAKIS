@@ -345,7 +345,7 @@ internal static class SafeInstaller
             InstallZip(Usdu,cache,Path.Combine(custom,"comfyui_ultimatesdupscale","repositories","ultimate_sd_upscale"),status);
             var lakisItem=SourceArchive("LAKIS-");
             string lakisZip=Fetch(lakisItem,cache,status);
-            string lakisStage=Path.Combine(cache,"LAKIS-"+Revision);Reset(lakisStage);ExtractZip(lakisZip,lakisStage);string lakis=FirstDirectory(lakisStage);
+            status("LAKIS 소스 압축 해제");string lakisStage=UniqueScratch(cache,"LAKIS-source");Reset(lakisStage);ExtractZip(lakisZip,lakisStage);string lakis=FirstDirectory(lakisStage);
             CopyManagedNodePackages(lakis, custom);
             CopyTree(Path.Combine(lakis,"src","external_ui"),Path.Combine(comfy,"LAKIS","external_ui"));
             Directory.CreateDirectory(Path.Combine(comfy,"LAKIS"));File.Copy(Path.Combine(lakis,"resources","STOP_AUTOMATION"),Path.Combine(comfy,"LAKIS","STOP_AUTOMATION"),true);
@@ -363,6 +363,7 @@ internal static class SafeInstaller
             string licences=Path.Combine(lakis,"third_party_licenses");if(Directory.Exists(licences))CopyTree(licences,Path.Combine(target,"third_party_licenses"));
             File.Copy(Path.Combine(lakis,"patches","ComfyUI-Spectrum-KSampler","files","nodes.py"),Path.Combine(custom,"comfyui-spectrum-ksampler","nodes.py"),true);
             File.Copy(Path.Combine(lakis,"patches","ComfyUI-Spectrum-KSampler","files","spectrum.py"),Path.Combine(custom,"comfyui-spectrum-ksampler","spectrum.py"),true);
+            try{DeleteTree(lakisStage);}catch{status("소스 임시 폴더를 나중에 정리할 수 있습니다: "+lakisStage);}
             Directory.CreateDirectory(Path.Combine(comfy,"input"));using(var bitmap=new Bitmap(1536,1024)){using(Graphics g=Graphics.FromImage(bitmap)){g.Clear(Color.FromArgb(26,29,42));g.FillEllipse(Brushes.SlateBlue,540,100,456,456);}bitmap.Save(Path.Combine(comfy,"input","LAKIS_1_2026-09-01-221228.webp"),ImageFormat.Png);}
             foreach(var model in Models){string cached=Fetch(model,cache,status);string folder=Path.Combine(comfy,"models",model.Destination);Directory.CreateDirectory(folder);File.Copy(cached,Path.Combine(folder,model.Name),true);}
             if(includeAnimeSharp)
@@ -379,7 +380,7 @@ internal static class SafeInstaller
             ExtractDesktopRuntime(target,status);
             File.WriteAllText(Path.Combine(target,"VERSION"),ReleaseVersion);File.WriteAllText(Path.Combine(target,"install.complete"),DateTime.UtcNow.ToString("O"));File.WriteAllLines(Path.Combine(target,"network-install.log"),log.ToArray());if(previous!=null)try{DeleteTree(previous);}catch{status("이전 설치 폴더는 재부팅 후 삭제할 수 있습니다: "+previous);}status("설치 완료");
         }
-        catch(Exception error){try{Directory.CreateDirectory(target);File.WriteAllLines(Path.Combine(target,"network-install.log"),log.ToArray());}catch{}throw new InvalidOperationException("설치 중 오류가 발생했습니다.\n"+error.Message+"\n\n로그: "+Path.Combine(target,"network-install.log"),error);}
+        catch(Exception error){try{lock(log)log.Add("FAILURE: "+error.GetType().Name+": "+error.Message);Directory.CreateDirectory(target);File.WriteAllLines(Path.Combine(target,"network-install.log"),log.ToArray());}catch{}throw new InvalidOperationException("설치 중 오류가 발생했습니다.\n"+error.GetType().Name+": "+error.Message+"\n\n로그: "+Path.Combine(target,"network-install.log"),error);}
     }
     internal static void Repair(string target,Action<string> report)
     {
@@ -398,7 +399,7 @@ internal static class SafeInstaller
             status("LAKIS 실행 구성 복구");
             var uiItem=SourceArchive("LAKIS-repair-");
             string uiZip=Fetch(uiItem,cache,status);
-            string uiStage=Path.Combine(cache,"LAKIS-repair-"+Revision);Reset(uiStage);ExtractZip(uiZip,uiStage);
+            status("LAKIS 복구 소스 압축 해제");string uiStage=UniqueScratch(cache,"LAKIS-repair");Reset(uiStage);ExtractZip(uiZip,uiStage);
             string uiRoot=FirstDirectory(uiStage);
             // Copy only LAKIS-managed node packages. Preserve user data and
             // unrelated third-party packages; managed dependencies may be restored.
@@ -425,7 +426,7 @@ internal static class SafeInstaller
             CreateDesktopShortcut(target,status);
             File.WriteAllText(Path.Combine(target,"VERSION"),ReleaseVersion);string repairMarker=Path.Combine(target,".lakis","release-layout-repair.attempt");try{if(File.Exists(repairMarker))File.Delete(repairMarker);}catch{}File.WriteAllLines(Path.Combine(target,"repair.log"),log.ToArray());status("복구 완료");
         }
-        catch(Exception error){try{File.WriteAllLines(Path.Combine(target,"repair.log"),log.ToArray());}catch{}throw new InvalidOperationException("복구 중 오류가 발생했습니다.\n"+error.Message+"\n\n로그: "+Path.Combine(target,"repair.log"),error);}
+        catch(Exception error){try{log.Add("FAILURE: "+error.GetType().Name+": "+error.Message);File.WriteAllLines(Path.Combine(target,"repair.log"),log.ToArray());}catch{}throw new InvalidOperationException("복구 중 오류가 발생했습니다.\n"+error.GetType().Name+": "+error.Message+"\n\n로그: "+Path.Combine(target,"repair.log"),error);}
     }
     private static void CopyManagedNodePackages(string sourceRoot, string customRoot)
     {
@@ -467,20 +468,66 @@ internal static class SafeInstaller
     }
     private static string Fetch(DownloadItem item,string cache,Action<string> status)
     {
-        string path=Path.Combine(cache,item.Name.Replace('/','_')), part=path+".part";
+        string path=CachePath(cache,item), part=path+".part";
+        using(var cacheLock=AcquireCacheLock(path,item.Name,status))
+        {
         if(File.Exists(path)&&(item.Bytes>0&&new FileInfo(path).Length!=item.Bytes ||
-           item.Sha.Length>0&&!String.Equals(Hash(path),item.Sha,StringComparison.OrdinalIgnoreCase)))File.Delete(path);
+           item.Sha.Length>0&&!String.Equals(HashWithRetry(path,item.Name),item.Sha,StringComparison.OrdinalIgnoreCase)))File.Delete(path);
         if(!File.Exists(path)&&File.Exists(part))
         {
             long size=new FileInfo(part).Length;
-            if((item.Bytes<=0||size==item.Bytes)&&item.Sha.Length>0&&String.Equals(Hash(part),item.Sha,StringComparison.OrdinalIgnoreCase))
-                File.Move(part,path);
+            if((item.Bytes<=0||size==item.Bytes)&&item.Sha.Length>0&&String.Equals(HashWithRetry(part,item.Name),item.Sha,StringComparison.OrdinalIgnoreCase))
+                PromoteVerifiedPartial(part,path,item.Name,item.Sha,item.Bytes);
             else if(item.Bytes>0&&size>=item.Bytes)File.Delete(part);
         }
         if(!File.Exists(path))Download(item.Url,path,item.Name,item.Bytes,status);
+        if(!File.Exists(path)&&File.Exists(part))
+        {
+            if(item.Bytes>0&&new FileInfo(part).Length!=item.Bytes)throw new IOException("CACHE_SIZE_FAILED: "+item.Name);
+            status("다운로드 검증: "+item.Name);
+            string actual;
+            actual=HashWithRetry(part,item.Name);
+            if(item.Sha.Length>0&&!String.Equals(actual,item.Sha,StringComparison.OrdinalIgnoreCase)){File.Delete(part);throw new IOException("SHA-256 검증 실패: "+item.Name);}
+            PromoteVerifiedPartial(part,path,item.Name,item.Sha,item.Bytes);
+            status("캐시 확정: "+item.Name);
+        }
         if(item.Bytes>0&&new FileInfo(path).Length!=item.Bytes)throw new IOException("크기 검증 실패: "+item.Name);
-        if(item.Sha.Length>0&&!String.Equals(Hash(path),item.Sha,StringComparison.OrdinalIgnoreCase))throw new IOException("SHA-256 검증 실패: "+item.Name);
+        if(item.Sha.Length>0&&!String.Equals(HashWithRetry(path,item.Name),item.Sha,StringComparison.OrdinalIgnoreCase))throw new IOException("SHA-256 검증 실패: "+item.Name);
         return path;
+        }
+    }
+    private static string CachePath(string cache,DownloadItem item)
+    {
+        if(!System.Text.RegularExpressions.Regex.IsMatch(item.Sha??"","^[a-fA-F0-9]{64}$"))throw new IOException("캐시 항목 SHA-256이 올바르지 않습니다: "+item.Name);
+        var match=System.Text.RegularExpressions.Regex.Match(item.Name??"","(?i)\\.(zip|7z|exe|json|safetensors|pth|bin)$");
+        string extension=match.Success?match.Value.ToLowerInvariant():".bin";
+        return Path.Combine(cache,"a-"+item.Sha.ToUpperInvariant()+extension);
+    }
+    private static FileStream AcquireCacheLock(string path,string name,Action<string> status)
+    {
+        string lockPath=path+".lock";Directory.CreateDirectory(Path.GetDirectoryName(lockPath));DateTime deadline=DateTime.UtcNow.AddHours(4),notice=DateTime.MinValue;
+        while(true)try{return new FileStream(lockPath,FileMode.OpenOrCreate,FileAccess.ReadWrite,FileShare.None);}catch(IOException error){if(!IsTransientFileError(error)||DateTime.UtcNow>=deadline)throw new IOException("CACHE_LOCK_FAILED: "+name+" | "+error.GetType().Name+" 0x"+error.HResult.ToString("X8")+" | "+lockPath,error);if((DateTime.UtcNow-notice).TotalSeconds>=5){status("다른 설치기가 캐시를 사용 중입니다: "+name);notice=DateTime.UtcNow;}System.Threading.Thread.Sleep(200);}
+    }
+    private static bool IsTransientFileError(Exception error){int code=error.HResult&0xFFFF;return code==32||code==33;}
+    private static void PromoteVerifiedPartial(string part,string path,string name,string expectedHash,long expectedBytes)
+    {
+        Exception last=null;
+        for(int attempt=1;attempt<=5;attempt++)try
+        {
+            if(File.Exists(path))
+            {
+                bool valid=(expectedBytes<=0||new FileInfo(path).Length==expectedBytes)&&String.Equals(HashWithRetry(path,name),expectedHash,StringComparison.OrdinalIgnoreCase);
+                if(valid){if(File.Exists(part))File.Delete(part);return;}
+                File.Replace(part,path,null,true);
+            }
+            else File.Move(part,path);
+            return;
+        }
+        catch(Exception error)
+        {
+            last=error;if(!IsTransientFileError(error))throw new IOException("CACHE_PROMOTE_FAILED: "+name+" | "+error.GetType().Name+" 0x"+error.HResult.ToString("X8")+" | "+part,error);if(attempt<5)System.Threading.Thread.Sleep(attempt*200);
+        }
+        throw new IOException("CACHE_PROMOTE_FAILED: "+name+" | "+(last==null?"unknown":last.GetType().Name+" 0x"+last.HResult.ToString("X8"))+" | "+part,last);
     }
     private static void Download(string url,string path,string name,long expected,Action<string> status)
     {
@@ -500,7 +547,7 @@ internal static class SafeInstaller
         if(expected>=1024L*1024*1024&&!File.Exists(path+".part"))
         {
             try { DownloadParallel(url,path,name,expected,status); return; }
-            catch(Exception error) { status("병렬 다운로드 재시도: "+name+" ("+error.Message+")"); }
+            catch(Exception error) { try{if(File.Exists(path+".part"))File.Delete(path+".part");}catch{}status("병렬 다운로드 재시도: "+name+" ("+error.Message+")"); }
         }
         string part=path+".part";
         long offset=File.Exists(part)?new FileInfo(part).Length:0;
@@ -532,9 +579,7 @@ internal static class SafeInstaller
                 }
             }
         }
-        if(File.Exists(path))File.Delete(path);
-        File.Move(part,path);
-        status("다운로드 완료: "+name);
+        status("다운로드 수신 완료: "+name);
     }
     private static void DownloadParallel(string url,string path,string name,long expected,Action<string> status)
     {
@@ -562,15 +607,17 @@ internal static class SafeInstaller
         try
         {
             Task.WaitAll(tasks);
-            using(var output=new FileStream(path,FileMode.Create,FileAccess.Write,FileShare.None))
+            using(var output=new FileStream(path+".part",FileMode.Create,FileAccess.Write,FileShare.Read))
                 foreach(string part in parts)using(var input=File.OpenRead(part))input.CopyTo(output,1024*1024);
-            if(new FileInfo(path).Length!=expected)throw new IOException("결합된 파일 크기가 일치하지 않습니다.");
-            status("다운로드 완료: "+name);
+            if(new FileInfo(path+".part").Length!=expected)throw new IOException("결합된 파일 크기가 일치하지 않습니다.");
+            status("다운로드 수신 완료: "+name);
         }
         finally { foreach(string part in parts)try{if(File.Exists(part))File.Delete(part);}catch{} }
     }
     private static string Hash(string path){using(var s=File.OpenRead(path))using(var h=SHA256.Create())return BitConverter.ToString(h.ComputeHash(s)).Replace("-","");}
-    private static void InstallZip(DownloadItem item,string cache,string destination,Action<string> status){string zip=Fetch(item,cache,status),stage=Path.Combine(cache,"unpack-"+item.Name);Reset(stage);ExtractZip(zip,stage);string source=FirstDirectory(stage);if(Object.ReferenceEquals(item,LoraManager)&&Directory.Exists(destination))CopyLoraManagerForRepair(source,destination);else{if(Directory.Exists(destination))try{DeleteTree(destination);}catch{}Directory.CreateDirectory(Path.GetDirectoryName(destination));CopyTree(source,destination);}try{DeleteTree(source);}catch{}}
+    private static string HashWithRetry(string path,string name){Exception last=null;for(int attempt=1;attempt<=5;attempt++)try{return Hash(path);}catch(Exception error){last=error;if(!IsTransientFileError(error))throw new IOException("CACHE_VERIFY_OPEN_FAILED: "+name+" | "+error.GetType().Name+" 0x"+error.HResult.ToString("X8")+" | "+path,error);if(attempt<5)System.Threading.Thread.Sleep(attempt*200);}throw new IOException("CACHE_VERIFY_OPEN_FAILED: "+name+" | "+(last==null?"unknown":last.GetType().Name+" 0x"+last.HResult.ToString("X8"))+" | "+path,last);}
+    private static string UniqueScratch(string cache,string prefix){return Path.Combine(cache,prefix+"-"+Guid.NewGuid().ToString("N"));}
+    private static void InstallZip(DownloadItem item,string cache,string destination,Action<string> status){string zip=Fetch(item,cache,status),stage=UniqueScratch(cache,"unpack");try{Reset(stage);ExtractZip(zip,stage);string source=FirstDirectory(stage);if(Object.ReferenceEquals(item,LoraManager)&&Directory.Exists(destination))CopyLoraManagerForRepair(source,destination);else{if(Directory.Exists(destination))try{DeleteTree(destination);}catch{}Directory.CreateDirectory(Path.GetDirectoryName(destination));CopyTree(source,destination);}}finally{try{if(Directory.Exists(stage))DeleteTree(stage);}catch{}}}
     private static void CopyLoraManagerForRepair(string source,string destination)
     {
         // Preserve both legacy package-local state and unknown user additions.

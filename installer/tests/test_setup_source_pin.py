@@ -56,28 +56,62 @@ internal static class PinProbe {
         byte[] payload=Encoding.ASCII.GetBytes("correct bytes");
         using(var sha=SHA256.Create())hash=BitConverter.ToString(sha.ComputeHash(payload)).Replace("-","");
         var fetch=typeof(SafeInstaller).GetMethod("Fetch",BindingFlags.NonPublic|BindingFlags.Static);
+        var cachePath=typeof(SafeInstaller).GetMethod("CachePath",BindingFlags.NonPublic|BindingFlags.Static);
         Action<string> status=_=>{};
-        File.WriteAllBytes(Path.Combine(root,"complete.bin.part"),payload);
         var complete=new DownloadItem("complete.bin","http://127.0.0.1:1/not-requested",hash,null,payload.Length);
+        string completePath=(string)cachePath.Invoke(null,new object[]{root,complete});
+        File.WriteAllBytes(completePath+".part",payload);
         fetch.Invoke(null,new object[]{complete,root,status});
-        if(!File.Exists(Path.Combine(root,"complete.bin")))return 30;
-        File.WriteAllText(Path.Combine(root,"unknown.bin.part"),"corrupt oversized partial content");
+        if(!File.Exists(completePath))return 30;
+        File.Delete(completePath);
         var unknown=new DownloadItem("unknown.bin",url,hash);
+        string unknownPath=(string)cachePath.Invoke(null,new object[]{root,unknown});
+        File.WriteAllText(unknownPath+".part","corrupt oversized partial content");
         fetch.Invoke(null,new object[]{unknown,root,status});
-        if(File.ReadAllText(Path.Combine(root,"unknown.bin"))!="correct bytes")return 31;
-        File.WriteAllText(Path.Combine(root,"known.bin.part"),"wrong content");
+        if(File.ReadAllText(unknownPath)!="correct bytes")return 31;
+        File.Delete(unknownPath);
         var known=new DownloadItem("known.bin",url,hash,null,payload.Length);
+        string knownPath=(string)cachePath.Invoke(null,new object[]{root,known});
+        File.WriteAllText(knownPath+".part","wrong content");
         fetch.Invoke(null,new object[]{known,root,status});
-        if(File.ReadAllText(Path.Combine(root,"known.bin"))!="correct bytes")return 32;
-        File.WriteAllText(Path.Combine(root,"prefix.bin.part"),"bad");
+        if(File.ReadAllText(knownPath)!="correct bytes")return 32;
+        File.Delete(knownPath);
         var prefix=new DownloadItem("prefix.bin",url+"/prefix",hash,null,payload.Length);
+        string prefixPath=(string)cachePath.Invoke(null,new object[]{root,prefix});
+        File.WriteAllText(prefixPath+".part","bad");
         try { fetch.Invoke(null,new object[]{prefix,root,status}); return 33; }
         catch(TargetInvocationException error) { if(!(error.InnerException is IOException))return 34; }
         // Re-running deletes the failed cached download and fetches valid bytes.
         fetch.Invoke(null,new object[]{prefix,root,status});
-        if(File.ReadAllText(Path.Combine(root,"prefix.bin"))!="correct bytes")return 35;
+        if(File.ReadAllText(prefixPath)!="correct bytes")return 35;
         Console.WriteLine("SOURCE_PIN_CONTRACT_PASS");
         return 0;
+    }
+}
+'''
+
+CONCURRENT_FETCH_PROBE = r'''
+using System;
+using System.IO;
+using System.Reflection;
+using System.Security.Cryptography;
+using System.Text;
+using System.Threading.Tasks;
+internal static class PinProbe {
+    private static int Main(string[] args) {
+        string root=args[0],url=args[1],hash;
+        byte[] payload=Encoding.ASCII.GetBytes("correct bytes");
+        using(var sha=SHA256.Create())hash=BitConverter.ToString(sha.ComputeHash(payload)).Replace("-","");
+        var fetch=typeof(SafeInstaller).GetMethod("Fetch",BindingFlags.NonPublic|BindingFlags.Static);
+        var cachePath=typeof(SafeInstaller).GetMethod("CachePath",BindingFlags.NonPublic|BindingFlags.Static);
+        var item=new DownloadItem("concurrent.bin",url,hash,null,payload.Length);
+        Action<string> status=_=>{};
+        Task first=Task.Run(()=>fetch.Invoke(null,new object[]{item,root,status}));
+        Task second=Task.Run(()=>fetch.Invoke(null,new object[]{item,root,status}));
+        Task.WaitAll(first,second);
+        string path=(string)cachePath.Invoke(null,new object[]{root,item});
+        if(!File.Exists(path)||File.ReadAllText(path)!="correct bytes"||File.Exists(path+".part"))return 50;
+        Console.WriteLine("SOURCE_PIN_CONTRACT_PASS");return 0;
     }
 }
 '''
@@ -171,7 +205,7 @@ class SetupSourcePinTests(unittest.TestCase):
                 str(ROOT / 'installer/SplashArtwork.cs'), str(temporary / 'Setup.cs'), str(temporary / 'Probe.cs'),
             ], capture_output=True)
             self.assertEqual(compiled.returncode, 0, compiled.stdout.decode(errors='replace'))
-            arguments = [str(temporary)] + (extra_args or []) if probe in (STAGING_PROBE, FETCH_PROBE, REPAIR_PROBE) else (['pinned'] if pinned else [])
+            arguments = [str(temporary)] + (extra_args or []) if probe in (STAGING_PROBE, FETCH_PROBE, CONCURRENT_FETCH_PROBE, REPAIR_PROBE) else (['pinned'] if pinned else [])
             result = subprocess.run([str(output)] + arguments, capture_output=True)
             self.assertEqual(result.returncode, 0, result.stderr.decode(errors='replace'))
             self.assertIn(b'SOURCE_PIN_CONTRACT_PASS', result.stdout)
@@ -211,6 +245,29 @@ class SetupSourcePinTests(unittest.TestCase):
         try:
             self.run_probe(False, FETCH_PROBE, [f'http://127.0.0.1:{server.server_port}/fixture'])
             self.assertEqual(requests, ['bytes=33-', None, None, 'bytes=3-', None])
+        finally:
+            server.shutdown()
+            server.server_close()
+            worker.join(timeout=5)
+
+    def test_actual_setup_serializes_concurrent_cache_writers(self):
+        requests = []
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *_args):
+                pass
+            def do_GET(self):
+                requests.append(self.path)
+                payload = b'correct bytes'
+                self.send_response(200)
+                self.send_header('Content-Length', str(len(payload)))
+                self.end_headers()
+                self.wfile.write(payload)
+        server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+        worker = threading.Thread(target=server.serve_forever, daemon=True)
+        worker.start()
+        try:
+            self.run_probe(False, CONCURRENT_FETCH_PROBE, [f'http://127.0.0.1:{server.server_port}/fixture'])
+            self.assertEqual(requests, ['/fixture'])
         finally:
             server.shutdown()
             server.server_close()

@@ -1,7 +1,9 @@
 import hashlib
+from concurrent.futures import ThreadPoolExecutor
 import importlib.util
 import io
 import json
+import os
 from datetime import datetime, timedelta
 from pathlib import Path
 import struct
@@ -72,6 +74,78 @@ class CmdInstallerTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 module.safe_relative(value)
         self.assertEqual(module.safe_relative("ComfyUI/LAKIS"), Path("ComfyUI") / "LAKIS")
+
+    def test_cache_path_uses_short_hash_name_instead_of_manifest_name(self):
+        digest = "A" * 64
+        with tempfile.TemporaryDirectory() as folder:
+            result = module.cache_path(Path(folder), "[source](https://invalid)/" + "x" * 300 + ".zip", digest)
+            self.assertEqual(result.parent, Path(folder))
+            self.assertEqual(result.name, "a-" + "A" * 64 + ".zip")
+
+    def test_cache_promotion_retries_transient_windows_error(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            partial, destination = root / "short.zip.part", root / "short.zip"
+            partial.write_bytes(b"verified")
+            real_replace = os.replace
+            attempts = []
+
+            def flaky_replace(source, target):
+                attempts.append((source, target))
+                if len(attempts) == 1:
+                    raise OSError(16, "simulated sharing lock")
+                return real_replace(source, target)
+
+            with mock.patch.object(module.os, "replace", side_effect=flaky_replace), \
+                    mock.patch.object(module.time, "sleep"):
+                module.promote_verified_partial(partial, destination, "source.zip")
+            self.assertEqual(destination.read_bytes(), b"verified")
+            self.assertEqual(len(attempts), 2)
+
+    def test_cache_verification_retries_transient_windows_error(self):
+        with tempfile.TemporaryDirectory() as folder:
+            source = Path(folder) / "short.zip.part"
+            source.write_bytes(b"verified")
+            expected = hashlib.sha256(b"verified").hexdigest().upper()
+            real_sha256 = module.sha256
+            attempts = []
+
+            def flaky_sha256(path):
+                attempts.append(path)
+                if len(attempts) == 1:
+                    raise OSError(16, "simulated sharing lock")
+                return real_sha256(path)
+
+            with mock.patch.object(module, "sha256", side_effect=flaky_sha256), \
+                    mock.patch.object(module.time, "sleep"):
+                self.assertEqual(module.sha256_with_retry(source, "source.zip"), expected)
+            self.assertEqual(len(attempts), 2)
+
+    def test_permanent_invalid_argument_is_not_retried(self):
+        with tempfile.TemporaryDirectory() as folder:
+            source = Path(folder) / "short.zip.part"
+            source.write_bytes(b"verified")
+            with mock.patch.object(module, "sha256", side_effect=OSError(22, "invalid argument")) as digest, \
+                    mock.patch.object(module.time, "sleep") as sleep:
+                with self.assertRaisesRegex(RuntimeError, "CACHE_VERIFY_OPEN_FAILED"):
+                    module.sha256_with_retry(source, "source.zip")
+            digest.assert_called_once()
+            sleep.assert_not_called()
+
+    def test_concurrent_downloads_serialize_one_cache_entry(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source = root / "source.bin"
+            source.write_bytes(b"verified payload")
+            target = root / "cache" / "artifact.bin"
+            digest = module.sha256(source)
+            with ThreadPoolExecutor(max_workers=2) as workers:
+                results = list(workers.map(
+                    lambda _index: module.download(source.as_uri(), target, digest, source.stat().st_size),
+                    range(2),
+                ))
+            self.assertEqual([result.read_bytes() for result in results], [source.read_bytes()] * 2)
+            self.assertEqual(module.sha256(target), digest)
 
     def test_desktop_shortcut_targets_installed_launcher(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -220,6 +294,26 @@ class CmdInstallerTests(unittest.TestCase):
                 module.extract_zip(archive, root / "out")
             self.assertFalse((root / "escape.txt").exists())
 
+    def test_windows_ambiguous_zip_paths_are_rejected(self):
+        for member in ("folder/file.txt:stream", "folder/trailing. ", "NUL", "COM¹.txt", "bad<name.txt", "control\x01.txt", "folder\\..\\escape"):
+            with self.subTest(member=member), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                archive = root / "bad.zip"
+                with zipfile.ZipFile(archive, "w") as bundle:
+                    bundle.writestr(member, "bad")
+                with self.assertRaisesRegex(RuntimeError, "unsafe ZIP path"):
+                    module.extract_zip(archive, root / "extract")
+
+    def test_case_duplicate_windows_zip_paths_are_rejected(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            archive = root / "duplicate.zip"
+            with zipfile.ZipFile(archive, "w") as bundle:
+                bundle.writestr("Folder/File.txt", "one")
+                bundle.writestr("folder/file.TXT", "two")
+            with self.assertRaisesRegex(RuntimeError, "duplicate Windows ZIP path"):
+                module.extract_zip(archive, root / "extract")
+
     def test_layout_validation(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
@@ -351,7 +445,10 @@ class CmdInstallerTests(unittest.TestCase):
                 mock.patch.object(module, 'download', return_value=Path(folder) / 'runtime.exe') as fetch, \
                 mock.patch.object(module.subprocess, 'run') as run:
             module.ensure_webview2_runtime({'webview2': record}, Path(folder))
-            fetch.assert_called_once_with(record['url'], Path(folder) / 'MicrosoftEdgeWebview2Setup.exe', record['sha256'], 99)
+            fetch.assert_called_once_with(
+                record['url'], Path(folder) / ('a-' + 'A' * 64 + '.exe'),
+                record['sha256'], 99, display_name='MicrosoftEdgeWebview2Setup.exe',
+            )
             self.assertEqual(run.call_args.args[0][1:], ['/silent', '/install'])
             self.assertTrue(run.call_args.kwargs['check'])
 

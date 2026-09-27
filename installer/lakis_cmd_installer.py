@@ -9,9 +9,12 @@ from __future__ import annotations
 
 import argparse
 import binascii
+from contextlib import contextmanager
 from datetime import datetime, timezone
+import errno
 import hashlib
 import json
+import msvcrt
 import os
 from pathlib import Path
 import shutil
@@ -34,11 +37,148 @@ def sha256(path: Path) -> str:
     return digest.hexdigest().upper()
 
 
+def transient_file_error(error: OSError) -> bool:
+    return error.errno in {errno.EACCES, errno.EBUSY, errno.EPERM} or getattr(error, "winerror", None) in {5, 32, 33}
+
+
+def sha256_with_retry(path: Path, display_name: str) -> str:
+    last_error: OSError | None = None
+    for attempt in range(1, 6):
+        try:
+            return sha256(path)
+        except OSError as error:
+            last_error = error
+            if not transient_file_error(error):
+                raise RuntimeError(
+                    f"CACHE_VERIFY_OPEN_FAILED: {display_name}: {type(error).__name__}: "
+                    f"errno={error.errno}, winerror={getattr(error, 'winerror', None)}, path={path}"
+                ) from error
+            if attempt < 5:
+                time.sleep(attempt * 0.2)
+    assert last_error is not None
+    raise RuntimeError(
+        f"CACHE_VERIFY_OPEN_FAILED: {display_name}: {type(last_error).__name__}: "
+        f"errno={last_error.errno}, winerror={getattr(last_error, 'winerror', None)}, path={path}"
+    ) from last_error
+
+
 def safe_relative(value: str) -> Path:
     relative = Path(value.replace("/", os.sep))
     if relative.is_absolute() or relative.drive or relative.root or ":" in value or ".." in relative.parts or not relative.parts:
         raise ValueError(f"unsafe relative path: {value}")
     return relative
+
+
+WINDOWS_RESERVED_NAMES = {
+    "CON", "PRN", "AUX", "NUL",
+    *(f"COM{index}" for index in range(1, 10)),
+    *(f"LPT{index}" for index in range(1, 10)),
+    "COM¹", "COM²", "COM³", "LPT¹", "LPT²", "LPT³",
+}
+
+
+def validate_windows_component(value: str) -> None:
+    if (not value or value in {".", ".."} or any(ord(character) < 32 for character in value)
+            or any(character in '<>:"/\\|?*' for character in value)
+            or value.endswith((".", " "))
+            or value.split(".", 1)[0].upper() in WINDOWS_RESERVED_NAMES):
+        raise ValueError(f"unsafe Windows path component: {value}")
+
+
+def safe_leaf(value: str) -> str:
+    relative = safe_relative(value)
+    if len(relative.parts) != 1:
+        raise ValueError(f"unsafe file name: {value}")
+    validate_windows_component(relative.name)
+    return relative.name
+
+
+def cache_path(cache: Path, display_name: str, expected_hash: str) -> Path:
+    """Return a short, manifest-independent Windows cache path."""
+    digest = expected_hash.strip().upper()
+    if len(digest) != 64 or any(character not in "0123456789ABCDEF" for character in digest):
+        raise ValueError(f"invalid SHA-256 for cache entry: {display_name}")
+    suffix = Path(display_name).suffix.casefold()
+    if suffix not in {".zip", ".7z", ".exe", ".json", ".safetensors", ".pth", ".bin"}:
+        suffix = ".bin"
+    return cache / f"a-{digest}{suffix}"
+
+
+@contextmanager
+def cache_entry_lock(destination: Path, display_name: str, timeout_seconds: float = 14400.0):
+    """Serialize one content-addressed cache entry across installer processes."""
+    lock_path = destination.with_suffix(destination.suffix + ".lock")
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    handle = None
+    acquired = False
+    deadline = time.monotonic() + timeout_seconds
+    last_notice = 0.0
+    try:
+        while handle is None:
+            try:
+                handle = lock_path.open("a+b")
+            except OSError as error:
+                if not transient_file_error(error) or time.monotonic() >= deadline:
+                    raise RuntimeError(
+                        f"CACHE_LOCK_FAILED: {display_name}: {type(error).__name__}: "
+                        f"errno={error.errno}, winerror={getattr(error, 'winerror', None)}, path={lock_path}"
+                    ) from error
+                now = time.monotonic()
+                if now - last_notice >= 5.0:
+                    print(f"  [대기] 다른 설치기가 캐시를 사용 중입니다: {display_name}", flush=True)
+                    last_notice = now
+                time.sleep(0.2)
+        handle.seek(0, os.SEEK_END)
+        if handle.tell() == 0:
+            handle.write(b"\0")
+            handle.flush()
+        while not acquired:
+            try:
+                handle.seek(0)
+                msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+                acquired = True
+            except OSError as error:
+                if not transient_file_error(error) or time.monotonic() >= deadline:
+                    raise RuntimeError(
+                        f"CACHE_LOCK_FAILED: {display_name}: {type(error).__name__}: "
+                        f"errno={error.errno}, winerror={getattr(error, 'winerror', None)}, path={lock_path}"
+                    ) from error
+                now = time.monotonic()
+                if now - last_notice >= 5.0:
+                    print(f"  [대기] 다른 설치기가 캐시를 사용 중입니다: {display_name}", flush=True)
+                    last_notice = now
+                time.sleep(0.2)
+        yield
+    finally:
+        if acquired:
+            handle.seek(0)
+            msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+        if handle is not None:
+            handle.close()
+
+
+def promote_verified_partial(partial: Path, destination: Path, display_name: str) -> None:
+    """Atomically publish a verified download, tolerating short AV/indexer locks."""
+    last_error: OSError | None = None
+    for attempt in range(1, 6):
+        try:
+            os.replace(partial, destination)
+            return
+        except OSError as error:
+            last_error = error
+            if not transient_file_error(error):
+                raise RuntimeError(
+                    f"CACHE_PROMOTE_FAILED: {display_name}: {type(error).__name__}: "
+                    f"errno={error.errno}, winerror={getattr(error, 'winerror', None)}, path={partial}"
+                ) from error
+            if attempt < 5:
+                time.sleep(attempt * 0.2)
+    assert last_error is not None
+    raise RuntimeError(
+        f"CACHE_PROMOTE_FAILED: {display_name}: {type(last_error).__name__}: "
+        f"errno={last_error.errno}, winerror={getattr(last_error, 'winerror', None)}, "
+        f"path={partial}"
+    ) from last_error
 
 
 def download(
@@ -47,24 +187,38 @@ def download(
     expected_hash: str,
     expected_bytes: int = 0,
     max_attempts: int = 6,
+    display_name: str | None = None,
+) -> Path:
+    label = display_name or destination.name
+    with cache_entry_lock(destination, label):
+        return _download_locked(url, destination, expected_hash, expected_bytes, max_attempts, label)
+
+
+def _download_locked(
+    url: str,
+    destination: Path,
+    expected_hash: str,
+    expected_bytes: int,
+    max_attempts: int,
+    label: str,
 ) -> Path:
     destination.parent.mkdir(parents=True, exist_ok=True)
     if destination.is_file():
-        if (not expected_bytes or destination.stat().st_size == expected_bytes) and sha256(destination) == expected_hash:
-            print(f"  [확인] {destination.name}", flush=True)
+        if (not expected_bytes or destination.stat().st_size == expected_bytes) and sha256_with_retry(destination, label) == expected_hash:
+            print(f"  [확인] {label}", flush=True)
             return destination
         destination.unlink()
     partial = destination.with_suffix(destination.suffix + ".part")
     # A previous process can stop after the last byte but before promotion.
     # Avoid requesting a range past EOF (HTTP 416) on every subsequent run.
     if partial.is_file() and (not expected_bytes or partial.stat().st_size >= expected_bytes):
-        if (not expected_bytes or partial.stat().st_size == expected_bytes) and sha256(partial) == expected_hash:
-            partial.replace(destination)
-            print(f"  [확인] {destination.name}", flush=True)
+        if (not expected_bytes or partial.stat().st_size == expected_bytes) and sha256_with_retry(partial, label) == expected_hash:
+            promote_verified_partial(partial, destination, label)
+            print(f"  [확인] {label}", flush=True)
             return destination
         if expected_bytes:
             partial.unlink()
-    print(f"  [다운로드] {destination.name}", flush=True)
+    print(f"  [다운로드] {label}", flush=True)
     last_error: Exception | None = None
     progress_visible = False
     for attempt in range(1, max_attempts + 1):
@@ -97,7 +251,7 @@ def download(
                             glyph = progress_glyphs[progress_frame % len(progress_glyphs)]
                             progress_frame += 1
                             print(
-                                f"\r        {destination.name} {percent:3d}%  {glyph}",
+                                f"\r        {label} {percent:3d}%  {glyph}",
                                 end="",
                                 flush=True,
                             )
@@ -118,7 +272,7 @@ def download(
                 progress_visible = False
             if attempt == max_attempts:
                 raise RuntimeError(
-                    f"download failed after {max_attempts} attempts: {destination.name}: "
+                    f"download failed after {max_attempts} attempts: {label}: "
                     f"{type(error).__name__}: {error}"
                 ) from error
             saved = partial.stat().st_size if partial.exists() else 0
@@ -129,22 +283,40 @@ def download(
             )
             time.sleep(min(attempt * 2, 10))
     else:  # pragma: no cover - the loop either breaks or raises
-        raise RuntimeError(f"download failed: {destination.name}: {last_error}")
+        raise RuntimeError(f"download failed: {label}: {last_error}")
     if expected_bytes and partial.stat().st_size != expected_bytes:
-        raise RuntimeError(f"size verification failed: {destination.name}")
-    if sha256(partial) != expected_hash:
+        raise RuntimeError(f"CACHE_SIZE_FAILED: {label}")
+    print(f"  [검증] {label}", flush=True)
+    actual_hash = sha256_with_retry(partial, label)
+    if actual_hash != expected_hash:
         partial.unlink()
-        raise RuntimeError(f"SHA-256 verification failed: {destination.name}")
-    partial.replace(destination)
+        raise RuntimeError(f"SHA-256 verification failed: {label}")
+    promote_verified_partial(partial, destination, label)
+    print(f"  [캐시 확정] {label}", flush=True)
     return destination
 
 
 def extract_zip(archive: Path, destination: Path) -> None:
     destination.mkdir(parents=True, exist_ok=True)
     root = destination.resolve()
+    seen: set[str] = set()
     with zipfile.ZipFile(archive) as bundle:
         for entry in bundle.infolist():
-            output = (destination / entry.filename.replace("/", os.sep)).resolve()
+            normalized = entry.filename.replace("\\", "/")
+            trimmed = normalized.rstrip("/")
+            parts = trimmed.split("/") if trimmed else []
+            if not parts or normalized.startswith("/"):
+                raise RuntimeError(f"unsafe ZIP path: {entry.filename}")
+            try:
+                for part in parts:
+                    validate_windows_component(part)
+            except ValueError as error:
+                raise RuntimeError(f"unsafe ZIP path: {entry.filename}") from error
+            identity = "/".join(parts).casefold()
+            if identity in seen:
+                raise RuntimeError(f"duplicate Windows ZIP path: {entry.filename}")
+            seen.add(identity)
+            output = destination.joinpath(*parts).resolve()
             try:
                 output.relative_to(root)
             except ValueError as error:
@@ -334,8 +506,11 @@ def ensure_webview2_runtime(manifest: dict, cache: Path) -> None:
         print('  [확인] Microsoft WebView2 Runtime', flush=True)
         return
     record = manifest['webview2']
-    installer = download(record['url'], cache / 'MicrosoftEdgeWebview2Setup.exe',
-                         record['sha256'], int(record['bytes']))
+    display_name = record.get('name', 'MicrosoftEdgeWebview2Setup.exe')
+    installer = download(
+        record['url'], cache_path(cache, display_name, record['sha256']),
+        record['sha256'], int(record['bytes']), display_name=display_name,
+    )
     print('  [설치] Microsoft WebView2 Runtime', flush=True)
     subprocess.run([str(installer), '/silent', '/install'], check=True, cwd=cache)
     if not has_webview2_runtime():
@@ -407,41 +582,43 @@ def install(manifest_path: Path, portable_root: Path, target: Path, cache: Path,
 
     custom = portable_root / "ComfyUI" / "custom_nodes"
     models_root = portable_root / "ComfyUI" / "models"
-    scratch = portable_root.parent / ".lakis-cmd-unpack"
+    scratch = Path(tempfile.mkdtemp(prefix=".lakis-cmd-unpack-", dir=portable_root.parent))
     custom.mkdir(parents=True, exist_ok=True)
     cache.mkdir(parents=True, exist_ok=True)
 
     for name, url, digest, relative in manifest["nodes"]:
-        archive = download(url, cache / name, digest)
-        install_archive(archive, custom / safe_relative(relative), scratch / name)
+        archive = download(url, cache_path(cache, name, digest), digest, display_name=name)
+        install_archive(archive, custom / safe_relative(relative), scratch / archive.name)
     name, url, digest, relative = manifest["nested_node"]
-    archive = download(url, cache / name, digest)
-    install_archive(archive, custom / safe_relative(relative), scratch / name)
+    archive = download(url, cache_path(cache, name, digest), digest, display_name=name)
+    install_archive(archive, custom / safe_relative(relative), scratch / archive.name)
 
     for name, url, digest, relative, size in manifest["models"]:
-        cached = download(url, cache / name, digest, int(size))
-        destination = models_root / safe_relative(relative) / name
+        cached = download(url, cache_path(cache, name, digest), digest, int(size), display_name=name)
+        destination = models_root / safe_relative(relative) / safe_leaf(name)
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(cached, destination)
 
     source_item = manifest["source"]
     source_archive = download(
         source_item["url"],
-        cache / source_item["name"],
+        cache_path(cache, source_item["name"], source_item["sha256"]),
         source_item["sha256"],
         int(source_item["bytes"]),
+        display_name=source_item["name"],
     )
     source_stage = scratch / "release-source"
     if source_stage.exists():
         shutil.rmtree(source_stage)
+    print(f"  [압축 해제] {source_item['name']}", flush=True)
     extract_zip(source_archive, source_stage)
     install_release_source(only_directory(source_stage), portable_root)
 
     release_base = str(manifest["release_base"]).rstrip("/")
     repair = manifest["repair_pack"]
     layout = manifest["release_layout"]
-    repair_path = download(f"{release_base}/{repair['name']}", cache / repair["name"], repair["sha256"], int(repair.get("bytes", 0)))
-    layout_path = download(f"{release_base}/{layout['name']}", cache / layout["name"], layout["sha256"], int(layout.get("bytes", 0)))
+    repair_path = download(f"{release_base}/{repair['name']}", cache_path(cache, repair["name"], repair["sha256"]), repair["sha256"], int(repair.get("bytes", 0)), display_name=repair["name"])
+    layout_path = download(f"{release_base}/{layout['name']}", cache_path(cache, layout["name"], layout["sha256"]), layout["sha256"], int(layout.get("bytes", 0)), display_name=layout["name"])
     extract_zip(repair_path, portable_root)
     create_default_input_image(portable_root / "ComfyUI")
 
@@ -482,6 +659,7 @@ def install(manifest_path: Path, portable_root: Path, target: Path, cache: Path,
     if target.exists():
         target.rmdir()
     os.replace(portable_root, target)
+    shutil.rmtree(scratch, ignore_errors=True)
     # The caller owns the staging parent; it may contain unrelated files.
     # Keep it (including extraction logs) rather than deleting it recursively.
     try:
