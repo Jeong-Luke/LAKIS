@@ -94,6 +94,18 @@ function Assert-RuntimeManifest(
         $actualHash = (Get-FileHash -LiteralPath $filePath -Algorithm SHA256).Hash
         if ($actualHash -ne [string]$entry.sha256) { throw "Runtime manifest hash mismatch: $normalized" }
     }
+    foreach ($item in Get-ChildItem -LiteralPath $Root -Force -Recurse) {
+        if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -eq 0) { continue }
+        $relative = $item.FullName.Substring($rootPath.Length).Replace('\','/')
+        if ($AllowProtectedOverrides -and (Test-ProtectedPath $relative $ProtectedPrefixes $ProtectedFiles)) { continue }
+        throw "Runtime contains an untrusted reparse point: $relative"
+    }
+    foreach ($file in Get-ChildItem -LiteralPath $Root -File -Recurse -Force) {
+        $relative = $file.FullName.Substring($rootPath.Length).Replace('\','/')
+        if ($relative -eq "RUNTIME_SHA256SUMS.json" -or $seen.Contains($relative)) { continue }
+        if ($AllowProtectedOverrides -and (Test-ProtectedPath $relative $ProtectedPrefixes $ProtectedFiles)) { continue }
+        throw "Runtime contains a file not listed in the manifest: $relative"
+    }
 }
 
 function Assert-UnlockedRuntime([string]$Root, [string[]]$ProtectedPrefixes) {
@@ -135,6 +147,10 @@ $journal = @{
 }
 
 try {
+    # Validate the source tree before robocopy can encounter any untrusted
+    # reparse point or unlisted payload.
+    Assert-RuntimeManifest $candidate $ExpectedVersion $protectedPrefixes $protectedFiles $ExpectedManifestSha256
+
     # A crash after promotion leaves both the verified new target and the old
     # backup. Treat that state as a resumable completion, never as permission
     # to replace or delete either tree again.
@@ -168,23 +184,28 @@ try {
     Write-Journal $journalPath $journal
     if ($TestInterruptAfter -eq "after-stage") { throw "TEST_INTERRUPT_after-stage" }
 
-    if (Test-Path -LiteralPath $target) {
-        Assert-UnlockedRuntime $target $protectedPrefixes
+    $targetExists = Test-Path -LiteralPath $target -PathType Container
+    $backupExists = Test-Path -LiteralPath $backup -PathType Container
+    $preservationSource = if ($targetExists) { $target } elseif ($backupExists) { $backup } else { $null }
+    if ($targetExists) { Assert-UnlockedRuntime $target $protectedPrefixes }
+    if ($preservationSource) {
         foreach ($relative in $protectedDirectories) {
-            $source = Join-Path $target $relative
+            $source = Join-Path $preservationSource $relative
             if (-not (Test-Path -LiteralPath $source)) { continue }
             $destination = Join-Path $stage $relative
             if (Test-Path -LiteralPath $destination) { Remove-Item -LiteralPath $destination -Recurse -Force }
             Invoke-SafeCopy $source $destination
         }
         foreach ($relative in $protectedFiles) {
-            $source = Join-Path $target $relative
+            $source = Join-Path $preservationSource $relative
             if (-not (Test-Path -LiteralPath $source -PathType Leaf)) { continue }
             $destination = Join-Path $stage $relative
             New-Item -ItemType Directory -Path (Split-Path -Parent $destination) -Force | Out-Null
             Copy-Item -LiteralPath $source -Destination $destination -Force
         }
         Assert-RuntimeManifest $stage $ExpectedVersion $protectedPrefixes $protectedFiles $ExpectedManifestSha256 -AllowProtectedOverrides
+    }
+    if ($targetExists) {
         if (Test-Path -LiteralPath $backup) { throw "A previous runtime backup already exists: $backup" }
         Move-Item -LiteralPath $target -Destination $backup
     }

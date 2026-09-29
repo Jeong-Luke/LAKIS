@@ -83,6 +83,31 @@ $quarantined = @(Get-ChildItem -LiteralPath $partialCase -Directory -Filter ".LA
 if ($quarantined.Count -ne 1) { throw "Invalid partial stage was not quarantined." }
 $results += [ordered]@{ case="partial-stage-copy"; fail_closed="PASS"; rebuilt_from_candidate="PASS"; data_preservation="PASS" }
 
+$backupDamagedCase = Join-Path $testRootPath "backup-with-damaged-stage"
+$backupDamagedTarget = Join-Path $backupDamagedCase "LAKIS"
+New-OldFixture $backupDamagedTarget
+try {
+    & $transition -CandidateRoot $candidateFixture -TargetRoot $backupDamagedTarget -ExpectedManifestSha256 $candidateManifestHash -TestInterruptAfter "after-backup" | Out-Null
+    throw "Expected interruption after backup."
+}
+catch { if ($_.Exception.Message -notlike "*TEST_INTERRUPT_after-backup*") { throw } }
+$backupDamagedStage = Join-Path $backupDamagedCase ".LAKIS-8-stage"
+Set-Content -LiteralPath (Join-Path $backupDamagedStage "runtime-required.bin") -Value "damaged-after-backup" -Encoding ascii
+& $transition -CandidateRoot $candidateFixture -TargetRoot $backupDamagedTarget -ExpectedManifestSha256 $candidateManifestHash | Out-Null
+Assert-Preserved $backupDamagedTarget
+$results += [ordered]@{ case="backup-with-damaged-stage"; rebuilt_from_candidate="PASS"; restored_user_data_from_backup="PASS" }
+
+$extraCase = Join-Path $testRootPath "unlisted-extra-file"
+$extraTarget = Join-Path $extraCase "LAKIS"
+New-OldFixture $extraTarget
+$extraStage = Join-Path $extraCase ".LAKIS-8-stage"
+& robocopy $candidateFixture $extraStage /E /R:1 /W:1 /NFL /NDL /NP /NJH /NJS | Out-Null
+if ($LASTEXITCODE -gt 7) { throw "Extra-file test fixture copy failed." }
+Set-Content -LiteralPath (Join-Path $extraStage "UNLISTED_PAYLOAD.bin") -Value "unlisted" -Encoding ascii
+& $transition -CandidateRoot $candidateFixture -TargetRoot $extraTarget -ExpectedManifestSha256 $candidateManifestHash | Out-Null
+if (Test-Path -LiteralPath (Join-Path $extraTarget "UNLISTED_PAYLOAD.bin")) { throw "Unlisted stage file was promoted." }
+$results += [ordered]@{ case="unlisted-extra-file"; rejected_and_rebuilt="PASS" }
+
 $prefixCase = Join-Path $testRootPath "protected-file-prefix"
 $prefixTarget = Join-Path $prefixCase "LAKIS"
 New-OldFixture $prefixTarget
