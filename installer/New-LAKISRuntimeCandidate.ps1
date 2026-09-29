@@ -29,9 +29,16 @@ $baseManifestHash = (Get-FileHash -LiteralPath $baseManifest -Algorithm SHA256).
 $temp = Join-Path ([IO.Path]::GetTempPath()) ("lakis-runtime-candidate-" + [guid]::NewGuid().ToString("N"))
 $snapshot = Join-Path $temp "source"
 
-function Copy-Tree([string]$Source, [string]$Destination) {
+function Copy-BaseRuntime([string]$Source, [string]$Destination) {
     New-Item -ItemType Directory -Path $Destination -Force | Out-Null
-    Get-ChildItem -LiteralPath $Source -Force | Copy-Item -Destination $Destination -Recurse -Force
+    $excludedDirectories = @(
+        (Join-Path $Source "ComfyUI\models"), (Join-Path $Source "ComfyUI\input"),
+        (Join-Path $Source "ComfyUI\output"), (Join-Path $Source "ComfyUI\temp"),
+        (Join-Path $Source "ComfyUI\user"), "__pycache__"
+    )
+    & robocopy $Source $Destination /E /R:1 /W:1 /NFL /NDL /NJH /NJS /NP `
+        /XD $excludedDirectories /XF *.pyc process_audit.jsonl external_ui_bridge_audit.jsonl
+    if ($LASTEXITCODE -gt 7) { throw "Base runtime copy failed with robocopy exit code $LASTEXITCODE." }
 }
 
 function Copy-SourceTree([string]$Source, [string]$Destination) {
@@ -55,11 +62,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "git archive failed." }
     Expand-Archive -LiteralPath $archive -DestinationPath $snapshot
 
-    Copy-Tree $base $output
-    foreach ($protected in @("ComfyUI\models", "ComfyUI\input", "ComfyUI\output", "ComfyUI\temp", "ComfyUI\user")) {
-        $path = Join-Path $output $protected
-        if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Recurse -Force }
-    }
+    Copy-BaseRuntime $base $output
 
     Copy-SourceTree (Join-Path $snapshot "src\external_ui") (Join-Path $output "ComfyUI\LAKIS\external_ui")
     Copy-Item -LiteralPath (Join-Path $snapshot "resources\STOP_AUTOMATION") -Destination (Join-Path $output "ComfyUI\LAKIS\STOP_AUTOMATION") -Force
