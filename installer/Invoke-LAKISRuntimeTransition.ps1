@@ -105,7 +105,8 @@ function Assert-RuntimeManifest(
     [string[]]$ProtectedPrefixes,
     [string[]]$ProtectedFiles,
     [string]$ExpectedManifestHash,
-    [switch]$AllowProtectedOverrides
+    [switch]$AllowProtectedOverrides,
+    [switch]$MetadataOnly
 ) {
     Assert-NoReparseChain $Root "Runtime root"
     Assert-Runtime $Root $Version
@@ -146,6 +147,7 @@ function Assert-RuntimeManifest(
             $cursor = $parentPath
         }
         $file = Get-Item -LiteralPath $filePath
+        if ($MetadataOnly) { continue }
         if ([int64]$file.Length -ne [int64]$entry.size) { throw "Runtime manifest size mismatch: $normalized" }
         $actualHash = (Get-FileHash -LiteralPath $filePath -Algorithm SHA256).Hash
         if ($actualHash -ne [string]$entry.sha256) { throw "Runtime manifest hash mismatch: $normalized" }
@@ -208,7 +210,7 @@ $journal = @{
 try {
     # Validate the source tree before robocopy can encounter any untrusted
     # reparse point or unlisted payload.
-    Assert-RuntimeManifest $candidate $ExpectedVersion $protectedPrefixes $protectedFiles $ExpectedManifestSha256
+    Assert-RuntimeManifest $candidate $ExpectedVersion $protectedPrefixes $protectedFiles $ExpectedManifestSha256 -MetadataOnly
 
     # A crash after promotion leaves both the verified new target and the old
     # backup. Treat that state as a resumable completion, never as permission
@@ -247,12 +249,7 @@ try {
     }
     if (-not (Test-Path -LiteralPath $stage)) {
         Invoke-SafeCopy $candidate $stage
-        Assert-RuntimeManifest $stage $ExpectedVersion $protectedPrefixes $protectedFiles $ExpectedManifestSha256
     }
-    Assert-RuntimeManifest $stage $ExpectedVersion $protectedPrefixes $protectedFiles $ExpectedManifestSha256 -AllowProtectedOverrides
-    $journal.phase = "staged"
-    Write-Journal $journalPath $journal
-    if ($TestInterruptAfter -eq "after-stage") { throw "TEST_INTERRUPT_after-stage" }
 
     $targetExists = Test-Path -LiteralPath $target -PathType Container
     $backupExists = Test-Path -LiteralPath $backup -PathType Container
@@ -278,8 +275,13 @@ try {
             New-Item -ItemType Directory -Path (Split-Path -Parent $destination) -Force | Out-Null
             Copy-Item -LiteralPath $source -Destination $destination -Force
         }
-        Assert-RuntimeManifest $stage $ExpectedVersion $protectedPrefixes $protectedFiles $ExpectedManifestSha256 -AllowProtectedOverrides
     }
+    # Validate structure before promotion. Content is hashed once at the final
+    # target path before the transition is declared complete or may be used.
+    Assert-RuntimeManifest $stage $ExpectedVersion $protectedPrefixes $protectedFiles $ExpectedManifestSha256 -AllowProtectedOverrides -MetadataOnly
+    $journal.phase = "staged"
+    Write-Journal $journalPath $journal
+    if ($TestInterruptAfter -eq "after-stage") { throw "TEST_INTERRUPT_after-stage" }
     if ($targetExists) {
         if (Test-Path -LiteralPath $backup) { throw "A previous runtime backup already exists: $backup" }
         Move-Item -LiteralPath $target -Destination $backup
@@ -300,7 +302,10 @@ try {
     Write-Journal $journalPath $journal
     if ($TestInterruptAfter -eq "after-promote") { throw "TEST_INTERRUPT_after-promote" }
     if ($TestInterruptAfter -eq "corrupt-after-promote") {
-        Set-Content -LiteralPath (Join-Path $target "runtime-required.bin") -Value "TEST_CORRUPTION" -Encoding ascii
+        $corruptPath = Join-Path $target "runtime-required.bin"
+        $corruptBytes = [IO.File]::ReadAllBytes($corruptPath)
+        $corruptBytes[0] = $corruptBytes[0] -bxor 1
+        [IO.File]::WriteAllBytes($corruptPath, $corruptBytes)
     }
 
     Assert-RuntimeManifest $target $ExpectedVersion $protectedPrefixes $protectedFiles $ExpectedManifestSha256 -AllowProtectedOverrides

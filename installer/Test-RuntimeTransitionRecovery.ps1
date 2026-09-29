@@ -197,7 +197,7 @@ try {
     throw "Expected post-promote manifest failure."
 }
 catch {
-    if ($_.Exception.Message -notlike "*Runtime manifest size mismatch*" -and $_.Exception.Message -notlike "*Runtime manifest hash mismatch*") { throw }
+    if ($_.Exception.Message -notlike "*Runtime manifest hash mismatch*") { throw }
 }
 if ((Get-Content -LiteralPath (Join-Path $rollbackTarget "VERSION") -Raw).Trim() -ne "7.5.2") { throw "Rollback did not restore the original runtime." }
 Assert-Preserved $rollbackTarget
@@ -213,7 +213,7 @@ try {
     throw "Expected fresh-install post-promote manifest failure."
 }
 catch {
-    if ($_.Exception.Message -notlike "*Runtime manifest size mismatch*" -and $_.Exception.Message -notlike "*Runtime manifest hash mismatch*") { throw }
+    if ($_.Exception.Message -notlike "*Runtime manifest hash mismatch*") { throw }
 }
 if (Test-Path -LiteralPath $freshFailureTarget) { throw "Failed fresh runtime remained at the target path." }
 $freshFailedTargets = @(Get-ChildItem -LiteralPath $freshFailureCase -Directory -Filter "LAKIS.failed-*")
