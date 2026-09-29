@@ -56,10 +56,12 @@ function Write-Journal([string]$Path, [hashtable]$State) {
 
 function Assert-NoReparseChain([string]$Path, [string]$Label) {
     $cursor = [IO.Path]::GetFullPath($Path)
-    while ($cursor -and (Test-Path -LiteralPath $cursor)) {
-        $item = Get-Item -LiteralPath $cursor -Force
-        if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
-            throw "$Label path contains a reparse point: $cursor"
+    while ($cursor) {
+        if (Test-Path -LiteralPath $cursor) {
+            $item = Get-Item -LiteralPath $cursor -Force
+            if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                throw "$Label path contains a reparse point: $cursor"
+            }
         }
         $parentInfo = [IO.Directory]::GetParent($cursor)
         if ($null -eq $parentInfo) { break }
@@ -194,10 +196,12 @@ $journalPath = Join-Path $parent ".$name-runtime-transition.json"
 if ([IO.Path]::GetPathRoot($candidate) -ne [IO.Path]::GetPathRoot($target)) {
     throw "Candidate and target must be on the same volume for atomic promotion."
 }
-New-Item -ItemType Directory -Path $parent -Force | Out-Null
 Assert-NoReparseChain $candidate "Candidate"
 Assert-NoReparseChain $parent "Target parent"
+New-Item -ItemType Directory -Path $parent -Force | Out-Null
+Assert-NoReparseChain $parent "Target parent"
 if (Test-Path -LiteralPath $target) { Assert-NoReparseChain $target "Existing target" }
+if (Test-Path -LiteralPath $backup) { Assert-NoReparseChain $backup "Existing backup" }
 
 $protectedDirectories = @(".lakis", "ComfyUI/models", "ComfyUI/input", "ComfyUI/output", "ComfyUI/user")
 $protectedFiles = @("LAKIS_OUTPUT_DIRECTORY.txt", "ComfyUI/extra_model_paths.yaml")

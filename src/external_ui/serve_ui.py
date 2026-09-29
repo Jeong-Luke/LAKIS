@@ -859,7 +859,7 @@ def translate_korean_text(value: str) -> str:
                     "https://translate.googleapis.com/translate_a/single"
                     f"?client=gtx&sl=auto&tl=en&dt=t&q={quote(source_text)}"
                 )
-                request = Request(endpoint, headers={"User-Agent": "LAKIS/7.3.6"})
+                request = Request(endpoint, headers={"User-Agent": "LAKIS/8.0.0"})
                 with urlopen(request, timeout=10.0) as response:
                     payload = json.loads(response.read().decode("utf-8"))
                 translated_body = "".join(
@@ -927,7 +927,7 @@ def _ensure_realesrgan_model() -> Path:
         request = Request(
             REALESRGAN_URL + "?lakis_model=" + str(time.time_ns()),
             headers={
-                "User-Agent": "LAKIS/7.3.6",
+                "User-Agent": "LAKIS/8.0.0",
                 "Cache-Control": "no-cache, no-store, must-revalidate",
                 "Pragma": "no-cache",
             },

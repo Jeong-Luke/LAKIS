@@ -139,6 +139,38 @@ if ((Get-Content -LiteralPath (Join-Path $targetLinkExternal "VERSION") -Raw).Tr
 Assert-Preserved $targetLinkExternal
 $results += [ordered]@{ case="target-root-junction"; fail_closed="PASS"; external_install_preserved="PASS" }
 
+$backupLinkCase = Join-Path $testRootPath "backup-root-junction"
+$backupLinkExternal = Join-Path $backupLinkCase "external-backup-install"
+New-OldFixture $backupLinkExternal
+$backupLink = Join-Path $backupLinkCase ".LAKIS-pre-8-backup"
+New-Item -ItemType Junction -Path $backupLink -Target $backupLinkExternal | Out-Null
+try {
+    & $transition -CandidateRoot $candidateFixture -TargetRoot (Join-Path $backupLinkCase "LAKIS") -ExpectedManifestSha256 $candidateManifestHash | Out-Null
+    throw "Existing backup-root junction was unexpectedly accepted."
+}
+catch { if ($_.Exception.Message -notlike "*Existing backup path contains a reparse point*") { throw } }
+if ((Get-Content -LiteralPath (Join-Path $backupLinkExternal "VERSION") -Raw).Trim() -ne "7.5.2") {
+    throw "Existing backup-root junction target was modified."
+}
+Assert-Preserved $backupLinkExternal
+$results += [ordered]@{ case="backup-root-junction"; fail_closed="PASS"; external_backup_preserved="PASS" }
+
+$parentAncestorCase = Join-Path $testRootPath "target-parent-ancestor-junction"
+$parentAncestorExternal = Join-Path $parentAncestorCase "external-parent"
+New-Item -ItemType Directory -Path $parentAncestorExternal -Force | Out-Null
+$parentAncestorLink = Join-Path $parentAncestorCase "linked-parent"
+New-Item -ItemType Junction -Path $parentAncestorLink -Target $parentAncestorExternal | Out-Null
+$parentAncestorTarget = Join-Path $parentAncestorLink "new-child\LAKIS"
+try {
+    & $transition -CandidateRoot $candidateFixture -TargetRoot $parentAncestorTarget -ExpectedManifestSha256 $candidateManifestHash | Out-Null
+    throw "Target-parent ancestor junction was unexpectedly accepted."
+}
+catch { if ($_.Exception.Message -notlike "*Target parent path contains a reparse point*") { throw } }
+if (Test-Path -LiteralPath (Join-Path $parentAncestorExternal "new-child")) {
+    throw "Target-parent validation created a directory through an external junction."
+}
+$results += [ordered]@{ case="target-parent-ancestor-junction"; fail_closed_before_mutation="PASS"; external_tree_unchanged="PASS" }
+
 $junctionCase = Join-Path $testRootPath "protected-junction"
 $junctionTarget = Join-Path $junctionCase "LAKIS"
 $junctionExternal = Join-Path $junctionCase "shared-model-source"
