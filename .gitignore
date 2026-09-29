@@ -15,6 +15,7 @@ lakis_launcher_state.json
 .local-build/
 .manifest-audit-*/
 .release-audit-*/
+/release_audits/
 dist/.lakis/
 
 installer/build_package.ps1
@@ -23,4 +24,6 @@ src/custom_nodes/ComfyUI-LAKIS-Light-Control/TEST_NOTES.txt
 
 /.safe-installer-build/
 /.rc-channel-*/
-*_audit.jsonl
+/runs/
+/src/external_ui_bridge_audit.jsonl
+/src/external_ui_bridge_audit.jsonl.*

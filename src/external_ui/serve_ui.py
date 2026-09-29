@@ -44,6 +44,7 @@ from workflow_bridge import (
     remove_persisted_upscaler_override,
     save_external_generation_state,
     save_external_prompt_state,
+    UI_STATE_PATH,
     load_external_prompt_bundle,
     upscaler_choice_status,
     workflow_configuration,
@@ -57,7 +58,11 @@ except ImportError:  # optional in prototype runtime
 
 COMFY_ROOT = UI_ROOT.parents[1].resolve()
 INSTALL_ROOT = COMFY_ROOT.parent.resolve()
-DEVELOPMENT = os.environ.get("LAKIS_DEVELOPMENT") == "1"
+RUNTIME_ROOT = UI_ROOT.parent.resolve()
+DEVELOPMENT = (
+    os.environ.get("LAKIS_DEVELOPMENT") == "1"
+    and RUNTIME_ROOT.name.casefold() == "lakis_dev"
+)
 USER_STATE_ROOT = Path(os.environ.get("LOCALAPPDATA", str(INSTALL_ROOT))) / (
     "LAKIS Studio DEV" if DEVELOPMENT else "LAKIS Studio"
 )
@@ -75,19 +80,19 @@ LLLITE_INPAINT_SOURCE = "https://huggingface.co/kohya-ss/Anima-LLLite"
 LLLITE_INPAINT_LICENSE = "CircleStone Labs Non-Commercial License"
 LLLITE_INPAINT_LICENSE_PATH = INSTALL_ROOT / "third_party_licenses" / "Anima-LLLite-CircleStone-Non-Commercial-License.txt"
 LAKIS_VERSION_PATH = (
-    UI_ROOT.parent / "DEV_VERSION" if DEVELOPMENT else COMFY_ROOT.parent / "VERSION"
+    RUNTIME_ROOT / "DEV_VERSION" if DEVELOPMENT else COMFY_ROOT.parent / "VERSION"
 )
 OUTPUT_ROOT = (COMFY_ROOT / "output").resolve()
 LEGACY_OUTPUT_LOCATION_PATH = UI_ROOT.parent / "output-location.json"
 OUTPUT_LOCATION_PATH = UI_STATE_PATH.with_name("output-location.json")
 INPUT_ROOT = (COMFY_ROOT / "input").resolve()
-AUDIT_PATH = UI_ROOT.parent / "process_audit.jsonl"
+AUDIT_PATH = UI_STATE_PATH.with_name("process_audit.jsonl")
 HOST = "127.0.0.1"
 PORT = 8766
-COMFY_PORT = int(os.environ.get("LAKIS_COMFY_PORT") or (8190 if DEVELOPMENT else 8189))
+COMFY_PORT = int(os.environ.get("LAKIS_COMFY_PORT") or 8190) if DEVELOPMENT else 8189
 COMFY_SERVER = f"http://127.0.0.1:{COMFY_PORT}"
 WORKFLOW_ROOT = COMFY_ROOT / "user" / "default" / "workflows"
-PACKAGED_WORKFLOW_ROOT = (UI_ROOT.parent / "workflows") if DEVELOPMENT else (COMFY_ROOT / "LAKIS" / "workflows")
+PACKAGED_WORKFLOW_ROOT = (RUNTIME_ROOT / "workflows") if DEVELOPMENT else (COMFY_ROOT / "LAKIS" / "workflows")
 PREFERRED_LAKIS_WORKFLOW = PACKAGED_WORKFLOW_ROOT / "LAKIS_runtime_api_v7.4.json"
 RUNTIME_LAKIS_WORKFLOW = PACKAGED_WORKFLOW_ROOT / "LAKIS_runtime_api_v7.4.json"
 RUNTIME_LAKIS_SOURCE_NAME = RUNTIME_LAKIS_WORKFLOW.name
@@ -881,6 +886,7 @@ def translate_prompt_payload(prompt: object) -> dict:
 def audit(event: dict) -> None:
     event = {"timestamp": time.time(), **event}
     try:
+        AUDIT_PATH.parent.mkdir(parents=True, exist_ok=True)
         with AUDIT_PATH.open("a", encoding="utf-8") as stream:
             stream.write(json.dumps(event, ensure_ascii=False) + "\n")
     except OSError:
@@ -1276,13 +1282,51 @@ class Handler(SimpleHTTPRequestHandler):
         }
 
     def end_headers(self) -> None:
-        self.send_header("Access-Control-Allow-Origin", "*")
         if urlparse(self.path).path != "/api/thumbnail":
             self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
             self.send_header("Pragma", "no-cache")
         super().end_headers()
 
+    def _api_request_allowed(self) -> bool:
+        """Reject browser requests that did not originate from this loopback UI."""
+        expected_port = int(getattr(self.server, "server_port", SERVER_PORT))
+        host = self.headers.get("Host", "")
+        try:
+            parsed_host = urlparse("//" + host)
+            host_name = (parsed_host.hostname or "").casefold()
+            host_port = parsed_host.port or expected_port
+        except ValueError:
+            return False
+        if host_name not in {"127.0.0.1", "localhost"} or host_port != expected_port:
+            return False
+        if self.headers.get("Sec-Fetch-Site", "").casefold() == "cross-site":
+            return False
+        origin = self.headers.get("Origin")
+        if not origin:
+            return True
+        try:
+            parsed_origin = urlparse(origin)
+            origin_host = (parsed_origin.hostname or "").casefold()
+            origin_port = parsed_origin.port or (80 if parsed_origin.scheme == "http" else 443)
+        except ValueError:
+            return False
+        return (
+            parsed_origin.scheme == "http"
+            and origin_host in {"127.0.0.1", "localhost"}
+            and origin_port == expected_port
+        )
+
+    def _authorize_api_request(self) -> bool:
+        if not urlparse(self.path).path.startswith("/api/"):
+            return True
+        if self._api_request_allowed():
+            return True
+        self._send_json(403, {"ok": False, "error": "Cross-origin API request denied"})
+        return False
+
     def do_GET(self) -> None:  # noqa: N802
+        if not self._authorize_api_request():
+            return
         if urlparse(self.path).path == "/api/inpaint-model-notice":
             self._send_json(200, inpaint_model_notice_status())
             return
@@ -1459,6 +1503,8 @@ class Handler(SimpleHTTPRequestHandler):
         return json.loads(self.rfile.read(size).decode("utf-8"))
 
     def do_POST(self) -> None:  # noqa: N802
+        if not self._authorize_api_request():
+            return
         if self.path == "/api/inpaint-model-notice":
             try:
                 self._send_json(200, acknowledge_inpaint_model_notice(self._read_json()))
@@ -1759,6 +1805,10 @@ class LinkHandler(Handler):
             return False
         cookie = self.headers.get("Cookie", "")
         return any(part.strip() == f"lakis_link={LINK_SESSION}" for part in cookie.split(";"))
+
+    def _api_request_allowed(self) -> bool:
+        """Use the Link session as the API authority on the tailnet listener."""
+        return self._authorized()
 
     def _login_page(self, failed: bool = False) -> None:
         message = "PIN이 올바르지 않습니다." if failed else "PC의 LAKIS Link PIN을 입력하세요."

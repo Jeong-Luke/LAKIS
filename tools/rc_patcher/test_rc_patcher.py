@@ -1,6 +1,7 @@
-import hashlib, json, os, tempfile, unittest, zipfile
+import hashlib, json, os, sys, tempfile, unittest, zipfile
 from pathlib import Path
 from unittest import mock
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 import rc_patch
 
 

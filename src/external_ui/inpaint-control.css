@@ -51,6 +51,7 @@
    while it is active and return unchanged when the switch is turned off. */
 .control-column.inpaint-layout-active { overflow:hidden!important; }
 .control-column.inpaint-layout-active .composition-panel,
+.control-column.inpaint-layout-active .wildcard-panel,
 .control-column.inpaint-layout-active .i2i-panel { display:none!important; }
 .control-column.inpaint-layout-active .inpaint-panel {
   flex:1 1 auto!important;

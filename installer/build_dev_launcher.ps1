@@ -24,6 +24,7 @@ foreach ($dependency in $webViewCore,$webViewForms) {
 & $csc /nologo /define:LAKIS_DEV /target:winexe `
     ("/out:" + (Join-Path $output "LAKIS_DEV.exe")) ("/win32icon:" + $devIcon) `
     /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll `
+    /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll `
     ("/resource:" + (Join-Path $repo "resources\splash\lakis-splash-01.png") + ",LAKIS.Splash1") `
     ("/resource:" + (Join-Path $repo "resources\splash\lakis-splash-02.png") + ",LAKIS.Splash2") `
     (Join-Path $PSScriptRoot "SplashArtwork.cs") (Join-Path $PSScriptRoot "LAKIS_Launcher.cs")

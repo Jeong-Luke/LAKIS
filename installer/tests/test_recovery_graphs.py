@@ -36,6 +36,7 @@ class GraphContracts(unittest.TestCase):
                   patch.object(m,'_wait_for_comfy_object_info',return_value={'fixture':{}}),
                   patch.object(m,'_preferred_upscaler',return_value=None),
                   patch.object(m,'_comfy_object_info',return_value={}),
+                  patch.object(m,'_is_anima_checkpoint',return_value=True),
                   patch.object(m,'_model_files',return_value=[])):
             p.start();self.addCleanup(p.stop)
         self.base={'generation':{'mode':'fast'},'output':{'seed':123,'width':1024,'height':768},
@@ -89,6 +90,31 @@ class GraphContracts(unittest.TestCase):
         self.assertTrue({'LAKIS_DETAIL','LAKIS_SCOPE','LAKIS_VRAM_GATE'}<=types)
     def test_i2i(self):
         p,a=self.graph('detail',i2i=True);self.assertTrue(a['i2i_enabled'])
+    def test_stale_i2i_advanced_overrides_cannot_poison_later_t2i(self):
+        state=json.loads(json.dumps(self.base))
+        state['i2i']={'enabled':False,'image_name':'LAKIS_i2i_input_fixture.png','denoise':.5}
+        state['node_overrides']={
+            '1744':{'image':'LAKIS_i2i_input_fixture.png'},
+            '1736:1737':{'value':True},
+            '1634:1760':{'value':0.01},
+        }
+        prompt,assertions=m.build_prompt(state)
+        self.assertFalse(assertions['i2i_enabled'])
+        self.assertFalse(prompt['1736:1737']['inputs']['value'])
+        self.assertEqual(.5,prompt['1634:1760']['inputs']['value'])
+    def test_disabled_inpaint_with_retained_files_cannot_poison_later_t2i(self):
+        state=json.loads(json.dumps(self.base))
+        state['inpaint']={
+            'enabled':False,'operation':'regenerate','prompt':'replace object',
+            'image_name':'LAKIS_inpaint_input_fixture.png',
+            'mask_name':'LAKIS_inpaint_mask_fixture.png','denoise':.65,
+        }
+        prompt,assertions=m.build_prompt(state)
+        self.assertFalse(assertions['inpaint_enabled'])
+        self.assertFalse(prompt['1736:1737']['inputs']['value'])
+        self.assertNotIn('lakis:inpaint_mask_loader',prompt)
+        self.assertNotIn('lakis:inpaint_final_composite',prompt)
+        self.assertNotEqual(['lakis:inpaint_final_composite',0],prompt['775']['inputs']['images'])
     def test_inpaint_regenerate_v2(self):
         p,a=self.graph('detail','regenerate');self.assertIn('lakis:inpaint_v2_prepare',p);self.assertNotIn('lakis:inpaint_color_match',p)
     def test_inpaint_remove_v2(self):

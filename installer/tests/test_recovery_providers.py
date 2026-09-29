@@ -30,6 +30,9 @@ def load_node(name):
 class ProviderTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):cls.local=load_node('ComfyUI-LAKIS-Local-Inpaint')
+    def test_public_local_inpaint_has_no_dekis_aliases(self):
+        self.assertFalse(any(name.startswith('DEKIS_') for name in self.local.NODE_CLASS_MAPPINGS))
+        self.assertFalse(any(name.startswith('DEKIS_') for name in self.local.NODE_DISPLAY_NAME_MAPPINGS))
     def color(self):
         self.assertIn('LAKIS_INPAINT_COLOR_MATCH',self.local.NODE_CLASS_MAPPINGS)
         return self.local.NODE_CLASS_MAPPINGS['LAKIS_INPAINT_COLOR_MATCH']()

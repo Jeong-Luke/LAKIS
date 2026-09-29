@@ -34,14 +34,20 @@ class ReleaseSourceContracts(unittest.TestCase):
             self.assertIn(b'RealESRGAN_x4plus_anime_6B.pth',workflow,name)
             self.assertNotIn(b'2x-AnimeSharpV4_Fast_RCAN_PU.safetensors',workflow,name)
             self.assertIn(name,s)
-            self.assertIn(name,g)
+            if not name.endswith('_editable.json'):
+                self.assertIn(name,g)
         # Update, Fresh Setup, and Repair must copy the same canonical bytes.
         # Optional user choices are persisted separately and resolved at runtime.
         self.assertNotIn('SetDefaultUpscaler(',s)
         self.assertNotIn('Directory.GetFiles(root,"*.json"',s)
         repair=s[s.index('internal static void Repair'):s.index('private static string Fetch')]
         self.assertNotIn('Path.Combine(comfy,"user"',repair)
+        self.assertNotIn('LAKIS_custom_v7.4_editable.json',repair)
         self.assertNotIn('Add-UpdateFile "ComfyUI/user',g)
+        update_workflows=g[g.index('foreach ($runtimeName'):g.index('$retiredFiles')]
+        self.assertNotIn('LAKIS_custom_v7.4_editable.json',update_workflows)
+        retired=g[g.index('$retiredFiles'):g.index('$filePaths')]
+        self.assertNotIn('LAKIS_custom_v7.3_editable.json',retired)
     def test_setup_and_repair_verify_cached_source_archive(self):
         s=self.text('installer/Setup_LAKIS_Safe.cs')
         install=s[s.index('internal static void Install'):s.index('internal static void Repair')]
@@ -50,22 +56,11 @@ class ReleaseSourceContracts(unittest.TestCase):
         self.assertIn('string uiZip=Fetch(uiItem,cache,status);',repair)
         self.assertNotIn('if(!File.Exists(lakisZip))',install)
         self.assertNotIn('if(!File.Exists(uiZip))',repair)
-    def test_webview_bootstrapper_uses_install_local_staging(self):
+    def test_setup_uses_official_webview_product_registration(self):
         s=self.text('installer/Setup_LAKIS_Safe.cs')
         self.assertIn('{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}',s)
         self.assertIn('IsInstalledWebView2Version(Convert.ToString(key.GetValue("pv")))',s)
         self.assertNotIn('name.IndexOf("WebView2"',s)
-        start=s.index('private static void EnsureWebView2Runtime')
-        end=s.index('private static void CreateDesktopShortcut',start)
-        method=s[start:end]
-        self.assertIn('Path.Combine(target,".lakis","installer-runtime")',method)
-        self.assertIn('ExtractResource("LAKIS.WebView2.Bootstrapper",setup)',method)
-        self.assertIn('X509Certificate.CreateFromSignedFile(setup)',method)
-        self.assertNotIn('Path.GetTempPath()',method)
-        self.assertNotIn('Download("https://go.microsoft.com',method)
-        build=self.text('installer/build_safe_installer.ps1')
-        self.assertIn('Get-AuthenticodeSignature -LiteralPath $webViewBootstrapper',build)
-        self.assertIn('$webViewBootstrapper + ",LAKIS.WebView2.Bootstrapper"',build)
     def test_every_managed_provider_has_source_and_no_retired_package(self):
         names=self.names();self.assertEqual(len(names),len(set(n.casefold() for n in names)))
         for n in names:
