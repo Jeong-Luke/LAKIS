@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": "7.5.2",
+  "version": "8.0.0",
   "webview2": {
     "name": "MicrosoftEdgeWebview2Setup.exe",
     "url": "https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/1c9db68b-8343-4d70-85c2-d3e3735cdf15/MicrosoftEdgeWebview2Setup.exe",
