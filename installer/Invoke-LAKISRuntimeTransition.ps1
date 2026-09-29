@@ -15,6 +15,38 @@ function Invoke-SafeCopy([string]$Source, [string]$Destination) {
     if ($LASTEXITCODE -gt 7) { throw "Runtime copy failed ($LASTEXITCODE): $Source -> $Destination" }
 }
 
+function Copy-ProtectedDirectory([string]$Source, [string]$Destination) {
+    $sourceItem = Get-Item -LiteralPath $Source -Force
+    if (($sourceItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        if ($sourceItem.LinkType -ne "Junction" -or -not $sourceItem.Target) {
+            throw "Unsupported protected-directory reparse point: $Source"
+        }
+        New-Item -ItemType Junction -Path $Destination -Target ([string]$sourceItem.Target) | Out-Null
+        return
+    }
+
+    $sourcePath = [IO.Path]::GetFullPath($Source).TrimEnd('\') + '\'
+    $links = @(Get-ChildItem -LiteralPath $Source -Force -Recurse | Where-Object {
+        ($_.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0
+    })
+    foreach ($link in $links) {
+        if ($link.LinkType -ne "Junction" -or -not $link.Target) {
+            throw "Unsupported protected-data reparse point: $($link.FullName)"
+        }
+    }
+
+    New-Item -ItemType Directory -Path $Destination -Force | Out-Null
+    & robocopy $Source $Destination /E /XJ /XJD /XJF /R:1 /W:1 /NFL /NDL /NP /NJH /NJS | Out-Null
+    if ($LASTEXITCODE -gt 7) { throw "Protected data copy failed ($LASTEXITCODE): $Source -> $Destination" }
+
+    foreach ($link in $links) {
+        $relative = $link.FullName.Substring($sourcePath.Length)
+        $linkDestination = Join-Path $Destination $relative
+        New-Item -ItemType Directory -Path (Split-Path -Parent $linkDestination) -Force | Out-Null
+        New-Item -ItemType Junction -Path $linkDestination -Target ([string]$link.Target) | Out-Null
+    }
+}
+
 function Write-Journal([string]$Path, [hashtable]$State) {
     $temporary = "$Path.$PID.tmp"
     $State.updated_at = (Get-Date).ToString("o")
@@ -194,7 +226,7 @@ try {
             if (-not (Test-Path -LiteralPath $source)) { continue }
             $destination = Join-Path $stage $relative
             if (Test-Path -LiteralPath $destination) { Remove-Item -LiteralPath $destination -Recurse -Force }
-            Invoke-SafeCopy $source $destination
+            Copy-ProtectedDirectory $source $destination
         }
         foreach ($relative in $protectedFiles) {
             $source = Join-Path $preservationSource $relative

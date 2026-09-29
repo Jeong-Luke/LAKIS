@@ -108,6 +108,21 @@ Set-Content -LiteralPath (Join-Path $extraStage "UNLISTED_PAYLOAD.bin") -Value "
 if (Test-Path -LiteralPath (Join-Path $extraTarget "UNLISTED_PAYLOAD.bin")) { throw "Unlisted stage file was promoted." }
 $results += [ordered]@{ case="unlisted-extra-file"; rejected_and_rebuilt="PASS" }
 
+$junctionCase = Join-Path $testRootPath "protected-junction"
+$junctionTarget = Join-Path $junctionCase "LAKIS"
+$junctionExternal = Join-Path $junctionCase "shared-model-source"
+New-OldFixture $junctionTarget
+New-Item -ItemType Directory -Path $junctionExternal -Force | Out-Null
+Set-Content -LiteralPath (Join-Path $junctionExternal "shared-model.bin") -Value "shared-model" -Encoding ascii
+$junctionPath = Join-Path $junctionTarget "ComfyUI\models\shared-models"
+New-Item -ItemType Junction -Path $junctionPath -Target $junctionExternal | Out-Null
+& $transition -CandidateRoot $candidateFixture -TargetRoot $junctionTarget -ExpectedManifestSha256 $candidateManifestHash | Out-Null
+$preservedJunction = Get-Item -LiteralPath (Join-Path $junctionTarget "ComfyUI\models\shared-models") -Force
+if ($preservedJunction.LinkType -ne "Junction" -or [string]$preservedJunction.Target -ne $junctionExternal) {
+    throw "Protected model junction was followed or changed instead of being preserved."
+}
+$results += [ordered]@{ case="protected-junction"; link_preserved="PASS"; target_not_copied="PASS" }
+
 $prefixCase = Join-Path $testRootPath "protected-file-prefix"
 $prefixTarget = Join-Path $prefixCase "LAKIS"
 New-OldFixture $prefixTarget
