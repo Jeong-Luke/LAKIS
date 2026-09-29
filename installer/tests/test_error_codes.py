@@ -90,10 +90,23 @@ class ErrorCodeTests(unittest.TestCase):
             "Unsupported sampler": "LKS-CFG-1101",
             "Unsupported scheduler": "LKS-CFG-1102",
             "advanced node settings must be an object": "LKS-CFG-1103",
+            "ComfyUI model inventory is not ready": "LKS-GEN-1015",
+            "A LAKIS generation is already active or awaiting cleanup": "LKS-GEN-1010",
+            "STOP_AUTOMATION safety lock is missing": "LKS-GEN-1014",
+            "LLLite 원본 이미지를 다시 선택해 주세요.": "LKS-INP-1101",
+            "인페인트 마스크를 다시 그려 주세요.": "LKS-INP-1102",
         }
         for message, code in cases.items():
             with self.subTest(message=message):
                 self.assertEqual(code, workflow_bridge.WorkflowBridge._public_error(ValueError(message))[0])
+
+    def test_model_inventory_startup_wait_recovers_after_initial_empty_result(self):
+        schema = {"DiffusionModelLoaderKJ": {"input": {"required": {"model_name": [["anima.safetensors"]]}}}}
+        with patch.object(workflow_bridge, "_comfy_object_info", side_effect=[{}, schema]) as request, patch.object(
+            workflow_bridge.time, "sleep", return_value=None
+        ):
+            self.assertIs(schema, workflow_bridge._wait_for_comfy_object_info(1))
+        self.assertEqual(2, request.call_count)
 
     @staticmethod
     def write_safetensors_header(path, tensors):

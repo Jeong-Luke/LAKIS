@@ -23,6 +23,7 @@ from unittest.mock import AsyncMock, patch
 ROOT = Path(os.environ.get('LAKIS_TEST_SOURCE_ROOT') or Path(__file__).resolve().parents[2])
 sys.path.insert(0, str(ROOT / 'src' / 'external_ui'))
 import workflow_bridge as m
+import serve_ui as http_ui
 import aiohttp
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
@@ -62,6 +63,7 @@ class IsolatedBridge(unittest.TestCase):
         self.output = self.root/'output'; self.output.mkdir()
         overrides = dict(DEV_ROOT=self.runtime, OUTPUT_ROOT=self.output,
             OUTPUT_LOCATION_PATH=self.runtime/'output-location.json',
+            LEGACY_OUTPUT_LOCATION_PATH=self.runtime/'legacy-output-location.json',
             STOP_FILE=self.runtime/'STOP_AUTOMATION', ALLOW_FILE=self.runtime/'ALLOW_ONE_GENERATION',
             UI_STATE_PATH=self.root/'state'/'ui.json', LEGACY_UI_STATE_PATH=self.root/'legacy.json',
             UNSCOPED_UI_STATE_PATH=self.root/'unscoped.json', GENERATION_JOURNAL_PATH=self.root/'journal.json')
@@ -110,11 +112,19 @@ class IsolatedBridge(unittest.TestCase):
         m.OUTPUT_LOCATION_PATH.write_text(json.dumps({'path':str(custom)}),encoding='utf-8-sig')
         self.assertEqual(custom.resolve(),m.configured_output_root())
 
+    def test_per_user_output_config_overrides_legacy_install_record(self):
+        current=self.root/'current';current.mkdir()
+        legacy=self.root/'legacy';legacy.mkdir()
+        m.LEGACY_OUTPUT_LOCATION_PATH.write_text(json.dumps({'path':str(legacy)}),encoding='utf-8')
+        m.OUTPUT_LOCATION_PATH.write_text(json.dumps({'path':str(current)}),encoding='utf-8')
+        self.assertEqual(current.resolve(),m.configured_output_root())
+
     def test_http_history_root_obeys_same_empty_config_contract(self):
         text=(ROOT/'src/external_ui/serve_ui.py').read_text(encoding='utf-8-sig')
         node=next(n for n in ast.parse(text).body if isinstance(n,ast.FunctionDef) and n.name=='configured_output_root')
         module=ast.Module(body=[node],type_ignores=[])
-        env={'Path':Path,'json':json,'OUTPUT_ROOT':self.output,'OUTPUT_LOCATION_PATH':m.OUTPUT_LOCATION_PATH}
+        env={'Path':Path,'json':json,'OUTPUT_ROOT':self.output,'OUTPUT_LOCATION_PATH':m.OUTPUT_LOCATION_PATH,
+             'LEGACY_OUTPUT_LOCATION_PATH':m.LEGACY_OUTPUT_LOCATION_PATH}
         exec(compile(ast.fix_missing_locations(module),'serve_ui.py','exec'),env)
         m.OUTPUT_LOCATION_PATH.write_text('{}')
         self.assertEqual(self.output,env['configured_output_root']())
@@ -339,6 +349,40 @@ class IsolatedBridge(unittest.TestCase):
         with patch.object(self.bridge,'_run',new=run):self.bridge._thread_main(*args)
         self.assertEqual(body,self.bridge.status.snapshot()['setting_diagnostic']['comfy_error'])
         self.assertEqual('775',self.bridge.status.error_node_id)
+
+
+class LibraryDeleteContract(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(prefix='lakis-library-delete-')
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.custom = self.root/'custom'; self.custom.mkdir()
+        self.default = self.root/'default'; self.default.mkdir()
+        roots = patch.object(http_ui, 'configured_output_root', return_value=self.custom)
+        roots.start(); self.addCleanup(roots.stop)
+        output = patch.object(http_ui, 'OUTPUT_ROOT', self.default)
+        output.start(); self.addCleanup(output.stop)
+
+    def test_delete_uses_validated_custom_history_target(self):
+        image = self.custom/'nested'/'sample.webp'
+        image.parent.mkdir(); image.write_bytes(b'image')
+        with patch.object(http_ui, '_send_to_recycle_bin', side_effect=lambda path: path.unlink()) as recycle:
+            result = http_ui.delete_history_image('configured:nested/sample.webp')
+        self.assertTrue(result['recycled'])
+        recycle.assert_called_once_with(image.resolve())
+        self.assertFalse(image.exists())
+
+    def test_delete_rejects_path_traversal_before_recycle(self):
+        outside = self.root/'outside.webp'; outside.write_bytes(b'image')
+        with patch.object(http_ui, '_send_to_recycle_bin') as recycle:
+            with self.assertRaises(ValueError):
+                http_ui.delete_history_image('configured:../outside.webp')
+        recycle.assert_not_called()
+
+    def test_library_delete_does_not_launch_powershell(self):
+        source = (ROOT/'src/external_ui/serve_ui.py').read_text(encoding='utf-8-sig')
+        node = next(n for n in ast.parse(source).body if isinstance(n, ast.FunctionDef) and n.name == 'delete_history_image')
+        self.assertNotIn('subprocess', ast.unparse(node))
 
 
 if __name__=='__main__':unittest.main(verbosity=2)

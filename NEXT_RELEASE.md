@@ -7,23 +7,24 @@
 
 ## Next release (unreleased)
 
-### Link Library mobile detail navigation
+### Generation startup and Local Inpaint reliability
 
-- Added a dedicated detail header above enlarged Library images in LAKIS, DEKIS, and LUKIS Link.
-- Added a mobile-safe close button that returns to the existing Library list without overlapping the image.
+- Waits briefly for ComfyUI's live model inventory when generation is requested during application startup, preventing a valid checkpoint from being misreported as missing.
+- Separates model-inventory initialization, active-generation, safety-lock, inpaint-source, and inpaint-mask failures into actionable error codes instead of the generic `LKS-GEN-1001` report.
+- Includes the safe exception type in rejected-request diagnostics so startup failures can be identified without exposing prompts or model reasoning.
+- Ported only after the same fix completed a real LUKIS Local Inpaint V2 run with `novaAnimeAM_v40.safetensors`, six enabled LoRAs, 69 executable nodes, and Final Saver completion in about 25 seconds.
+
+### Custom image save path reliability
+
+- Connected the Library save-folder choice to Final Saver 775 so new images are actually written under the selected root instead of continuing to use the default ComfyUI output directory.
+- Moved the selected folder record to installation-scoped per-user storage, while retaining read compatibility with the former installation-local record.
+- Opens the Windows folder picker at the currently selected directory and applies a successful change to the next generation without requiring an application restart.
+- Made Library deletion use the Windows Recycle Bin directly instead of launching a hidden PowerShell process, while preserving root validation and path-traversal rejection for both default and custom save folders.
 
 ### Inpaint removal runtime node
 
 - Added and registered the missing `LAKIS_INPAINT_COLOR_MATCH` node used by removal-mode inpaint.
 - Prevented `LKS-NODE-1201` from blocking an inpaint request before it reaches ComfyUI.
-
-### Anima checkpoint compatibility detection
-
-- Fixed `LKS-MOD-1102` incorrectly rejecting Anima checkpoints whose filenames do not contain `anima` and which have no Civitai sidecar metadata.
-- Added safe Anima architecture detection from the small safetensors JSON header without loading the model weights into memory.
-- Verified the fix directly against the official header of `screenChantvMerge_v11.safetensors` from Civitai model version `3327430`.
-- Preserved rejection for non-Anima tensor layouts, malformed safetensors files, and unsupported checkpoint formats without reliable metadata.
-- Added the model-compatibility cases to the release regression gate; all 15 error-code and compatibility tests pass.
 
 ## v7.4.0
 

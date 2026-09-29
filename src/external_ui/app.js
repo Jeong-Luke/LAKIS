@@ -1314,12 +1314,50 @@ document.querySelectorAll("[data-seed-mode]").forEach(button => button.addEventL
   scheduleGenerationStateSave();
 }));
 
-document.querySelector(".history-strip").addEventListener("click", event => {
+const previewHistoryStrip = document.querySelector(".history-strip");
+const previewThumbnailObserver = "IntersectionObserver" in window
+  ? new IntersectionObserver(entries => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        const image = entry.target;
+        if (image.dataset.src && !image.src) image.src = image.dataset.src;
+        delete image.dataset.src;
+        previewThumbnailObserver.unobserve(image);
+      }
+    }, { root: previewHistoryStrip, rootMargin: "0px 150%", threshold: 0.01 })
+  : null;
+const previewHistoryMutationObserver = previewThumbnailObserver
+  ? new MutationObserver(records => {
+      for (const record of records) for (const node of record.removedNodes) {
+        if (!(node instanceof Element)) continue;
+        if (node.matches("img")) previewThumbnailObserver.unobserve(node);
+        node.querySelectorAll?.("img").forEach(image => previewThumbnailObserver.unobserve(image));
+      }
+    })
+  : null;
+previewHistoryMutationObserver?.observe(previewHistoryStrip, { childList: true, subtree: true });
+window.addEventListener("beforeunload", () => {
+  previewThumbnailObserver?.disconnect();
+  previewHistoryMutationObserver?.disconnect();
+}, { once: true });
+
+function observePreviewThumbnail(image, source) {
+  image.loading = "lazy";
+  image.decoding = "async";
+  if (!previewThumbnailObserver) {
+    image.src = source;
+    return;
+  }
+  image.dataset.src = source;
+  previewThumbnailObserver.observe(image);
+}
+
+previewHistoryStrip.addEventListener("click", event => {
   const button = event.target.closest(".history-thumb");
   if (!button) return;
   document.querySelectorAll(".history-thumb").forEach(item => item.classList.remove("selected"));
   button.classList.add("selected");
-  document.querySelector("#previewImage").src = button.querySelector("img").src;
+  document.querySelector("#previewImage").src = button.dataset.sourceUrl || button.querySelector("img").src;
   setCurrentPreviewPrompt(button._lakisPrompt || null);
   if (button.dataset.mode) {
     setPreviewModeLabel(button.dataset.mode);
@@ -1384,6 +1422,22 @@ function sameOriginMediaUrl(sourceUrl) {
     : sourceUrl;
 }
 
+function thumbnailMediaUrl(sourceUrl) {
+  const original = sameOriginMediaUrl(sourceUrl);
+  const parsed = new URL(original, window.location.href);
+  const query = new URLSearchParams();
+  if (parsed.pathname === "/api/history-image") {
+    query.set("id", parsed.searchParams.get("id") || "");
+  } else if (parsed.pathname === "/api/comfy-view") {
+    query.set("filename", parsed.searchParams.get("filename") || "");
+    query.set("subfolder", parsed.searchParams.get("subfolder") || "");
+    query.set("type", parsed.searchParams.get("type") || "output");
+  } else {
+    return original;
+  }
+  return `/api/thumbnail?${query.toString()}`;
+}
+
 function syncInpaintGeneratedGallery() {
   const history = [...document.querySelectorAll(".history-strip .history-thumb")];
   inpaintGeneratedGallery.replaceChildren();
@@ -1396,14 +1450,17 @@ function syncInpaintGeneratedGallery() {
   }
   history.slice(0, 12).forEach((historyButton, index) => {
     const sourceImage = historyButton.querySelector("img");
-    if (!sourceImage?.src) return;
+    const originalSource = historyButton.dataset.sourceUrl;
+    if (!sourceImage?.src || !originalSource) return;
     const button = document.createElement("button");
     button.type = "button";
     button.className = "inpaint-generated-thumb";
-    button.dataset.sourceUrl = sameOriginMediaUrl(sourceImage.src);
+    button.dataset.sourceUrl = originalSource;
     button.title = `최근 생성 이미지 ${index + 1}을 LLLite 원본으로 사용`;
     const image = document.createElement("img");
-    image.src = sameOriginMediaUrl(sourceImage.src);
+    image.src = sourceImage.src;
+    image.loading = "lazy";
+    image.decoding = "async";
     image.alt = `최근 생성 이미지 ${index + 1}`;
     button.append(image);
     inpaintGeneratedGallery.append(button);
@@ -2136,12 +2193,16 @@ async function pollGenerationStatus() {
         thumb.dataset.seed = String(status.seed ?? state.output.seed);
         thumb.dataset.mode = status.mode === "lakis_detail" ? "LAKIS DETAIL" : (status.mode === "detail" ? "DETAIL" : "FAST");
         thumb.dataset.i2i = String(status.i2i_enabled === true);
+        thumb.dataset.sourceUrl = imageUrl;
         thumb._lakisPrompt = status.prompt_used && typeof status.prompt_used === "object"
           ? structuredClone(status.prompt_used)
           : null;
         const durationSeconds = Math.max(0, Number(status.finished_at || 0) - Number(status.started_at || 0));
         thumb.dataset.duration = durationSeconds.toFixed(3);
-        thumb.innerHTML = `<img src="${imageUrl}" alt="LAKIS generated image">`;
+        const thumbnail = document.createElement("img");
+        thumbnail.alt = "LAKIS generated image";
+        observePreviewThumbnail(thumbnail, thumbnailMediaUrl(imageUrl));
+        thumb.append(thumbnail);
         document.querySelectorAll(".history-thumb").forEach(item => item.classList.remove("selected"));
         const historyStrip = document.querySelector(".history-strip");
         historyStrip.prepend(thumb);

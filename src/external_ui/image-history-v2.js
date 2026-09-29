@@ -95,7 +95,7 @@
       for (const entry of entries) {
         const button = document.createElement('button'), image = document.createElement('img'), name = document.createElement('span');
         button.type = 'button'; button.className = 'image-history-card'; button.setAttribute('data-history-index', String(entry.index));
-        image.dataset.src = apiUrl(entry.item.url); image.alt = String(entry.item.name || 'LAKIS 이미지'); name.textContent = String(entry.item.name || '이미지');
+        image.dataset.src = apiUrl(entry.item.thumbnail_url || entry.item.url); image.alt = String(entry.item.name || 'LAKIS 이미지'); name.textContent = String(entry.item.name || '이미지');
         if (selectionMode) button.classList.add('selection-mode');
         if (selectedItems.has(entry.item.id)) button.classList.add('multi-selected');
         button.setAttribute('aria-pressed', selectionMode ? String(selectedItems.has(entry.item.id)) : 'false');
@@ -139,7 +139,7 @@
     try {
       const response = await fetch(apiUrl('/api/choose-output-folder'), {method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'}, body:'{}'}), data = await response.json();
       if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
-      if (data.ok) { notice(`저장 경로를 ${data.path}(으)로 변경했습니다. 다음 실행부터 적용됩니다.`); load(); }
+      if (data.ok) { notice(`저장 경로를 ${data.path}(으)로 변경했습니다. 다음 생성부터 적용됩니다.`); load(); }
       else if (data.cancelled) notice('저장 경로 변경을 취소했습니다.');
     } catch (error) { notice(error?.message || '저장 경로를 변경하지 못했습니다.'); }
   });

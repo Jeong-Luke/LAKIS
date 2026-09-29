@@ -37,6 +37,7 @@ if str(UI_ROOT) not in sys.path:
 from workflow_bridge import (
     InvalidGenerationRequestError,
     LOCAL_INPAINT_V2,
+    UI_STATE_PATH,
     WorkflowBridge,
     lora_inventory,
     model_inventory,
@@ -77,7 +78,8 @@ LAKIS_VERSION_PATH = (
     UI_ROOT.parent / "DEV_VERSION" if DEVELOPMENT else COMFY_ROOT.parent / "VERSION"
 )
 OUTPUT_ROOT = (COMFY_ROOT / "output").resolve()
-OUTPUT_LOCATION_PATH = UI_ROOT.parent / "output-location.json"
+LEGACY_OUTPUT_LOCATION_PATH = UI_ROOT.parent / "output-location.json"
+OUTPUT_LOCATION_PATH = UI_STATE_PATH.with_name("output-location.json")
 INPUT_ROOT = (COMFY_ROOT / "input").resolve()
 AUDIT_PATH = UI_ROOT.parent / "process_audit.jsonl"
 HOST = "127.0.0.1"
@@ -112,6 +114,11 @@ BUILTIN_WILDCARD_LABELS = {
 INSTALLATION_ID = hashlib.sha256(
     os.path.normcase(str(INSTALL_ROOT.resolve())).encode("utf-8")
 ).hexdigest()
+THUMBNAIL_SCHEMA = "preview-webp-v1"
+THUMBNAIL_MAX_EDGE = 320
+THUMBNAIL_QUALITY = 80
+THUMBNAIL_CACHE_ROOT = USER_STATE_ROOT / "installations" / INSTALLATION_ID / "cache" / "thumbnails"
+THUMBNAIL_LOCK = threading.Lock()
 SERVER_SESSION_TOKEN = ""
 SERVER_PORT = PORT
 
@@ -441,16 +448,17 @@ def stop_link_server() -> dict:
 
 
 def configured_output_root() -> Path:
-    try:
-        payload = json.loads(OUTPUT_LOCATION_PATH.read_text(encoding="utf-8-sig"))
-        raw = payload.get("path") if isinstance(payload, dict) else None
-        if isinstance(raw, str) and raw.strip():
-            candidate = Path(raw).expanduser()
-            # Empty/relative configuration is not permission to scan CWD.
-            if candidate.is_absolute() and candidate.is_dir():
-                return candidate.resolve()
-    except (OSError, ValueError, TypeError):
-        pass
+    for location_path in (OUTPUT_LOCATION_PATH, LEGACY_OUTPUT_LOCATION_PATH):
+        try:
+            payload = json.loads(location_path.read_text(encoding="utf-8-sig"))
+            raw = payload.get("path") if isinstance(payload, dict) else None
+            if isinstance(raw, str) and raw.strip():
+                candidate = Path(raw).expanduser()
+                # Empty/relative configuration is not permission to scan CWD.
+                if candidate.is_absolute() and candidate.is_dir():
+                    return candidate.resolve()
+        except (OSError, ValueError, TypeError):
+            continue
     return OUTPUT_ROOT.resolve()
 
 
@@ -544,6 +552,58 @@ def _history_target(item_id: str) -> tuple[Path, Path]:
     return root, target
 
 
+def _thumbnail_target(query: dict[str, list[str]]) -> Path:
+    item_id = query.get("id", [""])[0]
+    if item_id:
+        _, target = _history_target(item_id)
+        return target
+    filename = query.get("filename", [""])[0]
+    subfolder = query.get("subfolder", [""])[0]
+    image_type = query.get("type", ["output"])[0]
+    if not filename or image_type != "output":
+        raise ValueError("invalid thumbnail source")
+    root = OUTPUT_ROOT.resolve()
+    target = (root / subfolder / filename).resolve()
+    if (target.parent != root and root not in target.parents) or target.suffix.lower() not in {".png", ".jpg", ".jpeg", ".webp"}:
+        raise ValueError("invalid thumbnail path")
+    return target
+
+
+def _thumbnail_cache_path(source: Path) -> Path:
+    stat = source.stat()
+    identity = "\n".join((os.path.normcase(str(source.resolve())), str(stat.st_size), str(stat.st_mtime_ns), THUMBNAIL_SCHEMA))
+    return THUMBNAIL_CACHE_ROOT / (hashlib.sha256(identity.encode("utf-8")).hexdigest() + ".webp")
+
+
+def cached_thumbnail(source: Path) -> Path:
+    if Image is None:
+        raise RuntimeError("Pillow is required for thumbnails")
+    source = source.resolve()
+    if not source.is_file():
+        raise FileNotFoundError(source)
+    target = _thumbnail_cache_path(source)
+    with THUMBNAIL_LOCK:
+        if target.is_file():
+            try:
+                with Image.open(target) as cached:
+                    cached.verify()
+                return target
+            except (OSError, ValueError):
+                target.unlink(missing_ok=True)
+        THUMBNAIL_CACHE_ROOT.mkdir(parents=True, exist_ok=True)
+        temporary = target.with_suffix(f".{os.getpid()}.{threading.get_ident()}.tmp")
+        try:
+            with Image.open(source) as loaded:
+                image = loaded.copy()
+            resampling = getattr(Image, "Resampling", Image).LANCZOS
+            image.thumbnail((THUMBNAIL_MAX_EDGE, THUMBNAIL_MAX_EDGE), resampling)
+            image.save(temporary, "WEBP", quality=THUMBNAIL_QUALITY, method=6)
+            temporary.replace(target)
+        finally:
+            temporary.unlink(missing_ok=True)
+    return target
+
+
 def image_history() -> dict:
     roots = _history_roots()
     paths = sorted(
@@ -561,7 +621,7 @@ def image_history() -> dict:
         stat = path.stat()
         relative = path.relative_to(root).as_posix()
         item_id = f"{root_key}:{relative}"
-        items.append({"id": item_id, "name": path.name, "date": time.strftime("%Y/%m/%d", time.localtime(stat.st_mtime)), "modified": stat.st_mtime, "url": "/api/history-image?id=" + quote(item_id), **_image_prompt_metadata(path)})
+        items.append({"id": item_id, "name": path.name, "date": time.strftime("%Y/%m/%d", time.localtime(stat.st_mtime)), "modified": stat.st_mtime, "url": "/api/history-image?id=" + quote(item_id), "thumbnail_url": "/api/thumbnail?id=" + quote(item_id), **_image_prompt_metadata(path)})
     configured = roots[0][1]
     return {
         "ok": True, "root": str(configured), "default_root": str(OUTPUT_ROOT),
@@ -574,12 +634,41 @@ def delete_history_image(relative: str) -> dict:
     _, target = _history_target(relative)
     if not target.is_file():
         raise FileNotFoundError(target)
-    escaped = str(target).replace("'", "''")
-    command = "Add-Type -AssemblyName Microsoft.VisualBasic;" + f"[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile('{escaped}',[Microsoft.VisualBasic.FileIO.UIOption]::OnlyErrorDialogs,[Microsoft.VisualBasic.FileIO.RecycleOption]::SendToRecycleBin)"
-    completed = subprocess.run(["powershell", "-NoProfile", "-STA", "-Command", command], capture_output=True, text=True, timeout=30, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-    if completed.returncode != 0 or target.exists():
-        raise OSError(completed.stderr.strip() or "failed to move image to recycle bin")
+    _send_to_recycle_bin(target)
     return {"ok": True, "id": str(relative), "recycled": True}
+
+
+def _send_to_recycle_bin(target: Path) -> None:
+    """Move one file to the Windows Recycle Bin without launching a shell."""
+    if os.name != "nt":
+        raise OSError("Recycle Bin is available only on Windows")
+
+    import ctypes
+    from ctypes import wintypes
+
+    class SHFILEOPSTRUCTW(ctypes.Structure):
+        _fields_ = [
+            ("hwnd", wintypes.HWND),
+            ("wFunc", wintypes.UINT),
+            ("pFrom", wintypes.LPCWSTR),
+            ("pTo", wintypes.LPCWSTR),
+            ("fFlags", ctypes.c_ushort),
+            ("fAnyOperationsAborted", wintypes.BOOL),
+            ("hNameMappings", wintypes.LPVOID),
+            ("lpszProgressTitle", wintypes.LPCWSTR),
+        ]
+
+    operation = SHFILEOPSTRUCTW()
+    operation.wFunc = 3  # FO_DELETE
+    operation.pFrom = str(target.resolve()) + "\0\0"
+    operation.fFlags = 0x0040 | 0x0010 | 0x0004 | 0x0400  # ALLOWUNDO, NOCONFIRMATION, SILENT, NOERRORUI
+    result = ctypes.windll.shell32.SHFileOperationW(ctypes.byref(operation))
+    if result != 0:
+        raise OSError(result, "Windows could not move the image to the Recycle Bin")
+    if operation.fAnyOperationsAborted:
+        raise OSError("moving the image to the Recycle Bin was cancelled")
+    if target.exists():
+        raise OSError("image still exists after the Recycle Bin operation")
 
 
 def delete_history_images_batch(values) -> dict:
@@ -611,18 +700,23 @@ $owner.ShowInTaskbar = $false; $owner.TopMost = $true; $owner.StartPosition = 'C
 $owner.Show(); $owner.Activate()
 $dialog = New-Object System.Windows.Forms.FolderBrowserDialog
 $dialog.Description = 'LAKIS 이미지 저장 폴더 선택'
+$dialog.ShowNewFolderButton = $true
+if ($env:LAKIS_CURRENT_OUTPUT_PATH -and (Test-Path -LiteralPath $env:LAKIS_CURRENT_OUTPUT_PATH)) { $dialog.SelectedPath = $env:LAKIS_CURRENT_OUTPUT_PATH }
 try { if ($dialog.ShowDialog($owner) -eq 'OK') { $dialog.SelectedPath } } finally { $dialog.Dispose(); $owner.Close(); $owner.Dispose() }
 """
-    completed = subprocess.run(["powershell", "-NoProfile", "-STA", "-Command", command], capture_output=True, text=True, timeout=120, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    environment = os.environ.copy()
+    environment["LAKIS_CURRENT_OUTPUT_PATH"] = str(configured_output_root())
+    completed = subprocess.run(["powershell", "-NoProfile", "-STA", "-Command", command], capture_output=True, text=True, timeout=120, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0), env=environment)
     selected = completed.stdout.strip()
     if not selected:
         return {"ok": False, "cancelled": True}
     target = Path(selected).resolve()
     target.mkdir(parents=True, exist_ok=True)
+    OUTPUT_LOCATION_PATH.parent.mkdir(parents=True, exist_ok=True)
     temporary = OUTPUT_LOCATION_PATH.with_suffix(".tmp")
     temporary.write_text(json.dumps({"path": str(target)}, ensure_ascii=False, indent=2), encoding="utf-8")
     os.replace(temporary, OUTPUT_LOCATION_PATH)
-    return {"ok": True, "path": str(target), "restart_required": True}
+    return {"ok": True, "path": str(target), "restart_required": False}
 
 
 def launcher_identity() -> dict:
@@ -1183,8 +1277,9 @@ class Handler(SimpleHTTPRequestHandler):
 
     def end_headers(self) -> None:
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
-        self.send_header("Pragma", "no-cache")
+        if urlparse(self.path).path != "/api/thumbnail":
+            self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
+            self.send_header("Pragma", "no-cache")
         super().end_headers()
 
     def do_GET(self) -> None:  # noqa: N802
@@ -1214,6 +1309,20 @@ class Handler(SimpleHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(payload)
             except (OSError, ValueError):
+                self.send_error(404)
+            return
+        if urlparse(self.path).path == "/api/thumbnail":
+            try:
+                target = _thumbnail_target(parse_qs(urlparse(self.path).query))
+                thumbnail = cached_thumbnail(target)
+                payload = thumbnail.read_bytes()
+                self.send_response(200)
+                self.send_header("Content-Type", "image/webp")
+                self.send_header("Cache-Control", "public, max-age=31536000, immutable")
+                self.send_header("Content-Length", str(len(payload)))
+                self.end_headers()
+                self.wfile.write(payload)
+            except (OSError, ValueError, RuntimeError):
                 self.send_error(404)
             return
         if urlparse(self.path).path == "/api/comfy-view":
@@ -1608,6 +1717,7 @@ class Handler(SimpleHTTPRequestHandler):
                 self._send_json(409, {
                     "ok": False, "error": public_message, "error_code": error_code,
                     "error_detail": str(error)[:1000],
+                    "error_exception_type": type(error).__name__,
                     "error_stage": "요청 검증",
                     "error_node_id": getattr(error, "node_id", None),
                     "error_node_type": getattr(error, "node_type", None),

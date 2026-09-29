@@ -90,13 +90,13 @@ internal static class LakisLauncher
             };
             var title = new Label {
                 Left = 112, Top = 43, Width = 280, Height = 34,
-                Text = "L A K I S", Font = new Font("Segoe UI", 20F, FontStyle.Bold),
+                Text = PrivateLukeBuild ? "L U K I S" : "L A K I S", Font = new Font("Segoe UI", 20F, FontStyle.Bold),
                 ForeColor = Color.FromArgb(225, 229, 255)
             };
             title.MouseDown += DragWindow;
             var subtitle = new Label {
                 Left = 114, Top = 78, Width = 260, Height = 25,
-                Text = PrivateLukeBuild ? "Studio · LUKE" : (DevelopmentBuild ? "Studio · DEVELOPMENT" : "Studio"), Font = new Font("Segoe UI", 11F, FontStyle.Bold),
+                Text = PrivateLukeBuild ? "Studio" : (DevelopmentBuild ? "Studio · DEVELOPMENT" : "Studio"), Font = new Font("Segoe UI", 11F, FontStyle.Bold),
                 ForeColor = Color.FromArgb(171, 178, 203)
             };
             subtitle.MouseDown += DragWindow;
@@ -111,7 +111,7 @@ internal static class LakisLauncher
             close.Click += (_, __) => CancelStartup();
             var copyright = new Label {
                 Left = 43, Top = 399, Width = 335, Height = 18,
-                Text = "© 2026 Luke Jeong. All rights reserved. · LAKIS " + ReadVersion(installRoot),
+                Text = "© 2026 Luke Jeong. All rights reserved. · " + (PrivateLukeBuild ? "LUKIS " : "LAKIS ") + ReadVersion(installRoot),
                 ForeColor = Color.FromArgb(104, 112, 137), Font = new Font("Segoe UI", 8F)
             };
             status.Left = 43; status.Top = 287; status.Width = 315; status.Height = 25;
@@ -509,27 +509,71 @@ internal static class LakisLauncher
         using (var dialog = new Form())
         {
             dialog.Text = "LAKIS 업데이트";
-            dialog.ClientSize = new Size(610, 430);
+            dialog.ClientSize = new Size(650, 560);
             dialog.StartPosition = FormStartPosition.CenterParent;
             dialog.FormBorderStyle = FormBorderStyle.FixedDialog;
             dialog.MaximizeBox = false; dialog.MinimizeBox = false;
             dialog.Font = new Font("Segoe UI", 10F);
-            var heading = new Label { Left = 24, Top = 20, Width = 560, Height = 34,
-                Text = "LAKIS v" + version + " 업데이트가 있습니다.", Font = new Font("Segoe UI", 15F, FontStyle.Bold) };
-            var guide = new Label { Left = 25, Top = 58, Width = 560, Height = 23,
-                Text = "GitHub 릴리스에서 제공한 변경 내용입니다." };
-            var notes = new TextBox { Left = 24, Top = 88, Width = 562, Height = 270,
-                Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical,
-                Text = releaseNotes, BackColor = SystemColors.Window, ForeColor = SystemColors.WindowText };
-            var update = new Button { Left = 376, Top = 377, Width = 100, Height = 34,
+            dialog.BackColor = Color.FromArgb(18, 21, 32);
+            dialog.ForeColor = Color.FromArgb(238, 240, 248);
+            dialog.Padding = new Padding(26, 22, 26, 20);
+            var heading = new Label { Left = 26, Top = 22, Width = 598, Height = 36,
+                Text = "LAKIS v" + version + " 업데이트", Font = new Font("Segoe UI", 16F, FontStyle.Bold),
+                ForeColor = Color.FromArgb(244, 245, 252) };
+            var guide = new Label { Left = 27, Top = 64, Width = 596, Height = 24,
+                Text = "업데이트 내용을 확인한 뒤 진행해 주세요.",
+                ForeColor = Color.FromArgb(174, 181, 201) };
+            var notes = new RichTextBox { Left = 26, Top = 100, Width = 598, Height = 380,
+                ReadOnly = true, ScrollBars = RichTextBoxScrollBars.Vertical, BorderStyle = BorderStyle.FixedSingle,
+                BackColor = Color.FromArgb(12, 15, 24), ForeColor = Color.FromArgb(220, 224, 238),
+                DetectUrls = false, TabStop = false };
+            PopulateReleaseNotes(notes, releaseNotes);
+            var update = new Button { Left = 414, Top = 505, Width = 100, Height = 36,
                 Text = "업데이트", DialogResult = DialogResult.Yes };
-            var continueButton = new Button { Left = 486, Top = 377, Width = 100, Height = 34,
-                Text = "그냥 실행", DialogResult = DialogResult.No };
+            var continueButton = new Button { Left = 524, Top = 505, Width = 100, Height = 36,
+                Text = "나중에", DialogResult = DialogResult.No };
             dialog.Controls.AddRange(new Control[] { heading, guide, notes, update, continueButton });
             dialog.AcceptButton = update; dialog.CancelButton = continueButton;
             dialog.Shown += (_, __) => update.Focus();
             return dialog.ShowDialog(owner) == DialogResult.Yes;
         }
+    }
+
+    private static void PopulateReleaseNotes(RichTextBox notes, string releaseNotes)
+    {
+        string text = releaseNotes ?? "";
+        text = Regex.Replace(text, @"\[([^\]]+)\]\([^\)]+\)", "$1");
+        text = text.Replace("`", "").Replace("\r\n", "\n").Replace('\r', '\n');
+        string[] lines = text.Split('\n');
+        notes.Clear();
+        foreach (string sourceLine in lines)
+        {
+            string line = Regex.Replace(sourceLine.Trim(), @"^#{1,6}\s*", "");
+            if (Regex.IsMatch(line, @"^LAKIS\s+v?\d+(\.\d+)+\s*(업데이트)?$", RegexOptions.IgnoreCase)) continue;
+            if (line.Length == 0)
+            {
+                if (notes.TextLength > 0 && !notes.Text.EndsWith("\n\n")) notes.AppendText("\n");
+                continue;
+            }
+
+            bool section = line.StartsWith("🚨") || line.StartsWith("✨") || line.StartsWith("ℹ") ||
+                line == "치명적 버그 수정" || line == "주요 변경 사항" || line == "안내";
+            bool bullet = Regex.IsMatch(line, @"^[-*•]\s+");
+            if (bullet) line = "• " + Regex.Replace(line, @"^[-*•]\s+", "");
+
+            notes.SelectionStart = notes.TextLength;
+            notes.SelectionLength = 0;
+            notes.SelectionFont = new Font("Segoe UI", section ? 11F : 10F,
+                section ? FontStyle.Bold : FontStyle.Regular);
+            notes.SelectionColor = section ? Color.FromArgb(176, 145, 255) : Color.FromArgb(220, 224, 238);
+            notes.SelectionIndent = bullet ? 22 : 12;
+            notes.SelectionHangingIndent = bullet ? -10 : 0;
+            notes.SelectionRightIndent = 12;
+            notes.AppendText(line + "\n");
+            if (section) notes.AppendText("\n");
+        }
+        notes.SelectionStart = 0;
+        notes.SelectionLength = 0;
     }
 
     [STAThread]
