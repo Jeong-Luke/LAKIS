@@ -34,6 +34,54 @@ function Assert-Runtime([string]$Root, [string]$Version) {
     if ($actual -ne $Version) { throw "Unexpected runtime version '$actual'; expected '$Version'." }
 }
 
+function Test-ProtectedPath([string]$Relative, [string[]]$ProtectedPrefixes, [string[]]$ProtectedFiles) {
+    $normalized = $Relative.Replace('\','/').TrimStart('/')
+    if ($ProtectedFiles -contains $normalized) { return $true }
+    foreach ($prefix in $ProtectedPrefixes) {
+        if ($normalized.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) { return $true }
+    }
+    return $false
+}
+
+function Assert-RuntimeManifest(
+    [string]$Root,
+    [string]$Version,
+    [string[]]$ProtectedPrefixes,
+    [string[]]$ProtectedFiles,
+    [switch]$AllowProtectedOverrides
+) {
+    Assert-Runtime $Root $Version
+    $rootPath = [IO.Path]::GetFullPath($Root).TrimEnd('\') + '\'
+    $manifestPath = Join-Path $Root "RUNTIME_SHA256SUMS.json"
+    $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+    if ($manifest.schema -ne 1 -or $manifest.product -ne "LAKIS" -or $manifest.version -ne $Version) {
+        throw "Runtime manifest identity is invalid."
+    }
+    if (-not $manifest.files -or $manifest.files.Count -lt 1) { throw "Runtime manifest contains no files." }
+
+    $seen = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    foreach ($entry in $manifest.files) {
+        $relative = [string]$entry.path
+        if ([string]::IsNullOrWhiteSpace($relative) -or [IO.Path]::IsPathRooted($relative) -or
+            $relative.Contains('..') -or $relative.Contains(':')) {
+            throw "Unsafe runtime manifest path: $relative"
+        }
+        $normalized = $relative.Replace('\','/').TrimStart('/')
+        if (-not $seen.Add($normalized)) { throw "Duplicate runtime manifest path: $normalized" }
+        if ($AllowProtectedOverrides -and (Test-ProtectedPath $normalized $ProtectedPrefixes $ProtectedFiles)) { continue }
+
+        $filePath = [IO.Path]::GetFullPath((Join-Path $Root $normalized.Replace('/','\')))
+        if (-not $filePath.StartsWith($rootPath, [StringComparison]::OrdinalIgnoreCase)) {
+            throw "Runtime manifest path escapes root: $normalized"
+        }
+        if (-not (Test-Path -LiteralPath $filePath -PathType Leaf)) { throw "Runtime manifest file is missing: $normalized" }
+        $file = Get-Item -LiteralPath $filePath
+        if ([int64]$file.Length -ne [int64]$entry.size) { throw "Runtime manifest size mismatch: $normalized" }
+        $actualHash = (Get-FileHash -LiteralPath $filePath -Algorithm SHA256).Hash
+        if ($actualHash -ne [string]$entry.sha256) { throw "Runtime manifest hash mismatch: $normalized" }
+    }
+}
+
 function Assert-UnlockedRuntime([string]$Root, [string[]]$ProtectedPrefixes) {
     if (-not (Test-Path -LiteralPath $Root -PathType Container)) { return }
     $rootPath = [IO.Path]::GetFullPath($Root).TrimEnd('\') + '\'
@@ -79,17 +127,28 @@ try {
     if ((Test-Path -LiteralPath $targetVersionPath -PathType Leaf) -and
         ((Get-Content -LiteralPath $targetVersionPath -Raw).Trim() -eq $ExpectedVersion) -and
         (Test-Path -LiteralPath $backup -PathType Container)) {
-        Assert-Runtime $target $ExpectedVersion
+        Assert-RuntimeManifest $target $ExpectedVersion $protectedPrefixes $protectedFiles -AllowProtectedOverrides
         $journal.phase = "complete"
         $journal.recovered_from = "promoted"
         $journal.completed_at = (Get-Date).ToString("o")
         Write-Journal $journalPath $journal
         return [pscustomobject]@{ status="PASS"; version=$ExpectedVersion; target=$target; backup=$backup; journal=$journalPath }
     }
+    if (Test-Path -LiteralPath $stage) {
+        try {
+            Assert-RuntimeManifest $stage $ExpectedVersion $protectedPrefixes $protectedFiles -AllowProtectedOverrides
+        }
+        catch {
+            $quarantine = "$stage.invalid-$([guid]::NewGuid().ToString('N'))"
+            Move-Item -LiteralPath $stage -Destination $quarantine
+            $journal.discarded_stage = $quarantine
+        }
+    }
     if (-not (Test-Path -LiteralPath $stage)) {
         Invoke-SafeCopy $candidate $stage
+        Assert-RuntimeManifest $stage $ExpectedVersion $protectedPrefixes $protectedFiles
     }
-    Assert-Runtime $stage $ExpectedVersion
+    Assert-RuntimeManifest $stage $ExpectedVersion $protectedPrefixes $protectedFiles -AllowProtectedOverrides
     $journal.phase = "staged"
     Write-Journal $journalPath $journal
     if ($TestInterruptAfter -eq "after-stage") { throw "TEST_INTERRUPT_after-stage" }
@@ -128,7 +187,7 @@ try {
     Write-Journal $journalPath $journal
     if ($TestInterruptAfter -eq "after-promote") { throw "TEST_INTERRUPT_after-promote" }
 
-    Assert-Runtime $target $ExpectedVersion
+    Assert-RuntimeManifest $target $ExpectedVersion $protectedPrefixes $protectedFiles -AllowProtectedOverrides
     $journal.phase = "complete"
     $journal.completed_at = (Get-Date).ToString("o")
     Write-Journal $journalPath $journal

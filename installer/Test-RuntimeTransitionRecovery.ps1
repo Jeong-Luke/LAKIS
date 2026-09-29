@@ -16,7 +16,16 @@ function New-CandidateFixture([string]$Root) {
     Set-Content -LiteralPath (Join-Path $Root "python_embeded\python.exe") -Value "python-fixture" -Encoding ascii
     Set-Content -LiteralPath (Join-Path $Root "ComfyUI\main.py") -Value "runtime-fixture" -Encoding ascii
     Set-Content -LiteralPath (Join-Path $Root "ComfyUI\LAKIS\external_ui\launch_lakis.py") -Value "launcher-fixture" -Encoding ascii
-    Set-Content -LiteralPath (Join-Path $Root "RUNTIME_SHA256SUMS.json") -Value "{}" -Encoding ascii
+    Set-Content -LiteralPath (Join-Path $Root "runtime-required.bin") -Value "required-runtime-payload" -Encoding ascii
+    $manifest = [ordered]@{ schema=1; product="LAKIS"; version="8.0.0"; source_revision="fixture"; files=@() }
+    $manifest.files = @(Get-ChildItem -LiteralPath $Root -File -Recurse | Sort-Object FullName | ForEach-Object {
+        [ordered]@{
+            path=$_.FullName.Substring($Root.Length).TrimStart('\').Replace('\','/')
+            size=[int64]$_.Length
+            sha256=(Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash
+        }
+    })
+    $manifest | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $Root "RUNTIME_SHA256SUMS.json") -Encoding utf8
 }
 
 function New-OldFixture([string]$Root) {
@@ -50,6 +59,26 @@ foreach ($point in @("after-stage", "after-backup", "after-promote")) {
     Assert-Preserved $target
     $results += [ordered]@{ case=$point; recovery="PASS"; data_preservation="PASS" }
 }
+
+$partialCase = Join-Path $testRootPath "partial-stage-copy"
+$partialTarget = Join-Path $partialCase "LAKIS"
+New-OldFixture $partialTarget
+$partialStage = Join-Path $partialCase ".LAKIS-8-stage"
+New-Item -ItemType Directory -Path $partialStage -Force | Out-Null
+foreach ($relative in @("VERSION", "LAKIS.exe", "python_embeded\python.exe", "ComfyUI\main.py", "ComfyUI\LAKIS\external_ui\launch_lakis.py", "RUNTIME_SHA256SUMS.json")) {
+    $source = Join-Path $candidateFixture $relative
+    $destination = Join-Path $partialStage $relative
+    New-Item -ItemType Directory -Path (Split-Path -Parent $destination) -Force | Out-Null
+    Copy-Item -LiteralPath $source -Destination $destination -Force
+}
+& $transition -CandidateRoot $candidateFixture -TargetRoot $partialTarget | Out-Null
+if (-not (Test-Path -LiteralPath (Join-Path $partialTarget "runtime-required.bin") -PathType Leaf)) {
+    throw "Partial stage was promoted instead of rebuilt."
+}
+Assert-Preserved $partialTarget
+$quarantined = @(Get-ChildItem -LiteralPath $partialCase -Directory -Filter ".LAKIS-8-stage.invalid-*")
+if ($quarantined.Count -ne 1) { throw "Invalid partial stage was not quarantined." }
+$results += [ordered]@{ case="partial-stage-copy"; fail_closed="PASS"; rebuilt_from_candidate="PASS"; data_preservation="PASS" }
 
 $lockedCase = Join-Path $testRootPath "locked-file"
 $lockedTarget = Join-Path $lockedCase "LAKIS"

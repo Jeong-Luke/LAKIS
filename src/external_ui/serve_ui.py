@@ -44,7 +44,6 @@ from workflow_bridge import (
     remove_persisted_upscaler_override,
     save_external_generation_state,
     save_external_prompt_state,
-    UI_STATE_PATH,
     load_external_prompt_bundle,
     upscaler_choice_status,
     workflow_configuration,
