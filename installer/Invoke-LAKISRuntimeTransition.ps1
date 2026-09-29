@@ -1,8 +1,9 @@
 param(
     [Parameter(Mandatory = $true)][string]$CandidateRoot,
     [Parameter(Mandatory = $true)][string]$TargetRoot,
+    [Parameter(Mandatory = $true)][ValidatePattern('^[A-Fa-f0-9]{64}$')][string]$ExpectedManifestSha256,
     [string]$ExpectedVersion = "8.0.0",
-    [ValidateSet("", "after-stage", "after-backup", "after-promote")]
+    [ValidateSet("", "after-stage", "after-backup", "after-promote", "corrupt-after-promote")]
     [string]$TestInterruptAfter = ""
 )
 
@@ -48,11 +49,14 @@ function Assert-RuntimeManifest(
     [string]$Version,
     [string[]]$ProtectedPrefixes,
     [string[]]$ProtectedFiles,
+    [string]$ExpectedManifestHash,
     [switch]$AllowProtectedOverrides
 ) {
     Assert-Runtime $Root $Version
     $rootPath = [IO.Path]::GetFullPath($Root).TrimEnd('\') + '\'
     $manifestPath = Join-Path $Root "RUNTIME_SHA256SUMS.json"
+    $manifestHash = (Get-FileHash -LiteralPath $manifestPath -Algorithm SHA256).Hash
+    if ($manifestHash -ne $ExpectedManifestHash) { throw "Runtime manifest identity hash mismatch." }
     $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
     if ($manifest.schema -ne 1 -or $manifest.product -ne "LAKIS" -or $manifest.version -ne $Version) {
         throw "Runtime manifest identity is invalid."
@@ -75,6 +79,16 @@ function Assert-RuntimeManifest(
             throw "Runtime manifest path escapes root: $normalized"
         }
         if (-not (Test-Path -LiteralPath $filePath -PathType Leaf)) { throw "Runtime manifest file is missing: $normalized" }
+        $cursor = $filePath
+        while ($cursor.StartsWith($rootPath, [StringComparison]::OrdinalIgnoreCase)) {
+            $item = Get-Item -LiteralPath $cursor -Force
+            if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                throw "Runtime manifest path contains a reparse point: $normalized"
+            }
+            $parentPath = Split-Path -Parent $cursor
+            if ($parentPath.TrimEnd('\') -eq $Root.TrimEnd('\')) { break }
+            $cursor = $parentPath
+        }
         $file = Get-Item -LiteralPath $filePath
         if ([int64]$file.Length -ne [int64]$entry.size) { throw "Runtime manifest size mismatch: $normalized" }
         $actualHash = (Get-FileHash -LiteralPath $filePath -Algorithm SHA256).Hash
@@ -99,6 +113,7 @@ function Assert-UnlockedRuntime([string]$Root, [string[]]$ProtectedPrefixes) {
 }
 
 $candidate = (Resolve-Path -LiteralPath $CandidateRoot).Path
+$ExpectedManifestSha256 = $ExpectedManifestSha256.ToUpperInvariant()
 $target = [IO.Path]::GetFullPath($TargetRoot).TrimEnd('\')
 $parent = Split-Path -Parent $target
 $name = Split-Path -Leaf $target
@@ -113,7 +128,7 @@ New-Item -ItemType Directory -Path $parent -Force | Out-Null
 
 $protectedDirectories = @(".lakis", "ComfyUI/models", "ComfyUI/input", "ComfyUI/output", "ComfyUI/user")
 $protectedFiles = @("LAKIS_OUTPUT_DIRECTORY.txt", "ComfyUI/extra_model_paths.yaml")
-$protectedPrefixes = @($protectedDirectories | ForEach-Object { $_.TrimEnd('/') + '/' }) + $protectedFiles
+$protectedPrefixes = @($protectedDirectories | ForEach-Object { $_.TrimEnd('/') + '/' })
 $journal = @{
     schema = 1; expected_version = $ExpectedVersion; candidate = $candidate; target = $target
     stage = $stage; backup = $backup; phase = "starting"; started_at = (Get-Date).ToString("o")
@@ -127,7 +142,7 @@ try {
     if ((Test-Path -LiteralPath $targetVersionPath -PathType Leaf) -and
         ((Get-Content -LiteralPath $targetVersionPath -Raw).Trim() -eq $ExpectedVersion) -and
         (Test-Path -LiteralPath $backup -PathType Container)) {
-        Assert-RuntimeManifest $target $ExpectedVersion $protectedPrefixes $protectedFiles -AllowProtectedOverrides
+        Assert-RuntimeManifest $target $ExpectedVersion $protectedPrefixes $protectedFiles $ExpectedManifestSha256 -AllowProtectedOverrides
         $journal.phase = "complete"
         $journal.recovered_from = "promoted"
         $journal.completed_at = (Get-Date).ToString("o")
@@ -136,7 +151,7 @@ try {
     }
     if (Test-Path -LiteralPath $stage) {
         try {
-            Assert-RuntimeManifest $stage $ExpectedVersion $protectedPrefixes $protectedFiles -AllowProtectedOverrides
+            Assert-RuntimeManifest $stage $ExpectedVersion $protectedPrefixes $protectedFiles $ExpectedManifestSha256 -AllowProtectedOverrides
         }
         catch {
             $quarantine = "$stage.invalid-$([guid]::NewGuid().ToString('N'))"
@@ -146,9 +161,9 @@ try {
     }
     if (-not (Test-Path -LiteralPath $stage)) {
         Invoke-SafeCopy $candidate $stage
-        Assert-RuntimeManifest $stage $ExpectedVersion $protectedPrefixes $protectedFiles
+        Assert-RuntimeManifest $stage $ExpectedVersion $protectedPrefixes $protectedFiles $ExpectedManifestSha256
     }
-    Assert-RuntimeManifest $stage $ExpectedVersion $protectedPrefixes $protectedFiles -AllowProtectedOverrides
+    Assert-RuntimeManifest $stage $ExpectedVersion $protectedPrefixes $protectedFiles $ExpectedManifestSha256 -AllowProtectedOverrides
     $journal.phase = "staged"
     Write-Journal $journalPath $journal
     if ($TestInterruptAfter -eq "after-stage") { throw "TEST_INTERRUPT_after-stage" }
@@ -169,6 +184,7 @@ try {
             New-Item -ItemType Directory -Path (Split-Path -Parent $destination) -Force | Out-Null
             Copy-Item -LiteralPath $source -Destination $destination -Force
         }
+        Assert-RuntimeManifest $stage $ExpectedVersion $protectedPrefixes $protectedFiles $ExpectedManifestSha256 -AllowProtectedOverrides
         if (Test-Path -LiteralPath $backup) { throw "A previous runtime backup already exists: $backup" }
         Move-Item -LiteralPath $target -Destination $backup
     }
@@ -186,16 +202,33 @@ try {
     $journal.phase = "promoted"
     Write-Journal $journalPath $journal
     if ($TestInterruptAfter -eq "after-promote") { throw "TEST_INTERRUPT_after-promote" }
+    if ($TestInterruptAfter -eq "corrupt-after-promote") {
+        Set-Content -LiteralPath (Join-Path $target "runtime-required.bin") -Value "TEST_CORRUPTION" -Encoding ascii
+    }
 
-    Assert-RuntimeManifest $target $ExpectedVersion $protectedPrefixes $protectedFiles -AllowProtectedOverrides
+    Assert-RuntimeManifest $target $ExpectedVersion $protectedPrefixes $protectedFiles $ExpectedManifestSha256 -AllowProtectedOverrides
     $journal.phase = "complete"
     $journal.completed_at = (Get-Date).ToString("o")
     Write-Journal $journalPath $journal
     [pscustomobject]@{ status="PASS"; version=$ExpectedVersion; target=$target; backup=$backup; journal=$journalPath }
 }
 catch {
+    $failure = $_
+    if ($journal.phase -eq "promoted" -and $failure.Exception.Message -notlike "*TEST_INTERRUPT_after-promote*" -and
+        (Test-Path -LiteralPath $target) -and (Test-Path -LiteralPath $backup)) {
+        try {
+            $failedTarget = "$target.failed-$([guid]::NewGuid().ToString('N'))"
+            Move-Item -LiteralPath $target -Destination $failedTarget
+            Move-Item -LiteralPath $backup -Destination $target
+            $journal.rollback = "PASS"
+            $journal.failed_target = $failedTarget
+        }
+        catch {
+            $journal.rollback = "FAILED: $($_.Exception.Message)"
+        }
+    }
     $journal.phase = "interrupted"
-    $journal.error = $_.Exception.Message
+    $journal.error = $failure.Exception.Message
     Write-Journal $journalPath $journal
-    throw
+    throw $failure
 }
