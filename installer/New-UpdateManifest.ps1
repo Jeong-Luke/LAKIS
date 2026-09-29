@@ -158,7 +158,7 @@ if ($deleteOverlap.Count) {
 
 $manifest = [ordered]@{
     version = $Version
-    release_notes = "LAKIS $Version update"
+    release_notes = "- 안정성 개선`n- i2i 오류 수정"
     files = $files
     delete = $retiredFiles
 }
