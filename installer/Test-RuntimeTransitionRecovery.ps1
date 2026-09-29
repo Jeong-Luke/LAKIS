@@ -123,6 +123,28 @@ if ($preservedJunction.LinkType -ne "Junction" -or [string]$preservedJunction.Ta
 }
 $results += [ordered]@{ case="protected-junction"; link_preserved="PASS"; target_not_copied="PASS" }
 
+$fileLinkCase = Join-Path $testRootPath "protected-file-link"
+$fileLinkTarget = Join-Path $fileLinkCase "LAKIS"
+$fileLinkSource = Join-Path $fileLinkCase "outside-output-path.txt"
+New-OldFixture $fileLinkTarget
+Set-Content -LiteralPath $fileLinkSource -Value "external-setting" -Encoding ascii
+try {
+    New-Item -ItemType SymbolicLink -Path (Join-Path $fileLinkTarget "LAKIS_OUTPUT_DIRECTORY.txt") -Target $fileLinkSource -ErrorAction Stop | Out-Null
+    try {
+        & $transition -CandidateRoot $candidateFixture -TargetRoot $fileLinkTarget -ExpectedManifestSha256 $candidateManifestHash | Out-Null
+        throw "Protected settings symlink was unexpectedly accepted."
+    }
+    catch { if ($_.Exception.Message -notlike "*Protected settings file must not be a reparse point*") { throw } }
+    if ((Get-Content -LiteralPath (Join-Path $fileLinkTarget "VERSION") -Raw).Trim() -ne "7.5.2") {
+        throw "Protected settings symlink failure changed the original runtime."
+    }
+    $results += [ordered]@{ case="protected-file-link"; status="PASS"; fail_closed="PASS"; original_preserved="PASS" }
+}
+catch {
+    if ($_.Exception.Message -notlike "*privilege*") { throw }
+    $results += [ordered]@{ case="protected-file-link"; status="UNKNOWN"; reason="Windows test environment denied symbolic-link creation" }
+}
+
 $prefixCase = Join-Path $testRootPath "protected-file-prefix"
 $prefixTarget = Join-Path $prefixCase "LAKIS"
 New-OldFixture $prefixTarget

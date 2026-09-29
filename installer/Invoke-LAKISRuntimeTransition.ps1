@@ -231,6 +231,10 @@ try {
         foreach ($relative in $protectedFiles) {
             $source = Join-Path $preservationSource $relative
             if (-not (Test-Path -LiteralPath $source -PathType Leaf)) { continue }
+            $sourceItem = Get-Item -LiteralPath $source -Force
+            if (($sourceItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                throw "Protected settings file must not be a reparse point: $relative"
+            }
             $destination = Join-Path $stage $relative
             New-Item -ItemType Directory -Path (Split-Path -Parent $destination) -Force | Out-Null
             Copy-Item -LiteralPath $source -Destination $destination -Force
