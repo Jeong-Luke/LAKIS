@@ -195,6 +195,7 @@ if ([IO.Path]::GetPathRoot($candidate) -ne [IO.Path]::GetPathRoot($target)) {
 New-Item -ItemType Directory -Path $parent -Force | Out-Null
 Assert-NoReparseChain $candidate "Candidate"
 Assert-NoReparseChain $parent "Target parent"
+if (Test-Path -LiteralPath $target) { Assert-NoReparseChain $target "Existing target" }
 
 $protectedDirectories = @(".lakis", "ComfyUI/models", "ComfyUI/input", "ComfyUI/output", "ComfyUI/user")
 $protectedFiles = @("LAKIS_OUTPUT_DIRECTORY.txt", "ComfyUI/extra_model_paths.yaml")

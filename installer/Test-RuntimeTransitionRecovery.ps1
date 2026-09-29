@@ -123,6 +123,22 @@ if ((Get-Content -LiteralPath (Join-Path $rootLinkExternal "runtime-required.bin
 Assert-Preserved $rootLinkTarget
 $results += [ordered]@{ case="stage-root-junction"; quarantined_without_following="PASS"; external_tree_preserved="PASS" }
 
+$targetLinkCase = Join-Path $testRootPath "target-root-junction"
+$targetLinkExternal = Join-Path $targetLinkCase "external-existing-install"
+New-OldFixture $targetLinkExternal
+$targetLink = Join-Path $targetLinkCase "LAKIS"
+New-Item -ItemType Junction -Path $targetLink -Target $targetLinkExternal | Out-Null
+try {
+    & $transition -CandidateRoot $candidateFixture -TargetRoot $targetLink -ExpectedManifestSha256 $candidateManifestHash | Out-Null
+    throw "Existing target-root junction was unexpectedly accepted."
+}
+catch { if ($_.Exception.Message -notlike "*Existing target path contains a reparse point*") { throw } }
+if ((Get-Content -LiteralPath (Join-Path $targetLinkExternal "VERSION") -Raw).Trim() -ne "7.5.2") {
+    throw "Existing target-root junction target was modified."
+}
+Assert-Preserved $targetLinkExternal
+$results += [ordered]@{ case="target-root-junction"; fail_closed="PASS"; external_install_preserved="PASS" }
+
 $junctionCase = Join-Path $testRootPath "protected-junction"
 $junctionTarget = Join-Path $junctionCase "LAKIS"
 $junctionExternal = Join-Path $junctionCase "shared-model-source"
