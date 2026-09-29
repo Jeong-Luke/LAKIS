@@ -190,12 +190,23 @@ try {
     if ((Test-Path -LiteralPath $targetVersionPath -PathType Leaf) -and
         ((Get-Content -LiteralPath $targetVersionPath -Raw).Trim() -eq $ExpectedVersion) -and
         (Test-Path -LiteralPath $backup -PathType Container)) {
-        Assert-RuntimeManifest $target $ExpectedVersion $protectedPrefixes $protectedFiles $ExpectedManifestSha256 -AllowProtectedOverrides
-        $journal.phase = "complete"
-        $journal.recovered_from = "promoted"
-        $journal.completed_at = (Get-Date).ToString("o")
-        Write-Journal $journalPath $journal
-        return [pscustomobject]@{ status="PASS"; version=$ExpectedVersion; target=$target; backup=$backup; journal=$journalPath }
+        try {
+            Assert-RuntimeManifest $target $ExpectedVersion $protectedPrefixes $protectedFiles $ExpectedManifestSha256 -AllowProtectedOverrides
+            $journal.phase = "complete"
+            $journal.recovered_from = "promoted"
+            $journal.completed_at = (Get-Date).ToString("o")
+            Write-Journal $journalPath $journal
+            return [pscustomobject]@{ status="PASS"; version=$ExpectedVersion; target=$target; backup=$backup; journal=$journalPath }
+        }
+        catch {
+            $failedTarget = "$target.failed-resume-$([guid]::NewGuid().ToString('N'))"
+            Move-Item -LiteralPath $target -Destination $failedTarget
+            Move-Item -LiteralPath $backup -Destination $target
+            $journal.recovered_from = "damaged-promoted-target"
+            $journal.failed_target = $failedTarget
+            $journal.rollback = "PASS"
+            Write-Journal $journalPath $journal
+        }
     }
     if (Test-Path -LiteralPath $stage) {
         try {
@@ -272,12 +283,17 @@ try {
 catch {
     $failure = $_
     if ($journal.phase -eq "promoted" -and $failure.Exception.Message -notlike "*TEST_INTERRUPT_after-promote*" -and
-        (Test-Path -LiteralPath $target) -and (Test-Path -LiteralPath $backup)) {
+        (Test-Path -LiteralPath $target)) {
         try {
             $failedTarget = "$target.failed-$([guid]::NewGuid().ToString('N'))"
             Move-Item -LiteralPath $target -Destination $failedTarget
-            Move-Item -LiteralPath $backup -Destination $target
-            $journal.rollback = "PASS"
+            if (Test-Path -LiteralPath $backup) {
+                Move-Item -LiteralPath $backup -Destination $target
+                $journal.rollback = "PASS"
+            }
+            else {
+                $journal.rollback = "NO_PREVIOUS_RUNTIME"
+            }
             $journal.failed_target = $failedTarget
         }
         catch {

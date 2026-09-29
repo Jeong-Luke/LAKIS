@@ -174,6 +174,39 @@ $failedTargets = @(Get-ChildItem -LiteralPath $rollbackCase -Directory -Filter "
 if ($failedTargets.Count -ne 1) { throw "Failed promoted target was not quarantined during rollback." }
 $results += [ordered]@{ case="post-promote-validation-failure"; automatic_rollback="PASS"; original_preserved="PASS" }
 
+$freshFailureCase = Join-Path $testRootPath "fresh-post-promote-validation-failure"
+$freshFailureTarget = Join-Path $freshFailureCase "LAKIS"
+New-Item -ItemType Directory -Path $freshFailureCase -Force | Out-Null
+try {
+    & $transition -CandidateRoot $candidateFixture -TargetRoot $freshFailureTarget -ExpectedManifestSha256 $candidateManifestHash -TestInterruptAfter "corrupt-after-promote" | Out-Null
+    throw "Expected fresh-install post-promote manifest failure."
+}
+catch {
+    if ($_.Exception.Message -notlike "*Runtime manifest size mismatch*" -and $_.Exception.Message -notlike "*Runtime manifest hash mismatch*") { throw }
+}
+if (Test-Path -LiteralPath $freshFailureTarget) { throw "Failed fresh runtime remained at the target path." }
+$freshFailedTargets = @(Get-ChildItem -LiteralPath $freshFailureCase -Directory -Filter "LAKIS.failed-*")
+if ($freshFailedTargets.Count -ne 1) { throw "Failed fresh runtime was not quarantined." }
+$results += [ordered]@{ case="fresh-post-promote-validation-failure"; failed_target_quarantined="PASS"; target_left_clean="PASS" }
+
+$resumeDamagedCase = Join-Path $testRootPath "damaged-promoted-resume"
+$resumeDamagedTarget = Join-Path $resumeDamagedCase "LAKIS"
+New-OldFixture $resumeDamagedTarget
+try {
+    & $transition -CandidateRoot $candidateFixture -TargetRoot $resumeDamagedTarget -ExpectedManifestSha256 $candidateManifestHash -TestInterruptAfter "after-promote" | Out-Null
+    throw "Expected interruption after promote."
+}
+catch { if ($_.Exception.Message -notlike "*TEST_INTERRUPT_after-promote*") { throw } }
+Set-Content -LiteralPath (Join-Path $resumeDamagedTarget "runtime-required.bin") -Value "damaged-before-resume" -Encoding ascii
+& $transition -CandidateRoot $candidateFixture -TargetRoot $resumeDamagedTarget -ExpectedManifestSha256 $candidateManifestHash | Out-Null
+if ((Get-Content -LiteralPath (Join-Path $resumeDamagedTarget "VERSION") -Raw).Trim() -ne "8.0.0") {
+    throw "Damaged promoted target did not recover and update."
+}
+Assert-Preserved $resumeDamagedTarget
+$failedResumeTargets = @(Get-ChildItem -LiteralPath $resumeDamagedCase -Directory -Filter "LAKIS.failed-resume-*")
+if ($failedResumeTargets.Count -ne 1) { throw "Damaged promoted target was not quarantined on resume." }
+$results += [ordered]@{ case="damaged-promoted-resume"; rollback="PASS"; retry_update="PASS"; data_preservation="PASS" }
+
 $lockedCase = Join-Path $testRootPath "locked-file"
 $lockedTarget = Join-Path $lockedCase "LAKIS"
 New-OldFixture $lockedTarget
