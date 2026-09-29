@@ -10,9 +10,9 @@
   "release_base": "https://github.com/Jeong-Luke/LAKIS/releases/download/v7.5.0",
   "base": {
     "name": "ComfyUI_windows_portable_nvidia.7z",
-    "url": "https://github.com/Comfy-Org/ComfyUI/releases/download/v0.21.1/ComfyUI_windows_portable_nvidia.7z",
-    "sha256": "7C380D4309BBDA395366C49564EDF8996181FD45E61B6F353EA417F32BC3B970",
-    "bytes": 2001582790
+    "url": "https://github.com/Comfy-Org/ComfyUI/releases/download/v0.37.0/ComfyUI_windows_portable_nvidia.7z",
+    "sha256": "7805F634FAB51F63A238AAF0CFE2A9833BB7C86DDFC8400A60919F44460D7D65",
+    "bytes": 1925204508
   },
   "repair_pack": {
     "name": "LAKIS_RepairPack.zip",

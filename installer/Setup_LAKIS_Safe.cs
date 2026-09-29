@@ -257,16 +257,16 @@ internal sealed class SafeSetupForm : Form
 
 internal static class SafeInstaller
 {
-    private const string Revision = "v8.0.0-preview.1";
+    private const string Revision = "v8.0.0";
     // The release build injects the hash of the exact commit archive.
     private const string SourceArchiveSha256 = "BUILD_REQUIRES_PINNED_SOURCE_SHA256";
     private const string WebView2BootstrapperUrl = "BUILD_REQUIRES_PINNED_WEBVIEW2_URL";
     private const string WebView2BootstrapperSha256 = "BUILD_REQUIRES_PINNED_WEBVIEW2_SHA256";
     private const long WebView2BootstrapperBytes = 0;
     private const string ReleaseVersion = "8.0.0";
-    private static readonly DownloadItem Portable = new DownloadItem("ComfyUI v0.21.1",
-        "https://github.com/Comfy-Org/ComfyUI/releases/download/v0.21.1/ComfyUI_windows_portable_nvidia.7z",
-        "7C380D4309BBDA395366C49564EDF8996181FD45E61B6F353EA417F32BC3B970",null,2001582790);
+    private static readonly DownloadItem Portable = new DownloadItem("ComfyUI v0.37.0",
+        "https://github.com/Comfy-Org/ComfyUI/releases/download/v0.37.0/ComfyUI_windows_portable_nvidia.7z",
+        "7805F634FAB51F63A238AAF0CFE2A9833BB7C86DDFC8400A60919F44460D7D65",null,1925204508);
     private static readonly DownloadItem LoraManager = new DownloadItem("lora-manager","https://codeload.github.com/willmiao/ComfyUI-Lora-Manager/zip/df34efafbc604fa81fbd58f09f723842a73dadfd","CC037E1AD77AAA092F81928BCEE1E0313687EA0B8A6BE7827D131C0C0D15C605","ComfyUI-Lora-Manager",17027774);
     private static readonly DownloadItem[] Nodes = new[]{
         new DownloadItem("ultimate","https://codeload.github.com/ssitu/ComfyUI_UltimateSDUpscale/zip/a5547db9e1d07d3318bb21e9e9c474f4c1e9c8df","47EF9D567D20A2EF8B96FF9A3E1BBED8F764FFB04988D0D4B32D020281FC73D1","comfyui_ultimatesdupscale"),

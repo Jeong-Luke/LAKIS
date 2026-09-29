@@ -34,7 +34,7 @@ class CmdInstallerTests(unittest.TestCase):
         data = json.loads(MANIFEST.read_text(encoding="utf-8"))
         cmd = CMD.read_text(encoding="cp949")
         self.assertEqual(data["version"], "8.0.0")
-        self.assertEqual(data["base"]["sha256"], "7C380D4309BBDA395366C49564EDF8996181FD45E61B6F353EA417F32BC3B970")
+        self.assertEqual(data["base"]["sha256"], "7805F634FAB51F63A238AAF0CFE2A9833BB7C86DDFC8400A60919F44460D7D65")
         self.assertIn(data["base"]["url"], cmd)
         self.assertIn(data["base"]["sha256"], cmd)
         self.assertEqual(len(data["nodes"]), 14)
