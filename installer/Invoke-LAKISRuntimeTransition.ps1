@@ -54,6 +54,29 @@ function Write-Journal([string]$Path, [hashtable]$State) {
     Move-Item -LiteralPath $temporary -Destination $Path -Force
 }
 
+function Assert-NoReparseChain([string]$Path, [string]$Label) {
+    $cursor = [IO.Path]::GetFullPath($Path)
+    while ($cursor -and (Test-Path -LiteralPath $cursor)) {
+        $item = Get-Item -LiteralPath $cursor -Force
+        if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+            throw "$Label path contains a reparse point: $cursor"
+        }
+        $parentInfo = [IO.Directory]::GetParent($cursor)
+        if ($null -eq $parentInfo) { break }
+        $cursor = $parentInfo.FullName
+    }
+}
+
+function Remove-PathWithoutFollowingReparse([string]$Path) {
+    $item = Get-Item -LiteralPath $Path -Force
+    if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        if ($item.PSIsContainer) { [IO.Directory]::Delete($item.FullName) }
+        else { [IO.File]::Delete($item.FullName) }
+        return
+    }
+    Remove-Item -LiteralPath $Path -Recurse -Force
+}
+
 function Assert-Runtime([string]$Root, [string]$Version) {
     foreach ($relative in @(
         "VERSION", "LAKIS.exe", "python_embeded\python.exe", "ComfyUI\main.py",
@@ -84,6 +107,7 @@ function Assert-RuntimeManifest(
     [string]$ExpectedManifestHash,
     [switch]$AllowProtectedOverrides
 ) {
+    Assert-NoReparseChain $Root "Runtime root"
     Assert-Runtime $Root $Version
     $rootPath = [IO.Path]::GetFullPath($Root).TrimEnd('\') + '\'
     $manifestPath = Join-Path $Root "RUNTIME_SHA256SUMS.json"
@@ -169,6 +193,8 @@ if ([IO.Path]::GetPathRoot($candidate) -ne [IO.Path]::GetPathRoot($target)) {
     throw "Candidate and target must be on the same volume for atomic promotion."
 }
 New-Item -ItemType Directory -Path $parent -Force | Out-Null
+Assert-NoReparseChain $candidate "Candidate"
+Assert-NoReparseChain $parent "Target parent"
 
 $protectedDirectories = @(".lakis", "ComfyUI/models", "ComfyUI/input", "ComfyUI/output", "ComfyUI/user")
 $protectedFiles = @("LAKIS_OUTPUT_DIRECTORY.txt", "ComfyUI/extra_model_paths.yaml")
@@ -232,11 +258,12 @@ try {
     $preservationSource = if ($targetExists) { $target } elseif ($backupExists) { $backup } else { $null }
     if ($targetExists) { Assert-UnlockedRuntime $target $protectedPrefixes }
     if ($preservationSource) {
+        Assert-NoReparseChain $stage "Transition stage"
         foreach ($relative in $protectedDirectories) {
             $source = Join-Path $preservationSource $relative
             if (-not (Test-Path -LiteralPath $source)) { continue }
             $destination = Join-Path $stage $relative
-            if (Test-Path -LiteralPath $destination) { Remove-Item -LiteralPath $destination -Recurse -Force }
+            if (Test-Path -LiteralPath $destination) { Remove-PathWithoutFollowingReparse $destination }
             Copy-ProtectedDirectory $source $destination
         }
         foreach ($relative in $protectedFiles) {
@@ -265,6 +292,7 @@ try {
             if (Test-Path -LiteralPath $backup) { Move-Item -LiteralPath $backup -Destination $target }
             throw "Transition stage is missing; original runtime was restored."
         }
+        Assert-NoReparseChain $stage "Transition stage"
         Move-Item -LiteralPath $stage -Destination $target
     }
     $journal.phase = "promoted"

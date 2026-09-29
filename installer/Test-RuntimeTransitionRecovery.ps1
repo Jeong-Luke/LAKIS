@@ -108,6 +108,21 @@ Set-Content -LiteralPath (Join-Path $extraStage "UNLISTED_PAYLOAD.bin") -Value "
 if (Test-Path -LiteralPath (Join-Path $extraTarget "UNLISTED_PAYLOAD.bin")) { throw "Unlisted stage file was promoted." }
 $results += [ordered]@{ case="unlisted-extra-file"; rejected_and_rebuilt="PASS" }
 
+$rootLinkCase = Join-Path $testRootPath "stage-root-junction"
+$rootLinkTarget = Join-Path $rootLinkCase "LAKIS"
+$rootLinkExternal = Join-Path $rootLinkCase "external-stage-tree"
+New-OldFixture $rootLinkTarget
+& robocopy $candidateFixture $rootLinkExternal /E /R:1 /W:1 /NFL /NDL /NP /NJH /NJS | Out-Null
+if ($LASTEXITCODE -gt 7) { throw "Stage-root fixture copy failed." }
+$rootLinkStage = Join-Path $rootLinkCase ".LAKIS-8-stage"
+New-Item -ItemType Junction -Path $rootLinkStage -Target $rootLinkExternal | Out-Null
+& $transition -CandidateRoot $candidateFixture -TargetRoot $rootLinkTarget -ExpectedManifestSha256 $candidateManifestHash | Out-Null
+if ((Get-Content -LiteralPath (Join-Path $rootLinkExternal "runtime-required.bin") -Raw).Trim() -ne "required-runtime-payload") {
+    throw "Stage-root junction target was modified."
+}
+Assert-Preserved $rootLinkTarget
+$results += [ordered]@{ case="stage-root-junction"; quarantined_without_following="PASS"; external_tree_preserved="PASS" }
+
 $junctionCase = Join-Path $testRootPath "protected-junction"
 $junctionTarget = Join-Path $junctionCase "LAKIS"
 $junctionExternal = Join-Path $junctionCase "shared-model-source"
