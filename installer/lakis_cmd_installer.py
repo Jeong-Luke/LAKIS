@@ -16,6 +16,7 @@ import hashlib
 import json
 import msvcrt
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -202,6 +203,21 @@ def download(
         return _download_locked(url, destination, expected_hash, expected_bytes, max_attempts, label)
 
 
+class InvalidContentRangeError(ValueError):
+    """The response cannot be safely appended to a partial download."""
+
+
+def validate_content_range(value: str, offset: int, expected: int, content_length: int) -> int:
+    match = re.fullmatch(r"bytes ([0-9]+)-([0-9]+)/([0-9]+)", value or "")
+    if match:
+        start, end, total = map(int, match.groups())
+        if (start == offset and end >= start and end == total - 1
+                and (not expected or total == expected)
+                and (content_length < 0 or content_length == end - start + 1)):
+            return total
+    raise InvalidContentRangeError("DOWNLOAD_RANGE_INVALID: invalid Content-Range response")
+
+
 def _download_locked(
     url: str,
     destination: Path,
@@ -237,12 +253,16 @@ def _download_locked(
         request = urllib.request.Request(url, headers=headers)
         try:
             with urllib.request.urlopen(request, timeout=120) as response:
+                response_size = int(response.headers.get("Content-Length") or -1)
+                range_total = 0
+                if getattr(response, "status", None) == 206:
+                    range_total = validate_content_range(
+                        response.headers.get("Content-Range"), offset, expected_bytes, response_size)
                 resumed = offset > 0 and getattr(response, "status", None) == 206
                 if offset and not resumed:
                     offset = 0
                 mode = "ab" if resumed else "wb"
-                response_size = int(response.headers.get("Content-Length") or 0)
-                total = expected_bytes or (offset + response_size if response_size else 0)
+                total = expected_bytes or range_total or (offset + response_size if response_size > 0 else 0)
                 received = offset
                 last_percent = int(received * 100 / total) if total else -1
                 progress_frame = 0
@@ -271,7 +291,8 @@ def _download_locked(
             break
         except Exception as error:
             last_error = error
-            if isinstance(error, urllib.error.HTTPError) and error.code == 416:
+            if (isinstance(error, InvalidContentRangeError)
+                    or isinstance(error, urllib.error.HTTPError) and error.code == 416):
                 # A hash-verified complete partial was handled above. This
                 # range is unusable; restart this bounded download attempt.
                 partial.unlink(missing_ok=True)

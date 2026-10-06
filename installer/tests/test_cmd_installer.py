@@ -224,6 +224,7 @@ class CmdInstallerTests(unittest.TestCase):
                 return b""
 
         responses = [Response(payload[:4], 200, fail=True), Response(payload[4:], 206)]
+        responses[1].headers["Content-Range"] = "bytes 4-9/10"
         requests = []
 
         def fake_urlopen(request, timeout):
@@ -262,7 +263,7 @@ class CmdInstallerTests(unittest.TestCase):
     def test_corrupt_prefix_fails_hash_then_next_run_can_recover(self):
         class Response(io.BytesIO):
             status = 206
-            headers = {'Content-Length': '10'}
+            headers = {'Content-Length': '10', 'Content-Range': 'bytes 3-12/13'}
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             target = root / 'model.bin'

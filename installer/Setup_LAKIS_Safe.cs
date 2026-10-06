@@ -531,16 +531,32 @@ internal static class SafeInstaller
     }
     private static void Download(string url,string path,string name,long expected,Action<string> status)
     {
-        try { DownloadTransfer(url,path,name,expected,status); }
+        try { DownloadTransfer(url,path,name,expected,status); return; }
         catch(WebException error)
         {
             var response=error.Response as HttpWebResponse;
             if(response==null||response.StatusCode!=HttpStatusCode.RequestedRangeNotSatisfiable||!File.Exists(path+".part"))throw;
             response.Close();
-            File.Delete(path+".part");
-            // One fresh transfer only; a second failure is reported.
-            DownloadTransfer(url,path,name,expected,status);
         }
+        catch(InvalidContentRangeException) { }
+        if(File.Exists(path+".part"))File.Delete(path+".part");
+        // One fresh transfer only; a second failure is reported.
+        DownloadTransfer(url,path,name,expected,status);
+    }
+    private sealed class InvalidContentRangeException : IOException
+    {
+        internal InvalidContentRangeException() : base("DOWNLOAD_RANGE_INVALID: invalid Content-Range response") { }
+    }
+    private static long ValidateContentRange(string value,long start,long end,long expected,long contentLength)
+    {
+        var match=System.Text.RegularExpressions.Regex.Match(value??"","^bytes ([0-9]+)-([0-9]+)/([0-9]+)\\z");
+        long actualStart,actualEnd,total;
+        if(!match.Success||!Int64.TryParse(match.Groups[1].Value,out actualStart)||!Int64.TryParse(match.Groups[2].Value,out actualEnd)||!Int64.TryParse(match.Groups[3].Value,out total)||
+            actualStart!=start||actualEnd<actualStart||actualEnd>=total||
+            (end>=0?actualEnd!=end:actualEnd!=total-1)||
+            (expected>0&&total!=expected)||
+            (contentLength>=0&&contentLength!=actualEnd-actualStart+1))throw new InvalidContentRangeException();
+        return total;
     }
     private static void DownloadTransfer(string url,string path,string name,long expected,Action<string> status)
     {
@@ -559,8 +575,9 @@ internal static class SafeInstaller
         using(var response=(HttpWebResponse)request.GetResponse())
         {
             bool resumed=response.StatusCode==HttpStatusCode.PartialContent;
+            long rangeTotal=resumed?ValidateContentRange(response.Headers["Content-Range"],offset,-1,expected,response.ContentLength):0;
             if(offset>0&&!resumed)offset=0;
-            long total=expected>0?expected:offset+response.ContentLength;
+            long total=expected>0?expected:(resumed?rangeTotal:response.ContentLength);
             using(Stream input=response.GetResponseStream())
             using(var output=new FileStream(part,resumed?FileMode.Append:FileMode.Create,FileAccess.Write,FileShare.Read))
             {
@@ -598,6 +615,7 @@ internal static class SafeInstaller
                 using(var response=(HttpWebResponse)request.GetResponse())
                 {
                     if(response.StatusCode!=HttpStatusCode.PartialContent)throw new IOException("서버가 구간 다운로드를 지원하지 않습니다.");
+                    ValidateContentRange(response.Headers["Content-Range"],start,end,expected,response.ContentLength);
                     using(Stream input=response.GetResponseStream())using(var output=new FileStream(parts[segment],FileMode.Create,FileAccess.Write,FileShare.Read))
                     {byte[] buffer=new byte[1024*1024];int read;while((read=input.Read(buffer,0,buffer.Length))>0){output.Write(buffer,0,read);int percent=-1;lock(received){received[segment]+=read;long total=0;for(int i=0;i<segmentCount;i++)total+=received[i];int current=(int)Math.Min(100,total*100/expected);if(current!=lastReported){lastReported=current;percent=current;}}if(percent>=0)status("고속 다운로드: "+name+" "+percent+"%");}}
                 }
@@ -655,6 +673,7 @@ internal static class SafeInstaller
     }
     private static void ExtractZip(string archive,string destination)
     {
+        RejectReparsePath(destination);
         string root=Path.GetFullPath(destination).TrimEnd(Path.DirectorySeparatorChar)+Path.DirectorySeparatorChar;
         const string example="ComfyUI-RvTools_v2-d3f7e8beb477dff6c0fac44b298ab74ac433d93e/workflow/Workflow.png";
         using(var zip=ZipFile.OpenRead(FileSystemPath(archive)))
@@ -687,11 +706,22 @@ internal static class SafeInstaller
             // not let a later entry overwrite an earlier one.
             if(!seen.Add(output.TrimEnd(Path.DirectorySeparatorChar)))
                 throw new IOException("Duplicate Windows ZIP path: "+entry.FullName);
+            RejectReparsePath(output);
             output=FileSystemPath(output);
             if(String.IsNullOrEmpty(entry.Name)){Directory.CreateDirectory(output);continue;}
             Directory.CreateDirectory(Path.GetDirectoryName(output));
             using(Stream input=entry.Open())using(Stream file=new FileStream(output,FileMode.Create,FileAccess.Write,FileShare.None))input.CopyTo(file);
           }
+        }
+    }
+    private static void RejectReparsePath(string path)
+    {
+        for(string current=Path.GetFullPath(path);!String.IsNullOrEmpty(current);current=Path.GetDirectoryName(current))
+        {
+            string full=FileSystemPath(current);
+            try { if((File.GetAttributes(full)&FileAttributes.ReparsePoint)!=0)throw new IOException("Unsafe reparse ZIP destination: "+current); }
+            catch(FileNotFoundException) { }
+            catch(DirectoryNotFoundException) { }
         }
     }
     private static void Extract7z(string archive,string destination){string tool=Path.Combine(InstallerCache(),"7zr.exe");ExtractResource("LAKIS.7zr",tool);RunInstallerTool(tool,"x -y -o\""+FileSystemPath(destination)+"\" \""+FileSystemPath(archive)+"\"",destination,_=>{});if(!Directory.Exists(FileSystemPath(Path.Combine(destination,"ComfyUI_windows_portable"))))throw new IOException("ComfyUI 압축 해제 결과를 확인할 수 없습니다.");}

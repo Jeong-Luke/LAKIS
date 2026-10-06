@@ -268,9 +268,11 @@ internal sealed class UpdaterForm : Form
 
     private void ApplyUpdate(UpdateManifest manifest)
     {
+        if (!Regex.IsMatch(manifest.version ?? "", "^[0-9]+\\.[0-9]+\\.[0-9]+(?:\\.[0-9]+)?\\z"))
+            throw new InvalidDataException("잘못된 업데이트 버전입니다.");
         string work = Path.Combine(Path.GetTempPath(), "LAKIS_Update_" + Guid.NewGuid().ToString("N"));
         string stage = Path.Combine(work, "stage");
-        string backup = Path.Combine(targetRoot, ".lakis", "rollback", manifest.version + "_" + DateTime.Now.ToString("yyyyMMdd_HHmmss"));
+        string backup = SafeCombine(targetRoot, Path.Combine(".lakis", "rollback", manifest.version + "_" + DateTime.Now.ToString("yyyyMMdd_HHmmss")));
         Directory.CreateDirectory(stage); Directory.CreateDirectory(backup);
         var replaced = new List<string>();
         var originallyExisted = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -312,7 +314,7 @@ internal sealed class UpdaterForm : Form
             }
             foreach (string value in manifest.delete)
             {
-                string relative = ValidateRelativePath(value);
+                string relative = ValidateDeleteRelativePath(value);
                 if (IsProtected(relative)) throw new InvalidDataException("보호된 사용자 경로는 삭제할 수 없습니다: " + relative);
                 string destination = SafeCombine(targetRoot, relative);
                 if (!File.Exists(destination)) continue;
@@ -339,9 +341,41 @@ internal sealed class UpdaterForm : Form
 
     private static string ValidateRelativePath(string path)
     {
+        string normalized = ValidatePathSyntax(path);
+        string p = normalized.Replace('\\', '/');
+        var rootFiles = new[] {"LAKIS.exe", "LAKIS_Patcher.exe", "LAKIS_Updater.exe", "LAKIS_Desktop.exe", "LAKIS_Model_Importer.exe", "Uninstall_LAKIS.exe", "Microsoft.Web.WebView2.Core.dll", "Microsoft.Web.WebView2.WinForms.dll", "WebView2Loader.dll", "LICENSE.md", "THIRD_PARTY_NOTICES.md"};
+        var packages = new[] {"ComfyUI-Anima-LLLite", "ComfyUI-KR-Camera-Control", "ComfyUI-KR-Camera-PromptStudio-Bridge", "ComfyUI-LAKIS-AutoPatch", "ComfyUI-LAKIS-Detail", "ComfyUI-LAKIS-Fast-Refiner", "ComfyUI-LAKIS-Local-Inpaint", "ComfyUI-PreviewMonitor"};
+        bool owned = rootFiles.Any(name => String.Equals(p, name, StringComparison.OrdinalIgnoreCase)) ||
+            p.StartsWith("third_party_licenses/", StringComparison.OrdinalIgnoreCase) ||
+            p.StartsWith("ComfyUI/LAKIS/external_ui/", StringComparison.OrdinalIgnoreCase) ||
+            String.Equals(p, "ComfyUI/LAKIS/STOP_AUTOMATION", StringComparison.OrdinalIgnoreCase) ||
+            String.Equals(p, "ComfyUI/LAKIS/sync_runtime_workflow.py", StringComparison.OrdinalIgnoreCase) ||
+            String.Equals(p, "ComfyUI/LAKIS/workflows/LAKIS_runtime_api_v7.4.json", StringComparison.OrdinalIgnoreCase) ||
+            String.Equals(p, "ComfyUI/LAKIS/workflows/LAKIS_runtime_visual_v7.4.json", StringComparison.OrdinalIgnoreCase) ||
+            packages.Any(name => p.StartsWith("ComfyUI/custom_nodes/" + name + "/", StringComparison.OrdinalIgnoreCase) && !p.EndsWith("/startup_workflow.json", StringComparison.OrdinalIgnoreCase));
+        if (!owned) throw new InvalidDataException("배포 관리 파일만 업데이트할 수 있습니다: " + path);
+        return normalized;
+    }
+
+    private static string ValidateDeleteRelativePath(string path)
+    {
+        string normalized = ValidatePathSyntax(path);
+        string p = normalized.Replace('\\', '/');
+        var retired = new[] {"ComfyUI/LAKIS/external_ui/light-control-prototype.css", "ComfyUI/LAKIS/external_ui/lightmap-knob-mockup.js", "ComfyUI/LAKIS/workflows/LAKIS_DETAIL_runtime_api_v7.3.json", "ComfyUI/LAKIS/workflows/LAKIS_runtime_api_v7.1.json", "ComfyUI/LAKIS/workflows/LAKIS_runtime_visual_v7.3.json", "ComfyUI/custom_nodes/ComfyUI-LAKIS-Light-Control/INSTALL_REQUIREMENTS.bat", "ComfyUI/custom_nodes/ComfyUI-LAKIS-Light-Control/LICENSE", "ComfyUI/custom_nodes/ComfyUI-LAKIS-Light-Control/NOTICE.md", "ComfyUI/custom_nodes/ComfyUI-LAKIS-Light-Control/__init__.py", "ComfyUI/custom_nodes/ComfyUI-LAKIS-Light-Control/requirements.txt", "ComfyUI/custom_nodes/ComfyUI-LAKIS-Light-Control/web/lakis_light_control.js"};
+        if (!retired.Any(name => String.Equals(p, name, StringComparison.OrdinalIgnoreCase)))
+            throw new InvalidDataException("지정된 폐기 파일만 삭제할 수 있습니다: " + path);
+        return normalized;
+    }
+
+    private static string ValidatePathSyntax(string path)
+    {
         if (String.IsNullOrWhiteSpace(path) || Path.IsPathRooted(path)) throw new InvalidDataException("잘못된 업데이트 경로입니다.");
         string normalized = path.Replace('/', Path.DirectorySeparatorChar);
-        if (normalized.Split(Path.DirectorySeparatorChar).Length == 0 || normalized.Contains("..")) throw new InvalidDataException("안전하지 않은 업데이트 경로입니다: " + path);
+        foreach (string part in normalized.Split(Path.DirectorySeparatorChar))
+            if (String.IsNullOrEmpty(part) || part == "." || part == ".." || part.EndsWith(".") || part.EndsWith(" ") ||
+                part.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ||
+                System.Text.RegularExpressions.Regex.IsMatch(part, "^(CON|PRN|AUX|NUL|COM[1-9¹²³]|LPT[1-9¹²³])(?:\\.|$)", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+                throw new InvalidDataException("안전하지 않은 업데이트 경로입니다: " + path);
         if (IsProtected(normalized)) throw new InvalidDataException("사용자 데이터 경로는 업데이트할 수 없습니다: " + path);
         return normalized;
     }
@@ -393,6 +427,12 @@ internal sealed class UpdaterForm : Form
         string prefix = Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
         string result = Path.GetFullPath(Path.Combine(root, relative));
         if (!result.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) throw new InvalidDataException("설치 경로 밖의 파일은 변경할 수 없습니다.");
+        for (string current = result; !String.IsNullOrEmpty(current); current = Path.GetDirectoryName(current))
+        {
+            try { if ((File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)throw new InvalidDataException("연결된 경로에는 업데이트할 수 없습니다: " + relative); }
+            catch (FileNotFoundException) { }
+            catch (DirectoryNotFoundException) { }
+        }
         return result;
     }
 
