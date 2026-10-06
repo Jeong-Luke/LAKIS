@@ -219,8 +219,9 @@ def validate_download_origin(requested: str, final: str) -> None:
     hosts = {"github.com", "api.github.com", "codeload.github.com", "raw.githubusercontent.com",
              "objects.githubusercontent.com", "release-assets.githubusercontent.com", "cdn.jsdelivr.net",
              "huggingface.co", "go.microsoft.com", "msedge.sf.dl.delivery.mp.microsoft.com"}
+    local_request = original.scheme == "http" and original.hostname in {"127.0.0.1", "localhost", "::1"}
     for value in (original, target):
-        local = value.scheme == "http" and value.hostname in {"127.0.0.1", "localhost", "::1"}
+        local = local_request and value.scheme == "http" and value.netloc.lower() == original.netloc.lower()
         approved = value.hostname in hosts or (value.hostname or "").endswith(".hf.co")
         if value.username or value.password or not (local or value.scheme == "https" and approved):
             raise InvalidDownloadOriginError("DOWNLOAD_ORIGIN_INVALID: unapproved download origin")

@@ -26,6 +26,7 @@ class SecurityProbe {
   if(args[0]=="origin-ok"){Call(typeof(SafeInstaller),"ValidateDownloadOrigin",args[1],args[2]);Call(typeof(UpdaterForm),"ValidateDownloadOrigin",args[1],args[2]);return 0;}
   try {
    if(args[0]=="origin-reject"){Call(typeof(SafeInstaller),"ValidateDownloadOrigin",args[1],args[2]);return 10;}
+   if(args[0]=="origin-reject-updater"){Call(typeof(UpdaterForm),"ValidateDownloadOrigin",args[1],args[2]);return 10;}
    if(args[0]=="zip")Call(typeof(SafeInstaller),"ExtractZip",args[1],args[2]);
    else if(args[0]=="combine")Call(typeof(UpdaterForm),"SafeCombine",args[1],args[2]);
    else Call(typeof(UpdaterForm),args[0]=="delete"?"ValidateDeleteRelativePath":"ValidateRelativePath",args[1]);
@@ -40,11 +41,15 @@ class CmdRangeTests(unittest.TestCase):
     def test_final_download_origin_rejects_downgrade_and_unapproved_hosts(self):
         requested='https://github.com/audit-fixture/archive'
         for final in ('http://github.com/archive','https://evil.invalid/archive',
-                      'https://github.com.evil.invalid/archive','https://user:password@github.com/archive'):
+                      'https://github.com.evil.invalid/archive','https://user:password@github.com/archive',
+                      'http://127.0.0.1:9/archive','http://localhost:9/archive'):
             with self.subTest(final=final),self.assertRaises(module.InvalidDownloadOriginError):
                 module.validate_download_origin(requested,final)
         module.validate_download_origin(requested,'https://codeload.github.com/archive')
         module.validate_download_origin('https://huggingface.co/archive','https://cas-bridge.xethub.hf.co/archive')
+        module.validate_download_origin('http://127.0.0.1:19475/archive','http://127.0.0.1:19475/archive')
+        with self.assertRaises(module.InvalidDownloadOriginError):
+            module.validate_download_origin('http://127.0.0.1:19475/archive','http://127.0.0.1:9/archive')
     def test_invalid_range_is_rejected_before_body_and_restarts_fresh(self):
         for content_range in (None, 'bytes 0-2/6', 'bytes 3-5/7', 'bytes 3-4/6', 'bytes 3-5/*'):
             with self.subTest(header=content_range), tempfile.TemporaryDirectory() as directory:
@@ -109,10 +114,15 @@ class NativeWriteBoundaryTests(unittest.TestCase):
             finally:server.shutdown();server.server_close();thread.join(5)
     def test_native_final_origin_policy_matches_approved_providers(self):
         for requested,final in [('https://github.com/archive','https://release-assets.githubusercontent.com/archive'),
-                                ('https://huggingface.co/archive','https://cas-bridge.xethub.hf.co/archive')]:
+                                ('https://huggingface.co/archive','https://cas-bridge.xethub.hf.co/archive'),
+                                ('http://127.0.0.1:19475/archive','http://127.0.0.1:19475/archive')]:
             self.run_probe('origin-ok',requested,final)
-        for final in ('http://github.com/archive','https://evil.invalid/archive','https://github.com.evil.invalid/archive'):
+        for final in ('http://github.com/archive','https://evil.invalid/archive','https://github.com.evil.invalid/archive',
+                      'http://127.0.0.1:9/archive','http://localhost:9/archive'):
             self.run_probe('origin-reject','https://github.com/archive',final)
+            self.run_probe('origin-reject-updater','https://github.com/archive',final)
+        self.run_probe('origin-reject','http://127.0.0.1:19475/archive','http://127.0.0.1:9/archive')
+        self.run_probe('origin-reject-updater','http://127.0.0.1:19475/archive','http://127.0.0.1:9/archive')
     def test_updater_rejects_user_files_ads_devices_and_unknown_paths(self):
         for path in ('.lakis/settings.json','arbitrary-document.txt','app.js:payload',
                      'ComfyUI/LAKIS/external_ui/CON.txt','ComfyUI/LAKIS/external_ui/a.js:payload',

@@ -479,13 +479,16 @@ internal sealed class UpdaterForm : Form
     }
     private static void ValidateDownloadOrigin(string requested,string final)
     {
+        var original=new Uri(requested,UriKind.Absolute);
+        bool localRequest=original.Scheme=="http"&&original.IsLoopback;
         foreach(string value in new[]{requested,final})
         {
             var uri=new Uri(value,UriKind.Absolute);
             string host=uri.DnsSafeHost.ToLowerInvariant();
             string[] hosts={"github.com","api.github.com","codeload.github.com","raw.githubusercontent.com","objects.githubusercontent.com","release-assets.githubusercontent.com","cdn.jsdelivr.net","huggingface.co","go.microsoft.com","msedge.sf.dl.delivery.mp.microsoft.com"};
             bool approved=Array.Exists(hosts,h=>h==host)||host.EndsWith(".hf.co",StringComparison.Ordinal);
-            if(!String.IsNullOrEmpty(uri.UserInfo)||!((uri.Scheme=="http"&&uri.IsLoopback)||(uri.Scheme=="https"&&approved)))
+            bool local=localRequest&&uri.Scheme=="http"&&uri.IsLoopback&&String.Equals(uri.Authority,original.Authority,StringComparison.OrdinalIgnoreCase);
+            if(!String.IsNullOrEmpty(uri.UserInfo)||!(local||(uri.Scheme=="https"&&approved)))
                 throw new IOException("DOWNLOAD_ORIGIN_INVALID: unapproved download origin");
         }
     }
