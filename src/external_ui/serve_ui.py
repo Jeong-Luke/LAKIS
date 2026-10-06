@@ -608,29 +608,53 @@ def cached_thumbnail(source: Path) -> Path:
     return target
 
 
-def image_history() -> dict:
+def _history_entries(roots: list[tuple[str, Path]]):
+    """Enumerate retained Library files without loading their metadata."""
+    for root_key, root in roots:
+        for path in root.rglob("*"):
+            if path.suffix.lower() not in {".png", ".jpg", ".jpeg", ".webp"}:
+                continue
+            try:
+                if not path.is_file():
+                    continue
+                stat = path.stat()
+            except OSError:
+                # A file can disappear while the library is being scanned.
+                continue
+            item_id = f"{root_key}:{path.relative_to(root).as_posix()}"
+            yield (stat.st_mtime_ns, item_id), path, stat, item_id
+
+
+def image_history(*, limit: int = 300, cursor: str | None = None) -> dict:
+    if not 1 <= limit <= 300:
+        raise ValueError("history limit must be between 1 and 300")
+    before = None
+    if cursor is not None:
+        try:
+            value = json.loads(cursor)
+            if (not isinstance(value, list) or len(value) != 2
+                    or type(value[0]) is not int or not isinstance(value[1], str)):
+                raise ValueError()
+            before = (value[0], value[1])
+        except (ValueError, TypeError) as error:
+            raise ValueError("invalid history cursor") from error
     roots = _history_roots()
-    paths = sorted(
-        (
-            (root_key, root, path)
-            for root_key, root in roots
-            for path in root.rglob("*")
-            if path.is_file() and path.suffix.lower() in {".png", ".jpg", ".jpeg", ".webp"}
-        ),
-        key=lambda item: item[2].stat().st_mtime,
-        reverse=True,
-    )[:300]
+    paths = []
+    for key, path, stat, item_id in _history_entries(roots):
+        if before is None or key < before:
+            paths.append((key, path, stat, item_id))
+    paths.sort(key=lambda item: item[0], reverse=True)
+    has_more = len(paths) > limit
+    paths = paths[:limit]
     items = []
-    for root_key, root, path in paths:
-        stat = path.stat()
-        relative = path.relative_to(root).as_posix()
-        item_id = f"{root_key}:{relative}"
+    for _, path, stat, item_id in paths:
         items.append({"id": item_id, "name": path.name, "date": time.strftime("%Y/%m/%d", time.localtime(stat.st_mtime)), "modified": stat.st_mtime, "url": "/api/history-image?id=" + quote(item_id), "thumbnail_url": "/api/thumbnail?id=" + quote(item_id), **_image_prompt_metadata(path)})
     configured = roots[0][1]
     return {
         "ok": True, "root": str(configured), "default_root": str(OUTPUT_ROOT),
         "custom": configured != OUTPUT_ROOT.resolve(), "includes_default_root": len(roots) > 1,
         "items": items,
+        "next_cursor": json.dumps(paths[-1][0], ensure_ascii=False) if has_more else None,
     }
 
 
@@ -681,7 +705,9 @@ def delete_history_images_batch(values) -> dict:
     requested = list(dict.fromkeys(str(value or "") for value in values if str(value or "")))
     if not requested:
         raise ValueError("select at least one image")
-    current_ids = {str(item["id"]) for item in image_history()["items"]}
+    # Membership must cover every retained page, without parsing metadata for
+    # the whole Library. The existing per-file path checks still run on delete.
+    current_ids = {item_id for _, _, _, item_id in _history_entries(_history_roots())}
     deleted, failed = [], []
     for item_id in requested:
         if item_id not in current_ids:
@@ -1336,7 +1362,14 @@ class Handler(SimpleHTTPRequestHandler):
                 self._send_json(503, {"ok": False, "valid": False, "error": str(error)})
             return
         if urlparse(self.path).path == "/api/image-history":
-            self._send_json(200, image_history())
+            query = parse_qs(urlparse(self.path).query)
+            try:
+                self._send_json(200, image_history(
+                    limit=int(query.get("limit", ["300"])[0]),
+                    cursor=query.get("cursor", [None])[0],
+                ))
+            except ValueError as error:
+                self._send_json(400, {"ok": False, "error": str(error)})
             return
         if urlparse(self.path).path == "/api/history-image":
             relative = parse_qs(urlparse(self.path).query).get("id", [""])[0]

@@ -2,36 +2,41 @@
 # SPDX-License-Identifier: MIT
 """LAKIS_SCOPE v2: globally consistent tiled latent refinement."""
 from __future__ import annotations
+import logging
 import torch
 import torch.nn.functional as F
 import comfy.sample
 import comfy.samplers
 
 
-def _upscale_learned(upscale_model, image, preferred_tile=768):
-    """Run the same Spandrel model with less overlapping tile work.
+def _upscale_learned(upscale_model, image, preferred_tile=512):
+    """Reserve inference workspace before moving the pixel upscaler to GPU.
 
-    ComfyUI's generic node always starts at 512 px.  Anime6B fits a larger
-    tile on the development 12 GB target, which reduces duplicated overlap
-    while retaining the exact model and its native 4x inference.  OOM safely
-    falls back through the stock 512/256/128 sequence.
+    A large convolution tile can reset the Windows display driver before
+    PyTorch can raise a recoverable OOM. Bound tiles to ComfyUI's 512 px
+    starting size and account for activations, not just weights and input.
     """
     import comfy.model_management as model_management
     import comfy.utils
 
     device = model_management.get_torch_device()
+    tile, overlap = max(128, min(512, int(preferred_tile))), 32
+    # Model inference below uses float32 even when the input is half precision.
+    workspace = (tile * tile * 3) * max(image.element_size(), 4)
+    workspace *= max(float(upscale_model.scale), 1.0) * 384.0
     model_management.free_memory(
         model_management.module_size(upscale_model.model)
-        + image.nelement() * image.element_size(),
+        + image.nelement() * image.element_size() + workspace,
         device,
     )
-    upscale_model.to(device)
-    value = image.movedim(-1, -3).to(device)
-    tile, overlap = max(512, int(preferred_tile)), 32
     output_device = model_management.intermediate_device()
     try:
+        upscale_model.to(device)
+        value = image.movedim(-1, -3).to(device)
         while True:
             try:
+                logging.info("LAKIS_SCOPE pixel upscale: tile=%s, workspace_mib=%.0f",
+                             tile, workspace / (1024 ** 2))
                 steps = value.shape[0] * comfy.utils.get_tiled_scale_steps(
                     value.shape[3], value.shape[2], tile_x=tile, tile_y=tile, overlap=overlap
                 )
@@ -45,7 +50,7 @@ def _upscale_learned(upscale_model, image, preferred_tile=768):
                 break
             except Exception as error:
                 model_management.raise_non_oom(error)
-                tile = 512 if tile > 512 else tile // 2
+                tile //= 2
                 if tile < 128:
                     raise
     finally:

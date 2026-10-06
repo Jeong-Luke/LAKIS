@@ -41,6 +41,20 @@ def transient_file_error(error: OSError) -> bool:
     return error.errno in {errno.EACCES, errno.EBUSY, errno.EPERM} or getattr(error, "winerror", None) in {5, 32, 33}
 
 
+def cache_verification_error(path: Path, display_name: str, error: OSError) -> RuntimeError:
+    winerror = getattr(error, "winerror", None)
+    if winerror in {225, 226}:
+        return RuntimeError(
+            f"CACHE_SECURITY_BLOCKED: Windows 보안 또는 보안 프로그램이 다운로드 파일을 차단하거나 제거했습니다. "
+            f"보안 프로그램의 보호 기록에서 파일과 탐지 내용을 확인해 주세요. "
+            f"파일 검증을 완료하지 못해 설치를 중단했습니다. {display_name}: winerror={winerror}, path={path}"
+        )
+    return RuntimeError(
+        f"CACHE_VERIFY_OPEN_FAILED: {display_name}: {type(error).__name__}: "
+        f"errno={error.errno}, winerror={winerror}, path={path}"
+    )
+
+
 def sha256_with_retry(path: Path, display_name: str) -> str:
     last_error: OSError | None = None
     for attempt in range(1, 6):
@@ -48,18 +62,12 @@ def sha256_with_retry(path: Path, display_name: str) -> str:
             return sha256(path)
         except OSError as error:
             last_error = error
-            if not transient_file_error(error):
-                raise RuntimeError(
-                    f"CACHE_VERIFY_OPEN_FAILED: {display_name}: {type(error).__name__}: "
-                    f"errno={error.errno}, winerror={getattr(error, 'winerror', None)}, path={path}"
-                ) from error
+            if getattr(error, "winerror", None) in {225, 226} or not transient_file_error(error):
+                raise cache_verification_error(path, display_name, error) from error
             if attempt < 5:
                 time.sleep(attempt * 0.2)
     assert last_error is not None
-    raise RuntimeError(
-        f"CACHE_VERIFY_OPEN_FAILED: {display_name}: {type(last_error).__name__}: "
-        f"errno={last_error.errno}, winerror={getattr(last_error, 'winerror', None)}, path={path}"
-    ) from last_error
+    raise cache_verification_error(path, display_name, last_error) from last_error
 
 
 def safe_relative(value: str) -> Path:
@@ -296,13 +304,24 @@ def _download_locked(
     return destination
 
 
+RVTOOLS_ZIP_SHA256 = "AC92C92CF6454E850E6A2B5053D13962BC2936539F669B910C4A49EDB875ECBD"
+RVTOOLS_EXAMPLE = "ComfyUI-RvTools_v2-d3f7e8beb477dff6c0fac44b298ab74ac433d93e/workflow/Workflow.png"
+
+
 def extract_zip(archive: Path, destination: Path) -> None:
     destination.mkdir(parents=True, exist_ok=True)
     root = destination.resolve()
     seen: set[str] = set()
     with zipfile.ZipFile(archive) as bundle:
+        # The verified upstream ZIP has two distinct example PNGs whose names
+        # differ only by case. Preserve both on Windows, without accepting
+        # ambiguous paths in any other archive or changing runtime files.
+        remap_example = (RVTOOLS_EXAMPLE in bundle.namelist()
+                         and sha256_with_retry(archive, "rvtools.zip") == RVTOOLS_ZIP_SHA256)
         for entry in bundle.infolist():
             normalized = entry.filename.replace("\\", "/")
+            if remap_example and entry.filename == RVTOOLS_EXAMPLE:
+                normalized = normalized.removesuffix("Workflow.png") + "Workflow-example.png"
             trimmed = normalized.rstrip("/")
             parts = trimmed.split("/") if trimmed else []
             if not parts or normalized.startswith("/"):

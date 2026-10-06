@@ -127,7 +127,7 @@ internal sealed class SafeSetupForm : Form
         repair.SetBounds(43,337,145,38); repair.Text="기존 설치 복구"; repair.Click += async (_,__) => await RepairAsync();
         install.SetBounds(201,337,157,38); install.Text="새로 설치"; install.Click += async (_,__) => await InstallAsync();
         foreach(Button button in new[]{repair,install}){button.FlatStyle=FlatStyle.Flat;button.FlatAppearance.BorderSize=0;button.BackColor=Color.FromArgb(111,82,225);button.ForeColor=Color.White;button.Font=new Font("Segoe UI",9F,FontStyle.Bold);button.Cursor=Cursors.Hand;}
-        var copyright=new Label{Left=43,Top=399,Width=335,Height=18,Text="© 2026 Luke Jeong. All rights reserved. · LAKIS v7.5.2",ForeColor=Color.FromArgb(104,112,137),Font=new Font("Segoe UI",8F)};
+        var copyright=new Label{Left=43,Top=399,Width=335,Height=18,Text="© 2026 Luke Jeong. All rights reserved. · LAKIS v7.5.3",ForeColor=Color.FromArgb(104,112,137),Font=new Font("Segoe UI",8F)};
         ConfigureCloseButton();
         Controls.AddRange(new Control[]{artwork,logo,destination,progress,status,launch,repair,install,copyright,closeButton});
         closeButton.BringToFront();
@@ -257,13 +257,13 @@ internal sealed class SafeSetupForm : Form
 
 internal static class SafeInstaller
 {
-    private const string Revision = "v7.5.2";
+    private const string Revision = "v7.5.3";
     // The release build injects the hash of the exact commit archive.
     private const string SourceArchiveSha256 = "BUILD_REQUIRES_PINNED_SOURCE_SHA256";
     private const string WebView2BootstrapperUrl = "BUILD_REQUIRES_PINNED_WEBVIEW2_URL";
     private const string WebView2BootstrapperSha256 = "BUILD_REQUIRES_PINNED_WEBVIEW2_SHA256";
     private const long WebView2BootstrapperBytes = 0;
-    private const string ReleaseVersion = "7.5.2";
+    private const string ReleaseVersion = "7.5.3";
     private static readonly DownloadItem Portable = new DownloadItem("ComfyUI v0.21.1",
         "https://github.com/Comfy-Org/ComfyUI/releases/download/v0.21.1/ComfyUI_windows_portable_nvidia.7z",
         "7C380D4309BBDA395366C49564EDF8996181FD45E61B6F353EA417F32BC3B970",null,2001582790);
@@ -615,7 +615,26 @@ internal static class SafeInstaller
         finally { foreach(string part in parts)try{if(File.Exists(part))File.Delete(part);}catch{} }
     }
     private static string Hash(string path){using(var s=File.OpenRead(path))using(var h=SHA256.Create())return BitConverter.ToString(h.ComputeHash(s)).Replace("-","");}
-    private static string HashWithRetry(string path,string name){Exception last=null;for(int attempt=1;attempt<=5;attempt++)try{return Hash(path);}catch(Exception error){last=error;if(!IsTransientFileError(error))throw new IOException("CACHE_VERIFY_OPEN_FAILED: "+name+" | "+error.GetType().Name+" 0x"+error.HResult.ToString("X8")+" | "+path,error);if(attempt<5)System.Threading.Thread.Sleep(attempt*200);}throw new IOException("CACHE_VERIFY_OPEN_FAILED: "+name+" | "+(last==null?"unknown":last.GetType().Name+" 0x"+last.HResult.ToString("X8"))+" | "+path,last);}
+    private static IOException CacheVerificationError(string path,string name,Exception error)
+    {
+        int code=error==null ? 0 : error.HResult&0xFFFF;
+        bool blocked=error is IOException && (error.HResult&unchecked((int)0xFFFF0000))==unchecked((int)0x80070000) && (code==225||code==226);
+        string detail=name+" | "+(error==null ? "unknown" : error.GetType().Name+" 0x"+error.HResult.ToString("X8"))+" | "+path;
+        return new IOException(blocked
+            ? "CACHE_SECURITY_BLOCKED: Windows 보안 또는 보안 프로그램이 다운로드 파일을 차단하거나 제거했습니다. 보안 프로그램의 보호 기록에서 파일과 탐지 내용을 확인해 주세요. 파일 검증을 완료하지 못해 설치를 중단했습니다. "+detail
+            : "CACHE_VERIFY_OPEN_FAILED: "+detail,error);
+    }
+    private static string HashWithRetry(string path,string name)
+    {
+        Exception last=null;
+        for(int attempt=1;attempt<=5;attempt++)try{return Hash(path);}catch(Exception error)
+        {
+            last=error;
+            if(!IsTransientFileError(error))throw CacheVerificationError(path,name,error);
+            if(attempt<5)System.Threading.Thread.Sleep(attempt*200);
+        }
+        throw CacheVerificationError(path,name,last);
+    }
     private static string UniqueScratch(string cache,string prefix){return Path.Combine(cache,prefix+"-"+Guid.NewGuid().ToString("N"));}
     private static void InstallZip(DownloadItem item,string cache,string destination,Action<string> status){string zip=Fetch(item,cache,status),stage=UniqueScratch(cache,"unpack");try{Reset(stage);ExtractZip(zip,stage);string source=FirstDirectory(stage);if(Object.ReferenceEquals(item,LoraManager)&&Directory.Exists(destination))CopyLoraManagerForRepair(source,destination);else{if(Directory.Exists(destination))try{DeleteTree(destination);}catch{}Directory.CreateDirectory(Path.GetDirectoryName(destination));CopyTree(source,destination);}}finally{try{if(Directory.Exists(stage))DeleteTree(stage);}catch{}}}
     private static void CopyLoraManagerForRepair(string source,string destination)
@@ -637,9 +656,22 @@ internal static class SafeInstaller
     private static void ExtractZip(string archive,string destination)
     {
         string root=Path.GetFullPath(destination).TrimEnd(Path.DirectorySeparatorChar)+Path.DirectorySeparatorChar;
-        using(var zip=ZipFile.OpenRead(FileSystemPath(archive))) foreach(var entry in zip.Entries)
+        const string example="ComfyUI-RvTools_v2-d3f7e8beb477dff6c0fac44b298ab74ac433d93e/workflow/Workflow.png";
+        using(var zip=ZipFile.OpenRead(FileSystemPath(archive)))
         {
-            string relative=entry.FullName.Replace('/',Path.DirectorySeparatorChar);
+          bool remapExample=false;
+          foreach(var entry in zip.Entries)if(entry.FullName==example)
+          {
+              remapExample=HashWithRetry(archive,"rvtools.zip")=="AC92C92CF6454E850E6A2B5053D13962BC2936539F669B910C4A49EDB875ECBD";
+              break;
+          }
+          // Preserve the two case-colliding example images in this exact,
+          // hash-verified upstream archive. Runtime file names stay unchanged.
+          var seen=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+          foreach(var entry in zip.Entries)
+          {
+            string member=remapExample&&entry.FullName==example ? example.Substring(0,example.Length-"Workflow.png".Length)+"Workflow-example.png" : entry.FullName;
+            string relative=member.Replace('/',Path.DirectorySeparatorChar);
             // Modern IO preserves more Windows path syntax. ZIP members must
             // still be ordinary relative files, never ADS/device/rooted paths
             // or names whose trailing dots/spaces have ambiguous semantics.
@@ -650,10 +682,16 @@ internal static class SafeInstaller
                     throw new IOException("Unsafe ZIP path: "+entry.FullName);
             string output=Path.GetFullPath(Path.Combine(destination,relative));
             if(!output.StartsWith(root,StringComparison.OrdinalIgnoreCase))throw new IOException("Unsafe ZIP path: "+entry.FullName);
+            // Compare canonical Windows targets after the pinned remap, before
+            // opening a file. Slash aliases and directory trailing slashes must
+            // not let a later entry overwrite an earlier one.
+            if(!seen.Add(output.TrimEnd(Path.DirectorySeparatorChar)))
+                throw new IOException("Duplicate Windows ZIP path: "+entry.FullName);
             output=FileSystemPath(output);
             if(String.IsNullOrEmpty(entry.Name)){Directory.CreateDirectory(output);continue;}
             Directory.CreateDirectory(Path.GetDirectoryName(output));
             using(Stream input=entry.Open())using(Stream file=new FileStream(output,FileMode.Create,FileAccess.Write,FileShare.None))input.CopyTo(file);
+          }
         }
     }
     private static void Extract7z(string archive,string destination){string tool=Path.Combine(InstallerCache(),"7zr.exe");ExtractResource("LAKIS.7zr",tool);RunInstallerTool(tool,"x -y -o\""+FileSystemPath(destination)+"\" \""+FileSystemPath(archive)+"\"",destination,_=>{});if(!Directory.Exists(FileSystemPath(Path.Combine(destination,"ComfyUI_windows_portable"))))throw new IOException("ComfyUI 압축 해제 결과를 확인할 수 없습니다.");}

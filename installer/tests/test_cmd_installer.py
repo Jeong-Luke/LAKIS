@@ -33,7 +33,7 @@ class CmdInstallerTests(unittest.TestCase):
     def test_manifest_is_pinned_and_matches_cmd_bootstrap(self):
         data = json.loads(MANIFEST.read_text(encoding="utf-8"))
         cmd = CMD.read_text(encoding="cp949")
-        self.assertEqual(data["version"], "7.5.2")
+        self.assertEqual(data["version"], "7.5.3")
         self.assertEqual(data["base"]["sha256"], "7C380D4309BBDA395366C49564EDF8996181FD45E61B6F353EA417F32BC3B970")
         self.assertIn(data["base"]["url"], cmd)
         self.assertIn(data["base"]["sha256"], cmd)
@@ -142,6 +142,18 @@ class CmdInstallerTests(unittest.TestCase):
                     module.sha256_with_retry(source, "source.zip")
             digest.assert_called_once()
             sleep.assert_not_called()
+
+    def test_security_block_is_identified_without_retry_or_bypass(self):
+        for code in (225, 226):
+            error = OSError(13, "blocked")
+            error.winerror = code
+            with self.subTest(code=code), \
+                    mock.patch.object(module, "sha256", side_effect=error) as digest, \
+                    mock.patch.object(module.time, "sleep") as sleep:
+                with self.assertRaisesRegex(RuntimeError, "CACHE_SECURITY_BLOCKED"):
+                    module.sha256_with_retry(Path("blocked.zip"), "source.zip")
+                digest.assert_called_once()
+                sleep.assert_not_called()
 
     def test_concurrent_downloads_serialize_one_cache_entry(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -324,6 +336,38 @@ class CmdInstallerTests(unittest.TestCase):
                 bundle.writestr("folder/file.TXT", "two")
             with self.assertRaisesRegex(RuntimeError, "duplicate Windows ZIP path"):
                 module.extract_zip(archive, root / "extract")
+
+    def test_only_verified_rvtools_example_names_are_remapped(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            archive = root / "rvtools.zip"
+            with zipfile.ZipFile(archive, "w") as bundle:
+                bundle.writestr(module.RVTOOLS_EXAMPLE, b"first example")
+                bundle.writestr(module.RVTOOLS_EXAMPLE.replace("Workflow.png", "workflow.png"), b"second example")
+            # An altered or unverified archive must still fail closed.
+            with self.assertRaisesRegex(RuntimeError, "duplicate Windows ZIP path"):
+                module.extract_zip(archive, root / "unverified")
+            with mock.patch.object(module, "sha256_with_retry", return_value=module.RVTOOLS_ZIP_SHA256):
+                module.extract_zip(archive, root / "verified")
+            example = root / "verified" / module.RVTOOLS_EXAMPLE
+            self.assertEqual(example.with_name("Workflow-example.png").read_bytes(), b"first example")
+            self.assertEqual(example.with_name("workflow.png").read_bytes(), b"second example")
+
+    @unittest.skipUnless(os.environ.get("LAKIS_RVTOOLS_TEST_ZIP"), "Pinned RvTools ZIP fixture required")
+    def test_real_pinned_rvtools_preserves_all_entry_bytes(self):
+        archive = Path(os.environ["LAKIS_RVTOOLS_TEST_ZIP"])
+        self.assertEqual(module.sha256(archive), module.RVTOOLS_ZIP_SHA256)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            module.extract_zip(archive, root)
+            with zipfile.ZipFile(archive) as bundle:
+                for entry in bundle.infolist():
+                    if entry.is_dir():
+                        continue
+                    name = entry.filename
+                    if name == module.RVTOOLS_EXAMPLE:
+                        name = name.replace("Workflow.png", "Workflow-example.png")
+                    self.assertEqual((root / name).read_bytes(), bundle.read(entry))
 
     def test_layout_validation(self):
         with tempfile.TemporaryDirectory() as folder:
