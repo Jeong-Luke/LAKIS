@@ -162,6 +162,11 @@ try {
 }
 finally {
     if (Test-Path -LiteralPath $temp) {
+        $resolvedLayoutTarget = (Resolve-Path -LiteralPath $temp).Path
+        $resolvedLayoutParent = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\') + '\'
+        if (-not $resolvedLayoutTarget.StartsWith($resolvedLayoutParent,[StringComparison]::OrdinalIgnoreCase) -or
+            (Split-Path -Leaf $resolvedLayoutTarget) -notmatch '^lakis-layout-[a-f0-9]{32}$' -or
+            ((Get-Item -LiteralPath $temp).Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'Unsafe layout cleanup path.' }
         Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue
     }
 }
