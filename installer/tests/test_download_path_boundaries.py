@@ -28,6 +28,8 @@ class SecurityProbe {
    if(args[0]=="origin-reject"){Call(typeof(SafeInstaller),"ValidateDownloadOrigin",args[1],args[2]);return 10;}
    if(args[0]=="origin-reject-updater"){Call(typeof(UpdaterForm),"ValidateDownloadOrigin",args[1],args[2]);return 10;}
    if(args[0]=="zip")Call(typeof(SafeInstaller),"ExtractZip",args[1],args[2]);
+   else if(args[0]=="copy")Call(typeof(SafeInstaller),"CopyTree",args[1],args[2]);
+   else if(args[0]=="copy-lora")Call(typeof(SafeInstaller),"CopyLoraManagerForRepair",args[1],args[2]);
    else if(args[0]=="combine")Call(typeof(UpdaterForm),"SafeCombine",args[1],args[2]);
    else Call(typeof(UpdaterForm),args[0]=="delete"?"ValidateDeleteRelativePath":"ValidateRelativePath",args[1]);
    return 10;
@@ -153,6 +155,9 @@ class NativeWriteBoundaryTests(unittest.TestCase):
                 archive=root/'test.zip'
                 with zipfile.ZipFile(archive,'w') as z:z.writestr('linked/audit-owned.txt',b'must not escape')
                 self.run_probe('zip',archive,stage);self.run_probe('combine',stage,'linked/audit-owned.txt')
+                source=root/'source';(source/'linked').mkdir(parents=True)
+                (source/'linked/audit-owned.txt').write_bytes(b'must not escape')
+                self.run_probe('copy',source,stage);self.run_probe('copy-lora',source,stage)
                 self.assertEqual(list(sibling.iterdir()),[])
             finally:
                 # Remove the link itself, not its target, before ordinary temp cleanup.
