@@ -19,6 +19,7 @@ import os
 import re
 from pathlib import Path
 import shutil
+import stat
 import subprocess
 import struct
 import sys
@@ -79,6 +80,44 @@ def safe_relative(value: str) -> Path:
     return relative
 
 
+def reject_reparse_path(path: Path) -> Path:
+    """Check the lexical path before resolve can hide a junction/symlink."""
+    absolute = Path(os.path.abspath(path))
+    for current in (absolute, *absolute.parents):
+        try:
+            info = current.lstat()
+        except FileNotFoundError:
+            continue
+        if (stat.S_ISLNK(info.st_mode)
+                or getattr(info, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT):
+            raise RuntimeError(f"unsafe reparse path: {current}")
+    return absolute
+
+
+def reject_reparse_tree(root: Path) -> None:
+    reject_reparse_path(root)
+    if root.is_dir():
+        def fail(error: OSError) -> None:
+            raise error
+        for parent, directories, files in os.walk(root, followlinks=False, onerror=fail):
+            for name in directories + files:
+                reject_reparse_path(Path(parent) / name)
+
+
+def remove_tree(root: Path) -> None:
+    reject_reparse_tree(root)
+    if root.exists():
+        shutil.rmtree(root)
+
+
+def copy_file(source: Path, destination: Path) -> None:
+    reject_reparse_path(source)
+    reject_reparse_path(destination)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    reject_reparse_path(destination)
+    shutil.copy2(source, destination)
+
+
 WINDOWS_RESERVED_NAMES = {
     "CON", "PRN", "AUX", "NUL",
     *(f"COM{index}" for index in range(1, 10)),
@@ -118,6 +157,8 @@ def cache_path(cache: Path, display_name: str, expected_hash: str) -> Path:
 def cache_entry_lock(destination: Path, display_name: str, timeout_seconds: float = 14400.0):
     """Serialize one content-addressed cache entry across installer processes."""
     lock_path = destination.with_suffix(destination.suffix + ".lock")
+    reject_reparse_path(destination)
+    reject_reparse_path(lock_path)
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     handle = None
     acquired = False
@@ -172,6 +213,8 @@ def promote_verified_partial(partial: Path, destination: Path, display_name: str
     last_error: OSError | None = None
     for attempt in range(1, 6):
         try:
+            reject_reparse_path(partial)
+            reject_reparse_path(destination)
             os.replace(partial, destination)
             return
         except OSError as error:
@@ -246,6 +289,8 @@ def _download_locked(
     max_attempts: int,
     label: str,
 ) -> Path:
+    reject_reparse_path(destination)
+    reject_reparse_path(destination.with_suffix(destination.suffix + ".part"))
     destination.parent.mkdir(parents=True, exist_ok=True)
     if destination.is_file():
         if (not expected_bytes or destination.stat().st_size == expected_bytes) and sha256_with_retry(destination, label) == expected_hash:
@@ -351,19 +396,34 @@ def _download_locked(
 
 RVTOOLS_ZIP_SHA256 = "AC92C92CF6454E850E6A2B5053D13962BC2936539F669B910C4A49EDB875ECBD"
 RVTOOLS_EXAMPLE = "ComfyUI-RvTools_v2-d3f7e8beb477dff6c0fac44b298ab74ac433d93e/workflow/Workflow.png"
+ZIP_MAX_ENTRIES = 50000
+ZIP_MAX_BYTES = 8 * 1024 ** 3
+ZIP_MAX_FILE_BYTES = 2 * 1024 ** 3
+ZIP_MAX_RATIO = 10000
 
 
 def extract_zip(archive: Path, destination: Path) -> None:
-    destination.mkdir(parents=True, exist_ok=True)
-    root = destination.resolve()
+    reject_reparse_path(archive)
+    root = reject_reparse_path(destination)
     seen: set[str] = set()
     with zipfile.ZipFile(archive) as bundle:
+        entries = bundle.infolist()
+        if len(entries) > ZIP_MAX_ENTRIES:
+            raise RuntimeError("ZIP_RESOURCE_LIMIT: too many entries")
+        expanded = 0
+        plan = []
         # The verified upstream ZIP has two distinct example PNGs whose names
         # differ only by case. Preserve both on Windows, without accepting
         # ambiguous paths in any other archive or changing runtime files.
         remap_example = (RVTOOLS_EXAMPLE in bundle.namelist()
                          and sha256_with_retry(archive, "rvtools.zip") == RVTOOLS_ZIP_SHA256)
-        for entry in bundle.infolist():
+        for entry in entries:
+            expanded += entry.file_size
+            if (expanded > ZIP_MAX_BYTES or entry.file_size > ZIP_MAX_FILE_BYTES
+                    or entry.file_size > max(1, entry.compress_size) * ZIP_MAX_RATIO):
+                raise RuntimeError("ZIP_RESOURCE_LIMIT: expanded size or compression ratio")
+            if stat.S_ISLNK(entry.external_attr >> 16):
+                raise RuntimeError(f"unsafe ZIP link: {entry.filename}")
             normalized = entry.filename.replace("\\", "/")
             if remap_example and entry.filename == RVTOOLS_EXAMPLE:
                 normalized = normalized.removesuffix("Workflow.png") + "Workflow-example.png"
@@ -380,11 +440,21 @@ def extract_zip(archive: Path, destination: Path) -> None:
             if identity in seen:
                 raise RuntimeError(f"duplicate Windows ZIP path: {entry.filename}")
             seen.add(identity)
-            output = destination.joinpath(*parts).resolve()
+            output = root.joinpath(*parts)
+            reject_reparse_path(output)
             try:
                 output.relative_to(root)
             except ValueError as error:
                 raise RuntimeError(f"unsafe ZIP path: {entry.filename}") from error
+            plan.append((entry, output))
+        # Validate the entire archive before the first filesystem mutation.
+        files = {str(output).casefold() for entry, output in plan if not entry.is_dir()}
+        for _, output in plan:
+            if any(str(parent).casefold() in files for parent in output.parents):
+                raise RuntimeError("unsafe ZIP file/directory collision")
+        destination.mkdir(parents=True, exist_ok=True)
+        for entry, output in plan:
+            reject_reparse_path(output)
             if entry.is_dir():
                 output.mkdir(parents=True, exist_ok=True)
                 continue
@@ -401,20 +471,33 @@ def only_directory(root: Path) -> Path:
 
 
 def install_archive(archive: Path, destination: Path, scratch: Path) -> None:
-    if scratch.exists():
-        shutil.rmtree(scratch)
+    # Check both trees before clearing either of them.
+    reject_reparse_tree(scratch)
+    reject_reparse_tree(destination)
+    remove_tree(scratch)
     extract_zip(archive, scratch)
     source = only_directory(scratch)
-    if destination.exists():
-        shutil.rmtree(destination)
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copytree(source, destination)
+    reject_reparse_tree(source)
+    remove_tree(destination)
+    copy_tree(source, destination)
 
 
 def copy_tree(source: Path, destination: Path) -> None:
     if not source.is_dir():
         raise RuntimeError(f"required source directory is missing: {source}")
-    shutil.copytree(source, destination, dirs_exist_ok=True)
+    reject_reparse_tree(source)
+    reject_reparse_tree(destination)
+    destination.mkdir(parents=True, exist_ok=True)
+    for parent, directories, files in os.walk(source, followlinks=False):
+        target = destination / Path(parent).relative_to(source)
+        reject_reparse_path(target)
+        target.mkdir(parents=True, exist_ok=True)
+        for name in directories:
+            output = target / name
+            reject_reparse_path(output)
+            output.mkdir(exist_ok=True)
+        for name in files:
+            copy_file(Path(parent) / name, target / name)
 
 
 def create_default_input_image(comfy_root: Path) -> Path:
@@ -470,8 +553,8 @@ def install_release_source(source_root: Path, portable_root: Path) -> None:
     runtime = comfy / "LAKIS"
     copy_tree(source_root / "src" / "external_ui", runtime / "external_ui")
     runtime.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(source_root / "resources" / "STOP_AUTOMATION", runtime / "STOP_AUTOMATION")
-    shutil.copy2(source_root / "src" / "runtime" / "sync_runtime_workflow.py", runtime / "sync_runtime_workflow.py")
+    copy_file(source_root / "resources" / "STOP_AUTOMATION", runtime / "STOP_AUTOMATION")
+    copy_file(source_root / "src" / "runtime" / "sync_runtime_workflow.py", runtime / "sync_runtime_workflow.py")
     workflows = runtime / "workflows"
     workflows.mkdir(parents=True, exist_ok=True)
     for name in (
@@ -479,20 +562,20 @@ def install_release_source(source_root: Path, portable_root: Path) -> None:
         "LAKIS_runtime_visual_v7.4.json",
         "LAKIS_custom_v7.4_editable.json",
     ):
-        shutil.copy2(source_root / "workflows" / name, workflows / name)
+        copy_file(source_root / "workflows" / name, workflows / name)
     user_workflows = comfy / "user" / "default" / "workflows"
     user_workflows.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(
+    copy_file(
         source_root / "workflows" / "LAKIS_custom_v7.4_editable.json",
         user_workflows / "LAKIS_custom_v7.4.json",
     )
-    shutil.copy2(source_root / "LICENSE.md", portable_root / "LICENSE.md")
-    shutil.copy2(source_root / "THIRD_PARTY_NOTICES.md", portable_root / "THIRD_PARTY_NOTICES.md")
+    copy_file(source_root / "LICENSE.md", portable_root / "LICENSE.md")
+    copy_file(source_root / "THIRD_PARTY_NOTICES.md", portable_root / "THIRD_PARTY_NOTICES.md")
     copy_tree(source_root / "third_party_licenses", portable_root / "third_party_licenses")
     spectrum = custom / "comfyui-spectrum-ksampler"
     spectrum.mkdir(parents=True, exist_ok=True)
     for name in ("nodes.py", "spectrum.py"):
-        shutil.copy2(
+        copy_file(
             source_root / "patches" / "ComfyUI-Spectrum-KSampler" / "files" / name,
             spectrum / name,
         )
@@ -631,8 +714,11 @@ def install(manifest_path: Path, portable_root: Path, target: Path, cache: Path,
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     if manifest.get("schema") != 1:
         raise RuntimeError("unsupported CMD installer manifest")
-    portable_root = portable_root.resolve()
-    target = target.resolve()
+    portable_root = reject_reparse_path(portable_root)
+    target = reject_reparse_path(target)
+    reject_reparse_tree(portable_root)
+    reject_reparse_tree(target)
+    reject_reparse_path(cache)
     if not (portable_root / "python_embeded" / "python.exe").is_file():
         raise RuntimeError("verified embedded Python is missing")
     if target.exists() and any(target.iterdir()):
@@ -667,7 +753,7 @@ def install(manifest_path: Path, portable_root: Path, target: Path, cache: Path,
         cached = download(url, cache_path(cache, name, digest), digest, int(size), display_name=name)
         destination = models_root / safe_relative(relative) / safe_leaf(name)
         destination.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(cached, destination)
+        copy_file(cached, destination)
 
     source_item = manifest["source"]
     source_archive = download(
@@ -679,7 +765,7 @@ def install(manifest_path: Path, portable_root: Path, target: Path, cache: Path,
     )
     source_stage = scratch / "release-source"
     if source_stage.exists():
-        shutil.rmtree(source_stage)
+        remove_tree(source_stage)
     print(f"  [압축 해제] {source_item['name']}", flush=True)
     extract_zip(source_archive, source_stage)
     install_release_source(only_directory(source_stage), portable_root)
@@ -727,9 +813,12 @@ def install(manifest_path: Path, portable_root: Path, target: Path, cache: Path,
     (state_root / "install-method.txt").write_text("cmd\n", encoding="ascii")
 
     if target.exists():
+        reject_reparse_tree(target)
         target.rmdir()
+    reject_reparse_tree(portable_root)
+    reject_reparse_path(target)
     os.replace(portable_root, target)
-    shutil.rmtree(scratch, ignore_errors=True)
+    remove_tree(scratch)
     # The caller owns the staging parent; it may contain unrelated files.
     # Keep it (including extraction logs) rather than deleting it recursively.
     try:

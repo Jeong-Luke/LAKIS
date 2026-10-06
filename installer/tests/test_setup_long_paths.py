@@ -179,12 +179,28 @@ class SetupLongPathTests(unittest.TestCase):
                                     capture_output=True)
             self.assertEqual(result.returncode, 0, result.stderr.decode(errors='replace'))
             self.assertIn(b'Duplicate Windows ZIP path:', result.stdout)
-            original = extracted / first.replace('\\', '/')
-            if directory:
-                self.assertTrue(original.is_dir())
-            else:
-                self.assertEqual(original.read_bytes(), b'first example')
-                self.assertEqual(len([p for p in extracted.rglob('*') if p.is_file()]), 1)
+            self.assertFalse(extracted.exists(), 'Invalid ZIP must be rejected before extraction')
+
+    def test_zip_resource_and_file_directory_limits_before_write(self):
+        import struct
+        for mode in ('oversized', 'collision', 'link'):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory(dir=self.root) as directory:
+                root=Path(directory); archive=root/'bad.zip'; extracted=root/'extract'
+                with zipfile.ZipFile(archive,'w') as bundle:
+                    bundle.writestr('valid.txt',b'verified payload')
+                    if mode=='collision':
+                        bundle.writestr('file',b'first')
+                        bundle.writestr('file/child',b'second')
+                    elif mode=='link':
+                        info=zipfile.ZipInfo('link');info.create_system=3;info.external_attr=0o120777<<16
+                        bundle.writestr(info,b'../outside')
+                if mode=='oversized':
+                    data=bytearray(archive.read_bytes()); central=data.index(b'PK\x01\x02')
+                    struct.pack_into('<I',data,central+24,2*1024**3+1)
+                    archive.write_bytes(data)
+                result=subprocess.run([str(self.exe),str(archive),str(extracted),'unused','reject'],capture_output=True)
+                self.assertEqual(result.returncode,0,result.stderr.decode(errors='replace'))
+                self.assertFalse(extracted.exists())
     def test_unknown_zip_collisions_rejected_without_overwriting(self):
         for first, second in [('package/Workflow.png', 'package/workflow.png'),
                               ('package/workflow.png', 'package/Workflow.png'),

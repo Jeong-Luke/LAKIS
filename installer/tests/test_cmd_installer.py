@@ -318,6 +318,28 @@ class CmdInstallerTests(unittest.TestCase):
                 module.extract_zip(archive, root / "out")
             self.assertFalse((root / "escape.txt").exists())
 
+    def test_zip_limits_preflight_before_writes(self):
+        cases = [('ZIP_MAX_ENTRIES', 1), ('ZIP_MAX_BYTES', 4),
+                 ('ZIP_MAX_FILE_BYTES', 4), ('ZIP_MAX_RATIO', 1)]
+        for limit, maximum in cases:
+            with self.subTest(limit=limit), tempfile.TemporaryDirectory() as folder:
+                root=Path(folder); archive=root/'bad.zip'; destination=root/'out'
+                with zipfile.ZipFile(archive,'w',compression=zipfile.ZIP_DEFLATED) as bundle:
+                    bundle.writestr('first.txt',b'first')
+                    bundle.writestr('large.txt',b'x'*4096)
+                with mock.patch.object(module,limit,maximum), self.assertRaisesRegex(RuntimeError,'ZIP_RESOURCE_LIMIT'):
+                    module.extract_zip(archive,destination)
+                self.assertFalse(destination.exists())
+
+    def test_zip_file_directory_collision_is_rejected_before_writes(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder); archive=root/'bad.zip'; destination=root/'out'
+            with zipfile.ZipFile(archive,'w') as bundle:
+                bundle.writestr('file',b'one'); bundle.writestr('file/child',b'two')
+            with self.assertRaisesRegex(RuntimeError,'file/directory collision'):
+                module.extract_zip(archive,destination)
+            self.assertFalse(destination.exists())
+
     def test_windows_ambiguous_zip_paths_are_rejected(self):
         for member in ("folder/file.txt:stream", "folder/trailing. ", "NUL", "COM¹.txt", "bad<name.txt", "control\x01.txt", "folder\\..\\escape"):
             with self.subTest(member=member), tempfile.TemporaryDirectory() as folder:

@@ -3,6 +3,7 @@ param(
     [string]$Repository = "Jeong-Luke/LAKIS",
     [string]$DistDirectory = "",
     [string]$OutputPath = "",
+    [string]$SourceRevision = "",
     [switch]$UseLocalWorkingTreeHashes
 )
 
@@ -16,7 +17,9 @@ $dist = if ([string]::IsNullOrWhiteSpace($DistDirectory)) {
 }
 $tag = "v$Version"
 $releaseBase = "https://github.com/$Repository/releases/download/$tag"
-$rawBase = "https://raw.githubusercontent.com/$Repository/$tag"
+if ($SourceRevision -and $SourceRevision -notmatch '^[a-fA-F0-9]{40}$') { throw 'Source revision must be an immutable commit SHA.' }
+$sourceRef = if ($SourceRevision) { $SourceRevision } else { $tag }
+$rawBase = "https://raw.githubusercontent.com/$Repository/$sourceRef"
 
 $files = [System.Collections.Generic.List[object]]::new()
 function Add-UpdateFile([string]$InstallPath, [string]$SourcePath, [string]$Url) {

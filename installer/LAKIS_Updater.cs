@@ -273,6 +273,8 @@ internal sealed class UpdaterForm : Form
     {
         if (!Regex.IsMatch(manifest.version ?? "", "^[0-9]+\\.[0-9]+\\.[0-9]+(?:\\.[0-9]+)?\\z"))
             throw new InvalidDataException("잘못된 업데이트 버전입니다.");
+        if (CompareVersions(manifest.version, ReadCurrentVersion()) < 0)
+            throw new InvalidDataException("현재 설치보다 이전 버전으로 업데이트할 수 없습니다.");
         string work = Path.Combine(Path.GetTempPath(), "LAKIS_Update_" + Guid.NewGuid().ToString("N"));
         string stage = Path.Combine(work, "stage");
         string backup = SafeCombine(targetRoot, Path.Combine(".lakis", "rollback", manifest.version + "_" + DateTime.Now.ToString("yyyyMMdd_HHmmss")));
@@ -308,12 +310,12 @@ internal sealed class UpdaterForm : Form
                 if (String.Equals(Path.GetFullPath(destination), Path.GetFullPath(Application.ExecutablePath), StringComparison.OrdinalIgnoreCase))
                 {
                     pendingSelfUpdate = Path.Combine(Path.GetTempPath(), "LAKIS_Patcher_" + Guid.NewGuid().ToString("N") + ".exe");
-                    File.Copy(staged, pendingSelfUpdate, true);
+                    CopyVerifiedFile(staged, pendingSelfUpdate, manifest.files[index].sha256);
                     replaced.Add(relative);
                     continue;
                 }
-                File.Copy(staged, destination, true);
                 replaced.Add(relative);
+                CopyVerifiedFile(staged, destination, manifest.files[index].sha256);
             }
             foreach (string value in manifest.delete)
             {
@@ -337,6 +339,8 @@ internal sealed class UpdaterForm : Form
                 string destination = SafeCombine(targetRoot, relative);
                 if (!originallyExisted.Contains(relative) && File.Exists(destination)) File.Delete(destination);
             }
+            if(!String.IsNullOrWhiteSpace(pendingSelfUpdate))
+                try { File.Delete(pendingSelfUpdate); } catch { }
             throw;
         }
         finally { try { Directory.Delete(work, true); } catch { } }
@@ -510,6 +514,20 @@ internal sealed class UpdaterForm : Form
         if (String.IsNullOrWhiteSpace(expected) || expected.Length != 64) return false;
         using (var stream = File.OpenRead(path)) using (var sha = SHA256.Create())
             return BitConverter.ToString(sha.ComputeHash(stream)).Replace("-", "").Equals(expected, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static void CopyVerifiedFile(string source, string destination, string expected)
+    {
+        // The same read handle verifies and supplies the bytes. FileShare.Read
+        // excludes concurrent writes/replacement until the copy is complete.
+        using(var input=new FileStream(source,FileMode.Open,FileAccess.Read,FileShare.Read))
+        {
+            using(var hash=SHA256.Create())
+                if(!BitConverter.ToString(hash.ComputeHash(input)).Replace("-","").Equals(expected,StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidDataException("적용 직전 SHA-256 검증 실패: "+Path.GetFileName(source));
+            input.Position=0;
+            using(var output=new FileStream(destination,FileMode.Create,FileAccess.Write,FileShare.None))input.CopyTo(output);
+        }
     }
 
     private string ReadCurrentVersion()

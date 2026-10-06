@@ -1,3 +1,4 @@
+param([string]$PinnedWebView2Directory = "")
 $ErrorActionPreference = "Stop"
 $repo = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $workspace = $repo
@@ -27,9 +28,23 @@ if ([regex]::Matches($setupSource, $hashPattern).Count -ne 1) { throw "Installer
 $setupSource = [regex]::Replace($setupSource, $hashPattern, ('private const string SourceArchiveSha256 = "' + $sourceHash + '";'))
 [ordered]@{ schema=1; revision=$sourceRevision; sha256=$sourceHash; bytes=(Get-Item -LiteralPath $sourceArchive).Length } |
     ConvertTo-Json | Set-Content -Encoding UTF8 (Join-Path $stage 'source-contract.json')
-& (Join-Path $PSScriptRoot 'New-WebView2Bootstrapper.ps1') -OutputDirectory $stage
+if ([string]::IsNullOrWhiteSpace($PinnedWebView2Directory)) {
+    & (Join-Path $PSScriptRoot 'New-WebView2Bootstrapper.ps1') -OutputDirectory $stage
+} else {
+    foreach ($name in @('MicrosoftEdgeWebview2Setup.exe','webview2-bootstrapper.json')) {
+        Copy-Item -LiteralPath (Join-Path $PinnedWebView2Directory $name) -Destination (Join-Path $stage $name) -Force
+    }
+}
 $webviewPin = Get-Content -Raw -Encoding UTF8 (Join-Path $stage 'webview2-bootstrapper.json') | ConvertFrom-Json
 if ($webviewPin.url -match '["\\\r\n]' -or $webviewPin.sha256 -notmatch '^[A-F0-9]{64}$' -or $webviewPin.bytes -le 0) { throw 'Invalid WebView2 source pin.' }
+$bootstrapper = Join-Path $stage 'MicrosoftEdgeWebview2Setup.exe'
+if ((Get-FileHash -LiteralPath $bootstrapper -Algorithm SHA256).Hash -cne $webviewPin.sha256 -or
+    (Get-Item -LiteralPath $bootstrapper).Length -ne $webviewPin.bytes) { throw 'WebView2 pin does not match its bytes.' }
+$signature = Get-AuthenticodeSignature -LiteralPath $bootstrapper
+if ($signature.Status -ne 'Valid' -or $null -eq $signature.SignerCertificate -or
+    $signature.SignerCertificate.GetNameInfo([Security.Cryptography.X509Certificates.X509NameType]::SimpleName,$false) -cne 'Microsoft Corporation') {
+    throw 'WebView2 bootstrapper Microsoft signature validation failed.'
+}
 foreach ($binding in @(
     @('WebView2BootstrapperUrl',[string]$webviewPin.url),
     @('WebView2BootstrapperSha256',[string]$webviewPin.sha256)
@@ -57,7 +72,13 @@ if ((Get-FileHash -Algorithm SHA256 -LiteralPath $webViewPackage).Hash -ne "F492
 $webViewZip = Join-Path $stage "webview2.zip"
 $webViewRoot = Join-Path $stage "webview2"
 Copy-Item -LiteralPath $webViewPackage -Destination $webViewZip -Force
-if (Test-Path -LiteralPath $webViewRoot) { Remove-Item -LiteralPath $webViewRoot -Recurse -Force }
+if (Test-Path -LiteralPath $webViewRoot) {
+    $resolvedBuildTarget = (Resolve-Path -LiteralPath $webViewRoot).Path
+    $resolvedBuildStage = (Resolve-Path -LiteralPath $stage).Path.TrimEnd('\') + '\'
+    if (-not $resolvedBuildTarget.StartsWith($resolvedBuildStage,[StringComparison]::OrdinalIgnoreCase) -or
+        ((Get-Item -LiteralPath $webViewRoot).Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'Unsafe build cleanup path.' }
+    Remove-Item -LiteralPath $webViewRoot -Recurse -Force
+}
 Expand-Archive -LiteralPath $webViewZip -DestinationPath $webViewRoot
 $webViewCore = Join-Path $webViewRoot "lib\net462\Microsoft.Web.WebView2.Core.dll"
 $webViewForms = Join-Path $webViewRoot "lib\net462\Microsoft.Web.WebView2.WinForms.dll"

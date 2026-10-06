@@ -702,6 +702,10 @@ internal static class SafeInstaller
         const string example="ComfyUI-RvTools_v2-d3f7e8beb477dff6c0fac44b298ab74ac433d93e/workflow/Workflow.png";
         using(var zip=ZipFile.OpenRead(FileSystemPath(archive)))
         {
+          const int maxEntries=50000;
+          const long maxExpanded=8L*1024*1024*1024,maxFile=2L*1024*1024*1024,maxRatio=10000;
+          if(zip.Entries.Count>maxEntries)throw new IOException("ZIP_RESOURCE_LIMIT: too many entries");
+          long expanded=0;
           bool remapExample=false;
           foreach(var entry in zip.Entries)if(entry.FullName==example)
           {
@@ -711,8 +715,13 @@ internal static class SafeInstaller
           // Preserve the two case-colliding example images in this exact,
           // hash-verified upstream archive. Runtime file names stay unchanged.
           var seen=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+          var plan=new List<KeyValuePair<ZipArchiveEntry,string>>();
           foreach(var entry in zip.Entries)
           {
+            if(entry.Length>maxFile||entry.Length>maxExpanded-expanded||entry.Length/Math.Max(1,entry.CompressedLength)>maxRatio)
+                throw new IOException("ZIP_RESOURCE_LIMIT: expanded size or compression ratio");
+            expanded+=entry.Length;
+            if(((entry.ExternalAttributes>>16)&0xF000)==0xA000)throw new IOException("Unsafe ZIP link: "+entry.FullName);
             string member=remapExample&&entry.FullName==example ? example.Substring(0,example.Length-"Workflow.png".Length)+"Workflow-example.png" : entry.FullName;
             string relative=member.Replace('/',Path.DirectorySeparatorChar);
             // Modern IO preserves more Windows path syntax. ZIP members must
@@ -731,7 +740,19 @@ internal static class SafeInstaller
             if(!seen.Add(output.TrimEnd(Path.DirectorySeparatorChar)))
                 throw new IOException("Duplicate Windows ZIP path: "+entry.FullName);
             RejectReparsePath(output);
-            output=FileSystemPath(output);
+            plan.Add(new KeyValuePair<ZipArchiveEntry,string>(entry,output));
+          }
+          var files=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+          foreach(var copy in plan)if(!String.IsNullOrEmpty(copy.Key.Name))files.Add(copy.Value);
+          foreach(var copy in plan)
+            for(string parent=Path.GetDirectoryName(copy.Value);!String.IsNullOrEmpty(parent);parent=Path.GetDirectoryName(parent))
+                if(files.Contains(parent))throw new IOException("Unsafe ZIP file/directory collision");
+          // Reject the complete archive before creating any extracted file.
+          foreach(var copy in plan)
+          {
+            var entry=copy.Key;
+            RejectReparsePath(copy.Value);
+            string output=FileSystemPath(copy.Value);
             if(String.IsNullOrEmpty(entry.Name)){Directory.CreateDirectory(output);continue;}
             Directory.CreateDirectory(Path.GetDirectoryName(output));
             using(Stream input=entry.Open())using(Stream file=new FileStream(output,FileMode.Create,FileAccess.Write,FileShare.None))input.CopyTo(file);

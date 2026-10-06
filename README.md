@@ -8,17 +8,25 @@ LAKIS 애플리케이션, 사용자 인터페이스, 설치기, 업데이터, �
 
 ## 다운로드
 
-**[Windows용 LAKIS Studio v7.5.2 다운로드](https://github.com/Jeong-Luke/LAKIS/releases/download/v7.5.2/LAKIS_Setup.exe)**
+**[Windows용 LAKIS Studio v7.5.3 다운로드](https://github.com/Jeong-Luke/LAKIS/releases/download/v7.5.3/LAKIS_Setup.exe)**
 
-**[Windows용 LAKIS Studio v7.5.2 CMD Version 다운로드](https://github.com/Jeong-Luke/LAKIS/releases/download/v7.5.2/LAKIS_CMD_Installer_7.5.2.zip)**
+**[Windows용 LAKIS Studio v7.5.3 CMD Version 다운로드](https://github.com/Jeong-Luke/LAKIS/releases/download/v7.5.3/LAKIS_CMD_Installer_7.5.3.zip)**
 
 일반적으로 `LAKIS_Setup.exe`를 사용하세요. Windows Defender가 Setup을 차단하거나 설치 파일을 실행할 수 없다면 CMD Version ZIP의 압축을 완전히 푼 뒤 `LAKIS_CMD_Install.cmd`를 실행하세요. CMD Version은 관리자 권한이나 Defender 예외 설정을 요구하지 않는 공식 대체 설치 방법입니다.
 
-[v7.5.2 릴리즈 설명과 개별 파일](https://github.com/Jeong-Luke/LAKIS/releases/tag/v7.5.2)도 확인할 수 있습니다.
+[v7.5.3 릴리즈 설명과 개별 파일](https://github.com/Jeong-Luke/LAKIS/releases/tag/v7.5.3)도 확인할 수 있습니다.
 
 ## 안정 버전
 
-이 저장소는 LAKIS의 안정 배포 버전을 관리합니다. 현재 안정 버전은 `v7.5.2`입니다. 이전 개발 패키지와 개발용 워크플로는 별도로 관리하며 신규 사용자에게 배포하지 않습니다.
+이 저장소는 LAKIS의 안정 배포 버전을 관리합니다. 현재 안정 버전은 `v7.5.3`입니다. 이전 개발 패키지와 개발용 워크플로는 별도로 관리하며 신규 사용자에게 배포하지 않습니다.
+
+## v7.5.3 수정 사항
+
+- 설치·복구 파일 검증 및 경로 처리 안정성 개선
+- RvTools 압축 파일 이름 충돌로 인한 설치 실패 수정
+- Library의 오래된 기록 추가 불러오기 개선
+- 와일드카드 전체 해제 추가
+- LAKIS SCOPE 메모리 사용 및 메모리 부족 처리 개선
 
 ## v7.5.2 수정 사항
 
@@ -79,17 +87,25 @@ from AGPL software remain AGPL-3.0-or-later.
 
 ### Download
 
-**[Download LAKIS Studio v7.5.2 for Windows](https://github.com/Jeong-Luke/LAKIS/releases/download/v7.5.2/LAKIS_Setup.exe)**
+**[Download LAKIS Studio v7.5.3 for Windows](https://github.com/Jeong-Luke/LAKIS/releases/download/v7.5.3/LAKIS_Setup.exe)**
 
-**[Download LAKIS Studio v7.5.2 CMD Version](https://github.com/Jeong-Luke/LAKIS/releases/download/v7.5.2/LAKIS_CMD_Installer_7.5.2.zip)**
+**[Download LAKIS Studio v7.5.3 CMD Version](https://github.com/Jeong-Luke/LAKIS/releases/download/v7.5.3/LAKIS_CMD_Installer_7.5.3.zip)**
 
 Use `LAKIS_Setup.exe` for normal installation and repair. If Windows Defender blocks Setup or prevents it from running, fully extract the CMD Version ZIP and run `LAKIS_CMD_Install.cmd`. CMD Version is an official alternative installation method that does not require administrator access or a Defender exclusion.
 
-You can also view the [v7.5.2 release notes and individual files](https://github.com/Jeong-Luke/LAKIS/releases/tag/v7.5.2).
+You can also view the [v7.5.3 release notes and individual files](https://github.com/Jeong-Luke/LAKIS/releases/tag/v7.5.3).
 
 ### Stable baseline
 
-This repository contains the stable LAKIS distribution line. The current stable release is `v7.5.2`. Earlier development packages and workflows are maintained separately and are not distributed to new users.
+This repository contains the stable LAKIS distribution line. The current stable release is `v7.5.3`. Earlier development packages and workflows are maintained separately and are not distributed to new users.
+
+### v7.5.3 fixes
+
+- Improves installation and repair file validation and path handling
+- Fixes the filename collision in the pinned RvTools archive
+- Loads older Library history in additional pages
+- Adds wildcard deselect-all
+- Improves LAKIS SCOPE memory use and out-of-memory handling
 
 ### v7.5.2 fixes
 
