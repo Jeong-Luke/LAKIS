@@ -220,7 +220,10 @@ internal sealed class UpdaterForm : Form
                 request.CachePolicy = new System.Net.Cache.RequestCachePolicy(System.Net.Cache.RequestCacheLevel.NoCacheNoStore);
                 string json;
                 using (var response = request.GetResponse())
-                using (var reader = new StreamReader(response.GetResponseStream(), Encoding.UTF8, true)) json = reader.ReadToEnd();
+                {
+                    ValidateDownloadOrigin(url, response.ResponseUri.AbsoluteUri);
+                    using (var reader = new StreamReader(response.GetResponseStream(), Encoding.UTF8, true)) json = reader.ReadToEnd();
+                }
                 var manifest = new JavaScriptSerializer().Deserialize<UpdateManifest>(json);
                 if (manifest == null || String.IsNullOrWhiteSpace(manifest.version)) throw new InvalidDataException("업데이트 명세가 올바르지 않습니다.");
                 if (manifest.files == null) manifest.files = new List<UpdateFile>();
@@ -268,9 +271,13 @@ internal sealed class UpdaterForm : Form
 
     private void ApplyUpdate(UpdateManifest manifest)
     {
+        if (!Regex.IsMatch(manifest.version ?? "", "^[0-9]+\\.[0-9]+\\.[0-9]+(?:\\.[0-9]+)?\\z"))
+            throw new InvalidDataException("잘못된 업데이트 버전입니다.");
+        if (CompareVersions(manifest.version, ReadCurrentVersion()) < 0)
+            throw new InvalidDataException("현재 설치보다 이전 버전으로 업데이트할 수 없습니다.");
         string work = Path.Combine(Path.GetTempPath(), "LAKIS_Update_" + Guid.NewGuid().ToString("N"));
         string stage = Path.Combine(work, "stage");
-        string backup = Path.Combine(targetRoot, ".lakis", "rollback", manifest.version + "_" + DateTime.Now.ToString("yyyyMMdd_HHmmss"));
+        string backup = SafeCombine(targetRoot, Path.Combine(".lakis", "rollback", manifest.version + "_" + DateTime.Now.ToString("yyyyMMdd_HHmmss")));
         Directory.CreateDirectory(stage); Directory.CreateDirectory(backup);
         var replaced = new List<string>();
         var originallyExisted = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -303,16 +310,16 @@ internal sealed class UpdaterForm : Form
                 if (String.Equals(Path.GetFullPath(destination), Path.GetFullPath(Application.ExecutablePath), StringComparison.OrdinalIgnoreCase))
                 {
                     pendingSelfUpdate = Path.Combine(Path.GetTempPath(), "LAKIS_Patcher_" + Guid.NewGuid().ToString("N") + ".exe");
-                    File.Copy(staged, pendingSelfUpdate, true);
+                    CopyVerifiedFile(staged, pendingSelfUpdate, manifest.files[index].sha256);
                     replaced.Add(relative);
                     continue;
                 }
-                File.Copy(staged, destination, true);
                 replaced.Add(relative);
+                CopyVerifiedFile(staged, destination, manifest.files[index].sha256);
             }
             foreach (string value in manifest.delete)
             {
-                string relative = ValidateRelativePath(value);
+                string relative = ValidateDeleteRelativePath(value);
                 if (IsProtected(relative)) throw new InvalidDataException("보호된 사용자 경로는 삭제할 수 없습니다: " + relative);
                 string destination = SafeCombine(targetRoot, relative);
                 if (!File.Exists(destination)) continue;
@@ -332,6 +339,8 @@ internal sealed class UpdaterForm : Form
                 string destination = SafeCombine(targetRoot, relative);
                 if (!originallyExisted.Contains(relative) && File.Exists(destination)) File.Delete(destination);
             }
+            if(!String.IsNullOrWhiteSpace(pendingSelfUpdate))
+                try { File.Delete(pendingSelfUpdate); } catch { }
             throw;
         }
         finally { try { Directory.Delete(work, true); } catch { } }
@@ -339,9 +348,41 @@ internal sealed class UpdaterForm : Form
 
     private static string ValidateRelativePath(string path)
     {
+        string normalized = ValidatePathSyntax(path);
+        string p = normalized.Replace('\\', '/');
+        var rootFiles = new[] {"LAKIS.exe", "LAKIS_Patcher.exe", "LAKIS_Updater.exe", "LAKIS_Desktop.exe", "LAKIS_Model_Importer.exe", "Uninstall_LAKIS.exe", "Microsoft.Web.WebView2.Core.dll", "Microsoft.Web.WebView2.WinForms.dll", "WebView2Loader.dll", "LICENSE.md", "THIRD_PARTY_NOTICES.md"};
+        var packages = new[] {"ComfyUI-Anima-LLLite", "ComfyUI-KR-Camera-Control", "ComfyUI-KR-Camera-PromptStudio-Bridge", "ComfyUI-LAKIS-AutoPatch", "ComfyUI-LAKIS-Detail", "ComfyUI-LAKIS-Fast-Refiner", "ComfyUI-LAKIS-Local-Inpaint", "ComfyUI-PreviewMonitor"};
+        bool owned = rootFiles.Any(name => String.Equals(p, name, StringComparison.OrdinalIgnoreCase)) ||
+            p.StartsWith("third_party_licenses/", StringComparison.OrdinalIgnoreCase) ||
+            p.StartsWith("ComfyUI/LAKIS/external_ui/", StringComparison.OrdinalIgnoreCase) ||
+            String.Equals(p, "ComfyUI/LAKIS/STOP_AUTOMATION", StringComparison.OrdinalIgnoreCase) ||
+            String.Equals(p, "ComfyUI/LAKIS/sync_runtime_workflow.py", StringComparison.OrdinalIgnoreCase) ||
+            String.Equals(p, "ComfyUI/LAKIS/workflows/LAKIS_runtime_api_v7.4.json", StringComparison.OrdinalIgnoreCase) ||
+            String.Equals(p, "ComfyUI/LAKIS/workflows/LAKIS_runtime_visual_v7.4.json", StringComparison.OrdinalIgnoreCase) ||
+            packages.Any(name => p.StartsWith("ComfyUI/custom_nodes/" + name + "/", StringComparison.OrdinalIgnoreCase) && !p.EndsWith("/startup_workflow.json", StringComparison.OrdinalIgnoreCase));
+        if (!owned) throw new InvalidDataException("배포 관리 파일만 업데이트할 수 있습니다: " + path);
+        return normalized;
+    }
+
+    private static string ValidateDeleteRelativePath(string path)
+    {
+        string normalized = ValidatePathSyntax(path);
+        string p = normalized.Replace('\\', '/');
+        var retired = new[] {"ComfyUI/LAKIS/external_ui/light-control-prototype.css", "ComfyUI/LAKIS/external_ui/lightmap-knob-mockup.js", "ComfyUI/LAKIS/workflows/LAKIS_DETAIL_runtime_api_v7.3.json", "ComfyUI/LAKIS/workflows/LAKIS_runtime_api_v7.1.json", "ComfyUI/LAKIS/workflows/LAKIS_runtime_visual_v7.3.json", "ComfyUI/custom_nodes/ComfyUI-LAKIS-Light-Control/INSTALL_REQUIREMENTS.bat", "ComfyUI/custom_nodes/ComfyUI-LAKIS-Light-Control/LICENSE", "ComfyUI/custom_nodes/ComfyUI-LAKIS-Light-Control/NOTICE.md", "ComfyUI/custom_nodes/ComfyUI-LAKIS-Light-Control/__init__.py", "ComfyUI/custom_nodes/ComfyUI-LAKIS-Light-Control/requirements.txt", "ComfyUI/custom_nodes/ComfyUI-LAKIS-Light-Control/web/lakis_light_control.js"};
+        if (!retired.Any(name => String.Equals(p, name, StringComparison.OrdinalIgnoreCase)))
+            throw new InvalidDataException("지정된 폐기 파일만 삭제할 수 있습니다: " + path);
+        return normalized;
+    }
+
+    private static string ValidatePathSyntax(string path)
+    {
         if (String.IsNullOrWhiteSpace(path) || Path.IsPathRooted(path)) throw new InvalidDataException("잘못된 업데이트 경로입니다.");
         string normalized = path.Replace('/', Path.DirectorySeparatorChar);
-        if (normalized.Split(Path.DirectorySeparatorChar).Length == 0 || normalized.Contains("..")) throw new InvalidDataException("안전하지 않은 업데이트 경로입니다: " + path);
+        foreach (string part in normalized.Split(Path.DirectorySeparatorChar))
+            if (String.IsNullOrEmpty(part) || part == "." || part == ".." || part.EndsWith(".") || part.EndsWith(" ") ||
+                part.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ||
+                System.Text.RegularExpressions.Regex.IsMatch(part, "^(CON|PRN|AUX|NUL|COM[1-9¹²³]|LPT[1-9¹²³])(?:\\.|$)", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+                throw new InvalidDataException("안전하지 않은 업데이트 경로입니다: " + path);
         if (IsProtected(normalized)) throw new InvalidDataException("사용자 데이터 경로는 업데이트할 수 없습니다: " + path);
         return normalized;
     }
@@ -393,6 +434,12 @@ internal sealed class UpdaterForm : Form
         string prefix = Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
         string result = Path.GetFullPath(Path.Combine(root, relative));
         if (!result.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) throw new InvalidDataException("설치 경로 밖의 파일은 변경할 수 없습니다.");
+        for (string current = result; !String.IsNullOrEmpty(current); current = Path.GetDirectoryName(current))
+        {
+            try { if ((File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)throw new InvalidDataException("연결된 경로에는 업데이트할 수 없습니다: " + relative); }
+            catch (FileNotFoundException) { }
+            catch (DirectoryNotFoundException) { }
+        }
         return result;
     }
 
@@ -406,7 +453,7 @@ internal sealed class UpdaterForm : Form
                 if (File.Exists(output)) File.Delete(output);
                 string separator = url.Contains("?") ? "&" : "?";
                 string requestUrl = url + separator + "lakis_update=" + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + "_" + attempt;
-                using (var client = new WebClient())
+                using (var client = new ApprovedDownloadClient())
                 {
                     client.Headers.Add(HttpRequestHeader.UserAgent, "LAKIS-Updater/7.4.5");
                     client.Headers.Add(HttpRequestHeader.CacheControl, "no-cache, no-store, must-revalidate");
@@ -419,6 +466,35 @@ internal sealed class UpdaterForm : Form
         }
         if (File.Exists(output)) File.Delete(output);
         throw new InvalidDataException("파일 검증 실패(3회 재시도): " + relativePath, last);
+    }
+    private sealed class ApprovedDownloadClient : WebClient
+    {
+        protected override WebRequest GetWebRequest(Uri address)
+        {
+            ValidateDownloadOrigin(address.AbsoluteUri,address.AbsoluteUri);
+            return base.GetWebRequest(address);
+        }
+        protected override WebResponse GetWebResponse(WebRequest request)
+        {
+            var response=base.GetWebResponse(request);
+            try { ValidateDownloadOrigin(request.RequestUri.AbsoluteUri,response.ResponseUri.AbsoluteUri);return response; }
+            catch {response.Close();throw;}
+        }
+    }
+    private static void ValidateDownloadOrigin(string requested,string final)
+    {
+        var original=new Uri(requested,UriKind.Absolute);
+        bool localRequest=original.Scheme=="http"&&original.IsLoopback;
+        foreach(string value in new[]{requested,final})
+        {
+            var uri=new Uri(value,UriKind.Absolute);
+            string host=uri.DnsSafeHost.ToLowerInvariant();
+            string[] hosts={"github.com","api.github.com","codeload.github.com","raw.githubusercontent.com","objects.githubusercontent.com","release-assets.githubusercontent.com","cdn.jsdelivr.net","huggingface.co","go.microsoft.com","msedge.sf.dl.delivery.mp.microsoft.com"};
+            bool approved=Array.Exists(hosts,h=>h==host)||host.EndsWith(".hf.co",StringComparison.Ordinal);
+            bool local=localRequest&&uri.Scheme=="http"&&uri.IsLoopback&&String.Equals(uri.Authority,original.Authority,StringComparison.OrdinalIgnoreCase);
+            if(!String.IsNullOrEmpty(uri.UserInfo)||!(local||(uri.Scheme=="https"&&approved)))
+                throw new IOException("DOWNLOAD_ORIGIN_INVALID: unapproved download origin");
+        }
     }
 
     private static void RestoreTree(string source, string destinationRoot)
@@ -438,6 +514,20 @@ internal sealed class UpdaterForm : Form
         if (String.IsNullOrWhiteSpace(expected) || expected.Length != 64) return false;
         using (var stream = File.OpenRead(path)) using (var sha = SHA256.Create())
             return BitConverter.ToString(sha.ComputeHash(stream)).Replace("-", "").Equals(expected, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static void CopyVerifiedFile(string source, string destination, string expected)
+    {
+        // The same read handle verifies and supplies the bytes. FileShare.Read
+        // excludes concurrent writes/replacement until the copy is complete.
+        using(var input=new FileStream(source,FileMode.Open,FileAccess.Read,FileShare.Read))
+        {
+            using(var hash=SHA256.Create())
+                if(!BitConverter.ToString(hash.ComputeHash(input)).Replace("-","").Equals(expected,StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidDataException("적용 직전 SHA-256 검증 실패: "+Path.GetFileName(source));
+            input.Position=0;
+            using(var output=new FileStream(destination,FileMode.Create,FileAccess.Write,FileShare.None))input.CopyTo(output);
+        }
     }
 
     private string ReadCurrentVersion()

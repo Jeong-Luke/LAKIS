@@ -3,6 +3,7 @@ param(
     [string]$Repository = "Jeong-Luke/LAKIS",
     [string]$DistDirectory = "",
     [string]$OutputPath = "",
+    [string]$SourceRevision = "",
     [switch]$UseLocalWorkingTreeHashes
 )
 
@@ -16,7 +17,9 @@ $dist = if ([string]::IsNullOrWhiteSpace($DistDirectory)) {
 }
 $tag = "v$Version"
 $releaseBase = "https://github.com/$Repository/releases/download/$tag"
-$rawBase = "https://raw.githubusercontent.com/$Repository/$tag"
+if ($SourceRevision -and $SourceRevision -notmatch '^[a-fA-F0-9]{40}$') { throw 'Source revision must be an immutable commit SHA.' }
+$sourceRef = if ($SourceRevision) { $SourceRevision } else { $tag }
+$rawBase = "https://raw.githubusercontent.com/$Repository/$sourceRef"
 
 $files = [System.Collections.Generic.List[object]]::new()
 function Add-UpdateFile([string]$InstallPath, [string]$SourcePath, [string]$Url) {
@@ -158,7 +161,7 @@ if ($deleteOverlap.Count) {
 
 $manifest = [ordered]@{
     version = $Version
-    release_notes = "- 안정성 개선`n- i2i 오류 수정"
+    release_notes = "LAKIS $Version update"
     files = $files
     delete = $retiredFiles
 }

@@ -2089,12 +2089,6 @@ def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dic
         width = max(256, round((target_width * 0.5) / 16) * 16)
         height = max(256, round((target_height * 0.5) / 16) * 16)
     prompt["1736:1737"]["inputs"]["value"] = source_enabled
-    if not source_enabled:
-        # ComfyUI validates every dependency present in the submitted graph,
-        # including the inactive input of ComfySwitchNode.  Point both arms at
-        # the normal latent while I2I/inpaint is off so a stale LoadImage value
-        # cannot reject an otherwise ordinary text-to-image request.
-        prompt["1736:1743"]["inputs"]["on_true"] = ["1736:1987", 0]
     prompt["1634:1760"]["inputs"]["value"] = source_denoise
     checkpoint = str(model.get("checkpoint", prompt["890:1365"]["inputs"]["model_name"]))
     vae = str(model.get("vae", prompt["890:159"]["inputs"]["vae_name"]))
@@ -3421,11 +3415,11 @@ class WorkflowBridge:
                 self.status.update(last_node_id=current, last_node_type=node_type,
                                    last_node_started_at=time.time())
                 self._record_running_journal()
-                self._set_weighted_progress(weights, completed, total, current, 0.0, prompt)
+                self._set_weighted_progress(weights, completed, total, current, 0.0)
             elif event == "progress" and current:
                 maximum = float(data.get("max") or 1)
                 current_fraction = min(1.0, float(data.get("value") or 0) / maximum)
-                self._set_weighted_progress(weights, completed, total, current, current_fraction, prompt)
+                self._set_weighted_progress(weights, completed, total, current, current_fraction)
                 self._record_running_journal()
             elif event in {"execution_error", "execution_interrupted"}:
                 if event == "execution_interrupted" and self.status.cancel_requested:
@@ -3463,18 +3457,12 @@ class WorkflowBridge:
             self._set_preview(frame[image_start:], mime)
 
     def _set_weighted_progress(self, weights: dict[str, float], completed: set[str],
-                               total: float, current: str, fraction: float,
-                               prompt: dict[str, Any] | None = None) -> None:
+                               total: float, current: str, fraction: float) -> None:
         value = sum(weights[node] for node in completed if node in weights)
         value += weights.get(current, 0.0) * fraction
         # Keep 100% for confirmed Final Saver/history completion.
         percent = min(99.0, max(self.status.percent, value / total * 100.0))
-        node_type = str((prompt or {}).get(current, {}).get("class_type") or "")
-        title = {
-            "LAKIS_DETAIL": "LAKIS_DETAIL",
-            "LAKIS_FACE_SCOPE": "LAKIS_DETAIL",
-            "LAKIS_SCOPE": "LAKIS_SCOPE",
-        }.get(node_type, NODE_LABELS.get(current, "처리"))
+        title = NODE_LABELS.get(current, "처리")
         self.status.update(percent=percent, stage=f"생성 중 · {title}")
 
     async def _find_output(self, session: aiohttp.ClientSession, prompt_id: str) -> str:

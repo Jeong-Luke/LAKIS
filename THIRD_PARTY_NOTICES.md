@@ -45,6 +45,7 @@ available in this repository and through the upstream links.
   links to the original
   [ModelScope plugin](https://modelscope.cn/models/bskhuian/Anima_Camera_Position_Control/tree/master/Plugin).
   LAKIS modification notices are retained in the source headers.
+  The complete AGPLv3 text is included in this node's `LICENSE` file.
 - `ComfyUI-KR-Camera-PromptStudio-Bridge` is distributed under the MIT licence
   included in its directory.
 - `ComfyUI-PreviewMonitor` is Copyright © 2026 Bedovyy and distributed under
@@ -59,6 +60,21 @@ available in this repository and through the upstream links.
   publisher's `https://arca.live/` artwork. Wikimedia Commons classifies this
   simple logo as public domain; it is used only to identify the external
   Arcalive link.
+
+## Runtime Python packages with separate terms
+
+The portable runtime also retains the licences supplied inside installed
+Python packages. These entries identify packages whose wheel metadata does not
+populate a licence field; that field is not a replacement for the actual terms.
+No runtime package version was changed for 7.5.3.
+
+| Package | Installed version / corresponding source | Licence and supplied text |
+|---|---|---|
+| comfy-aimdo | 0.3.0; [publisher source](https://github.com/Comfy-Org/comfy-aimdo) | GPL-3.0; its wheel includes `licenses/LICENSE`; a full copy is also supplied as `third_party_licenses/ComfyUI-runtime-GPL-3.0.txt`. |
+| comfyui-frontend-package | 1.43.18; [v1.43.18 source](https://github.com/Comfy-Org/ComfyUI_frontend/tree/v1.43.18) | GPL-3.0; the full text is supplied as `third_party_licenses/ComfyUI-runtime-GPL-3.0.txt`. |
+| cstr | 0.1.0; [pinned publisher source](https://github.com/ltdrdata/cstr/tree/0520c29a18a7a869a6e5983861d6f7a4c86f8e9b) | MIT; copyright and licence are retained in its wheel's `licenses/LICENSE`. |
+| segment-anything | 1.0; [publisher source](https://github.com/facebookresearch/segment-anything) | Apache-2.0; copyright and full licence are retained in its wheel's `LICENSE`. These terms describe the Python library, separately from SAM model weights. |
+| sentencepiece | 0.2.1; [v0.2.1 source](https://github.com/google/sentencepiece/tree/v0.2.1) | Apache-2.0; Copyright Google Inc.; the full text is supplied as `third_party_licenses/ComfyUI-Anima-LLLite-Apache-2.0.txt`. |
 
 ## Models and weights
 

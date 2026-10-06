@@ -19,8 +19,7 @@ def sha256(path: Path) -> str:
     return digest.hexdigest().upper()
 
 
-def build(repo: Path, dist: Path, archive: Path, contract_path: Path, pinned_setup: Path,
-          release_tag: str | None = None) -> Path:
+def build(repo: Path, dist: Path, archive: Path, contract_path: Path, pinned_setup: Path) -> Path:
     version = (repo / "VERSION").read_text(encoding="utf-8-sig").strip()
     if not re.fullmatch(r"\d+\.\d+\.\d+", version):
         raise ValueError("invalid public version")
@@ -74,10 +73,7 @@ def build(repo: Path, dist: Path, archive: Path, contract_path: Path, pinned_set
     layout = json.loads((dist / "release-layout.json").read_text(encoding="utf-8-sig"))
     if layout["version"] != version:
         raise ValueError("release layout version mismatch")
-    release_tag = release_tag or f"v{version}"
-    if not re.fullmatch(r"v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?", release_tag):
-        raise ValueError("invalid release tag")
-    manifest.update(version=version, release_base=f"https://github.com/Jeong-Luke/LAKIS/releases/download/{release_tag}")
+    manifest.update(version=version, release_base=f"https://github.com/Jeong-Luke/LAKIS/releases/download/v{version}")
     manifest["source"] = {"name": f"LAKIS-{revision}.zip",
                           "url": f"https://api.github.com/repos/Jeong-Luke/LAKIS/zipball/{revision}",
                           "sha256": digest, "bytes": archive.stat().st_size}
@@ -109,8 +105,7 @@ if __name__ == "__main__":
     parser.add_argument("--source-archive", required=True, type=Path)
     parser.add_argument("--source-contract", required=True, type=Path)
     parser.add_argument("--pinned-setup", required=True, type=Path)
-    parser.add_argument("--release-tag")
     args = parser.parse_args()
     result = build(Path(__file__).resolve().parents[1], args.dist, args.source_archive,
-                   args.source_contract, args.pinned_setup, args.release_tag)
+                   args.source_contract, args.pinned_setup)
     print(json.dumps({"path": str(result), "sha256": sha256(result), "bytes": result.stat().st_size}))

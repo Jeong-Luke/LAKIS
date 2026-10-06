@@ -8,6 +8,7 @@ import shutil
 import tempfile
 import threading
 import unittest
+import warnings
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -26,6 +27,15 @@ internal static class LongPathProbe {
         // Exercise production startup before any System.IO path handling.
         var main = typeof(SafeSetupForm).GetMethod("Main", BindingFlags.NonPublic | BindingFlags.Static);
         if ((int)main.Invoke(null, new object[]{new[]{"--headless"}}) != 2) return 10;
+        if(args[3] == "security") {
+            foreach(int code in new[]{225,226,32}) {
+                var error=new IOException("fixture",unchecked((int)0x80070000)|code);
+                var result=(IOException)Call("CacheVerificationError","fixture.zip.part","source.zip",error);
+                string expected=code==32 ? "CACHE_VERIFY_OPEN_FAILED" : "CACHE_SECURITY_BLOCKED";
+                if(!result.Message.StartsWith(expected)||result.InnerException!=error)return 40;
+            }
+            Console.WriteLine("SECURITY_DIAGNOSTIC_PASS");return 0;
+        }
         if(args[3] == "root") {
             try { SafeInstaller.InstallFresh(Path.GetPathRoot(args[0]), _=>{throw new Exception("Must not build");}, _=>{}); return 30; }
             catch(InvalidOperationException) { Console.WriteLine("ROOT_BLOCKED"); return 0; }
@@ -58,6 +68,14 @@ internal static class LongPathProbe {
         }
         try {
             Call("ExtractZip", args[0], args[1]);
+            if(args[3] == "rvtools") {
+                string package="ComfyUI-RvTools_v2-d3f7e8beb477dff6c0fac44b298ab74ac433d93e";
+                string[] names={"Workflow-example.png","workflow.png"};
+                string[] expected={"68E978E436928CF200AC685E133AE891CBAFF5E299A35465574D64FD0A39D3E9","AE986348B60BF026C6E3C2E8D001B57BA19123A038714C111EB5C7C98AB8E192"};
+                for(int i=0;i<2;i++)using(var input=File.OpenRead(Path.Combine(args[1],package,"workflow",names[i])))using(var digest=SHA256.Create())
+                    if(BitConverter.ToString(digest.ComputeHash(input)).Replace("-","")!=expected[i])return 41;
+                Console.WriteLine("RVTOOLS_EXAMPLES_PASS");return 0;
+            }
             if(args[3] == "reject") return 11;
             Call("CopyTree", args[1], args[2]);
             string[] files = Directory.GetFiles(@"\\?\" + args[2], "*", SearchOption.AllDirectories);
@@ -71,7 +89,7 @@ internal static class LongPathProbe {
                 Console.Error.WriteLine(error.InnerException.GetType().FullName + ": " + error.InnerException.Message);
                 return 20;
             }
-            Console.WriteLine("UNSAFE_PATH_REJECTED");
+            Console.WriteLine("UNSAFE_PATH_REJECTED " + error.InnerException.Message);
         }
         return 0;
     }
@@ -149,10 +167,74 @@ class SetupLongPathTests(unittest.TestCase):
             with self.subTest(name=name):
                 self.probe(name, reject=True)
 
+    def collision_probe(self, first, second, directory=False):
+        with tempfile.TemporaryDirectory(dir=self.root) as temporary:
+            root = Path(temporary)
+            archive, extracted = root / 'collision.zip', root / 'extract'
+            with warnings.catch_warnings(), zipfile.ZipFile(archive, 'w') as package:
+                warnings.simplefilter('ignore', UserWarning)
+                package.writestr(first, b'' if directory else b'first example')
+                package.writestr(second, b'' if directory else b'second example')
+            result = subprocess.run([str(self.exe), str(archive), str(extracted), 'unused', 'reject'],
+                                    capture_output=True)
+            self.assertEqual(result.returncode, 0, result.stderr.decode(errors='replace'))
+            self.assertIn(b'Duplicate Windows ZIP path:', result.stdout)
+            self.assertFalse(extracted.exists(), 'Invalid ZIP must be rejected before extraction')
+
+    def test_zip_resource_and_file_directory_limits_before_write(self):
+        import struct
+        for mode in ('oversized', 'collision', 'link'):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory(dir=self.root) as directory:
+                root=Path(directory); archive=root/'bad.zip'; extracted=root/'extract'
+                with zipfile.ZipFile(archive,'w') as bundle:
+                    bundle.writestr('valid.txt',b'verified payload')
+                    if mode=='collision':
+                        bundle.writestr('file',b'first')
+                        bundle.writestr('file/child',b'second')
+                    elif mode=='link':
+                        info=zipfile.ZipInfo('link');info.create_system=3;info.external_attr=0o120777<<16
+                        bundle.writestr(info,b'../outside')
+                if mode=='oversized':
+                    data=bytearray(archive.read_bytes()); central=data.index(b'PK\x01\x02')
+                    struct.pack_into('<I',data,central+24,2*1024**3+1)
+                    archive.write_bytes(data)
+                result=subprocess.run([str(self.exe),str(archive),str(extracted),'unused','reject'],capture_output=True)
+                self.assertEqual(result.returncode,0,result.stderr.decode(errors='replace'))
+                self.assertFalse(extracted.exists())
+    def test_unknown_zip_collisions_rejected_without_overwriting(self):
+        for first, second in [('package/Workflow.png', 'package/workflow.png'),
+                              ('package/workflow.png', 'package/Workflow.png'),
+                              ('package/same.txt', 'package/same.txt'),
+                              ('package\\same.txt', 'package/same.txt')]:
+            with self.subTest(first=first, second=second):
+                self.collision_probe(first, second)
+
+    def test_duplicate_directory_entries_rejected(self):
+        self.collision_probe('package/assets/', 'package/ASSETS/', directory=True)
+
+    def test_modified_rvtools_collision_is_not_remapped(self):
+        prefix = 'ComfyUI-RvTools_v2-d3f7e8beb477dff6c0fac44b298ab74ac433d93e/workflow/'
+        self.collision_probe(prefix + 'Workflow.png', prefix + 'workflow.png')
+
     def test_drive_root_rejected_before_work(self):
         result=subprocess.run([str(self.exe),str(self.root),'unused','unused','root'],capture_output=True)
         self.assertEqual(result.returncode,0,result.stderr.decode(errors='replace'))
         self.assertIn(b'ROOT_BLOCKED',result.stdout)
+
+    def test_security_block_diagnostic_preserves_original_error(self):
+        result=subprocess.run([str(self.exe),'unused','unused','unused','security'],capture_output=True)
+        self.assertEqual(result.returncode,0,result.stderr.decode(errors='replace'))
+        self.assertIn(b'SECURITY_DIAGNOSTIC_PASS',result.stdout)
+
+    @unittest.skipUnless(os.environ.get('LAKIS_RVTOOLS_TEST_ZIP'), 'Pinned RvTools ZIP fixture required')
+    def test_pinned_rvtools_examples_preserved(self):
+        archive=Path(os.environ['LAKIS_RVTOOLS_TEST_ZIP'])
+        self.assertEqual(hashlib.sha256(archive.read_bytes()).hexdigest().upper(),
+                         'AC92C92CF6454E850E6A2B5053D13962BC2936539F669B910C4A49EDB875ECBD')
+        with tempfile.TemporaryDirectory(dir=self.root) as directory:
+            result=subprocess.run([str(self.exe),str(archive),directory,'unused','rvtools'],capture_output=True)
+            self.assertEqual(result.returncode,0,result.stderr.decode(errors='replace'))
+            self.assertIn(b'RVTOOLS_EXAMPLES_PASS',result.stdout)
 
     def long_cache_probe(self, mode, first_arg):
         with tempfile.TemporaryDirectory(dir=self.root) as directory:

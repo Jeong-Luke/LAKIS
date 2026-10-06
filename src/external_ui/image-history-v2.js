@@ -13,12 +13,16 @@
   const selectedItems = new Set();
   const LIBRARY_RENDER_BATCH_SIZE = 20;
   let renderedCount = 0;
+  let nextCursor = null, loadingMore = false, loadRevision = 0;
   const renderedDateGrids = new Map();
   const loadMoreSentinel = document.createElement('div');
   loadMoreSentinel.className = 'image-history-load-more-sentinel';
-  loadMoreSentinel.setAttribute('aria-hidden', 'true');
-  Object.assign(loadMoreSentinel.style, {height:'1px', width:'100%', pointerEvents:'none'});
+  const loadMoreButton = document.createElement('button');
+  loadMoreButton.type = 'button';
+  loadMoreButton.textContent = '이전 이미지 더 보기';
+  loadMoreSentinel.append(loadMoreButton);
   groups.after(loadMoreSentinel);
+  const scrollRoot = overlay.querySelector('.image-history-shell');
   let loadMoreObserver = null;
   const viewportLazyLoadEnabled = localStorage.getItem('lakis.libraryViewportLazyLoad') !== '0';
   const VIEWPORT_PRELOAD_MARGIN = '150% 0px';
@@ -66,7 +70,7 @@
           assignImageSource(entry.target);
           imageObserver?.unobserve(entry.target);
         }
-      }, {root: null, rootMargin: VIEWPORT_PRELOAD_MARGIN, threshold: 0.01});
+      }, {root: scrollRoot, rootMargin: VIEWPORT_PRELOAD_MARGIN, threshold: 0.01});
     }
     imageObserver.observe(image);
     publishLazyStats();
@@ -76,18 +80,26 @@
     loadMoreObserver = null;
   };
   const observeLoadMoreSentinel = () => {
-    if (renderedCount >= items.length) {
+    if (renderedCount >= items.length && !nextCursor) {
       loadMoreSentinel.hidden = true;
       stopLoadMoreObserver();
       return;
     }
     loadMoreSentinel.hidden = false;
+    loadMoreButton.disabled = loadingMore;
+    loadMoreButton.textContent = loadingMore ? '불러오는 중…' : '이전 이미지 더 보기';
     if (!('IntersectionObserver' in window)) return;
     if (!loadMoreObserver) {
       loadMoreObserver = new IntersectionObserver(entries => {
-        if (entries.some(entry => entry.isIntersecting)) renderNextBatch();
-      }, {root:null, rootMargin:'600px 0px', threshold:0});
+        if (entries.some(entry => entry.isIntersecting)) {
+          loadMoreObserver?.unobserve(loadMoreSentinel);
+          renderNextBatch();
+        }
+      }, {root:scrollRoot, rootMargin:'600px 0px', threshold:0});
     }
+    // Re-arm even when the next batch still fits inside the preload area.
+    // Observing an already observed target produces no new intersection event.
+    loadMoreObserver.unobserve(loadMoreSentinel);
     loadMoreObserver.observe(loadMoreSentinel);
   };
   const clearDetail = () => { selected = null; deleteButton.disabled = true; inspector.hidden = true; document.querySelectorAll('.image-history-card.selected').forEach(el => el.classList.remove('selected')); };
@@ -112,8 +124,10 @@
     document.querySelector('#historyNegative').textContent = item.negative_prompt || '이미지 메타데이터에 없음'; inspector.hidden = false;
   };
   const renderNextBatch = () => {
+    if (overlay.hidden) return;
     if (renderedCount >= items.length) {
-      observeLoadMoreSentinel();
+      if (nextCursor) loadNextPage();
+      else observeLoadMoreSentinel();
       return;
     }
     const end = Math.min(items.length, renderedCount + LIBRARY_RENDER_BATCH_SIZE);
@@ -160,6 +174,34 @@
     overlay.dataset.libraryRenderedItems = String(renderedCount);
     observeLoadMoreSentinel();
   };
+  const loadNextPage = async () => {
+    if (!nextCursor || loadingMore || overlay.hidden) return;
+    const revision = loadRevision, cursor = nextCursor;
+    loadingMore = true;
+    stopLoadMoreObserver();
+    loadMoreButton.disabled = true;
+    loadMoreButton.textContent = '불러오는 중…';
+    try {
+      const response = await fetch(apiUrl(`/api/image-history?limit=100&cursor=${encodeURIComponent(cursor)}`), {cache:'no-store', credentials:'same-origin'});
+      const data = await response.json();
+      if (revision !== loadRevision) return;
+      if (!response.ok || !data.ok) throw new Error(data.error || `HTTP ${response.status}`);
+      if (data.next_cursor && data.next_cursor === cursor) throw new Error('목록의 다음 위치를 확인하지 못했습니다.');
+      const ids = new Set(items.map(item => item.id));
+      items.push(...(Array.isArray(data.items) ? data.items : []).filter(item => !ids.has(item.id)));
+      nextCursor = data.next_cursor || null;
+      loadingMore = false;
+      notice('');
+      renderNextBatch();
+    } catch (error) {
+      if (revision !== loadRevision) return;
+      loadingMore = false;
+      loadMoreButton.disabled = false;
+      loadMoreButton.textContent = '이전 이미지 다시 불러오기';
+      notice(`이전 이미지를 불러오지 못했습니다: ${error?.message || String(error)}`);
+    }
+  };
+  loadMoreButton.addEventListener('click', renderNextBatch);
   const render = () => {
     resetImageObserver();
     stopLoadMoreObserver();
@@ -181,17 +223,21 @@
     }
   };
   const load = async () => {
-    clear(); notice('이미지를 불러오는 중…');
+    const revision = ++loadRevision;
+    clear(); items = []; nextCursor = null; loadingMore = false;
+    render(); notice('이미지를 불러오는 중…');
     try {
-      const response = await fetch(apiUrl('/api/image-history'), {cache: 'no-store', credentials: 'same-origin'});
+      const response = await fetch(apiUrl('/api/image-history?limit=100'), {cache: 'no-store', credentials: 'same-origin'});
       const data = await response.json();
+      if (revision !== loadRevision) return;
       if (!response.ok || !data.ok) throw new Error(data.error || `HTTP ${response.status}`);
       items = Array.isArray(data.items) ? data.items : [];
+      nextCursor = data.next_cursor || null;
       document.querySelector('#imageHistoryPath').textContent = `${data.root || ''}${data.includes_default_root ? ' · 기본 출력 포함' : (data.custom ? ' · 사용자 지정 경로' : ' · 기본 저장 경로')}`;
       notice(''); render();
-    } catch (error) { notice(`라키스 라이브러리를 불러오지 못했습니다: ${error?.message || String(error)}`); }
+    } catch (error) { if (revision === loadRevision) notice(`라키스 라이브러리를 불러오지 못했습니다: ${error?.message || String(error)}`); }
   };
-  const close = () => { overlay.hidden = true; document.body.style.overflow = ''; resetImageObserver(); stopLoadMoreObserver(); loadMoreSentinel.hidden = true; clear(); };
+  const close = () => { ++loadRevision; loadingMore = false; overlay.hidden = true; document.body.style.overflow = ''; resetImageObserver(); stopLoadMoreObserver(); loadMoreSentinel.hidden = true; clear(); };
   window.addEventListener('lakis:open-image-history', () => { overlay.hidden = false; document.body.style.overflow = 'hidden'; load(); });
   document.querySelector('#imageHistoryClose')?.addEventListener('click', close); overlay.addEventListener('click', event => { if (event.target === overlay) close(); });
   selectModeButton.addEventListener('click', () => { clearDetail(); selectedItems.clear(); selectionMode = true; syncSelectionUi(); render(); });

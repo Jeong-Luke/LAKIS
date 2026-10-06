@@ -34,7 +34,7 @@
   <link rel="stylesheet" href="i2i-preview-contain.css?v=20260906-auto-size-option">
   <link rel="stylesheet" href="inpaint-control.css?v=20260921-cover-wildcard">
   <link rel="stylesheet" href="wildcard-control.css?v=20260913-experiment-1">
-  <link rel="stylesheet" href="wildcard-refinement.css?v=20260913-mockup-1">
+  <link rel="stylesheet" href="wildcard-refinement.css?v=20261006-exclude-all">
   <link rel="stylesheet" href="continuous-generation.css?v=20260913-mockup-1">
   <link rel="stylesheet" href="continuous-generation-polish.css?v=20260913-mockup-1">
   <link rel="stylesheet" href="seed-mode-gradient.css?v=20260913-mockup-1">
@@ -45,7 +45,7 @@
   <link rel="stylesheet" href="prompt-maximize.css?v=20260920-split-panels-v2">
   <link rel="stylesheet" href="upscaler-license-migration.css?v=20260906-first-run">
   <link rel="stylesheet" href="system-info-dialog.css?v=20260906-licenses">
-  <link rel="stylesheet" href="image-history.css?v=20260916-mobile-detail-close-bar">
+  <link rel="stylesheet" href="image-history.css?v=20261005-library-pagination">
   <link rel="stylesheet" href="lakis-link-mobile.css?v=20260913-link-1">
   <link rel="stylesheet" href="lakis-link-control.css?v=20260913-link-1">
   <link rel="stylesheet" href="lakis-link-sidebar.css?v=20260913-parity-1">
@@ -418,9 +418,9 @@
       <small>© 2026 Luke Jeong. All rights reserved. · Built on NVIDIA Cosmos.</small>
     </section>
   </div>
-  <div id="wildcardOverlay" class="wildcard-overlay" hidden><section class="wildcard-card" role="dialog" aria-modal="true" aria-labelledby="wildcardTitle"><header><div><span>LAKIS</span><h2 id="wildcardTitle">와일드카드</h2></div><button id="wildcardClose" type="button" aria-label="닫기">×</button></header><nav><button type="button" data-wildcard-source="BUILT_IN" class="active">기본 제공</button><button type="button" data-wildcard-source="USER">내 와일드카드</button></nav><input id="wildcardSearch" type="search" placeholder="와일드카드 검색"><div class="wildcard-browser"><div id="wildcardList" class="wildcard-list"></div><div class="wildcard-preview"><div class="wildcard-selection-head"><div><strong id="wildcardSelectionName">목록에서 선택하세요</strong><small id="wildcardSelectionMeta"></small><small id="wildcardUseCount"></small></div><div><button id="wildcardIncludeAll" type="button">전체 포함</button><button id="wildcardReset" type="button">초기화</button></div></div><div id="wildcardEntries" class="wildcard-entry-list"></div></div><aside><h3>사용 중인 와일드카드</h3><div id="activeWildcards" class="active-wildcard-list"><small>프롬프트에 삽입된 와일드카드가 없습니다.</small></div><code id="wildcardToken">__name__</code><button id="wildcardInsert" type="button" disabled>프롬프트에 삽입</button></aside></div><footer><button id="wildcardFolder" type="button">폴더 열기</button><button id="wildcardRefresh" type="button">새로고침</button><span id="wildcardStatus"></span></footer></section></div>
+  <div id="wildcardOverlay" class="wildcard-overlay" hidden><section class="wildcard-card" role="dialog" aria-modal="true" aria-labelledby="wildcardTitle"><header><div><span>LAKIS</span><h2 id="wildcardTitle">와일드카드</h2></div><button id="wildcardClose" type="button" aria-label="닫기">×</button></header><nav><button type="button" data-wildcard-source="BUILT_IN" class="active">기본 제공</button><button type="button" data-wildcard-source="USER">내 와일드카드</button></nav><input id="wildcardSearch" type="search" placeholder="와일드카드 검색"><div class="wildcard-browser"><div id="wildcardList" class="wildcard-list"></div><div class="wildcard-preview"><div class="wildcard-selection-head"><div><strong id="wildcardSelectionName">목록에서 선택하세요</strong><small id="wildcardSelectionMeta"></small><small id="wildcardUseCount"></small></div><div><button id="wildcardIncludeAll" type="button">전체 포함</button><button id="wildcardExcludeAll" type="button">전체 해제</button><button id="wildcardReset" type="button">초기화</button></div></div><div id="wildcardEntries" class="wildcard-entry-list"></div></div><aside><h3>사용 중인 와일드카드</h3><div id="activeWildcards" class="active-wildcard-list"><small>프롬프트에 삽입된 와일드카드가 없습니다.</small></div><code id="wildcardToken">__name__</code><button id="wildcardInsert" type="button" disabled>프롬프트에 삽입</button></aside></div><footer><button id="wildcardFolder" type="button">폴더 열기</button><button id="wildcardRefresh" type="button">새로고침</button><span id="wildcardStatus"></span></footer></section></div>
   <script src="app.js?v=20260920-sidebar-resource-menu"></script>
-  <script src="wildcard-control.js?v=20260913-refinement-mockup-10"></script>
+  <script src="wildcard-control.js?v=20261006-exclude-all"></script>
   <script src="advanced-node-settings.js?v=20260920-settings-gear"></script>
   <script type="module" src="prompt-highlighting.js?v=20260913-wildcard-experiment-1"></script>
   <script src="upscaler-license-migration.js?v=20260906-first-run"></script>
@@ -428,7 +428,7 @@
   <script src="lakis-link-control.js?v=20260913-link-1"></script>
   <script src="lakis-link-mobile.js?v=20260913-link-1"></script>
   <script src="lakis-link-sidebar.js?v=20260913-parity-1"></script>
-  <script src="image-history-v2.js?v=20260916-mobile-detail-close-bar"></script>
+  <script src="image-history-v2.js?v=20261005-library-pagination"></script>
   <script src="mobile-image-pinch.js?v=20260914-mobile-pinch-1"></script>
 </body>
 </html>

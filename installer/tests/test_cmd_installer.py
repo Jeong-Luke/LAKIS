@@ -33,8 +33,8 @@ class CmdInstallerTests(unittest.TestCase):
     def test_manifest_is_pinned_and_matches_cmd_bootstrap(self):
         data = json.loads(MANIFEST.read_text(encoding="utf-8"))
         cmd = CMD.read_text(encoding="cp949")
-        self.assertEqual(data["version"], "8.0.0")
-        self.assertEqual(data["base"]["sha256"], "7805F634FAB51F63A238AAF0CFE2A9833BB7C86DDFC8400A60919F44460D7D65")
+        self.assertEqual(data["version"], "7.5.3")
+        self.assertEqual(data["base"]["sha256"], "7C380D4309BBDA395366C49564EDF8996181FD45E61B6F353EA417F32BC3B970")
         self.assertIn(data["base"]["url"], cmd)
         self.assertIn(data["base"]["sha256"], cmd)
         self.assertEqual(len(data["nodes"]), 14)
@@ -143,6 +143,18 @@ class CmdInstallerTests(unittest.TestCase):
             digest.assert_called_once()
             sleep.assert_not_called()
 
+    def test_security_block_is_identified_without_retry_or_bypass(self):
+        for code in (225, 226):
+            error = OSError(13, "blocked")
+            error.winerror = code
+            with self.subTest(code=code), \
+                    mock.patch.object(module, "sha256", side_effect=error) as digest, \
+                    mock.patch.object(module.time, "sleep") as sleep:
+                with self.assertRaisesRegex(RuntimeError, "CACHE_SECURITY_BLOCKED"):
+                    module.sha256_with_retry(Path("blocked.zip"), "source.zip")
+                digest.assert_called_once()
+                sleep.assert_not_called()
+
     def test_concurrent_downloads_serialize_one_cache_entry(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
@@ -212,6 +224,7 @@ class CmdInstallerTests(unittest.TestCase):
                 return b""
 
         responses = [Response(payload[:4], 200, fail=True), Response(payload[4:], 206)]
+        responses[1].headers["Content-Range"] = "bytes 4-9/10"
         requests = []
 
         def fake_urlopen(request, timeout):
@@ -225,7 +238,7 @@ class CmdInstallerTests(unittest.TestCase):
                 mock.patch("sys.stdout", output):
             target = Path(folder) / "model.bin"
             result = module.download(
-                "https://example.invalid/model.bin",
+                "https://github.com/audit-fixture/model.bin",
                 target,
                 hashlib.sha256(payload).hexdigest().upper(),
                 len(payload),
@@ -241,7 +254,7 @@ class CmdInstallerTests(unittest.TestCase):
             target = Path(folder) / "model.bin"
             partial = target.with_suffix(".bin.part")
             partial.write_bytes(b"complete")
-            result = module.download("https://example.invalid/model.bin", target,
+            result = module.download("https://github.com/audit-fixture/model.bin", target,
                                      hashlib.sha256(b"complete").hexdigest().upper(), 8)
             self.assertEqual(result.read_bytes(), b"complete")
             self.assertFalse(partial.exists())
@@ -250,7 +263,7 @@ class CmdInstallerTests(unittest.TestCase):
     def test_corrupt_prefix_fails_hash_then_next_run_can_recover(self):
         class Response(io.BytesIO):
             status = 206
-            headers = {'Content-Length': '10'}
+            headers = {'Content-Length': '10', 'Content-Range': 'bytes 3-12/13'}
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             target = root / 'model.bin'
@@ -259,7 +272,7 @@ class CmdInstallerTests(unittest.TestCase):
             digest = hashlib.sha256(payload).hexdigest().upper()
             with mock.patch.object(module.urllib.request, 'urlopen', return_value=Response(payload[3:])):
                 with self.assertRaisesRegex(RuntimeError, 'SHA-256'):
-                    module.download('https://example.invalid/model', target, digest, len(payload))
+                    module.download('https://github.com/audit-fixture/model', target, digest, len(payload))
             self.assertFalse(target.exists())
             self.assertFalse(target.with_suffix('.bin.part').exists())
             source = root / 'source.bin'
@@ -305,6 +318,28 @@ class CmdInstallerTests(unittest.TestCase):
                 module.extract_zip(archive, root / "out")
             self.assertFalse((root / "escape.txt").exists())
 
+    def test_zip_limits_preflight_before_writes(self):
+        cases = [('ZIP_MAX_ENTRIES', 1), ('ZIP_MAX_BYTES', 4),
+                 ('ZIP_MAX_FILE_BYTES', 4), ('ZIP_MAX_RATIO', 1)]
+        for limit, maximum in cases:
+            with self.subTest(limit=limit), tempfile.TemporaryDirectory() as folder:
+                root=Path(folder); archive=root/'bad.zip'; destination=root/'out'
+                with zipfile.ZipFile(archive,'w',compression=zipfile.ZIP_DEFLATED) as bundle:
+                    bundle.writestr('first.txt',b'first')
+                    bundle.writestr('large.txt',b'x'*4096)
+                with mock.patch.object(module,limit,maximum), self.assertRaisesRegex(RuntimeError,'ZIP_RESOURCE_LIMIT'):
+                    module.extract_zip(archive,destination)
+                self.assertFalse(destination.exists())
+
+    def test_zip_file_directory_collision_is_rejected_before_writes(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder); archive=root/'bad.zip'; destination=root/'out'
+            with zipfile.ZipFile(archive,'w') as bundle:
+                bundle.writestr('file',b'one'); bundle.writestr('file/child',b'two')
+            with self.assertRaisesRegex(RuntimeError,'file/directory collision'):
+                module.extract_zip(archive,destination)
+            self.assertFalse(destination.exists())
+
     def test_windows_ambiguous_zip_paths_are_rejected(self):
         for member in ("folder/file.txt:stream", "folder/trailing. ", "NUL", "COM¹.txt", "bad<name.txt", "control\x01.txt", "folder\\..\\escape"):
             with self.subTest(member=member), tempfile.TemporaryDirectory() as folder:
@@ -324,6 +359,38 @@ class CmdInstallerTests(unittest.TestCase):
                 bundle.writestr("folder/file.TXT", "two")
             with self.assertRaisesRegex(RuntimeError, "duplicate Windows ZIP path"):
                 module.extract_zip(archive, root / "extract")
+
+    def test_only_verified_rvtools_example_names_are_remapped(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            archive = root / "rvtools.zip"
+            with zipfile.ZipFile(archive, "w") as bundle:
+                bundle.writestr(module.RVTOOLS_EXAMPLE, b"first example")
+                bundle.writestr(module.RVTOOLS_EXAMPLE.replace("Workflow.png", "workflow.png"), b"second example")
+            # An altered or unverified archive must still fail closed.
+            with self.assertRaisesRegex(RuntimeError, "duplicate Windows ZIP path"):
+                module.extract_zip(archive, root / "unverified")
+            with mock.patch.object(module, "sha256_with_retry", return_value=module.RVTOOLS_ZIP_SHA256):
+                module.extract_zip(archive, root / "verified")
+            example = root / "verified" / module.RVTOOLS_EXAMPLE
+            self.assertEqual(example.with_name("Workflow-example.png").read_bytes(), b"first example")
+            self.assertEqual(example.with_name("workflow.png").read_bytes(), b"second example")
+
+    @unittest.skipUnless(os.environ.get("LAKIS_RVTOOLS_TEST_ZIP"), "Pinned RvTools ZIP fixture required")
+    def test_real_pinned_rvtools_preserves_all_entry_bytes(self):
+        archive = Path(os.environ["LAKIS_RVTOOLS_TEST_ZIP"])
+        self.assertEqual(module.sha256(archive), module.RVTOOLS_ZIP_SHA256)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            module.extract_zip(archive, root)
+            with zipfile.ZipFile(archive) as bundle:
+                for entry in bundle.infolist():
+                    if entry.is_dir():
+                        continue
+                    name = entry.filename
+                    if name == module.RVTOOLS_EXAMPLE:
+                        name = name.replace("Workflow.png", "Workflow-example.png")
+                    self.assertEqual((root / name).read_bytes(), bundle.read(entry))
 
     def test_layout_validation(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -450,7 +517,7 @@ class CmdInstallerTests(unittest.TestCase):
             run.assert_not_called()
 
     def test_missing_webview_uses_verified_download_then_rechecks(self):
-        record = {'url': 'https://example.invalid/pinned', 'sha256': 'A' * 64, 'bytes': 99}
+        record = {'url': 'https://github.com/audit-fixture/pinned', 'sha256': 'A' * 64, 'bytes': 99}
         with tempfile.TemporaryDirectory() as folder, \
                 mock.patch.object(module, 'has_webview2_runtime', side_effect=[False, True]), \
                 mock.patch.object(module, 'download', return_value=Path(folder) / 'runtime.exe') as fetch, \
@@ -464,7 +531,7 @@ class CmdInstallerTests(unittest.TestCase):
             self.assertTrue(run.call_args.kwargs['check'])
 
     def test_missing_webview_after_install_blocks_completion(self):
-        record = {'url': 'https://example.invalid/pinned', 'sha256': 'A' * 64, 'bytes': 99}
+        record = {'url': 'https://github.com/audit-fixture/pinned', 'sha256': 'A' * 64, 'bytes': 99}
         with tempfile.TemporaryDirectory() as folder, \
                 mock.patch.object(module, 'has_webview2_runtime', return_value=False), \
                 mock.patch.object(module, 'download', return_value=Path(folder) / 'runtime.exe'), \
