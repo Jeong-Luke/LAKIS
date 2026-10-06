@@ -220,7 +220,10 @@ internal sealed class UpdaterForm : Form
                 request.CachePolicy = new System.Net.Cache.RequestCachePolicy(System.Net.Cache.RequestCacheLevel.NoCacheNoStore);
                 string json;
                 using (var response = request.GetResponse())
-                using (var reader = new StreamReader(response.GetResponseStream(), Encoding.UTF8, true)) json = reader.ReadToEnd();
+                {
+                    ValidateDownloadOrigin(url, response.ResponseUri.AbsoluteUri);
+                    using (var reader = new StreamReader(response.GetResponseStream(), Encoding.UTF8, true)) json = reader.ReadToEnd();
+                }
                 var manifest = new JavaScriptSerializer().Deserialize<UpdateManifest>(json);
                 if (manifest == null || String.IsNullOrWhiteSpace(manifest.version)) throw new InvalidDataException("업데이트 명세가 올바르지 않습니다.");
                 if (manifest.files == null) manifest.files = new List<UpdateFile>();
@@ -446,7 +449,7 @@ internal sealed class UpdaterForm : Form
                 if (File.Exists(output)) File.Delete(output);
                 string separator = url.Contains("?") ? "&" : "?";
                 string requestUrl = url + separator + "lakis_update=" + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + "_" + attempt;
-                using (var client = new WebClient())
+                using (var client = new ApprovedDownloadClient())
                 {
                     client.Headers.Add(HttpRequestHeader.UserAgent, "LAKIS-Updater/7.4.5");
                     client.Headers.Add(HttpRequestHeader.CacheControl, "no-cache, no-store, must-revalidate");
@@ -459,6 +462,32 @@ internal sealed class UpdaterForm : Form
         }
         if (File.Exists(output)) File.Delete(output);
         throw new InvalidDataException("파일 검증 실패(3회 재시도): " + relativePath, last);
+    }
+    private sealed class ApprovedDownloadClient : WebClient
+    {
+        protected override WebRequest GetWebRequest(Uri address)
+        {
+            ValidateDownloadOrigin(address.AbsoluteUri,address.AbsoluteUri);
+            return base.GetWebRequest(address);
+        }
+        protected override WebResponse GetWebResponse(WebRequest request)
+        {
+            var response=base.GetWebResponse(request);
+            try { ValidateDownloadOrigin(request.RequestUri.AbsoluteUri,response.ResponseUri.AbsoluteUri);return response; }
+            catch {response.Close();throw;}
+        }
+    }
+    private static void ValidateDownloadOrigin(string requested,string final)
+    {
+        foreach(string value in new[]{requested,final})
+        {
+            var uri=new Uri(value,UriKind.Absolute);
+            string host=uri.DnsSafeHost.ToLowerInvariant();
+            string[] hosts={"github.com","api.github.com","codeload.github.com","raw.githubusercontent.com","objects.githubusercontent.com","release-assets.githubusercontent.com","cdn.jsdelivr.net","huggingface.co","go.microsoft.com","msedge.sf.dl.delivery.mp.microsoft.com"};
+            bool approved=Array.Exists(hosts,h=>h==host)||host.EndsWith(".hf.co",StringComparison.Ordinal);
+            if(!String.IsNullOrEmpty(uri.UserInfo)||!((uri.Scheme=="http"&&uri.IsLoopback)||(uri.Scheme=="https"&&approved)))
+                throw new IOException("DOWNLOAD_ORIGIN_INVALID: unapproved download origin");
+        }
     }
 
     private static void RestoreTree(string source, string destinationRoot)

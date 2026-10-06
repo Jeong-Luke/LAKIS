@@ -560,6 +560,7 @@ internal static class SafeInstaller
     }
     private static void DownloadTransfer(string url,string path,string name,long expected,Action<string> status)
     {
+        ValidateDownloadOrigin(url,url);
         if(expected>=1024L*1024*1024&&!File.Exists(path+".part"))
         {
             try { DownloadParallel(url,path,name,expected,status); return; }
@@ -574,6 +575,7 @@ internal static class SafeInstaller
         if(offset>0)request.AddRange(offset);
         using(var response=(HttpWebResponse)request.GetResponse())
         {
+            ValidateDownloadOrigin(url,response.ResponseUri.AbsoluteUri);
             bool resumed=response.StatusCode==HttpStatusCode.PartialContent;
             long rangeTotal=resumed?ValidateContentRange(response.Headers["Content-Range"],offset,-1,expected,response.ContentLength):0;
             if(offset>0&&!resumed)offset=0;
@@ -614,6 +616,7 @@ internal static class SafeInstaller
                 var request=(HttpWebRequest)WebRequest.Create(url);request.UserAgent="LAKIS-Installer/7.4.5";request.AllowAutoRedirect=true;request.Timeout=30000;request.ReadWriteTimeout=30000;request.AddRange(start,end);
                 using(var response=(HttpWebResponse)request.GetResponse())
                 {
+                    ValidateDownloadOrigin(url,response.ResponseUri.AbsoluteUri);
                     if(response.StatusCode!=HttpStatusCode.PartialContent)throw new IOException("서버가 구간 다운로드를 지원하지 않습니다.");
                     ValidateContentRange(response.Headers["Content-Range"],start,end,expected,response.ContentLength);
                     using(Stream input=response.GetResponseStream())using(var output=new FileStream(parts[segment],FileMode.Create,FileAccess.Write,FileShare.Read))
@@ -631,6 +634,18 @@ internal static class SafeInstaller
             status("다운로드 수신 완료: "+name);
         }
         finally { foreach(string part in parts)try{if(File.Exists(part))File.Delete(part);}catch{} }
+    }
+    private static void ValidateDownloadOrigin(string requested,string final)
+    {
+        foreach(string value in new[]{requested,final})
+        {
+            var uri=new Uri(value,UriKind.Absolute);
+            string host=uri.DnsSafeHost.ToLowerInvariant();
+            string[] hosts={"github.com","api.github.com","codeload.github.com","raw.githubusercontent.com","objects.githubusercontent.com","release-assets.githubusercontent.com","cdn.jsdelivr.net","huggingface.co","go.microsoft.com","msedge.sf.dl.delivery.mp.microsoft.com"};
+            bool approved=Array.Exists(hosts,h=>h==host)||host.EndsWith(".hf.co",StringComparison.Ordinal);
+            if(!String.IsNullOrEmpty(uri.UserInfo)||!((uri.Scheme=="http"&&uri.IsLoopback)||(uri.Scheme=="https"&&approved)))
+                throw new IOException("DOWNLOAD_ORIGIN_INVALID: unapproved download origin");
+        }
     }
     private static string Hash(string path){using(var s=File.OpenRead(path))using(var h=SHA256.Create())return BitConverter.ToString(h.ComputeHash(s)).Replace("-","");}
     private static IOException CacheVerificationError(string path,string name,Exception error)

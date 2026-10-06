@@ -26,6 +26,7 @@ import tempfile
 import time
 import urllib.request
 import urllib.error
+import urllib.parse
 import zipfile
 import zlib
 
@@ -207,6 +208,24 @@ class InvalidContentRangeError(ValueError):
     """The response cannot be safely appended to a partial download."""
 
 
+class InvalidDownloadOriginError(ValueError):
+    """An external download left the approved HTTPS origins."""
+
+
+def validate_download_origin(requested: str, final: str) -> None:
+    original, target = urllib.parse.urlsplit(requested), urllib.parse.urlsplit(final)
+    if original.scheme == target.scheme == "file" and requested == final:
+        return  # Explicit local fixtures are not network downloads.
+    hosts = {"github.com", "api.github.com", "codeload.github.com", "raw.githubusercontent.com",
+             "objects.githubusercontent.com", "release-assets.githubusercontent.com", "cdn.jsdelivr.net",
+             "huggingface.co", "go.microsoft.com", "msedge.sf.dl.delivery.mp.microsoft.com"}
+    for value in (original, target):
+        local = value.scheme == "http" and value.hostname in {"127.0.0.1", "localhost", "::1"}
+        approved = value.hostname in hosts or (value.hostname or "").endswith(".hf.co")
+        if value.username or value.password or not (local or value.scheme == "https" and approved):
+            raise InvalidDownloadOriginError("DOWNLOAD_ORIGIN_INVALID: unapproved download origin")
+
+
 def validate_content_range(value: str, offset: int, expected: int, content_length: int) -> int:
     match = re.fullmatch(r"bytes ([0-9]+)-([0-9]+)/([0-9]+)", value or "")
     if match:
@@ -252,7 +271,9 @@ def _download_locked(
             headers["Range"] = f"bytes={offset}-"
         request = urllib.request.Request(url, headers=headers)
         try:
+            validate_download_origin(url, url)
             with urllib.request.urlopen(request, timeout=120) as response:
+                validate_download_origin(url, response.geturl() if hasattr(response, "geturl") else url)
                 response_size = int(response.headers.get("Content-Length") or -1)
                 range_total = 0
                 if getattr(response, "status", None) == 206:
@@ -290,6 +311,8 @@ def _download_locked(
                 progress_visible = False
             break
         except Exception as error:
+            if isinstance(error, InvalidDownloadOriginError):
+                raise
             last_error = error
             if (isinstance(error, InvalidContentRangeError)
                     or isinstance(error, urllib.error.HTTPError) and error.code == 416):

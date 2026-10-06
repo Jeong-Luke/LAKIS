@@ -238,7 +238,7 @@ class CmdInstallerTests(unittest.TestCase):
                 mock.patch("sys.stdout", output):
             target = Path(folder) / "model.bin"
             result = module.download(
-                "https://example.invalid/model.bin",
+                "https://github.com/audit-fixture/model.bin",
                 target,
                 hashlib.sha256(payload).hexdigest().upper(),
                 len(payload),
@@ -254,7 +254,7 @@ class CmdInstallerTests(unittest.TestCase):
             target = Path(folder) / "model.bin"
             partial = target.with_suffix(".bin.part")
             partial.write_bytes(b"complete")
-            result = module.download("https://example.invalid/model.bin", target,
+            result = module.download("https://github.com/audit-fixture/model.bin", target,
                                      hashlib.sha256(b"complete").hexdigest().upper(), 8)
             self.assertEqual(result.read_bytes(), b"complete")
             self.assertFalse(partial.exists())
@@ -272,7 +272,7 @@ class CmdInstallerTests(unittest.TestCase):
             digest = hashlib.sha256(payload).hexdigest().upper()
             with mock.patch.object(module.urllib.request, 'urlopen', return_value=Response(payload[3:])):
                 with self.assertRaisesRegex(RuntimeError, 'SHA-256'):
-                    module.download('https://example.invalid/model', target, digest, len(payload))
+                    module.download('https://github.com/audit-fixture/model', target, digest, len(payload))
             self.assertFalse(target.exists())
             self.assertFalse(target.with_suffix('.bin.part').exists())
             source = root / 'source.bin'
@@ -495,7 +495,7 @@ class CmdInstallerTests(unittest.TestCase):
             run.assert_not_called()
 
     def test_missing_webview_uses_verified_download_then_rechecks(self):
-        record = {'url': 'https://example.invalid/pinned', 'sha256': 'A' * 64, 'bytes': 99}
+        record = {'url': 'https://github.com/audit-fixture/pinned', 'sha256': 'A' * 64, 'bytes': 99}
         with tempfile.TemporaryDirectory() as folder, \
                 mock.patch.object(module, 'has_webview2_runtime', side_effect=[False, True]), \
                 mock.patch.object(module, 'download', return_value=Path(folder) / 'runtime.exe') as fetch, \
@@ -509,7 +509,7 @@ class CmdInstallerTests(unittest.TestCase):
             self.assertTrue(run.call_args.kwargs['check'])
 
     def test_missing_webview_after_install_blocks_completion(self):
-        record = {'url': 'https://example.invalid/pinned', 'sha256': 'A' * 64, 'bytes': 99}
+        record = {'url': 'https://github.com/audit-fixture/pinned', 'sha256': 'A' * 64, 'bytes': 99}
         with tempfile.TemporaryDirectory() as folder, \
                 mock.patch.object(module, 'has_webview2_runtime', return_value=False), \
                 mock.patch.object(module, 'download', return_value=Path(folder) / 'runtime.exe'), \
