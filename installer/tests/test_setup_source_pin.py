@@ -235,8 +235,13 @@ class SetupSourcePinTests(unittest.TestCase):
                 requests.append(offset)
                 resumed_prefix = self.path.endswith('/prefix') and offset
                 self.send_response(206 if resumed_prefix else (416 if offset else 200))
-                payload = b'rect bytes' if resumed_prefix else (b'' if offset else b'correct bytes')
+                # This case tests hash failure for a well-formed resumed response.
+                # Missing/invalid Content-Range now triggers a safe fresh retry and
+                # has separate pre-body rejection coverage in the boundary tests.
+                payload = b'wrongbytes' if resumed_prefix else (b'' if offset else b'correct bytes')
                 self.send_header('Content-Length', str(len(payload)))
+                if resumed_prefix:
+                    self.send_header('Content-Range', 'bytes 3-12/13')
                 self.end_headers()
                 self.wfile.write(payload)
         server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
