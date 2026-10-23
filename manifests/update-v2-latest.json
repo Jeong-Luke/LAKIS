@@ -1,0 +1,10 @@
+{
+  "schema": 2,
+  "kind": "file-patch",
+  "version": "7.5.4",
+  "minimum_version": "7.5.4",
+  "minimum_updater_version": "7.5.4",
+  "release_notes": "업데이터 전환 완료. 검증된 후속 업데이트를 기다립니다.",
+  "files": [],
+  "delete": []
+}
