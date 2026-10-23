@@ -1,21 +1,21 @@
 {
-  "version": "7.5.3",
-  "release_notes": "안정성 개선\nLibrary 기록 표시 개선\n와일드카드 전체 해제 추가",
+  "version": "7.5.4",
+  "release_notes": "안정판 앱 파일과 업데이터를 정비하고 새 업데이트 경로로 전환합니다. 모델과 ComfyUI 실행 환경은 교체하지 않습니다.",
   "files": [
     {
       "path": "LAKIS.exe",
-      "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v7.5.3/LAKIS.exe",
-      "sha256": "46B7BD50CF16B8937C30F5C0B3EE9BDC48DBD86A986533E5EC0B1F68EC7AC8DF"
+      "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v7.5.4/LAKIS.exe",
+      "sha256": "00ABC6F8FA5F237AB9F15D7DBFE54E64B3CFB8D7302C6B0A101F059196DDC3F8"
     },
     {
       "path": "LAKIS_Patcher.exe",
-      "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v7.5.3/LAKIS_Patcher.exe",
-      "sha256": "FC842225C22D7C6EC58639CBBE2581F94B3825200F2520C81D2BD3E4798EFC50"
+      "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v7.5.4/LAKIS_Patcher.exe",
+      "sha256": "462A8F19C86B64C54BF2F9CD4EF730CEA15DB2096203A63E2DF5AB9FDAC785FF"
     },
     {
       "path": "LAKIS_Updater.exe",
-      "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v7.5.3/LAKIS_Updater.exe",
-      "sha256": "FC842225C22D7C6EC58639CBBE2581F94B3825200F2520C81D2BD3E4798EFC50"
+      "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v7.5.4/LAKIS_Updater.exe",
+      "sha256": "462A8F19C86B64C54BF2F9CD4EF730CEA15DB2096203A63E2DF5AB9FDAC785FF"
     },
     {
       "path": "LAKIS_Desktop.exe",
