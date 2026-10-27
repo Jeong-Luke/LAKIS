@@ -264,7 +264,10 @@ class SceneControlsTests(unittest.TestCase):
             serve_ui.Handler.do_GET(restored)
         self.assertEqual(200, restored.status)
         self.assertTrue(restored.response["state"]["toyxyz_enabled"])
-        self.assertEqual("8.0.0", restored.response["version"])
+        self.assertEqual(
+            (REPOSITORY_ROOT / "VERSION").read_text(encoding="utf-8-sig").strip(),
+            restored.response["version"],
+        )
 
 
 if __name__ == "__main__":
