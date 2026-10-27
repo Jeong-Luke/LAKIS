@@ -7,6 +7,7 @@ import os
 from datetime import datetime, timedelta
 from pathlib import Path
 import struct
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -487,6 +488,23 @@ class CmdInstallerTests(unittest.TestCase):
             with mock.patch.object(runtime_install, "install") as engine:
                 module.install(*args, True)
                 engine.assert_not_called()
+
+    def test_cmd_cli_resolves_helpers_without_interpreter_script_path(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            manifest, portable, target, cache = self.runtime_entry_fixture(root)
+            result = subprocess.run([
+                sys.executable, "-I", str(SCRIPT),
+                "--manifest", str(manifest), "--portable-root", str(portable),
+                "--target", str(target), "--cache", str(cache), "--dry-run",
+            ], cwd=root, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual(json.loads(result.stdout), {
+                "ok": True, "version": "8.0.0", "runtime_files": 1, "target": str(target),
+            })
+            self.assertFalse(target.exists())
+            self.assertFalse(cache.exists())
+            self.assertEqual((portable / "python_embeded/python.exe").read_bytes(), b"bootstrap stub")
 
     def test_existing_webview_runtime_skips_download_and_install(self):
         with mock.patch.object(module, 'has_webview2_runtime', return_value=True), \

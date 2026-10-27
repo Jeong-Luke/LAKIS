@@ -32,6 +32,11 @@ import zipfile
 import zlib
 
 
+if __name__ == "__main__":
+    # Embedded Python's ._pth omits the script directory.
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+
 def sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as stream:
