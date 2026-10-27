@@ -52,9 +52,9 @@ def invoke(executable, *arguments, environment=None):
 
 def package(source, manifest, binaries, work, *, application_files=None):
     """Merge pinned application files and derive the BOM from verified metadata."""
-    version = manifest["version"]
+    package_version = manifest["version"]
     overrides = {name: (binaries / name).read_bytes() for name in NATIVE_NAMES}
-    overrides["VERSION"] = version.encode("utf-8")
+    overrides["VERSION"] = package_version.encode("utf-8")
     for relative, pin in (application_files or {}).items():
         relative = contract.normalized_path(relative)
         allowed = (
@@ -88,7 +88,7 @@ def package(source, manifest, binaries, work, *, application_files=None):
     missing = set(contract.REQUIRED_FILES) - {row["path"] for row in revised["files"]}
     if missing:
         raise ValueError(f"incomplete runtime: {sorted(missing)}")
-    archive = work / f"LAKIS_Runtime_{version}.zip"
+    archive = work / f"LAKIS_Runtime_{package_version}.zip"
     print("LOCAL_PACKAGE_STARTED", flush=True)
     packages = {}
     distribution_names = set()
@@ -149,10 +149,10 @@ def package(source, manifest, binaries, work, *, application_files=None):
                     combined.update(block)
             parts.append({
                 "name": name, "bytes": count, "sha256": part_hash.hexdigest().upper(),
-                "url": f"https://github.com/Jeong-Luke/LAKIS/releases/download/v{version}/" + name,
+                "url": f"https://github.com/Jeong-Luke/LAKIS/releases/download/v{package_version}/" + name,
             })
     bundle = {
-        "schema": 2, "product": "LAKIS", "version": version,
+        "schema": 2, "product": "LAKIS", "version": package_version,
         "comfyui_version": contract.COMFY_VERSION, "name": archive.name,
         "bytes": archive.stat().st_size, "files": len(revised["files"]),
         "sha256": combined.hexdigest().upper(),
