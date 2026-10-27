@@ -1,0 +1,47 @@
+{
+  "schema": 2,
+  "kind": "runtime-update",
+  "version": "8.0.0",
+  "minimum_version": "7.5.4.1",
+  "minimum_updater_version": "8.0.0",
+  "release_notes": "LAKIS 8.0.0 — 3D 포즈 편집과 실행 환경 업데이트\n새로운 기능\n3D 포즈 편집: 인체의 자세와 구도를 직접 조절하고 이미지 생성에 적용할 수 있습니다.\n인물별 프롬프트: 인물마다 설명을 지정해 포즈와 함께 생성에 반영할 수 있습니다.\n포즈 설정 복원: 앱을 다시 실행해도 저장한 포즈 설정을 이어 사용할 수 있습니다.\n설치·업데이트 개선\nComfyUI 0.42.0 기반으로 실행 환경을 업데이트했습니다.\nGUI·CMD 설치기를 새 설치 엔진으로 통합하고, CMD 실행 오류를 수정했습니다.\n업데이트·복구 과정에서 기존 모델, LoRA, 설정, 워크플로, 생성 이미지를 보존하도록 개선했습니다.\n필요한 포즈 모델은 공식 배포처에서 다운로드하고 파일 무결성을 확인합니다. 기존 사용자 모델은 덮어쓰지 않습니다.\n업데이트 후 버전 표시 오류를 수정하고, 구성 요소의 라이선스·고지문을 보완했습니다.",
+  "files": [],
+  "delete": [],
+  "runtime_bundle": {
+    "schema": 2,
+    "product": "LAKIS",
+    "version": "8.0.0",
+    "comfyui_version": "0.42.0",
+    "name": "LAKIS_Runtime_8.0.0.zip",
+    "bytes": 3247463971,
+    "files": 62993,
+    "sha256": "A310FF8221A19BB9C7DFDFA1D6237419BEC5252321030F718C323BD2D760180B",
+    "manifest_sha256": "F173D6B516381626A9A325DA67AB77C2CC2B6144FC2E7682581D6EEA3F4DE791",
+    "parts": [
+      {
+        "name": "LAKIS_Runtime_8.0.0.zip.part001",
+        "bytes": 1073741824,
+        "sha256": "3A163983E897DFBBC7BF897AE92BA4C6AAE043CD98002B762B4D1AA74AB017B0",
+        "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.0/LAKIS_Runtime_8.0.0.zip.part001"
+      },
+      {
+        "name": "LAKIS_Runtime_8.0.0.zip.part002",
+        "bytes": 1073741824,
+        "sha256": "9FC191EA21D8AC8DA82593BF4B1A49E259834D85989041D1AB5DF3354E02A4D5",
+        "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.0/LAKIS_Runtime_8.0.0.zip.part002"
+      },
+      {
+        "name": "LAKIS_Runtime_8.0.0.zip.part003",
+        "bytes": 1073741824,
+        "sha256": "0B2BC2B8F214847A8D12F2B5A9931A19F5DBB910149C3DF2FFAAE65BB1CCD41C",
+        "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.0/LAKIS_Runtime_8.0.0.zip.part003"
+      },
+      {
+        "name": "LAKIS_Runtime_8.0.0.zip.part004",
+        "bytes": 26238499,
+        "sha256": "61B6FB7691D57C903BB67E5916A760592CAEF154DF136333EEC48E9C671B295F",
+        "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.0/LAKIS_Runtime_8.0.0.zip.part004"
+      }
+    ]
+  }
+}

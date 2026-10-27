@@ -1,10 +1,26 @@
 {
   "schema": 2,
   "kind": "file-patch",
-  "version": "7.5.4",
+  "version": "7.5.4.1",
   "minimum_version": "7.5.4",
   "minimum_updater_version": "7.5.4",
-  "release_notes": "업데이터 전환 완료. 검증된 후속 업데이트를 기다립니다.",
-  "files": [],
+  "release_notes": "LAKIS 8.0.0 — 3D 포즈 편집과 실행 환경 업데이트\n새로운 기능\n3D 포즈 편집: 인체의 자세와 구도를 직접 조절하고 이미지 생성에 적용할 수 있습니다.\n인물별 프롬프트: 인물마다 설명을 지정해 포즈와 함께 생성에 반영할 수 있습니다.\n포즈 설정 복원: 앱을 다시 실행해도 저장한 포즈 설정을 이어 사용할 수 있습니다.\n설치·업데이트 개선\nComfyUI 0.42.0 기반으로 실행 환경을 업데이트했습니다.\nGUI·CMD 설치기를 새 설치 엔진으로 통합하고, CMD 실행 오류를 수정했습니다.\n업데이트·복구 과정에서 기존 모델, LoRA, 설정, 워크플로, 생성 이미지를 보존하도록 개선했습니다.\n필요한 포즈 모델은 공식 배포처에서 다운로드하고 파일 무결성을 확인합니다. 기존 사용자 모델은 덮어쓰지 않습니다.\n업데이트 후 버전 표시 오류를 수정하고, 구성 요소의 라이선스·고지문을 보완했습니다.",
+  "files": [
+    {
+      "path": "LAKIS.exe",
+      "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.0/LAKIS.exe",
+      "sha256": "6AE0C18D28F3AA6408417D1125698FC452F988AC455F38D9F3642E53797831EF"
+    },
+    {
+      "path": "LAKIS_Updater.exe",
+      "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.0/LAKIS_Updater.exe",
+      "sha256": "F1812B96534B1A940999A7CE7FA085EEAC505EC18CF7271CB671DDBADF6B11E7"
+    },
+    {
+      "path": "LAKIS_Patcher.exe",
+      "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.0/LAKIS_Patcher.exe",
+      "sha256": "F1812B96534B1A940999A7CE7FA085EEAC505EC18CF7271CB671DDBADF6B11E7"
+    }
+  ],
   "delete": []
 }
