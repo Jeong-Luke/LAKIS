@@ -64,6 +64,7 @@ let modelInventorySignature = "";
 let modelInventoryRefreshActive = false;
 let generationStateSaveTimer = null;
 let generationStateHydrated = false;
+let lastSavedGenerationState = null;
 
 function persistedGenerationState() {
   return {
@@ -86,11 +87,15 @@ function scheduleGenerationStateSave() {
   clearTimeout(generationStateSaveTimer);
   generationStateSaveTimer = setTimeout(async () => {
     try {
-      await fetch("/api/generation-state", {
+      const body = JSON.stringify(persistedGenerationState());
+      if (body === lastSavedGenerationState) return;
+      const response = await fetch("/api/generation-state", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(persistedGenerationState()),
+        body,
       });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      lastSavedGenerationState = body;
     } catch (error) {
       console.error("Could not persist LAKIS model configuration", error);
     }
@@ -98,10 +103,12 @@ function scheduleGenerationStateSave() {
 }
 
 function flushGenerationState() {
-  if (!generationStateHydrated) return;
+  if (!generationStateHydrated || lastSavedGenerationState === null) return;
   clearTimeout(generationStateSaveTimer);
-  const payload = new Blob([JSON.stringify(persistedGenerationState())], { type: "application/json" });
-  navigator.sendBeacon?.("/api/generation-state", payload);
+  const body = JSON.stringify(persistedGenerationState());
+  if (body === lastSavedGenerationState) return;
+  const payload = new Blob([body], { type: "application/json" });
+  if (navigator.sendBeacon?.("/api/generation-state", payload)) lastSavedGenerationState = body;
 }
 
 window.addEventListener("pagehide", () => {
@@ -742,13 +749,31 @@ document.querySelector("#cameraReset").addEventListener("click", () => {
   renderCamera();
 });
 
+function isToyxyzEnabled() {
+  return Boolean(state.scene_controls?.enabled && state.scene_controls.toyxyz_enabled);
+}
+
+function syncPoseModeAvailability() {
+  const locked = isToyxyzEnabled();
+  if (locked) {
+    setI2iEnabled(false, false);
+    setInpaintEnabled(false, false);
+    setCompositionEnabled(false);
+  }
+  for (const toggle of [i2iToggle, inpaintToggle]) {
+    toggle.disabled = locked;
+    toggle.setAttribute("aria-disabled", String(locked));
+  }
+  renderCompositionAvailability();
+}
+
 function setCompositionEnabled(enabled) {
-  state.composition_enabled = Boolean(enabled);
+  state.composition_enabled = Boolean(enabled) && !isToyxyzEnabled();
   renderCompositionAvailability();
 }
 
 function renderCompositionAvailability() {
-  const unavailable = state.i2i.enabled || state.inpaint.enabled;
+  const unavailable = state.i2i.enabled || state.inpaint.enabled || isToyxyzEnabled();
   const toggle = document.querySelector("#compositionToggle");
   toggle.classList.toggle("on", state.composition_enabled);
   toggle.setAttribute("aria-pressed", String(state.composition_enabled));
@@ -1362,6 +1387,8 @@ async function refreshWorkflowConfiguration() {
     // available. Refresh engine-dependent labels once the saved DEV engine
     // has been restored (USDU for Ultimate, SCOPE for LAKIS_SCOPE).
     render();
+    // Closing an unchanged, older window must not overwrite another editor.
+    lastSavedGenerationState = JSON.stringify(persistedGenerationState());
   } catch (error) {
     console.error("Could not load ComfyUI workflow model configuration", error);
   }
@@ -1669,7 +1696,7 @@ function syncInpaintCanvasLayout() {
 }
 
 function setInpaintEnabled(enabled, enforceExclusive = true) {
-  state.inpaint.enabled = Boolean(enabled);
+  state.inpaint.enabled = Boolean(enabled) && !isToyxyzEnabled();
   if (state.inpaint.enabled) {
     if (state.i2i.enabled) setI2iEnabled(false, false);
   }
@@ -1819,7 +1846,7 @@ function readImageDimensions(dataUrl) {
 
 function setI2iEnabled(enabled, enforceExclusive = true) {
   const wasEnabled = state.i2i.enabled;
-  state.i2i.enabled = Boolean(enabled);
+  state.i2i.enabled = Boolean(enabled) && !isToyxyzEnabled();
   if (state.i2i.enabled && enforceExclusive && state.inpaint.enabled) setInpaintEnabled(false, false);
   if (state.i2i.enabled) {
     if (!wasEnabled) showI2iCompositionNotice();
@@ -2070,6 +2097,7 @@ let lastPreviewRevision = 0;
 let previewObjectUrl = null;
 let generationResetTimer = null;
 let generationSubmissionPending = false;
+let generationPreparationPending = false;
 let continuousRun = null;
 let continuousAdvance = false;
 
@@ -2317,7 +2345,7 @@ async function pollGenerationStatus() {
     // While /api/generate is being accepted, the bridge may still report the
     // previous job's terminal state for one poll. Ignore only that stale
     // terminal snapshot so it cannot unlock the button mid-submission.
-    if (generationSubmissionPending && ["idle", "complete", "cancelled", "error"].includes(status.state)) return;
+    if ((generationPreparationPending || generationSubmissionPending) && ["idle", "complete", "cancelled", "error"].includes(status.state)) return;
     if (["preparing", "running"].includes(status.state)) {
       setGenerationProgress(status.percent, status.stage || "생성 중");
       refreshGenerationPreview(status.preview_revision).catch(() => {});
@@ -2432,6 +2460,7 @@ async function requireLLLiteInpaintWeight() {
 }
 
 generateButton.addEventListener("click", async () => {
+  if (generationPreparationPending) return;
   if (generationActive) {
     if (generationCancelRequested) return;
     generationCancelRequested = true;
@@ -2443,6 +2472,8 @@ generateButton.addEventListener("click", async () => {
     return;
   }
 
+  generationPreparationPending = true;
+  try {
   if (continuousAdvance) {
     continuousAdvance = false;
     continuousRun.index += 1;
@@ -2491,7 +2522,7 @@ generateButton.addEventListener("click", async () => {
   const generationPayload = structuredClone(state);
   generationPayload.composition_enabled = state.composition_enabled && !state.i2i.enabled && !state.inpaint.enabled;
   try {
-    const promptTemplate = structuredClone(state.prompt);
+    const promptTemplate = await window.lakisPromptForGeneration(state.prompt);
     const inpaintTemplate = structuredClone(state.inpaint);
     const wildcardResult = await window.lakisResolveWildcardsForGeneration({
       prompt: promptTemplate, inpaint: inpaintTemplate, seed: state.output.seed,
@@ -2512,6 +2543,7 @@ generateButton.addEventListener("click", async () => {
     }
     generationPayload.prompt = await translatedPromptForGeneration(generationPayload.prompt);
     generationPayload.inpaint = await translatedInpaintForGeneration(generationPayload.inpaint);
+    await window.lakisPrepareScene(generationPayload);
     lastPreviewRevision = 0;
     lastGenerationState = "preparing";
     setGenerationProgress(0, "생성 중");
@@ -2520,7 +2552,9 @@ generateButton.addEventListener("click", async () => {
   } catch (error) {
     showGenerationError(error.message || "프롬프트 자동 번역에 실패했어요.");
   }
-
+  } finally {
+    generationPreparationPending = false;
+  }
 });
 window.addEventListener("lakis:wildcard-enabled", event => {
   state.wildcard_enabled = Boolean(event.detail);

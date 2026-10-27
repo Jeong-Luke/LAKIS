@@ -1,17 +1,16 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
-using System.Drawing.Imaging;
 using System.IO;
 using System.IO.Compression;
 using System.Net;
 using System.Reflection;
 using System.Security.Cryptography;
-using System.Security.Cryptography.X509Certificates;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using Microsoft.Win32;
+using System.Web.Script.Serialization;
 
 // Opt into modern System.IO handling before the first framework path lookup.
 [assembly: System.Runtime.Versioning.TargetFramework(".NETFramework,Version=v4.6.2")]
@@ -127,7 +126,7 @@ internal sealed class SafeSetupForm : Form
         repair.SetBounds(43,337,145,38); repair.Text="기존 설치 복구"; repair.Click += async (_,__) => await RepairAsync();
         install.SetBounds(201,337,157,38); install.Text="새로 설치"; install.Click += async (_,__) => await InstallAsync();
         foreach(Button button in new[]{repair,install}){button.FlatStyle=FlatStyle.Flat;button.FlatAppearance.BorderSize=0;button.BackColor=Color.FromArgb(111,82,225);button.ForeColor=Color.White;button.Font=new Font("Segoe UI",9F,FontStyle.Bold);button.Cursor=Cursors.Hand;}
-        var copyright=new Label{Left=43,Top=399,Width=335,Height=18,Text="© 2026 Luke Jeong. All rights reserved. · LAKIS v7.5.3",ForeColor=Color.FromArgb(104,112,137),Font=new Font("Segoe UI",8F)};
+        var copyright=new Label{Left=43,Top=399,Width=335,Height=18,Text="© 2026 Luke Jeong. All rights reserved. · LAKIS v8.0.0",ForeColor=Color.FromArgb(104,112,137),Font=new Font("Segoe UI",8F)};
         ConfigureCloseButton();
         Controls.AddRange(new Control[]{artwork,logo,destination,progress,status,launch,repair,install,copyright,closeButton});
         closeButton.BringToFront();
@@ -263,43 +262,50 @@ internal static class SafeInstaller
     private const string WebView2BootstrapperUrl = "BUILD_REQUIRES_PINNED_WEBVIEW2_URL";
     private const string WebView2BootstrapperSha256 = "BUILD_REQUIRES_PINNED_WEBVIEW2_SHA256";
     private const long WebView2BootstrapperBytes = 0;
-    private const string ReleaseVersion = "7.5.3";
+    private const string ReleaseVersion = "8.0.0";
     private static readonly DownloadItem Portable = new DownloadItem("ComfyUI v0.21.1",
         "https://github.com/Comfy-Org/ComfyUI/releases/download/v0.21.1/ComfyUI_windows_portable_nvidia.7z",
         "7C380D4309BBDA395366C49564EDF8996181FD45E61B6F353EA417F32BC3B970",null,2001582790);
-    private static readonly DownloadItem LoraManager = new DownloadItem("lora-manager","https://codeload.github.com/willmiao/ComfyUI-Lora-Manager/zip/df34efafbc604fa81fbd58f09f723842a73dadfd","CC037E1AD77AAA092F81928BCEE1E0313687EA0B8A6BE7827D131C0C0D15C605","ComfyUI-Lora-Manager",17027774);
-    private static readonly DownloadItem[] Nodes = new[]{
-        new DownloadItem("ultimate","https://codeload.github.com/ssitu/ComfyUI_UltimateSDUpscale/zip/a5547db9e1d07d3318bb21e9e9c474f4c1e9c8df","47EF9D567D20A2EF8B96FF9A3E1BBED8F764FFB04988D0D4B32D020281FC73D1","comfyui_ultimatesdupscale"),
-        new DownloadItem("anima-dave","https://codeload.github.com/sorryhyun/ComfyUI-Anima-DAVE/zip/83143e8d84768e25f72755ec00ea00ded07ee06e","730728376A7C6F8948E87D1ABCC021B55D5DEEACA251EFC5C9EB748BF386717E","comfyui-anima-dave"),
-        new DownloadItem("custom-scripts","https://codeload.github.com/pythongosssss/ComfyUI-Custom-Scripts/zip/609f3afaa74b2f88ef9ce8d939626065e3247469","C82B520F2A1EB769742EA1C385D2C3522257A8B6A732F7DEF128871352334337","comfyui-custom-scripts"),
-        new DownloadItem("dcw","https://codeload.github.com/namemechan/ComfyUI-DCW/zip/66aaf9dddb03bad031c1e8443e255a811008e477","E8364A6D88540CF22D771203A336BAB98C78FE4FB9E49607624EEC316CBE22DA","ComfyUI-DCW"),
-        new DownloadItem("easy-use","https://codeload.github.com/yolain/ComfyUI-Easy-Use/zip/b5e31ef12ad9d0b187b545c2707735cc7d581c52","7894B746CF576BE4FF9A4DAD056D0D214E8946344BC359273AC3339500BE7BD3","comfyui-easy-use"),
-        new DownloadItem("easyuse-anima","https://codeload.github.com/n0va39/ComfyUI-EasyUseAnima/zip/c64236a5b64db3c1b5db4e333931ab7128a70200","9F4B6970FDC88768F83AD40974B38B7056DE8E07735532446587D97C808FDCDB","comfyui-easyuse-anima"),
-        new DownloadItem("image-saver","https://codeload.github.com/alexopus/ComfyUI-Image-Saver/zip/2ba0f2bc4ee5235a0f9299f415fb2fb6be78f9e9","72C8D32675802D3014B88792CFEA44E3082949AA1AF2981A8615CF81801B6EE2","comfyui-image-saver"),
-        LoraManager,
-        new DownloadItem("impact-pack","https://codeload.github.com/ltdrdata/ComfyUI-Impact-Pack/zip/429d0159ad429e64d2b3916e6e7be9c22d025c3c","017BD1DDB7D17C923A1309FF1251379EAF65B71A9AC8FA91D384BB275BF000CE","comfyui-impact-pack"),
-        new DownloadItem("kjnodes","https://codeload.github.com/kijai/ComfyUI-KJNodes/zip/e8e88f7c88e3f6205b122f5de87e69a09fbce5ac","A07EE4454557012F4640FDF0C0C96EAD1B960D2A07D02F10037F63B7E2A0339E","comfyui-kjnodes"),
-        new DownloadItem("rvtools","https://codeload.github.com/r-vage/ComfyUI-RvTools_v2/zip/d3f7e8beb477dff6c0fac44b298ab74ac433d93e","AC92C92CF6454E850E6A2B5053D13962BC2936539F669B910C4A49EDB875ECBD","comfyui-rvtools_v2"),
-        new DownloadItem("spectrum","https://codeload.github.com/sorryhyun/ComfyUI-Spectrum-KSampler/zip/b46a364aec3b161b889c9cc26cd976a49eb537ae","3347FE5B9FA25C53E1FA45343BD04AE984A4BE32FCF83F3B520A473596EB3F88","comfyui-spectrum-ksampler"),
-        new DownloadItem("rgthree","https://codeload.github.com/rgthree/rgthree-comfy/zip/13b4399c00b5ef5a97b1b6800fc1185874740f5d","99C509D618E9380C8D4ACC6990C7A62AE8B6765D2B6B26272BD711276E0FA8CE","rgthree-comfy"),
-        new DownloadItem("was","https://codeload.github.com/ltdrdata/was-node-suite-comfyui/zip/44de705818d4663fefefde57ffe0ea5a9ea39df4","1512EE7897052BF55AA472425BFABBBE6462D01F91684EB4494D4A6C3EC79DE5","was-ns")};
-    private static readonly DownloadItem Usdu = new DownloadItem("ultimate-upstream","https://codeload.github.com/Coyote-A/ultimate-upscale-for-automatic1111/zip/2322caa480535b1011a1f9c18126d85ea444f146","0797D41BAD17B4BD9C41FAE0FF4EA110CC364C1D2A06E13B27CA78FD0D4C57D7",null,19299);
-    private static readonly DownloadItem OptionalAnimeSharp = new DownloadItem("2x-AnimeSharpV4_Fast_RCAN_PU.safetensors","https://huggingface.co/Kim2091/2x-AnimeSharpV4/resolve/1a9339b5c308ab3990f6233be2c1169a75772878/2x-AnimeSharpV4_Fast_RCAN_PU.safetensors","B641C9EB10B43F26538177AA8F0FEF8B9FC2A153AFD1431D0A062A84C49CE6D0","upscale_models",31359158);
-    private static readonly DownloadItem[] Models = new[]{
-        new DownloadItem("anima_baseV10.safetensors","https://huggingface.co/circlestone-labs/Anima/resolve/457fbf842cb86e96af72c65bdd13e3f1c448de84/split_files/diffusion_models/anima-base-v1.0.safetensors","BD43B7CFFE1ED1153D9C41E7BEB2F18CB1273EAFBAA3AF3EDD6A173DC90A006E","diffusion_models",4182218328),
-        new DownloadItem("qwen_3_06b_base.safetensors","https://huggingface.co/circlestone-labs/Anima/resolve/e26179e4b23bcb3a9e91b4ad2961a76ab9644d43/split_files/text_encoders/qwen_3_06b_base.safetensors","CD2A512003E2F9F3CD3C32A9C3573F820BB28C940F73C57B1DDAA983D9223EBA","text_encoders",1192135096),
-        new DownloadItem("qwen_image_vae.safetensors","https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/7beb7b647f04469fbe64ba8adc2bb0d7e5e9f73f/split_files/vae/qwen_image_vae.safetensors","A70580F0213E67967EE9C95F05BB400E8FB08307E017A924BF3441223E023D1F","vae",253806246),
-        new DownloadItem("anima-turbo-lora-v0.2.safetensors","https://huggingface.co/circlestone-labs/Anima-Official-LoRAs/resolve/218b5466a07e8a79328dd8b73ff810706d73cb86/anima-turbo-lora-v0.2.safetensors","1B55E40BDB1D0E5A78CB498F245FCCFDAAE97823265DB957D2AABDCF4CD3CAF1","loras",148902616),
-        new DownloadItem("sam3.1_multiplex_fp16.safetensors","https://huggingface.co/Comfy-Org/sam3.1/resolve/f38cd62b71494b53ac2b56ca36e24f3c8d565581/checkpoints/sam3.1_multiplex_fp16.safetensors","9BA99C92703C2E8B4F47DE2D34A539BB8E18923049E238B780D70DBE6368EB03","checkpoints",1745546848),
-        new DownloadItem("RealESRGAN_x4plus_anime_6B.pth","https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.2.4/RealESRGAN_x4plus_anime_6B.pth","F872D837D3C90ED2E05227BED711AF5671A6FD1C9F7D7E91C911A61F155E99DA","upscale_models",17938799),
-        new DownloadItem("pooled_text_proj-0611.safetensors","https://github.com/sorryhyun/ComfyUI-Spectrum-KSampler/releases/download/0605/pooled_text_proj-0611.safetensors","C8B33DD35F9DF2AAA54224278417A4BBC0DDE695F38A1DB1581E2E9E7E87C040","anima_mod_guidance",12591416)};
 
     internal static void Install(string target, bool includeAnimeSharp, Action<string> report)
     {
-        InstallFresh(target, stage => InstallStaged(stage, includeAnimeSharp, report), report);
-        try { CreateDesktopShortcut(target,report); }
-        catch(Exception error) { report("설치는 완료되었지만 바로가기를 만들지 못했습니다: " + error.Message); }
-        report("설치 완료");
+        target=Path.GetFullPath(target);
+        ValidateFreshTarget(target);
+        string manifest=ReadRuntimeInstallManifest();
+        var log=new List<string>();
+        Action<string> status=s=>{lock(log)log.Add(s);report(s);};
+        PrepareTarget(target,status);
+        try
+        {
+            string cache=InstallerCache();
+            StopOwned(target);
+            RunRuntimeInstaller(manifest,target,cache,"fresh",includeAnimeSharp,status);
+            try { CreateDesktopShortcut(target,status); }
+            catch(Exception error) { status("설치는 완료되었지만 바로가기를 만들지 못했습니다: " + error.Message); }
+            File.WriteAllLines(Path.Combine(target,"network-install.log"),log.ToArray());
+            status("설치 완료");
+        }
+        catch(Exception error)
+        {
+            throw RuntimeFailure("설치",error,log);
+        }
+    }
+
+    private static InvalidOperationException RuntimeFailure(string operation,Exception error,List<string> log)
+    {
+        string detail;
+        try
+        {
+            lock(log)log.Add("FAILURE: "+error.GetType().Name+": "+error.Message);
+            string path=UniqueScratch(InstallerCache(),"runtime-failure")+".log";
+            RejectReparsePath(path);
+            using(var output=new StreamWriter(new FileStream(path,FileMode.CreateNew,FileAccess.Write,FileShare.Read)))
+                foreach(string line in log)output.WriteLine(line);
+            detail="로그: "+path;
+        }
+        catch(Exception logError){detail="실패 로그 저장 오류: "+logError.Message;}
+        return new InvalidOperationException(operation+" 중 오류가 발생했습니다.\n"+
+            error.GetType().Name+": "+error.Message+"\n\n"+detail,error);
     }
 
     internal static void InstallFresh(string target, Action<string> build, Action<string> report)
@@ -324,149 +330,229 @@ internal static class SafeInstaller
         }
     }
 
-    private static void InstallStaged(string target, bool includeAnimeSharp, Action<string> report)
+    private static void ValidateFreshTarget(string target)
+    {
+        if(Directory.GetParent(target)==null)
+            throw new InvalidOperationException("드라이브 최상위 경로에는 설치할 수 없습니다. 새 하위 폴더를 선택하세요.");
+        RejectReparsePath(target);
+        if(IsExistingInstallation(target))
+            throw new InvalidOperationException("기존 LAKIS 설치가 감지되었습니다. 사용자 데이터를 보존하려면 새 설치 대신 '기존 설치 복구'를 사용하세요.");
+        if(HasDirectoryEntries(target))
+            throw new InvalidOperationException("설치 폴더가 비어 있지 않습니다. 기존 파일 보호를 위해 새 설치를 중단했습니다. 비어 있는 폴더를 선택하세요.");
+    }
+
+    private static string ReadRuntimeInstallManifest()
+    {
+        string json;
+        using(Stream input=Assembly.GetExecutingAssembly().GetManifestResourceStream("LAKIS.RuntimeInstallManifest"))
+        {
+            if(input==null)throw new InvalidDataException("내장 런타임 설치 manifest가 없습니다.");
+            using(var reader=new StreamReader(input,new System.Text.UTF8Encoding(false,true),true))
+                json=reader.ReadToEnd();
+        }
+        if(String.IsNullOrWhiteSpace(json))throw new InvalidDataException("내장 런타임 설치 manifest가 비어 있습니다.");
+        Dictionary<string,object> manifest;
+        try
+        {
+            var serializer=new JavaScriptSerializer { MaxJsonLength=Int32.MaxValue, RecursionLimit=128 };
+            manifest=serializer.Deserialize<Dictionary<string,object>>(json);
+        }
+        catch(Exception error)
+        {
+            throw new InvalidDataException("내장 런타임 설치 manifest가 올바른 JSON이 아닙니다.",error);
+        }
+        if(manifest==null)throw new InvalidDataException("내장 런타임 설치 manifest가 객체가 아닙니다.");
+        if(RequiredInteger(manifest,"schema")!=1)
+            throw new InvalidDataException("지원하지 않는 런타임 설치 manifest schema입니다.");
+        if(!String.Equals(RequiredString(manifest,"version"),ReleaseVersion,StringComparison.Ordinal))
+            throw new InvalidDataException("내장 런타임 설치 manifest 버전은 "+ReleaseVersion+"이어야 합니다.");
+        ValidateSimpleDownload(RequiredObject(manifest,"base"),"base");
+        ValidateSimpleDownload(RequiredObject(manifest,"webview2"),"webview2");
+        ValidateRuntimeBundle(RequiredObject(manifest,"runtime_bundle"));
+        ValidateModelList(RequiredList(manifest,"models"),"models",false);
+        ValidateModelList(RequiredList(manifest,"optional_animesharp"),"optional_animesharp",true);
+        return json;
+    }
+
+    private static Dictionary<string,object> RequiredObject(Dictionary<string,object> owner,string name)
+    {
+        object value;
+        if(!owner.TryGetValue(name,out value)||!(value is Dictionary<string,object>))
+            throw new InvalidDataException("내장 런타임 설치 manifest 필드가 올바르지 않습니다: "+name);
+        return (Dictionary<string,object>)value;
+    }
+
+    private static IList RequiredList(Dictionary<string,object> owner,string name)
+    {
+        object value;
+        if(!owner.TryGetValue(name,out value)||!(value is IList))
+            throw new InvalidDataException("내장 런타임 설치 manifest 필드가 올바르지 않습니다: "+name);
+        return (IList)value;
+    }
+
+    private static string RequiredString(Dictionary<string,object> owner,string name)
+    {
+        object value;
+        if(!owner.TryGetValue(name,out value)||!(value is string)||String.IsNullOrWhiteSpace((string)value))
+            throw new InvalidDataException("내장 런타임 설치 manifest 필드가 올바르지 않습니다: "+name);
+        return (string)value;
+    }
+
+    private static long RequiredInteger(Dictionary<string,object> owner,string name)
+    {
+        object value;
+        long result;
+        if(!owner.TryGetValue(name,out value)||!TryReadInteger(value,out result))
+            throw new InvalidDataException("내장 런타임 설치 manifest 숫자 필드가 올바르지 않습니다: "+name);
+        return result;
+    }
+
+    private static bool TryReadInteger(object value,out long result)
+    {
+        if(value is int){result=(int)value;return true;}
+        if(value is long){result=(long)value;return true;}
+        result=0;return false;
+    }
+
+    private static void ValidateSimpleDownload(Dictionary<string,object> item,string label)
+    {
+        string name=RequiredString(item,"name");
+        string url=RequiredString(item,"url");
+        string digest=RequiredString(item,"sha256");
+        if(name.IndexOfAny(new[]{'/', '\\', ':'})>=0||
+           !url.StartsWith("https://",StringComparison.OrdinalIgnoreCase)||
+           !System.Text.RegularExpressions.Regex.IsMatch(digest,"^[A-Fa-f0-9]{64}$")||
+           RequiredInteger(item,"bytes")<=0)
+            throw new InvalidDataException("내장 런타임 설치 manifest download 필드가 올바르지 않습니다: "+label);
+    }
+
+    private static void ValidateModelList(IList items,string label,bool single)
+    {
+        if((single&&items.Count!=5)||(!single&&items.Count==0))
+            throw new InvalidDataException("내장 런타임 설치 manifest 모델 목록이 올바르지 않습니다: "+label);
+        if(single){ValidateModel(items,label);return;}
+        foreach(object item in items)ValidateModel(item,label);
+    }
+
+    private static void ValidateModel(object value,string label)
+    {
+        IList item=value as IList;
+        long size;
+        if(item==null||item.Count!=5||!(item[0] is string)||String.IsNullOrWhiteSpace((string)item[0])||
+           !(item[1] is string)||!((string)item[1]).StartsWith("https://",StringComparison.OrdinalIgnoreCase)||
+           !(item[2] is string)||!System.Text.RegularExpressions.Regex.IsMatch((string)item[2],"^[A-Fa-f0-9]{64}$")||
+           !(item[3] is string)||String.IsNullOrWhiteSpace((string)item[3])||
+           !TryReadInteger(item[4],out size)||size<=0)
+            throw new InvalidDataException("내장 런타임 설치 manifest 모델 항목이 올바르지 않습니다: "+label);
+    }
+
+    private static void ValidateRuntimeBundle(Dictionary<string,object> bundle)
+    {
+        if(RequiredInteger(bundle,"schema")!=2||
+           !String.Equals(RequiredString(bundle,"product"),"LAKIS",StringComparison.Ordinal)||
+           !String.Equals(RequiredString(bundle,"version"),ReleaseVersion,StringComparison.Ordinal))
+            throw new InvalidDataException("내장 런타임 bundle identity가 올바르지 않습니다.");
+        string name=RequiredString(bundle,"name");
+        if(!name.EndsWith(".zip",StringComparison.OrdinalIgnoreCase)||name.IndexOfAny(new[]{'/', '\\', ':'})>=0)
+            throw new InvalidDataException("내장 런타임 bundle 이름이 올바르지 않습니다.");
+        RequiredString(bundle,"comfyui_version");
+        string archiveHash=RequiredString(bundle,"sha256");
+        string manifestHash=RequiredString(bundle,"manifest_sha256");
+        long archiveBytes=RequiredInteger(bundle,"bytes");
+        if(!System.Text.RegularExpressions.Regex.IsMatch(archiveHash,"^[A-Fa-f0-9]{64}$")||
+           !System.Text.RegularExpressions.Regex.IsMatch(manifestHash,"^[A-Fa-f0-9]{64}$")||
+           archiveBytes<=0||RequiredInteger(bundle,"files")<=0||bundle.ContainsKey("url"))
+            throw new InvalidDataException("내장 런타임 bundle fields가 올바르지 않습니다.");
+        IList parts=RequiredList(bundle,"parts");
+        if(parts.Count<1||parts.Count>999)throw new InvalidDataException("내장 런타임 bundle parts가 올바르지 않습니다.");
+        long total=0;
+        for(int index=1;index<=parts.Count;index++)
+        {
+            Dictionary<string,object> part=parts[index-1] as Dictionary<string,object>;
+            if(part==null)throw new InvalidDataException("내장 런타임 bundle part가 객체가 아닙니다.");
+            string expectedName=name+".part"+index.ToString("D3");
+            string partName=RequiredString(part,"name");
+            string partHash=RequiredString(part,"sha256");
+            string partUrl=RequiredString(part,"url");
+            long bytes=RequiredInteger(part,"bytes");
+            if(!String.Equals(partName,expectedName,StringComparison.Ordinal)||
+               !System.Text.RegularExpressions.Regex.IsMatch(partHash,"^[A-Fa-f0-9]{64}$")||
+               bytes<=0||bytes>1024L*1024*1024||
+               !String.Equals(partUrl,"https://github.com/Jeong-Luke/LAKIS/releases/download/v"+
+                   ReleaseVersion+"/"+expectedName,StringComparison.Ordinal)||
+               total>Int64.MaxValue-bytes)
+                throw new InvalidDataException("내장 런타임 bundle part가 올바르지 않습니다.");
+            total+=bytes;
+        }
+        if(total!=archiveBytes)throw new InvalidDataException("내장 런타임 bundle 크기가 parts와 일치하지 않습니다.");
+    }
+
+    private static string PrepareBootstrapPython(string cache,Action<string> status,out string workspace)
     {
         ServicePointManager.SecurityProtocol=(SecurityProtocolType)3072;
         ServicePointManager.DefaultConnectionLimit=8;
-        string cache=InstallerCache();
-        var log=new List<string>(); Action<string> status=s=>{lock(log)log.Add(s);report(s);};
-        // Refuse protected destinations before entering the failure logger.
-        // This guarantees a mistaken "new install" does not even overwrite an
-        // existing network-install.log in the user's LAKIS directory.
-        string previous=PrepareTarget(target,status);
+        string archive=Fetch(Portable,cache,status);
+        status("ComfyUI bootstrap Python 압축 해제");
+        workspace=UniqueScratch(cache,"runtime-bootstrap");
+        RejectReparsePath(workspace);
+        Reset(workspace);
+        Extract7z(archive,workspace);
+        string python=Path.Combine(workspace,"ComfyUI_windows_portable","python_embeded","python.exe");
+        RejectReparsePath(python);
+        if(!File.Exists(python))throw new InvalidDataException("ComfyUI bootstrap Python을 찾을 수 없습니다.");
+        return python;
+    }
+
+    private static void RunRuntimeInstaller(string manifest,string target,string cache,string mode,
+        bool includeAnimeSharp,Action<string> status)
+    {
+        string workspace=null;
+        bool complete=false;
         try
         {
-            StopOwned(target);
-            string portable=Fetch(Portable,cache,status); status("ComfyUI 압축 해제"); Extract7z(portable,target);
-            string nested=Path.Combine(target,"ComfyUI_windows_portable"); foreach(string entry in Directory.GetFileSystemEntries(nested)) Move(entry,target); try{DeleteTree(nested);}catch{}
-            string comfy=Path.Combine(target,"ComfyUI"), custom=Path.Combine(comfy,"custom_nodes");
-            if(Directory.Exists(custom))try{DeleteTree(custom);}catch{status("잠긴 커스텀 노드 폴더를 덮어써 복구합니다");} Directory.CreateDirectory(custom);
-            foreach(var node in Nodes) InstallZip(node,cache,Path.Combine(custom,node.Destination),status);
-            InstallZip(Usdu,cache,Path.Combine(custom,"comfyui_ultimatesdupscale","repositories","ultimate_sd_upscale"),status);
-            var lakisItem=SourceArchive("LAKIS-");
-            string lakisZip=Fetch(lakisItem,cache,status);
-            status("LAKIS 소스 압축 해제");string lakisStage=UniqueScratch(cache,"LAKIS-source");Reset(lakisStage);ExtractZip(lakisZip,lakisStage);string lakis=FirstDirectory(lakisStage);
-            CopyManagedNodePackages(lakis, custom);
-            CopyTree(Path.Combine(lakis,"src","external_ui"),Path.Combine(comfy,"LAKIS","external_ui"));
-            Directory.CreateDirectory(Path.Combine(comfy,"LAKIS"));CopyFile(Path.Combine(lakis,"resources","STOP_AUTOMATION"),Path.Combine(comfy,"LAKIS","STOP_AUTOMATION"),true);
-            Directory.CreateDirectory(Path.Combine(comfy,"LAKIS","workflows"));CopyFile(Path.Combine(lakis,"src","runtime","sync_runtime_workflow.py"),Path.Combine(comfy,"LAKIS","sync_runtime_workflow.py"),true);
-            CopyFile(Path.Combine(lakis,"workflows","LAKIS_runtime_api_v7.4.json"),Path.Combine(comfy,"LAKIS","workflows","LAKIS_runtime_api_v7.4.json"),true);
-            CopyFile(Path.Combine(lakis,"workflows","LAKIS_runtime_visual_v7.4.json"),Path.Combine(comfy,"LAKIS","workflows","LAKIS_runtime_visual_v7.4.json"),true);
-            CopyFile(Path.Combine(lakis,"workflows","LAKIS_custom_v7.4_editable.json"),Path.Combine(comfy,"LAKIS","workflows","LAKIS_custom_v7.4_editable.json"),true);
-            Directory.CreateDirectory(Path.Combine(comfy,"user","default","workflows"));CopyFile(Path.Combine(lakis,"workflows","LAKIS_custom_v7.4_editable.json"),Path.Combine(comfy,"user","default","workflows","LAKIS_custom_v7.4.json"),true);
-            // Canonical release-owned workflows always retain the public
-            // RealESRGAN default bytes. Optional AnimeSharp selection is
-            // recorded only in user state below and resolved at runtime.
-            status("기본 업스케일러: "+(includeAnimeSharp?"AnimeSharp V4 Fast (비상업용)":"RealESRGAN Anime 6B"));
-            CopyFile(Path.Combine(lakis,"LICENSE.md"),Path.Combine(target,"LICENSE.md"),true);
-            CopyFile(Path.Combine(lakis,"THIRD_PARTY_NOTICES.md"),Path.Combine(target,"THIRD_PARTY_NOTICES.md"),true);
-            string licences=Path.Combine(lakis,"third_party_licenses");if(Directory.Exists(licences))CopyTree(licences,Path.Combine(target,"third_party_licenses"));
-            CopyFile(Path.Combine(lakis,"patches","ComfyUI-Spectrum-KSampler","files","nodes.py"),Path.Combine(custom,"comfyui-spectrum-ksampler","nodes.py"),true);
-            CopyFile(Path.Combine(lakis,"patches","ComfyUI-Spectrum-KSampler","files","spectrum.py"),Path.Combine(custom,"comfyui-spectrum-ksampler","spectrum.py"),true);
-            try{DeleteTree(lakisStage);}catch{status("소스 임시 폴더를 나중에 정리할 수 있습니다: "+lakisStage);}
-            Directory.CreateDirectory(Path.Combine(comfy,"input"));using(var bitmap=new Bitmap(1536,1024)){using(Graphics g=Graphics.FromImage(bitmap)){g.Clear(Color.FromArgb(26,29,42));g.FillEllipse(Brushes.SlateBlue,540,100,456,456);}bitmap.Save(Path.Combine(comfy,"input","LAKIS_1_2026-09-01-221228.webp"),ImageFormat.Png);}
-            foreach(var model in Models){string cached=Fetch(model,cache,status);string folder=Path.Combine(comfy,"models",model.Destination);Directory.CreateDirectory(folder);CopyFile(cached,Path.Combine(folder,model.Name),true);}
-            if(includeAnimeSharp)
-            {
-                status("선택 모델 다운로드: AnimeSharp V4 Fast (비상업용)");
-                string cached=Fetch(OptionalAnimeSharp,cache,status);
-                string folder=Path.Combine(comfy,"models",OptionalAnimeSharp.Destination);Directory.CreateDirectory(folder);
-                CopyFile(cached,Path.Combine(folder,OptionalAnimeSharp.Name),true);
-            }
-            Directory.CreateDirectory(Path.Combine(target,".lakis"));
-            File.WriteAllText(Path.Combine(target,".lakis","optional-models.txt"),includeAnimeSharp?"AnimeSharp V4 Fast | CC BY-NC-SA 4.0 | non-commercial | user accepted\r\n":"No optional non-commercial model selected.\r\n");
-            File.WriteAllText(Path.Combine(target,".lakis","upscaler-license-choice.json"),includeAnimeSharp?"{\n  \"choice\": \"animesharp\",\n  \"model\": \"2x-AnimeSharpV4_Fast_RCAN_PU.safetensors\",\n  \"license\": \"CC-BY-NC-SA-4.0\",\n  \"noncommercial_acknowledged\": true\n}\n":"{\n  \"choice\": \"realesrgan\",\n  \"model\": \"RealESRGAN_x4plus_anime_6B.pth\",\n  \"license\": \"BSD-3-Clause\",\n  \"noncommercial_acknowledged\": false\n}\n",new System.Text.UTF8Encoding(false));
-            string python=Path.Combine(target,"python_embeded","python.exe");foreach(string node in Directory.GetDirectories(custom)){string req=Path.Combine(node,"requirements.txt");if(File.Exists(req)){status("의존성 설치: "+Path.GetFileName(node));string safeReq=PrepareRequirements(req);Run(python,"-s -m pip install --disable-pip-version-check -r \""+safeReq+"\"",target,status);}}
-            ExtractDesktopRuntime(target,status);
-            File.WriteAllText(Path.Combine(target,"VERSION"),ReleaseVersion);File.WriteAllText(Path.Combine(target,"install.complete"),DateTime.UtcNow.ToString("O"));File.WriteAllLines(Path.Combine(target,"network-install.log"),log.ToArray());if(previous!=null)try{DeleteTree(previous);}catch{status("이전 설치 폴더는 재부팅 후 삭제할 수 있습니다: "+previous);}status("설치 완료");
+            string python=PrepareBootstrapPython(cache,status,out workspace);
+            RuntimeBundleInstaller.Install(python,manifest,target,cache,mode,includeAnimeSharp,status);
+            complete=true;
         }
-        catch(Exception error){try{lock(log)log.Add("FAILURE: "+error.GetType().Name+": "+error.Message);Directory.CreateDirectory(target);File.WriteAllLines(Path.Combine(target,"network-install.log"),log.ToArray());}catch{}throw new InvalidOperationException("설치 중 오류가 발생했습니다.\n"+error.GetType().Name+": "+error.Message+"\n\n로그: "+Path.Combine(target,"network-install.log"),error);}
+        finally
+        {
+            if(!String.IsNullOrEmpty(workspace)&&Directory.Exists(workspace))
+            {
+                if(complete)
+                    try{DeleteTree(workspace);}
+                    catch(Exception error){status("Bootstrap 임시 폴더를 정리하지 못했습니다: "+workspace+" | "+error.Message);}
+                else status("실패 확인을 위해 Bootstrap 임시 폴더를 보존합니다: "+workspace);
+            }
+        }
     }
+
     internal static void Repair(string target,Action<string> report)
     {
-        foreach(string relative in new[]{"", "ComfyUI/custom_nodes", "ComfyUI/LAKIS/workflows", "third_party_licenses", "ComfyUI/models/upscale_models", ".lakis", "VERSION", "repair.log"})
+        target=Path.GetFullPath(target);
+        foreach(string relative in new[]{"", "ComfyUI/custom_nodes", "ComfyUI/LAKIS/workflows", "third_party_licenses", "ComfyUI/models/upscale_models", ".lakis", "VERSION", "repair.log", "python_embeded", "python_embeded/python.exe"})
             RejectReparsePath(Path.Combine(target,relative));
-        ServicePointManager.SecurityProtocol=(SecurityProtocolType)3072;
-        string comfy=Path.Combine(target,"ComfyUI"),python=Path.Combine(target,"python_embeded","python.exe");
-        if(!Directory.Exists(comfy)||!File.Exists(python))throw new InvalidOperationException("완료된 LAKIS 설치를 찾을 수 없습니다. 설치 위치를 확인하거나 새로 설치를 선택하세요.");
-        var log=new List<string>();Action<string> status=s=>{log.Add(s);report(s);};
+        string comfy=Path.Combine(target,"ComfyUI");
+        if(!IsExistingInstallation(target)||!Directory.Exists(comfy))
+            throw new InvalidOperationException("완료된 LAKIS 설치를 찾을 수 없습니다. 설치 위치를 확인하거나 새로 설치를 선택하세요.");
+        string installedVersion=File.ReadAllText(Path.Combine(target,"VERSION")).Trim();
+        if(!String.Equals(installedVersion,ReleaseVersion,StringComparison.Ordinal))
+            throw new InvalidOperationException("이 복구는 LAKIS "+ReleaseVersion+" 설치에만 적용할 수 있습니다. 기존 설치를 변경하지 않았습니다.");
+        string manifest=ReadRuntimeInstallManifest();
+        var log=new List<string>();
+        Action<string> status=s=>{lock(log)log.Add(s);report(s);};
         try
         {
             StopOwned(target);
             string cache=InstallerCache();
-            string custom=Path.Combine(comfy,"custom_nodes");Directory.CreateDirectory(custom);
-            status("LoRA Manager 다운로드 및 검증");InstallZip(LoraManager,cache,Path.Combine(custom,LoraManager.Destination),status);
-            string req=Path.Combine(custom,LoraManager.Destination,"requirements.txt");status("LoRA Manager 의존성 복구");
-            Run(python,"-s -m pip install --disable-pip-version-check -r \""+req+"\"",target,status);
-            status("LAKIS 실행 구성 복구");
-            var uiItem=SourceArchive("LAKIS-repair-");
-            string uiZip=Fetch(uiItem,cache,status);
-            status("LAKIS 복구 소스 압축 해제");string uiStage=UniqueScratch(cache,"LAKIS-repair");Reset(uiStage);ExtractZip(uiZip,uiStage);
-            string uiRoot=FirstDirectory(uiStage);
-            // Copy only LAKIS-managed node packages. Preserve user data and
-            // unrelated third-party packages; managed dependencies may be restored.
-            CopyManagedNodePackages(uiRoot, custom);
-            Directory.CreateDirectory(Path.Combine(comfy,"LAKIS"));
-            CopyFile(Path.Combine(uiRoot,"resources","STOP_AUTOMATION"),Path.Combine(comfy,"LAKIS","STOP_AUTOMATION"),true);
-            CopyTree(Path.Combine(uiRoot,"src","external_ui"),Path.Combine(comfy,"LAKIS","external_ui"));
-            string packaged=Path.Combine(comfy,"LAKIS","workflows");Directory.CreateDirectory(packaged);
-            CopyFile(Path.Combine(uiRoot,"src","runtime","sync_runtime_workflow.py"),Path.Combine(comfy,"LAKIS","sync_runtime_workflow.py"),true);
-            // Repair restores release-owned runtime workflows only. The editable
-            // workflow may contain user changes and must survive Repair.
-            foreach(string workflow in new[]{"LAKIS_runtime_api_v7.4.json","LAKIS_runtime_visual_v7.4.json"})
-                CopyFile(Path.Combine(uiRoot,"workflows",workflow),Path.Combine(packaged,workflow),true);
-            CopyFile(Path.Combine(uiRoot,"LICENSE.md"),Path.Combine(target,"LICENSE.md"),true);
-            CopyFile(Path.Combine(uiRoot,"THIRD_PARTY_NOTICES.md"),Path.Combine(target,"THIRD_PARTY_NOTICES.md"),true);
-            string licenceSource=Path.Combine(uiRoot,"third_party_licenses");
-            if(Directory.Exists(licenceSource))CopyTree(licenceSource,Path.Combine(target,"third_party_licenses"));
-            DownloadItem defaultUpscaler=Array.Find(Models,item=>String.Equals(item.Name,"RealESRGAN_x4plus_anime_6B.pth",StringComparison.OrdinalIgnoreCase));
-            if(defaultUpscaler==null)throw new InvalidOperationException("기본 업스케일러 정의가 없습니다.");
-            string upscalerCache=Fetch(defaultUpscaler,cache,status);
-            string upscalerFolder=Path.Combine(comfy,"models",defaultUpscaler.Destination);Directory.CreateDirectory(upscalerFolder);
-            CopyFile(upscalerCache,Path.Combine(upscalerFolder,defaultUpscaler.Name),true);
-            ExtractDesktopRuntime(target,status);
+            RunRuntimeInstaller(manifest,target,cache,"repair",false,status);
             CreateDesktopShortcut(target,status);
-            File.WriteAllText(Path.Combine(target,"VERSION"),ReleaseVersion);string repairMarker=Path.Combine(target,".lakis","release-layout-repair.attempt");try{if(File.Exists(repairMarker))File.Delete(repairMarker);}catch{}File.WriteAllLines(Path.Combine(target,"repair.log"),log.ToArray());status("복구 완료");
+            File.WriteAllLines(Path.Combine(target,"repair.log"),log.ToArray());
+            status("복구 완료");
         }
-        catch(Exception error){try{log.Add("FAILURE: "+error.GetType().Name+": "+error.Message);File.WriteAllLines(Path.Combine(target,"repair.log"),log.ToArray());}catch{}throw new InvalidOperationException("복구 중 오류가 발생했습니다.\n"+error.GetType().Name+": "+error.Message+"\n\n로그: "+Path.Combine(target,"repair.log"),error);}
-    }
-    private static void CopyManagedNodePackages(string sourceRoot, string customRoot)
-    {
-        string inventory = Path.Combine(sourceRoot, "resources", "PRODUCTION_NODE_PACKAGES.txt");
-        var packages = new List<string>();
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (string raw in File.ReadAllLines(inventory))
+        catch(Exception error)
         {
-            string name = raw.Trim();
-            if (name.Length == 0 || name.StartsWith("#")) continue;
-            if (name == "." || name == ".." || name.IndexOfAny(new[]{'/', '\\', ':'}) >= 0 ||
-                name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ||
-                !System.Text.RegularExpressions.Regex.IsMatch(name, "^[A-Za-z0-9_-]+$") || !seen.Add(name))
-                throw new InvalidDataException("Invalid or duplicate managed node package: " + name);
-            string source = Path.Combine(sourceRoot, "src", "custom_nodes", name);
-            if (!Directory.Exists(source) || !File.Exists(Path.Combine(source, "__init__.py")))
-                throw new InvalidDataException("Required release node package is missing: " + name);
-            packages.Add(name);
+            throw RuntimeFailure("복구",error,log);
         }
-        if (packages.Count == 0) throw new InvalidDataException("Managed node inventory is empty.");
-        // Validate all packages before copying any of them.
-        foreach (string name in packages)
-            CopyTree(Path.Combine(sourceRoot, "src", "custom_nodes", name), Path.Combine(customRoot, name));
-    }
-
-    private static DownloadItem SourceArchive(string prefix)
-    {
-        if(!System.Text.RegularExpressions.Regex.IsMatch(Revision,"^[a-fA-F0-9]{40}$") ||
-           !System.Text.RegularExpressions.Regex.IsMatch(SourceArchiveSha256,"^[a-fA-F0-9]{64}$"))
-            throw new InvalidOperationException("Installer source archive has not been pinned by the release build.");
-        return new DownloadItem(prefix+Revision+".zip","https://api.github.com/repos/Jeong-Luke/LAKIS/zipball/"+Revision,SourceArchiveSha256,null);
-    }
-    private static DownloadItem WebView2Archive()
-    {
-        if(!WebView2BootstrapperUrl.StartsWith("https://",StringComparison.Ordinal) || WebView2BootstrapperBytes<=0 ||
-           !System.Text.RegularExpressions.Regex.IsMatch(WebView2BootstrapperSha256,"^[a-fA-F0-9]{64}$"))
-            throw new InvalidOperationException("WebView2 bootstrapper has not been pinned by the release build.");
-        return new DownloadItem("MicrosoftEdgeWebview2Setup.exe",WebView2BootstrapperUrl,WebView2BootstrapperSha256,null,WebView2BootstrapperBytes);
     }
     private static string Fetch(DownloadItem item,string cache,Action<string> status)
     {
@@ -674,27 +760,6 @@ internal static class SafeInstaller
         throw CacheVerificationError(path,name,last);
     }
     private static string UniqueScratch(string cache,string prefix){return Path.Combine(cache,prefix+"-"+Guid.NewGuid().ToString("N"));}
-    private static void InstallZip(DownloadItem item,string cache,string destination,Action<string> status){RejectReparsePath(destination);string zip=Fetch(item,cache,status),stage=UniqueScratch(cache,"unpack");try{Reset(stage);ExtractZip(zip,stage);string source=FirstDirectory(stage);if(Object.ReferenceEquals(item,LoraManager)&&Directory.Exists(destination))CopyLoraManagerForRepair(source,destination);else{if(Directory.Exists(destination))try{DeleteTree(destination);}catch{}Directory.CreateDirectory(Path.GetDirectoryName(destination));CopyTree(source,destination);}}finally{try{if(Directory.Exists(stage))DeleteTree(stage);}catch{}}}
-    private static void CopyLoraManagerForRepair(string source,string destination)
-    {
-        // Preserve both legacy package-local state and unknown user additions.
-        // These reserved roots match the pinned LoraManager updater contract.
-        var preserved=new HashSet<string>(new[]{"settings.json","civitai","wildcards","backups","stats","logs","cache","model_cache"},StringComparer.OrdinalIgnoreCase);
-        source=FileSystemPath(source).TrimEnd(Path.DirectorySeparatorChar)+Path.DirectorySeparatorChar;
-        destination=FileSystemPath(destination);
-        RejectReparsePath(source);RejectReparsePath(destination);
-        var copies=new List<KeyValuePair<string,string>>();
-        foreach(string file in Directory.GetFiles(source,"*",SearchOption.AllDirectories))
-        {
-            string relative=file.Substring(source.Length);
-            if(preserved.Contains(relative.Split(Path.DirectorySeparatorChar)[0]))continue;
-            string output=Path.Combine(destination,relative);
-            RejectReparsePath(file);RejectReparsePath(output);
-            copies.Add(new KeyValuePair<string,string>(file,output));
-        }
-        Directory.CreateDirectory(destination);
-        foreach(var copy in copies){Directory.CreateDirectory(Path.GetDirectoryName(copy.Value));CopyFile(copy.Key,copy.Value,true);}
-    }
     private static void ExtractZip(string archive,string destination)
     {
         RejectReparsePath(destination);
@@ -770,14 +835,14 @@ internal static class SafeInstaller
         }
     }
     private static void Extract7z(string archive,string destination){string tool=Path.Combine(InstallerCache(),"7zr.exe");ExtractResource("LAKIS.7zr",tool);RunInstallerTool(tool,"x -y -o\""+FileSystemPath(destination)+"\" \""+FileSystemPath(archive)+"\"",destination,_=>{});if(!Directory.Exists(FileSystemPath(Path.Combine(destination,"ComfyUI_windows_portable"))))throw new IOException("ComfyUI 압축 해제 결과를 확인할 수 없습니다.");}
-    private static string PrepareRequirements(string source){string text=File.ReadAllText(source);text=text.Replace("git+https://github.com/facebookresearch/sam2","https://codeload.github.com/facebookresearch/sam2/zip/2b90b9f5ceec907a1c18123530e92e794ad901a4").Replace("git+https://github.com/ltdrdata/img2texture.git","https://codeload.github.com/ltdrdata/img2texture/zip/d6159abea44a0b2cf77454d3d46962c8b21eb9d3").Replace("git+https://github.com/ltdrdata/cstr","https://codeload.github.com/ltdrdata/cstr/zip/0520c29a18a7a869a6e5983861d6f7a4c86f8e9b").Replace("git+https://github.com/ltdrdata/ffmpy.git","https://codeload.github.com/ltdrdata/ffmpy/zip/f000737698b387ffaeab7cd871b0e9185811230d");string output=source+".lakis.txt";File.WriteAllText(output,text);return output;}
     internal static bool IsExistingInstallation(string target)
     {
         if(String.IsNullOrWhiteSpace(target))return false;
         try
         {
             string full=Path.GetFullPath(target);
-            bool runtime=Directory.Exists(Path.Combine(full,"ComfyUI"))&&Directory.Exists(Path.Combine(full,"python_embeded"));
+            bool identity=File.Exists(Path.Combine(full,"VERSION"))&&File.Exists(Path.Combine(full,"ComfyUI","LAKIS","STOP_AUTOMATION"));
+            bool runtime=Directory.Exists(Path.Combine(full,"ComfyUI"))&&(Directory.Exists(Path.Combine(full,"python_embeded"))||identity);
             bool marker=File.Exists(Path.Combine(full,"install.complete"))||File.Exists(Path.Combine(full,"VERSION"))||File.Exists(Path.Combine(full,"LAKIS.exe"));
             return runtime&&marker;
         }
@@ -795,15 +860,11 @@ internal static class SafeInstaller
     }
     private static string PrepareTarget(string target,Action<string> status)
     {
-        RejectReparsePath(target);
-        if(IsExistingInstallation(target))throw new InvalidOperationException("기존 LAKIS 설치가 감지되었습니다. 사용자 데이터를 보존하려면 새 설치 대신 '기존 설치 복구'를 사용하세요.");
-        if(HasDirectoryEntries(target))throw new InvalidOperationException("설치 폴더가 비어 있지 않습니다. 기존 파일 보호를 위해 새 설치를 중단했습니다. 비어 있는 폴더를 선택하세요.");
+        ValidateFreshTarget(target);
         Directory.CreateDirectory(target);status("빈 설치 폴더 확인 완료");return null;
     }
     private static void DeleteTree(string path){path=FileSystemPath(path);Exception last=null;for(int attempt=0;attempt<5;attempt++){try{if(!Directory.Exists(path))return;foreach(string file in Directory.GetFiles(path,"*",SearchOption.AllDirectories))try{File.SetAttributes(file,FileAttributes.Normal);}catch{}foreach(string dir in Directory.GetDirectories(path,"*",SearchOption.AllDirectories))try{File.SetAttributes(dir,FileAttributes.Normal);}catch{}File.SetAttributes(path,FileAttributes.Normal);Directory.Delete(path,true);return;}catch(Exception error){last=error;GC.Collect();GC.WaitForPendingFinalizers();System.Threading.Thread.Sleep(1000);}}throw last;}
     private static void Reset(string path){path=FileSystemPath(path);if(Directory.Exists(path))Directory.Delete(path,true);Directory.CreateDirectory(path);}
-    private static string FirstDirectory(string path){string[] dirs=Directory.GetDirectories(FileSystemPath(path));if(dirs.Length==0)throw new IOException("빈 압축 파일: "+path);return dirs[0];}
-    private static void Move(string entry,string target){string output=Path.Combine(target,Path.GetFileName(entry));bool sameRoot=String.Equals(Path.GetPathRoot(Path.GetFullPath(entry)),Path.GetPathRoot(Path.GetFullPath(output)),StringComparison.OrdinalIgnoreCase);if(Directory.Exists(entry)){if(Directory.Exists(output)||!sameRoot){CopyTree(entry,output);try{DeleteTree(entry);}catch{}}else Directory.Move(entry,output);}else{if(File.Exists(output))File.Delete(output);if(sameRoot)File.Move(entry,output);else{CopyFile(entry,output,true);try{File.Delete(entry);}catch{}}}}
     private static void CopyTree(string source,string target)
     {
         source=FileSystemPath(source);target=FileSystemPath(target);
@@ -889,50 +950,6 @@ internal static class SafeInstaller
             catch(UnauthorizedAccessException error){last=error;System.Threading.Thread.Sleep(500);}
         }
         throw new IOException("실행 파일 잠금이 해제되지 않았습니다: "+path,last);
-    }
-    private static void ExtractDesktopRuntime(string target,Action<string> status)
-    {
-        status("LAKIS 독립 실행 창 설치");
-        ExtractResource("LAKIS.Launcher",Path.Combine(target,"LAKIS.exe"));
-        ExtractResource("LAKIS.Updater",Path.Combine(target,"LAKIS_Updater.exe"));
-        ExtractResource("LAKIS.Updater",Path.Combine(target,"LAKIS_Patcher.exe"));
-        ExtractResource("LAKIS.Desktop",Path.Combine(target,"LAKIS_Desktop.exe"));
-        ExtractResource("LAKIS.Icon",Path.Combine(target,"LAKIS.ico"));
-        ExtractResource("LAKIS.WebView2.Core",Path.Combine(target,"Microsoft.Web.WebView2.Core.dll"));
-        ExtractResource("LAKIS.WebView2.WinForms",Path.Combine(target,"Microsoft.Web.WebView2.WinForms.dll"));
-        ExtractResource("LAKIS.WebView2.Loader",Path.Combine(target,"WebView2Loader.dll"));
-        ExtractResource("LAKIS.Uninstaller",Path.Combine(target,"Uninstall_LAKIS.exe"));
-        ExtractResource("LAKIS.ModelImporter",Path.Combine(target,"LAKIS_Model_Importer.exe"));
-        EnsureWebView2Runtime(status);
-    }
-    private static bool HasWebView2Runtime()
-    {
-        const string product=@"{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}";
-        string[] paths={@"SOFTWARE\Microsoft\EdgeUpdate\Clients\"+product,@"SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\"+product};
-        RegistryKey[] roots={Registry.LocalMachine,Registry.CurrentUser};
-        foreach(RegistryKey root in roots)foreach(string path in paths)try
-        {
-            using(RegistryKey key=root.OpenSubKey(path))if(key!=null&&IsInstalledWebView2Version(Convert.ToString(key.GetValue("pv"))))return true;
-        }catch{}
-        return false;
-    }
-    private static bool IsInstalledWebView2Version(string version)
-    {
-        string value=(version??String.Empty).Trim(); Version parsed;
-        return System.Text.RegularExpressions.Regex.IsMatch(value,@"^[0-9]+(\.[0-9]+){3}$") &&
-            Version.TryParse(value,out parsed) && parsed>new Version(0,0,0,0);
-    }
-    private static void EnsureWebView2Runtime(Action<string> status)
-    {
-        if(HasWebView2Runtime()){status("Microsoft WebView2 Runtime 확인 완료");return;}
-        string cache=InstallerCache();
-        status("Microsoft WebView2 Runtime 다운로드");
-        string setup=Fetch(WebView2Archive(),cache,status);
-        X509Certificate2 certificate=new X509Certificate2(X509Certificate.CreateFromSignedFile(setup));
-        if(certificate.Subject.IndexOf("Microsoft Corporation",StringComparison.OrdinalIgnoreCase)<0)throw new InvalidDataException("WebView2 설치 파일의 Microsoft 서명을 확인할 수 없습니다.");
-        status("Microsoft WebView2 Runtime 설치");
-        RunInstallerTool(setup,"/silent /install",Path.GetDirectoryName(setup),status);
-        if(!HasWebView2Runtime())throw new InvalidOperationException("WebView2 Runtime 설치를 확인할 수 없습니다. Windows를 다시 시작한 뒤 복구를 실행해 주세요.");
     }
     private static void CreateDesktopShortcut(string target,Action<string> status)
     {

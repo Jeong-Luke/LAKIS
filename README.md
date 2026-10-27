@@ -1,5 +1,7 @@
 # LAKIS Studio
 
+> 이 작업본은 **8.0.0 공개 전 후보**입니다. 공개 다운로드는 기존 **7.5.4**를 유지하며, 최종 설치기·라이선스·릴리즈 검증이 끝나기 전에는 8.0.0을 공개하지 않습니다.
+
 LAKIS Studio는 ComfyUI를 더 쉽게 사용할 수 있도록 제작된 외부 사용자 인터페이스이자, 검증된 워크플로 환경입니다.
 
 Copyright © 2026 Luke Jeong. All rights reserved. LAKIS의 독자적인 자료와 제3자 구성 요소에는 각각 별도의 라이선스가 적용됩니다. 자세한 내용은 [LICENSE.md](LICENSE.md)와 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)를 확인해 주세요.
@@ -8,17 +10,15 @@ LAKIS 애플리케이션, 사용자 인터페이스, 설치기, 업데이터, �
 
 ## 다운로드
 
-**[Windows용 LAKIS Studio v7.5.3 다운로드](https://github.com/Jeong-Luke/LAKIS/releases/download/v7.5.3/LAKIS_Setup.exe)**
-
-**[Windows용 LAKIS Studio v7.5.3 CMD Version 다운로드](https://github.com/Jeong-Luke/LAKIS/releases/download/v7.5.3/LAKIS_CMD_Installer_7.5.3.zip)**
+**[Windows용 LAKIS Studio v7.5.4 설치 파일 및 CMD Version](https://github.com/Jeong-Luke/LAKIS/releases/tag/v7.5.4)**
 
 일반적으로 `LAKIS_Setup.exe`를 사용하세요. Windows Defender가 Setup을 차단하거나 설치 파일을 실행할 수 없다면 CMD Version ZIP의 압축을 완전히 푼 뒤 `LAKIS_CMD_Install.cmd`를 실행하세요. CMD Version은 관리자 권한이나 Defender 예외 설정을 요구하지 않는 공식 대체 설치 방법입니다.
 
-[v7.5.3 릴리즈 설명과 개별 파일](https://github.com/Jeong-Luke/LAKIS/releases/tag/v7.5.3)도 확인할 수 있습니다.
+[v7.5.4 릴리즈 설명과 개별 파일](https://github.com/Jeong-Luke/LAKIS/releases/tag/v7.5.4)도 확인할 수 있습니다.
 
 ## 안정 버전
 
-이 저장소는 LAKIS의 안정 배포 버전을 관리합니다. 현재 안정 버전은 `v7.5.3`입니다. 이전 개발 패키지와 개발용 워크플로는 별도로 관리하며 신규 사용자에게 배포하지 않습니다.
+현재 공개 안정 버전은 `v7.5.4`이며, 이 작업본의 `8.0.0`은 아직 공개되지 않은 후보입니다. 이전 개발 패키지와 개발용 워크플로는 별도로 관리하며 신규 사용자에게 배포하지 않습니다.
 
 ## v7.5.3 수정 사항
 
@@ -87,17 +87,15 @@ from AGPL software remain AGPL-3.0-or-later.
 
 ### Download
 
-**[Download LAKIS Studio v7.5.3 for Windows](https://github.com/Jeong-Luke/LAKIS/releases/download/v7.5.3/LAKIS_Setup.exe)**
-
-**[Download LAKIS Studio v7.5.3 CMD Version](https://github.com/Jeong-Luke/LAKIS/releases/download/v7.5.3/LAKIS_CMD_Installer_7.5.3.zip)**
+**[LAKIS Studio v7.5.4 Windows installers and CMD Version](https://github.com/Jeong-Luke/LAKIS/releases/tag/v7.5.4)**
 
 Use `LAKIS_Setup.exe` for normal installation and repair. If Windows Defender blocks Setup or prevents it from running, fully extract the CMD Version ZIP and run `LAKIS_CMD_Install.cmd`. CMD Version is an official alternative installation method that does not require administrator access or a Defender exclusion.
 
-You can also view the [v7.5.3 release notes and individual files](https://github.com/Jeong-Luke/LAKIS/releases/tag/v7.5.3).
+You can also view the [v7.5.4 release notes and individual files](https://github.com/Jeong-Luke/LAKIS/releases/tag/v7.5.4).
 
 ### Stable baseline
 
-This repository contains the stable LAKIS distribution line. The current stable release is `v7.5.3`. Earlier development packages and workflows are maintained separately and are not distributed to new users.
+The current public stable release is `v7.5.4`. This worktree is an unpublished `8.0.0` candidate; publication remains blocked until final installer, licensing, and release checks are complete. Earlier development packages and workflows are maintained separately and are not distributed to new users.
 
 ### v7.5.3 fixes
 

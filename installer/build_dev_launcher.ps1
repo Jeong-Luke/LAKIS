@@ -27,7 +27,7 @@ foreach ($dependency in $webViewCore,$webViewForms) {
     /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll `
     ("/resource:" + (Join-Path $repo "resources\splash\lakis-splash-01.png") + ",LAKIS.Splash1") `
     ("/resource:" + (Join-Path $repo "resources\splash\lakis-splash-02.png") + ",LAKIS.Splash2") `
-    (Join-Path $PSScriptRoot "SplashArtwork.cs") (Join-Path $PSScriptRoot "LAKIS_Launcher.cs")
+    (Join-Path $PSScriptRoot "SplashArtwork.cs") (Join-Path $PSScriptRoot "UpdateProtocol.cs") (Join-Path $PSScriptRoot "LAKIS_Launcher.cs")
 if ($LASTEXITCODE) { throw "DEV launcher compilation failed" }
 
 & $csc /nologo /define:LAKIS_DEV /target:winexe `

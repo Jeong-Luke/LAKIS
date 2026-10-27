@@ -16,6 +16,20 @@ The weight is governed by the CircleStone Labs Non-Commercial License v1.0. Its 
 
 The `ComfyUI-Anima-LLLite` node code is a separate Apache-2.0 component.
 
+## External 3D pose and region weights
+
+`anima_3dpose_6200.safetensors` and `anima_regional_4335.safetensors` are not
+bundled or mirrored. The installer/updater downloads them directly from the
+official fixed revision and verifies their sizes and SHA-256 values. Repair
+adds missing files; a conflicting existing file is preserved and reported.
+Program rollback retains downloaded models as user data. The official model card at
+`toyxyz/Anima_ControlNet-LLLite`, revision
+`37f3a4b6574f1dce3dfe3b5440285a39b11b3d8d`, identifies
+`upstream-anima-and-source-data-terms`. The Anima non-commercial/non-production
+restrictions and source-data conditions remain applicable to official downloads.
+The GPL Toyxyz editor, MIT Three.js, Apache MHR meshes, SAM-licensed sparse
+mapping, and Apache LLLite node code are separate components with separate terms.
+
 ## Translation network disclosure
 
 한국어 번역 기능을 사용하면 번역할 프롬프트 텍스트가 외부 Google 번역 서비스로 전송될 수 있습니다.

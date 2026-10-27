@@ -34,6 +34,8 @@ UI_ROOT = Path(__file__).resolve().parent
 if str(UI_ROOT) not in sys.path:
     sys.path.insert(0, str(UI_ROOT))
 
+import scene_controls
+
 from workflow_bridge import (
     InvalidGenerationRequestError,
     LOCAL_INPAINT_V2,
@@ -77,7 +79,7 @@ LLLITE_INPAINT_MODEL = "anima-lllite-inpainting-v2.safetensors"
 LLLITE_INPAINT_SHA256 = "5242e677d2be34ee70ca7c97c3b14ff5ee49838c03fc1e60ac4852a180db6ef5"
 LLLITE_INPAINT_SOURCE = "https://huggingface.co/kohya-ss/Anima-LLLite"
 LLLITE_INPAINT_LICENSE = "CircleStone Labs Non-Commercial License"
-LLLITE_INPAINT_LICENSE_PATH = INSTALL_ROOT / "third_party_licenses" / "Anima-LLLite-CircleStone-Non-Commercial-License.txt"
+LLLITE_INPAINT_LICENSE_PATH = INSTALL_ROOT / "third_party_licenses" / "CircleStone-Labs-Non-Commercial-License-v1.0.txt"
 LAKIS_VERSION_PATH = (
     RUNTIME_ROOT / "DEV_VERSION" if DEVELOPMENT else COMFY_ROOT.parent / "VERSION"
 )
@@ -1352,6 +1354,8 @@ class Handler(SimpleHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802
         if not self._authorize_api_request():
             return
+        if scene_controls.handle_get(self, UI_STATE_PATH.parent, COMFY_ROOT):
+            return
         if urlparse(self.path).path == "/api/inpaint-model-notice":
             self._send_json(200, inpaint_model_notice_status())
             return
@@ -1536,6 +1540,8 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802
         if not self._authorize_api_request():
+            return
+        if scene_controls.handle_post(self, UI_STATE_PATH.parent):
             return
         if self.path == "/api/inpaint-model-notice":
             try:

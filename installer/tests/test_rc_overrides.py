@@ -11,10 +11,8 @@ class RcOverrideContractTests(unittest.TestCase):
         cls.launcher = (ROOT / "installer" / "LAKIS_Launcher.cs").read_text(encoding="utf-8")
         cls.updater = (ROOT / "installer" / "LAKIS_Updater.cs").read_text(encoding="utf-8")
 
-    def test_public_defaults_are_unchanged(self):
+    def test_rc_overrides_and_release_asset_base_are_preserved(self):
         for source in (self.launcher, self.updater):
-            self.assertIn("https://raw.githubusercontent.com/Jeong-Luke/LAKIS/main/manifests/update-latest.json", source)
-            self.assertIn("https://cdn.jsdelivr.net/gh/Jeong-Luke/LAKIS@main/manifests/update-latest.json", source)
             self.assertIn("String.IsNullOrWhiteSpace(overrideUrl)", source)
         self.assertIn("https://github.com/Jeong-Luke/LAKIS/releases/download/v", self.launcher)
 

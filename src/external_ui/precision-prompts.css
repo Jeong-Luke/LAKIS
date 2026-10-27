@@ -1,0 +1,18 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
+.precision-prompt-normal-hidden,
+.precision-prompts[hidden],
+.precision-prompt-card[hidden] { display: none !important; }
+.precision-prompts { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
+.precision-prompts-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; flex: none; }
+.precision-prompts-heading .prompt-translation-toggle { margin-left: 0; }
+.precision-prompts-tabs { flex: none; padding-top: 8px; }
+.precision-prompts-cards { display: flex; flex: 1; flex-direction: column; min-height: 0; overflow-y: auto; padding: 8px 4px 12px 0; }
+.precision-prompt-card { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 160px; padding: 10px; border: 1px solid #5f4b78; border-radius: 9px; background: #211c2b; }
+.precision-prompt-card > label { display: block; color: #e4c9ff; font-weight: 700; font-size: 13px; }
+.precision-prompt-card .prompt-highlight-host { flex: 1; min-height: 100px; }
+.precision-prompt-card textarea { box-sizing: border-box; width: 100%; min-height: 0 !important; padding: 10px; font: 13px/1.6 system-ui,sans-serif; }
+.precision-prompt-card:focus-within { border-color: #c8afff; }
+@media (max-width: 700px) {
+  .precision-prompts-cards { max-height: 60dvh; }
+  .precision-prompt-card textarea { font-size: 16px !important; }
+}

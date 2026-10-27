@@ -98,6 +98,43 @@ class ScopedUiStateMigrationTests(unittest.TestCase):
 
 
 class ScopedUiStateIsolationTests(unittest.TestCase):
+    def test_seed_mode_survives_save_reload_and_legacy_state(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            scoped = root / "state.json"
+            with (
+                patch.object(workflow_bridge, "UI_STATE_PATH", scoped),
+                patch.object(workflow_bridge, "LEGACY_UI_STATE_PATH", root / "legacy.json"),
+                patch.object(workflow_bridge, "UNSCOPED_UI_STATE_PATH", root / "global.json"),
+                patch.object(workflow_bridge, "_enum_options",
+                             side_effect=lambda _c, _n, fallback=(), _o=None: list(fallback)),
+                patch.object(workflow_bridge, "_clean_advanced_node_overrides", return_value={}),
+            ):
+                for value, expected in (
+                    ("current", "current"), ("fixed", "current"),
+                    ("random", "random"), ("invalid", "random"), (None, "random"),
+                ):
+                    with self.subTest(seed_mode=value):
+                        original = {
+                            "output": {"seed": 7540802, "seed_mode": value},
+                            "unrelated": {"keep": True},
+                        }
+                        _write(scoped, original)
+                        loaded = workflow_bridge.load_external_generation_state()
+                        self.assertEqual(expected, loaded["output"]["seed_mode"])
+                        self.assertEqual(7540802, loaded["output"]["seed"])
+                        self.assertEqual(original, json.loads(scoped.read_text(encoding="utf-8")))
+                        saved = workflow_bridge.save_external_generation_state(
+                            {}, {"width": 768, "height": 1024, "seed": 7540802,
+                                 "seed_mode": value},
+                        )
+                        self.assertEqual(expected, saved["output"]["seed_mode"])
+                        reloaded = workflow_bridge.load_external_generation_state()
+                        self.assertEqual(saved["output"], reloaded["output"])
+                        persisted = json.loads(scoped.read_text(encoding="utf-8"))
+                        self.assertEqual(expected, persisted["output"]["seed_mode"])
+                        self.assertEqual(original["unrelated"], persisted["unrelated"])
+
     def test_install_paths_receive_distinct_state_files(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

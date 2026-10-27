@@ -18,11 +18,12 @@ class ReleaseSourceContracts(unittest.TestCase):
         s=self.text('installer/Setup_LAKIS_Safe.cs')
         self.assertNotIn('Path.Combine(comfy,"LAKIS_DEV"',s)
         repair=s[s.index('internal static void Repair'):s.index('private static string Fetch')]
-        self.assertIn('"STOP_AUTOMATION"',repair);self.assertIn('CopyManagedNodePackages(uiRoot, custom)',repair)
-    def test_runtime_supply_helpers_are_shared(self):
+        self.assertIn('RunRuntimeInstaller(manifest,target,cache,"repair",false,status)',repair)
+        self.assertNotIn('CopyManagedNodePackages',s);self.assertNotIn('InstallZip(',s)
+    def test_runtime_bundle_is_the_gui_runtime_source(self):
         s=self.text('installer/Setup_LAKIS_Safe.cs');g=self.text('installer/New-UpdateManifest.ps1')
-        self.assertIn('CopyManagedNodePackages(lakis, custom)',s)
-        self.assertIn('PRODUCTION_NODE_PACKAGES.txt',s);self.assertIn('PRODUCTION_NODE_PACKAGES.txt',g)
+        self.assertIn('RuntimeBundleInstaller.Install(python,manifest,target,cache,mode,includeAnimeSharp,status)',s)
+        self.assertNotIn('PRODUCTION_NODE_PACKAGES.txt',s);self.assertIn('PRODUCTION_NODE_PACKAGES.txt',g)
         self.assertIn('ComfyUI/LAKIS/sync_runtime_workflow.py',g)
         workflow_names=(
             'LAKIS_runtime_api_v7.4.json',
@@ -33,11 +34,9 @@ class ReleaseSourceContracts(unittest.TestCase):
             workflow=(ROOT/'workflows'/name).read_bytes()
             self.assertIn(b'RealESRGAN_x4plus_anime_6B.pth',workflow,name)
             self.assertNotIn(b'2x-AnimeSharpV4_Fast_RCAN_PU.safetensors',workflow,name)
-            self.assertIn(name,s)
             if not name.endswith('_editable.json'):
                 self.assertIn(name,g)
-        # Update, Fresh Setup, and Repair must copy the same canonical bytes.
-        # Optional user choices are persisted separately and resolved at runtime.
+        # The runtime bundle is the immutable source of release-owned files.
         self.assertNotIn('SetDefaultUpscaler(',s)
         self.assertNotIn('Directory.GetFiles(root,"*.json"',s)
         repair=s[s.index('internal static void Repair'):s.index('private static string Fetch')]
@@ -48,19 +47,22 @@ class ReleaseSourceContracts(unittest.TestCase):
         self.assertNotIn('LAKIS_custom_v7.4_editable.json',update_workflows)
         retired=g[g.index('$retiredFiles'):g.index('$filePaths')]
         self.assertNotIn('LAKIS_custom_v7.3_editable.json',retired)
-    def test_setup_and_repair_verify_cached_source_archive(self):
+    def test_setup_and_repair_dispatch_to_the_shared_runtime_engine(self):
         s=self.text('installer/Setup_LAKIS_Safe.cs')
         install=s[s.index('internal static void Install'):s.index('internal static void Repair')]
         repair=s[s.index('internal static void Repair'):s.index('private static string Fetch')]
-        self.assertIn('string lakisZip=Fetch(lakisItem,cache,status);',install)
-        self.assertIn('string uiZip=Fetch(uiItem,cache,status);',repair)
-        self.assertNotIn('if(!File.Exists(lakisZip))',install)
-        self.assertNotIn('if(!File.Exists(uiZip))',repair)
-    def test_setup_uses_official_webview_product_registration(self):
+        self.assertIn('RunRuntimeInstaller(manifest,target,cache,"fresh",includeAnimeSharp,status)',install)
+        self.assertIn('RunRuntimeInstaller(manifest,target,cache,"repair",false,status)',repair)
+        for obsolete in ('InstallStaged','SourceArchive(','CopyManagedNodePackages','InstallZip(','-m pip install'):
+            self.assertNotIn(obsolete,s)
+        for name in ('Revision','SourceArchiveSha256','WebView2BootstrapperUrl',
+                     'WebView2BootstrapperSha256','WebView2BootstrapperBytes'):
+            self.assertIn(name,s)
+    def test_setup_validates_webview_contract_for_the_runtime_engine(self):
         s=self.text('installer/Setup_LAKIS_Safe.cs')
-        self.assertIn('{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}',s)
-        self.assertIn('IsInstalledWebView2Version(Convert.ToString(key.GetValue("pv")))',s)
-        self.assertNotIn('name.IndexOf("WebView2"',s)
+        runtime=self.text('installer/runtime_install.py')
+        self.assertIn('ValidateSimpleDownload(RequiredObject(manifest,"webview2"),"webview2")',s)
+        self.assertIn('ensure_webview2_runtime(manifest, cache)',runtime)
     def test_every_managed_provider_has_source_and_no_retired_package(self):
         names=self.names();self.assertEqual(len(names),len(set(n.casefold() for n in names)))
         for n in names:

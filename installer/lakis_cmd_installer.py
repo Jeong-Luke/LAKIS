@@ -402,56 +402,73 @@ ZIP_MAX_FILE_BYTES = 2 * 1024 ** 3
 ZIP_MAX_RATIO = 10000
 
 
-def extract_zip(archive: Path, destination: Path) -> None:
+def zip_extraction_plan(bundle, archive: Path, root: Path, *,
+                        expected_entries: int | None = None, check_destination=True):
+    """Validate every member before writing; fresh pinned roots need no path scan."""
+    if expected_entries is not None and (type(expected_entries) is not int or expected_entries <= 0):
+        raise ValueError("invalid authenticated ZIP entry count")
+    seen: set[str] = set()
+    files: set[str] = set()
+    entries = bundle.infolist()
+    if expected_entries is not None and len(entries) != expected_entries:
+        raise RuntimeError("ZIP_RESOURCE_LIMIT: authenticated entry count mismatch")
+    if expected_entries is None and len(entries) > ZIP_MAX_ENTRIES:
+        raise RuntimeError("ZIP_RESOURCE_LIMIT: too many entries")
+    expanded = 0
+    plan = []
+    # The verified upstream ZIP has two distinct example PNGs whose names
+    # differ only by case. Preserve both on Windows, without accepting
+    # ambiguous paths in any other archive or changing runtime files.
+    remap_example = (RVTOOLS_EXAMPLE in bundle.namelist()
+                     and sha256_with_retry(archive, "rvtools.zip") == RVTOOLS_ZIP_SHA256)
+    for entry in entries:
+        expanded += entry.file_size
+        if (expanded > ZIP_MAX_BYTES or entry.file_size > ZIP_MAX_FILE_BYTES
+                or entry.file_size > max(1, entry.compress_size) * ZIP_MAX_RATIO):
+            raise RuntimeError("ZIP_RESOURCE_LIMIT: expanded size or compression ratio")
+        if stat.S_ISLNK(entry.external_attr >> 16):
+            raise RuntimeError(f"unsafe ZIP link: {entry.filename}")
+        normalized = entry.filename.replace("\\", "/")
+        if remap_example and entry.filename == RVTOOLS_EXAMPLE:
+            normalized = normalized.removesuffix("Workflow.png") + "Workflow-example.png"
+        trimmed = normalized.rstrip("/")
+        parts = trimmed.split("/") if trimmed else []
+        if not parts or normalized.startswith("/"):
+            raise RuntimeError(f"unsafe ZIP path: {entry.filename}")
+        try:
+            for part in parts:
+                validate_windows_component(part)
+        except ValueError as error:
+            raise RuntimeError(f"unsafe ZIP path: {entry.filename}") from error
+        identity = "/".join(parts).casefold()
+        if identity in seen:
+            raise RuntimeError(f"duplicate Windows ZIP path: {entry.filename}")
+        seen.add(identity)
+        if not entry.is_dir():
+            files.add(identity)
+        output = root.joinpath(*parts)
+        if check_destination:
+            reject_reparse_path(output)
+        try:
+            output.relative_to(root)
+        except ValueError as error:
+            raise RuntimeError(f"unsafe ZIP path: {entry.filename}") from error
+        plan.append((entry, output))
+    for identity in seen:
+        parent, separator, _ = identity.rpartition("/")
+        while separator:
+            if parent in files:
+                raise RuntimeError("unsafe ZIP file/directory collision")
+            parent, separator, _ = parent.rpartition("/")
+    return plan
+
+
+def extract_zip(archive: Path, destination: Path, *, expected_entries: int | None = None) -> None:
     reject_reparse_path(archive)
     root = reject_reparse_path(destination)
-    seen: set[str] = set()
     with zipfile.ZipFile(archive) as bundle:
-        entries = bundle.infolist()
-        if len(entries) > ZIP_MAX_ENTRIES:
-            raise RuntimeError("ZIP_RESOURCE_LIMIT: too many entries")
-        expanded = 0
-        plan = []
-        # The verified upstream ZIP has two distinct example PNGs whose names
-        # differ only by case. Preserve both on Windows, without accepting
-        # ambiguous paths in any other archive or changing runtime files.
-        remap_example = (RVTOOLS_EXAMPLE in bundle.namelist()
-                         and sha256_with_retry(archive, "rvtools.zip") == RVTOOLS_ZIP_SHA256)
-        for entry in entries:
-            expanded += entry.file_size
-            if (expanded > ZIP_MAX_BYTES or entry.file_size > ZIP_MAX_FILE_BYTES
-                    or entry.file_size > max(1, entry.compress_size) * ZIP_MAX_RATIO):
-                raise RuntimeError("ZIP_RESOURCE_LIMIT: expanded size or compression ratio")
-            if stat.S_ISLNK(entry.external_attr >> 16):
-                raise RuntimeError(f"unsafe ZIP link: {entry.filename}")
-            normalized = entry.filename.replace("\\", "/")
-            if remap_example and entry.filename == RVTOOLS_EXAMPLE:
-                normalized = normalized.removesuffix("Workflow.png") + "Workflow-example.png"
-            trimmed = normalized.rstrip("/")
-            parts = trimmed.split("/") if trimmed else []
-            if not parts or normalized.startswith("/"):
-                raise RuntimeError(f"unsafe ZIP path: {entry.filename}")
-            try:
-                for part in parts:
-                    validate_windows_component(part)
-            except ValueError as error:
-                raise RuntimeError(f"unsafe ZIP path: {entry.filename}") from error
-            identity = "/".join(parts).casefold()
-            if identity in seen:
-                raise RuntimeError(f"duplicate Windows ZIP path: {entry.filename}")
-            seen.add(identity)
-            output = root.joinpath(*parts)
-            reject_reparse_path(output)
-            try:
-                output.relative_to(root)
-            except ValueError as error:
-                raise RuntimeError(f"unsafe ZIP path: {entry.filename}") from error
-            plan.append((entry, output))
+        plan = zip_extraction_plan(bundle, archive, root, expected_entries=expected_entries)
         # Validate the entire archive before the first filesystem mutation.
-        files = {str(output).casefold() for entry, output in plan if not entry.is_dir()}
-        for _, output in plan:
-            if any(str(parent).casefold() in files for parent in output.parents):
-                raise RuntimeError("unsafe ZIP file/directory collision")
         destination.mkdir(parents=True, exist_ok=True)
         for entry, output in plan:
             reject_reparse_path(output)
@@ -711,9 +728,12 @@ def create_desktop_shortcut(
 
 
 def install(manifest_path: Path, portable_root: Path, target: Path, cache: Path, dry_run: bool) -> None:
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    from runtime_install import install as install_runtime, validate_bundle
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
     if manifest.get("schema") != 1:
         raise RuntimeError("unsupported CMD installer manifest")
+    bundle = validate_bundle(manifest.get("runtime_bundle"), manifest["version"])
     portable_root = reject_reparse_path(portable_root)
     target = reject_reparse_path(target)
     reject_reparse_tree(portable_root)
@@ -726,107 +746,22 @@ def install(manifest_path: Path, portable_root: Path, target: Path, cache: Path,
     if portable_root == target or portable_root in target.parents or target in portable_root.parents:
         raise RuntimeError("staging and target paths overlap")
     if dry_run:
-        print(json.dumps({"ok": True, "version": manifest["version"], "nodes": len(manifest["nodes"]) + 1,
-                          "models": len(manifest["models"]), "target": str(target)}, ensure_ascii=False))
+        print(json.dumps({"ok": True, "version": manifest["version"],
+                          "runtime_files": bundle["files"], "target": str(target)}, ensure_ascii=False))
         return
 
-    custom = portable_root / "ComfyUI" / "custom_nodes"
-    models_root = portable_root / "ComfyUI" / "models"
-    # Keep extraction paths short. The verified cache filename intentionally
-    # includes the full SHA-256, but reusing that long name below a staging
-    # directory can hit the legacy Windows MAX_PATH limit (260 characters).
-    # The install is sequential and install_archive resets this slot each time.
-    scratch = portable_root.parent / ".u"
-    scratch.mkdir(parents=True, exist_ok=True)
-    node_stage = scratch / "n"
-    custom.mkdir(parents=True, exist_ok=True)
-    cache.mkdir(parents=True, exist_ok=True)
-
-    for name, url, digest, relative in manifest["nodes"]:
-        archive = download(url, cache_path(cache, name, digest), digest, display_name=name)
-        install_archive(archive, custom / safe_relative(relative), node_stage)
-    name, url, digest, relative = manifest["nested_node"]
-    archive = download(url, cache_path(cache, name, digest), digest, display_name=name)
-    install_archive(archive, custom / safe_relative(relative), node_stage)
-
-    for name, url, digest, relative, size in manifest["models"]:
-        cached = download(url, cache_path(cache, name, digest), digest, int(size), display_name=name)
-        destination = models_root / safe_relative(relative) / safe_leaf(name)
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        copy_file(cached, destination)
-
-    source_item = manifest["source"]
-    source_archive = download(
-        source_item["url"],
-        cache_path(cache, source_item["name"], source_item["sha256"]),
-        source_item["sha256"],
-        int(source_item["bytes"]),
-        display_name=source_item["name"],
-    )
-    source_stage = scratch / "release-source"
-    if source_stage.exists():
-        remove_tree(source_stage)
-    print(f"  [압축 해제] {source_item['name']}", flush=True)
-    extract_zip(source_archive, source_stage)
-    install_release_source(only_directory(source_stage), portable_root)
-
-    release_base = str(manifest["release_base"]).rstrip("/")
-    repair = manifest["repair_pack"]
-    layout = manifest["release_layout"]
-    repair_path = download(f"{release_base}/{repair['name']}", cache_path(cache, repair["name"], repair["sha256"]), repair["sha256"], int(repair.get("bytes", 0)), display_name=repair["name"])
-    layout_path = download(f"{release_base}/{layout['name']}", cache_path(cache, layout["name"], layout["sha256"]), layout["sha256"], int(layout.get("bytes", 0)), display_name=layout["name"])
-    extract_zip(repair_path, portable_root)
-    create_default_input_image(portable_root / "ComfyUI")
-
-    python = portable_root / "python_embeded" / "python.exe"
-    dependency_log = portable_root / ".lakis-cmd-dependencies.log"
-    dependency_files = sorted(custom.glob("*/requirements.txt"))
-    for index, requirements in enumerate(dependency_files, 1):
-        print(f"  [설치 {index:02d}/{len(dependency_files):02d}] {requirements.parent.name}", flush=True)
-        pinned_requirements = safe_requirements(requirements)
-        with dependency_log.open("a", encoding="utf-8", errors="replace") as log:
-            subprocess.run([str(python), "-s", "-m", "pip", "install", "--disable-pip-version-check", "-r", str(pinned_requirements)],
-                           cwd=portable_root, stdout=log, stderr=subprocess.STDOUT, check=True)
-
-    managed_count, errors = validate_layout(portable_root, layout_path)
-    if errors:
-        raise RuntimeError("managed layout mismatch: " + ", ".join(errors[:10]))
-    ensure_webview2_runtime(manifest, cache)
-    state_root = portable_root / ".lakis"
-    state_root.mkdir(exist_ok=True)
-    (state_root / "optional-models.txt").write_text(
-        "No optional non-commercial model selected.\r\n", encoding="utf-8"
-    )
-    (state_root / "upscaler-license-choice.json").write_text(
-        json.dumps({
-            "choice": "realesrgan",
-            "model": "RealESRGAN_x4plus_anime_6B.pth",
-            "license": "BSD-3-Clause",
-            "noncommercial_acknowledged": False,
-        }, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
-    (portable_root / "VERSION").write_text(str(manifest["version"]), encoding="utf-8")
-    (portable_root / "install.complete").write_text(
-        datetime.now(timezone.utc).isoformat(), encoding="utf-8"
-    )
-    (state_root / "install-method.txt").write_text("cmd\n", encoding="ascii")
-
-    if target.exists():
-        reject_reparse_tree(target)
-        target.rmdir()
-    reject_reparse_tree(portable_root)
-    reject_reparse_path(target)
-    os.replace(portable_root, target)
-    remove_tree(scratch)
-    # The caller owns the staging parent; it may contain unrelated files.
-    # Keep it (including extraction logs) rather than deleting it recursively.
+    # The portable tree supplies bootstrap Python only. The verified 8.0 bundle
+    # is activated by the same engine used by GUI Setup, Update and Repair.
+    result = install_runtime(manifest, target, cache, "fresh", "cmd")
+    if result.get("status") != "complete":
+        raise RuntimeError("runtime was not activated and verified")
+    # Keep bootstrap files/logs; the caller owns their parent.
     try:
         shortcut = create_desktop_shortcut(target)
         print(f"  [확인] 바탕화면 바로가기 생성: {shortcut.name}", flush=True)
     except Exception as error:
         print(f"  [안내] 바탕화면 바로가기를 만들지 못했습니다: {error}", flush=True)
-    print(f"  [확인] 관리 파일 {managed_count}/{managed_count}개 검증 완료", flush=True)
+    print(json.dumps(result, ensure_ascii=False), flush=True)
 
 
 def main() -> int:

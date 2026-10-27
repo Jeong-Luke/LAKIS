@@ -14,35 +14,22 @@ using System.Threading.Tasks;
 using System.Web.Script.Serialization;
 using System.Windows.Forms;
 
-internal sealed class UpdateFile
-{
-    public string path { get; set; }
-    public string url { get; set; }
-    public string sha256 { get; set; }
-}
-
-internal sealed class UpdateManifest
-{
-    public string version { get; set; }
-    public string minimum_version { get; set; }
-    public string release_notes { get; set; }
-    public List<UpdateFile> files { get; set; }
-    public List<string> delete { get; set; }
-}
-
 internal sealed class UpdaterForm : Form
 {
-    private static readonly string[] ManifestUrls = {
-        "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/main/manifests/update-latest.json",
-        "https://cdn.jsdelivr.net/gh/Jeong-Luke/LAKIS@main/manifests/update-latest.json"
-    };
+    private static readonly string[] ManifestUrls = UpdateProtocol.ManifestUrls;
     private const string RcReleaseBaseVariable = "LAKIS_RC_RELEASE_BASE_URL";
     private const string RcManifestVariable = "LAKIS_RC_MANIFEST_URL";
+    private const string RcRuntimeManifestVariable = "LAKIS_RC_RUNTIME_MANIFEST_URL";
     private readonly Label status = new Label();
+    private readonly Label copyright;
     private readonly LakisProgressBar progress = new LakisProgressBar();
     private readonly Button update = new Button();
     private readonly string targetRoot;
     private readonly bool launchAfterUpdate;
+    private readonly RuntimeHandoff runtimeHandoff;
+    private readonly bool recoverRuntime;
+    private readonly bool continueRuntime;
+    private bool runtimeBusy;
     private string pendingSelfUpdate;
     private bool started;
     private readonly CenterCropPictureBox artwork = new CenterCropPictureBox();
@@ -52,9 +39,16 @@ internal sealed class UpdaterForm : Form
     private readonly Button closeButton = new Button();
 
     internal UpdaterForm(string root, bool launchWhenFinished = false)
+        : this(root, launchWhenFinished, null, false) { }
+
+    internal UpdaterForm(string root, bool launchWhenFinished, RuntimeHandoff handoff, bool recover,
+        bool continueRuntimeUpdate = false)
     {
         targetRoot = Path.GetFullPath(root);
         launchAfterUpdate = launchWhenFinished;
+        runtimeHandoff = handoff;
+        recoverRuntime = recover;
+        continueRuntime = continueRuntimeUpdate;
         Text = "LAKIS 업데이트";
         ClientSize = new Size(760, 430); FormBorderStyle = FormBorderStyle.None;
         MaximizeBox = false; StartPosition = FormStartPosition.CenterScreen;
@@ -90,11 +84,11 @@ internal sealed class UpdaterForm : Form
             Text = "안전한 업데이트를 확인하고 적용합니다.",
             ForeColor = Color.FromArgb(104, 112, 137), Font = new Font("Segoe UI", 8F)
         });
-        var copyright = new Label {
+        copyright = new Label {
             Left = 43, Top = 399, Width = 335, Height = 18,
-            Text = "© 2026 Luke Jeong. All rights reserved. · LAKIS v" + ReadCurrentVersion(),
             ForeColor = Color.FromArgb(104, 112, 137), Font = new Font("Segoe UI", 8F)
         };
+        RefreshInstalledVersion();
         status.Left = 43; status.Top = 277; status.Width = 315; status.Height = 34;
         status.Text = "업데이트 확인 준비 완료"; status.ForeColor = Color.FromArgb(184, 168, 255);
         progress.Left = 43; progress.Top = 318; progress.Width = 315; progress.Height = 7;
@@ -112,6 +106,7 @@ internal sealed class UpdaterForm : Form
             await UpdateAsync();
         };
         FormClosed += (_, __) => { artworkTimer.Stop(); foreach (Image frame in artworkFrames) frame.Dispose(); };
+        FormClosing += (_, args) => { if (runtimeBusy) args.Cancel = true; };
     }
 
     private void ConfigureCloseButton()
@@ -154,10 +149,27 @@ internal sealed class UpdaterForm : Form
         progress.Style = ProgressBarStyle.Marquee; progress.MarqueeAnimationSpeed = 24;
         try
         {
+            if (!recoverRuntime) UpdateProtocol.EnsureNoPendingRuntimeTransition(targetRoot);
+            if (recoverRuntime)
+            {
+                if (MessageBox.Show("이 업데이트 이전의 프로그램과 DB로 복구할까요?\n생성 이미지와 백업은 보존됩니다.",
+                    "LAKIS 업데이트 복구", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+                runtimeBusy = true;
+                await Task.Run(() => RuntimeBundleInstaller.Apply(runtimeHandoff, ReportRuntimeProgress, true));
+                runtimeBusy = false;
+                RefreshInstalledVersion();
+                status.Text = "이전 버전 복구 완료"; progress.Value = 100;
+                return;
+            }
             if (!File.Exists(Path.Combine(targetRoot, "LAKIS.exe")) || !Directory.Exists(Path.Combine(targetRoot, "ComfyUI")))
                 throw new DirectoryNotFoundException("LAKIS 설치 위치를 찾을 수 없습니다: " + targetRoot);
             status.Text = "업데이트 정보를 확인하고 있습니다…";
-            UpdateManifest manifest = await Task.Run(() => DownloadManifest());
+            UpdateManifest manifest = runtimeHandoff == null
+                ? await Task.Run(() => DownloadManifest())
+                : UpdateProtocol.Read(File.ReadAllText(Path.Combine(runtimeHandoff.workspace, "manifest.json")));
+            UpdateProtocol.ValidateForInstallation(manifest, ReadCurrentVersion());
+            if (continueRuntime)
+                UpdateProtocol.ValidateRuntimeContinuation(manifest, ReadCurrentVersion());
             progress.Style = ProgressBarStyle.Continuous; progress.Value = 0;
             string current = ReadCurrentVersion();
             if (CompareVersions(manifest.version, current) <= 0)
@@ -166,10 +178,36 @@ internal sealed class UpdaterForm : Form
                 MessageBox.Show("현재 LAKIS가 최신 버전입니다.", "LAKIS 업데이트", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
-            if (!launchAfterUpdate && MessageBox.Show(
+            if (runtimeHandoff == null && !launchAfterUpdate && !continueRuntime && MessageBox.Show(
                 "v" + manifest.version + " 업데이트가 있습니다.\n\n" + manifest.release_notes + "\n\n지금 업데이트할까요?",
                 "LAKIS 업데이트", MessageBoxButtons.YesNo, MessageBoxIcon.Information) != DialogResult.Yes) return;
-            await Task.Run(() => ApplyUpdate(manifest));
+            if (manifest.kind == "runtime-update")
+            {
+                runtimeBusy = true;
+                if (runtimeHandoff != null)
+                    await Task.Run(() => RuntimeBundleInstaller.Apply(runtimeHandoff, ReportRuntimeProgress));
+                else
+                {
+                    var prepared = await Task.Run(() => PrepareRuntimeUpdate(manifest));
+                    string helper = Path.Combine(prepared.workspace, "LAKIS_Updater.exe");
+                    CopyVerifiedFile(Application.ExecutablePath, helper,
+                        RuntimeBundleInstaller.HashFile(Application.ExecutablePath));
+                    string handoffPath = RuntimeBundleInstaller.WriteHandoff(prepared, launchAfterUpdate);
+                    var helperInfo = new ProcessStartInfo(helper, "--finish-runtime-transition " +
+                        RuntimeBundleInstaller.Quote(handoffPath) + " " +
+                        RuntimeBundleInstaller.Quote(RuntimeBundleInstaller.HashFile(handoffPath))) {
+                        UseShellExecute = false, WorkingDirectory = prepared.workspace
+                    };
+                    CopyRcEnvironment(helperInfo);
+                    Process.Start(helperInfo);
+                    runtimeBusy = false;
+                    Close();
+                    return;
+                }
+                runtimeBusy = false;
+            }
+            else await Task.Run(() => ApplyUpdate(manifest));
+            RefreshInstalledVersion();
             if (!String.IsNullOrWhiteSpace(pendingSelfUpdate))
             {
                 status.Text = "업데이트 적용을 완료하고 있습니다…";
@@ -201,7 +239,29 @@ internal sealed class UpdaterForm : Form
             status.Text = "업데이트 실패";
             MessageBox.Show(error.Message, "LAKIS 업데이트 오류", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
-        finally { progress.Style = ProgressBarStyle.Continuous; update.Enabled = true; }
+        finally { runtimeBusy = false; progress.Style = ProgressBarStyle.Continuous; update.Enabled = true; }
+    }
+
+    private RuntimeHandoff PrepareRuntimeUpdate(UpdateManifest manifest)
+    {
+        UpdateProtocol.EnsureNoPendingRuntimeTransition(targetRoot);
+        UpdateProtocol.ValidateForInstallation(manifest, ReadCurrentVersion());
+        StopInstalledProcesses();
+        string cache = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "LAKIS", "installer-cache");
+        return RuntimeBundleInstaller.Prepare(Path.Combine(targetRoot, "python_embeded", "python.exe"),
+            new JavaScriptSerializer().Serialize(manifest), targetRoot, cache, ReportRuntimeProgress);
+    }
+
+    private void ReportRuntimeProgress(string line)
+    {
+        if (String.IsNullOrWhiteSpace(line) || line.StartsWith("{")) return;
+        var count = Regex.Match(line, @"(\d[\d,]*)/(\d[\d,]*)\s*$");
+        long current, total;
+        if (count.Success && Int64.TryParse(count.Groups[1].Value.Replace(",", ""), out current) &&
+            Int64.TryParse(count.Groups[2].Value.Replace(",", ""), out total) && total > 0)
+            SetStatus(line, (int)Math.Min(100, current * 100 / total), 100);
+        else SetStatus(line, 0, 0);
     }
 
     private UpdateManifest DownloadManifest()
@@ -213,7 +273,7 @@ internal sealed class UpdaterForm : Form
             try
             {
                 var request = (HttpWebRequest)WebRequest.Create(url + "?t=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-                request.UserAgent = "LAKIS-Updater/7.4.5";
+                request.UserAgent = "LAKIS-Updater/" + UpdateProtocol.EngineVersion;
                 request.Timeout = 20000;
                 request.ReadWriteTimeout = 20000;
                 request.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
@@ -224,12 +284,11 @@ internal sealed class UpdaterForm : Form
                     ValidateDownloadOrigin(url, response.ResponseUri.AbsoluteUri);
                     using (var reader = new StreamReader(response.GetResponseStream(), Encoding.UTF8, true)) json = reader.ReadToEnd();
                 }
-                var manifest = new JavaScriptSerializer().Deserialize<UpdateManifest>(json);
-                if (manifest == null || String.IsNullOrWhiteSpace(manifest.version)) throw new InvalidDataException("업데이트 명세가 올바르지 않습니다.");
-                if (manifest.files == null) manifest.files = new List<UpdateFile>();
-                if (manifest.delete == null) manifest.delete = new List<string>();
+                var manifest = UpdateProtocol.Read(json);
+                UpdateProtocol.ValidateForInstallation(manifest, ReadCurrentVersion());
                 return manifest;
             }
+            catch (InvalidDataException) { throw; }
             catch (Exception error) { last = error; }
         }
         throw new WebException("모든 업데이트 서버 연결에 실패했습니다.", last);
@@ -262,19 +321,41 @@ internal sealed class UpdaterForm : Form
 
     private static void CopyRcEnvironment(ProcessStartInfo info)
     {
-        foreach (string name in new[] { RcReleaseBaseVariable, RcManifestVariable })
+        foreach (string name in new[] { RcReleaseBaseVariable, RcManifestVariable, RcRuntimeManifestVariable })
         {
             string value = Environment.GetEnvironmentVariable(name);
             if (!String.IsNullOrWhiteSpace(value)) info.EnvironmentVariables[name] = value;
         }
     }
 
+    internal static ProcessStartInfo CreateRuntimeContinuation(string root, bool launch)
+    {
+        RuntimeBundleInstaller.VerifyCandidateEngine(root);
+        var info = new ProcessStartInfo(Path.Combine(root, "LAKIS_Updater.exe"),
+            RuntimeBundleInstaller.Quote(root) + " --continue-runtime-update" +
+            (launch ? " --launch-after-update" : "")) {
+            UseShellExecute = false, WorkingDirectory = root
+        };
+        CopyRcEnvironment(info);
+        string bridgeUrl = Environment.GetEnvironmentVariable(RcManifestVariable);
+        string runtimeUrl = Environment.GetEnvironmentVariable(RcRuntimeManifestVariable);
+        if (!String.IsNullOrWhiteSpace(bridgeUrl) || !String.IsNullOrWhiteSpace(runtimeUrl))
+        {
+            // An isolated RC must never fall back to the public channel or
+            // fetch its bootstrap manifest again after replacing the engine.
+            ValidateRcLoopbackUrl(bridgeUrl, RcManifestVariable);
+            info.EnvironmentVariables[RcManifestVariable] =
+                ValidateRcLoopbackUrl(runtimeUrl, RcRuntimeManifestVariable);
+        }
+        return info;
+    }
+
     private void ApplyUpdate(UpdateManifest manifest)
     {
-        if (!Regex.IsMatch(manifest.version ?? "", "^[0-9]+\\.[0-9]+\\.[0-9]+(?:\\.[0-9]+)?\\z"))
-            throw new InvalidDataException("잘못된 업데이트 버전입니다.");
-        if (CompareVersions(manifest.version, ReadCurrentVersion()) < 0)
-            throw new InvalidDataException("현재 설치보다 이전 버전으로 업데이트할 수 없습니다.");
+        UpdateProtocol.EnsureNoPendingRuntimeTransition(targetRoot);
+        UpdateProtocol.ValidateForInstallation(manifest, ReadCurrentVersion());
+        if (manifest.kind != "file-patch")
+            throw new InvalidDataException("런타임 교체는 전용 엔진으로만 실행할 수 있습니다.");
         string work = Path.Combine(Path.GetTempPath(), "LAKIS_Update_" + Guid.NewGuid().ToString("N"));
         string stage = Path.Combine(work, "stage");
         string backup = SafeCombine(targetRoot, Path.Combine(".lakis", "rollback", manifest.version + "_" + DateTime.Now.ToString("yyyyMMdd_HHmmss")));
@@ -536,11 +617,14 @@ internal sealed class UpdaterForm : Form
         return File.Exists(path) ? File.ReadAllText(path).Trim() : "0.0.0";
     }
 
+    private void RefreshInstalledVersion()
+    {
+        copyright.Text = "© 2026 Luke Jeong. All rights reserved. · LAKIS v" + ReadCurrentVersion();
+    }
+
     private static int CompareVersions(string left, string right)
     {
-        Version a, b;
-        if (!Version.TryParse(left, out a) || !Version.TryParse(right, out b)) return String.Compare(left, right, StringComparison.OrdinalIgnoreCase);
-        return a.CompareTo(b);
+        return UpdateProtocol.CompareVersions(left, right);
     }
 
     private void StopInstalledProcesses()
@@ -574,13 +658,31 @@ internal sealed class UpdaterForm : Form
 
     private void SetStatus(string text, int current, int total)
     {
-        BeginInvoke((Action)(() => { status.Text = text; progress.Value = total > 0 ? Math.Min(100, current * 100 / total) : 0; }));
+        BeginInvoke((Action)(() => {
+            status.Text = text;
+            progress.Style = total > 0 ? ProgressBarStyle.Continuous : ProgressBarStyle.Marquee;
+            progress.Value = total > 0 ? Math.Min(100, current * 100 / total) : 0;
+        }));
     }
 
     [STAThread]
     private static void Main(string[] args)
     {
         Application.EnableVisualStyles();
+        if (args.Length == 3 && (args[0] == "--finish-runtime-transition" || args[0] == "--recover-runtime-transition"))
+        {
+            try
+            {
+                var handoff = RuntimeBundleInstaller.ReadHandoff(args[1], args[2]);
+                bool recover = args[0] == "--recover-runtime-transition";
+                Application.Run(new UpdaterForm(handoff.target, handoff.launch && !recover, handoff, recover));
+            }
+            catch (Exception error)
+            {
+                MessageBox.Show(error.Message, "LAKIS 업데이트 인계 오류", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            return;
+        }
         if (args.Length >= 4 && args[0] == "--finish-self-update")
         {
             FinishSelfUpdate(args);
@@ -594,7 +696,8 @@ internal sealed class UpdaterForm : Form
         foreach (string value in args) if (!value.StartsWith("--")) { root = value; break; }
         if (String.IsNullOrWhiteSpace(root))
             root = File.Exists(Path.Combine(executableRoot, "VERSION")) ? executableRoot : installedRoot;
-        Application.Run(new UpdaterForm(root, launchAfterUpdate));
+        bool continueRuntime = Array.Exists(args, value => value == "--continue-runtime-update");
+        Application.Run(new UpdaterForm(root, launchAfterUpdate, null, false, continueRuntime));
     }
 
     private static void FinishSelfUpdate(string[] args)
@@ -681,9 +784,11 @@ internal sealed class UpdaterForm : Form
                 catch (Exception error) { last = error; System.Threading.Thread.Sleep(500); }
             }
             if (last != null) throw last;
+            ProcessStartInfo continuation = version == UpdateProtocol.RuntimeBridgeVersion
+                ? CreateRuntimeContinuation(root, launch) : null;
             File.WriteAllText(Path.Combine(root, "VERSION"), version);
             CreateOrRepairDesktopShortcut(root);
-            if (launch)
+            if (launch && continuation == null)
             {
                 var launcherInfo = new ProcessStartInfo(Path.Combine(root, "LAKIS.exe")) { UseShellExecute = false, WorkingDirectory = root };
                 CopyRcEnvironment(launcherInfo);
@@ -701,6 +806,7 @@ internal sealed class UpdaterForm : Form
             }
             if (!String.IsNullOrWhiteSpace(retiredExecutable))
                 try { File.Delete(retiredExecutable); } catch { }
+            if (continuation != null) Process.Start(continuation);
         }
         catch (Exception error)
         {

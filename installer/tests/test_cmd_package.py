@@ -5,8 +5,11 @@ import shutil
 import tempfile
 import unittest
 import zipfile
+import sys
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / 'installer'))
+import build_runtime_installer_manifest as manifest_builder
 spec = importlib.util.spec_from_file_location('builder', ROOT / 'installer/build_cmd_installer.py')
 builder = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(builder)
@@ -19,13 +22,15 @@ class CmdPackageTests(unittest.TestCase):
         installer = repo / 'installer'
         installer.mkdir(parents=True)
         dist.mkdir()
-        (repo / 'VERSION').write_text('7.5.0\n')
+        (repo / 'VERSION').write_text('8.0.0\n')
         for name in (*builder.PACKAGE_FILES, 'cmd-installer-manifest.json', 'Setup_LAKIS_Safe.cs'):
             shutil.copyfile(ROOT / 'installer' / name, installer / name)
         archive = root / 'source.zip'
         revision = 'a' * 40
         with zipfile.ZipFile(archive, 'w') as z:
-            z.writestr(f'LAKIS-{revision}/VERSION', '7.5.0\n')
+            z.writestr(f'LAKIS-{revision}/VERSION', '8.0.0\n')
+            for name in builder.PACKAGE_FILES:
+                z.writestr(f'LAKIS-{revision}/installer/{name}', (installer / name).read_bytes())
         digest = builder.sha256(archive)
         contract = root / 'source-contract.json'
         contract.write_text(json.dumps({'schema': 1, 'revision': revision, 'sha256': digest, 'bytes': archive.stat().st_size}))
@@ -42,8 +47,25 @@ class CmdPackageTests(unittest.TestCase):
             stream.write(f'private const string WebView2BootstrapperUrl = "{webview_record["url"]}";\n')
             stream.write(f'private const string WebView2BootstrapperSha256 = "{webview_record["sha256"]}";\n')
             stream.write(f'private const long WebView2BootstrapperBytes = {webview_record["bytes"]};\n')
-        (dist / 'release-layout.json').write_text(json.dumps({'version': '7.5.0', 'files': [{'path': 'VERSION', 'size': 5}]}))
-        (dist / 'LAKIS_RepairPack.zip').write_bytes(b'fixture repair bytes')
+        bundle_path = root / 'runtime-bundle.json'
+        bundle_path.write_text(json.dumps({
+            'schema': 2, 'product': 'LAKIS', 'version': '8.0.0',
+            'comfyui_version': '0.42.0', 'name': 'LAKIS_Runtime_8.0.0.zip',
+            'bytes': 10, 'files': 1, 'sha256': 'A' * 64, 'manifest_sha256': 'B' * 64,
+            'parts': [{
+                'name': 'LAKIS_Runtime_8.0.0.zip.part001', 'bytes': 10, 'sha256': 'C' * 64,
+                'url': 'https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.0/LAKIS_Runtime_8.0.0.zip.part001',
+            }],
+        }))
+        manifest_path = root / 'runtime-installer-manifest.json'
+        manifest_builder.build(repo, bundle_path, root / 'webview2-bootstrapper.json', manifest_path)
+        setup = dist / 'LAKIS_Setup.exe'
+        setup.write_bytes(b'fixture setup with pinned runtime manifest')
+        (root / 'runtime-installer-contract.json').write_text(json.dumps({
+            'schema': 1, 'version': '8.0.0',
+            'manifest_sha256': builder.sha256(manifest_path),
+            'setup_sha256': builder.sha256(setup),
+        }))
         return repo, dist, archive, contract, pinned
 
     def test_exact_source_and_release_assets_generate_reproducible_package(self):
@@ -55,13 +77,14 @@ class CmdPackageTests(unittest.TestCase):
             with zipfile.ZipFile(package) as z:
                 self.assertEqual(set(z.namelist()), {*builder.PACKAGE_FILES, 'cmd-installer-manifest.json'})
                 manifest = json.loads(z.read('cmd-installer-manifest.json'))
-                self.assertEqual(manifest['source']['sha256'], builder.sha256(args[2]))
-                self.assertIn('a' * 40, manifest['source']['url'])
+                self.assertEqual(z.read('cmd-installer-manifest.json'),
+                                 (args[3].parent / 'runtime-installer-manifest.json').read_bytes())
+                self.assertEqual(manifest['runtime_bundle']['version'], '8.0.0')
                 self.assertEqual(manifest['webview2']['sha256'], builder.sha256(args[3].parent / 'MicrosoftEdgeWebview2Setup.exe'))
-                for key in ('repair_pack', 'release_layout'):
-                    asset = args[1] / manifest[key]['name']
-                    self.assertEqual(manifest[key]['sha256'], builder.sha256(asset))
-                    self.assertEqual(manifest[key]['bytes'], asset.stat().st_size)
+                for key in ('nodes', 'source', 'repair_pack', 'release_layout'):
+                    self.assertNotIn(key, manifest)
+                for name in builder.PACKAGE_FILES:
+                    self.assertEqual(z.read(name), (args[0] / 'installer' / name).read_bytes())
                 self.assertEqual(z.read('LAKIS_CMD_Install.cmd'), (args[0] / 'installer/LAKIS_CMD_Install.cmd').read_bytes())
 
     def test_stale_source_contract_rejected(self):
@@ -76,7 +99,10 @@ class CmdPackageTests(unittest.TestCase):
             args = list(self.fixture(Path(directory)))
             revision = 'a' * 40
             with zipfile.ZipFile(args[2], 'w') as z:
-                z.writestr('Jeong-Luke-LAKIS-a1b2c3d/VERSION', '7.5.0\n')
+                z.writestr('Jeong-Luke-LAKIS-a1b2c3d/VERSION', '8.0.0\n')
+                for name in builder.PACKAGE_FILES:
+                    z.writestr('Jeong-Luke-LAKIS-a1b2c3d/installer/' + name,
+                               (args[0] / 'installer' / name).read_bytes())
             digest = builder.sha256(args[2])
             args[3].write_text(json.dumps({'schema': 1, 'revision': revision, 'sha256': digest, 'bytes': args[2].stat().st_size}))
             args[4].write_text(args[4].read_text().replace(
@@ -97,19 +123,32 @@ class CmdPackageTests(unittest.TestCase):
             args = self.fixture(Path(directory))
             template = args[0] / 'installer/cmd-installer-manifest.json'
             manifest = json.loads(template.read_text())
-            manifest['nodes'][0][2] = '0' * 64
+            manifest['models'][0][2] = '0' * 64
             template.write_text(json.dumps(manifest))
             with self.assertRaisesRegex(ValueError, 'dependency template is stale'):
                 builder.build(*args)
 
-    def test_required_setup_dependency_missing_from_cmd_rejected(self):
+    def test_runtime_manifest_tampering_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             args = self.fixture(Path(directory))
-            template = args[0] / 'installer/cmd-installer-manifest.json'
-            manifest = json.loads(template.read_text())
-            manifest['nodes'].pop()
-            template.write_text(json.dumps(manifest))
-            with self.assertRaisesRegex(ValueError, 'dependency template is stale'):
+            path = args[3].parent / 'runtime-installer-manifest.json'
+            path.write_bytes(path.read_bytes() + b' ')
+            with self.assertRaisesRegex(ValueError, 'runtime installer contracts differ'):
+                builder.build(*args)
+
+    def test_modified_cmd_helper_is_not_packaged_under_an_old_source_pin(self):
+        with tempfile.TemporaryDirectory() as directory:
+            args = self.fixture(Path(directory))
+            path = args[0] / 'installer/runtime_install.py'
+            path.write_bytes(path.read_bytes() + b'\n# changed after source freeze\n')
+            with self.assertRaisesRegex(ValueError, 'source changed after the frozen source archive'):
+                builder.build(*args)
+
+    def test_different_gui_binary_is_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            args = self.fixture(Path(directory))
+            (args[1] / 'LAKIS_Setup.exe').write_bytes(b'a different GUI installer')
+            with self.assertRaisesRegex(ValueError, 'runtime installer contracts differ'):
                 builder.build(*args)
 
     def test_webview_build_pin_mismatch_rejected(self):

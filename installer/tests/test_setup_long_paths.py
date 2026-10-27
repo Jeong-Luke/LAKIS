@@ -106,7 +106,7 @@ class SetupLongPathTests(unittest.TestCase):
         probe = cls.root/'Probe.cs'
         probe.write_text(PROBE, encoding='utf-8')
         cls.exe = cls.root/'LongPathProbe.exe'
-        cls.sevenzip = ROOT/'.safe-installer-build/7zr.exe'
+        cls.sevenzip = Path(os.environ.get('LAKIS_INSTALLER_STAGE', str(ROOT/'.safe-installer-build')))/'7zr.exe'
         resources=[]
         if cls.sevenzip.is_file():
             if hashlib.sha256(cls.sevenzip.read_bytes()).hexdigest().upper() != 'AD4C82FADCBDF93C03B4FC440F300509C7D60C5C2F4D183E35D9D70D6957037D':
@@ -114,8 +114,10 @@ class SetupLongPathTests(unittest.TestCase):
             resources=['/resource:'+str(cls.sevenzip)+',LAKIS.7zr']
         result = subprocess.run([str(CSC), '/nologo', '/target:exe', '/main:LongPathProbe',
             '/out:' + str(cls.exe), '/reference:System.Windows.Forms.dll',
-            '/reference:System.Drawing.dll', '/reference:System.IO.Compression.dll',
-            '/reference:System.IO.Compression.FileSystem.dll', str(ROOT/'installer/SplashArtwork.cs'),
+            '/reference:System.Drawing.dll', '/reference:System.Web.Extensions.dll',
+            '/reference:System.IO.Compression.dll', '/reference:System.IO.Compression.FileSystem.dll',
+            str(ROOT/'installer/SplashArtwork.cs'),
+            str(ROOT/'installer/tests/RuntimeBundleInstallerStub.cs'),
             str(ROOT/'installer/Setup_LAKIS_Safe.cs'), str(probe)]+resources, capture_output=True)
         if result.returncode:
             cls.temporary.cleanup()

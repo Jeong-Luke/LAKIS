@@ -1,13 +1,13 @@
 {
   "schema": 1,
-  "version": "7.5.3",
+  "version": "8.0.0",
   "webview2": {
     "name": "MicrosoftEdgeWebview2Setup.exe",
     "url": "https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/1c9db68b-8343-4d70-85c2-d3e3735cdf15/MicrosoftEdgeWebview2Setup.exe",
     "sha256": "81C01751C8CC385A5991ABB104205D42AC70094350EE8FB9E8EA580B51BB9554",
     "bytes": 1844944
   },
-  "release_base": "https://github.com/Jeong-Luke/LAKIS/releases/download/v7.5.0",
+  "release_base": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.0",
   "base": {
     "name": "ComfyUI_windows_portable_nvidia.7z",
     "url": "https://github.com/Comfy-Org/ComfyUI/releases/download/v0.21.1/ComfyUI_windows_portable_nvidia.7z",
@@ -119,6 +119,13 @@
     "https://codeload.github.com/Coyote-A/ultimate-upscale-for-automatic1111/zip/2322caa480535b1011a1f9c18126d85ea444f146",
     "0797D41BAD17B4BD9C41FAE0FF4EA110CC364C1D2A06E13B27CA78FD0D4C57D7",
     "comfyui_ultimatesdupscale/repositories/ultimate_sd_upscale"
+  ],
+  "optional_animesharp": [
+    "2x-AnimeSharpV4_Fast_RCAN_PU.safetensors",
+    "https://huggingface.co/Kim2091/2x-AnimeSharpV4/resolve/1a9339b5c308ab3990f6233be2c1169a75772878/2x-AnimeSharpV4_Fast_RCAN_PU.safetensors",
+    "B641C9EB10B43F26538177AA8F0FEF8B9FC2A153AFD1431D0A062A84C49CE6D0",
+    "upscale_models",
+    31359158
   ],
   "models": [
     [

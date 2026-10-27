@@ -1,4 +1,36 @@
-# LAKIS v7.5.2
+# LAKIS v8.0.0 — 공개 전 후보
+
+이 문서는 준비 중인 8.0.0의 변경 범위입니다. 공개 및 전체 릴리즈 감사 통과를 의미하지 않으며, 기존 7.5.4 배포본은 그대로 유지합니다.
+
+## 8.0.0 변경 사항
+
+- 3D 포즈 편집과 인물별 프롬프트를 생성 경로에 연결했습니다.
+- 포즈 설정과 프롬프트를 재시작 후 복원하며, 오래된 창이 최신 설정을 덮어쓰지 않도록 보호합니다.
+- ComfyUI 0.42.0 기반의 고정 실행 환경을 GUI·CMD 설치와 업데이트·복구에서 함께 사용하도록 연결했습니다.
+- 업데이트는 7.5.4.1 중간 업데이터를 거쳐 8.0.0 실행 환경으로 전환합니다.
+- 포즈 모델 두 개는 프로그램에 동봉하지 않고 공식 고정 URL에서 다운로드한 뒤 SHA-256을 검증합니다. 기존 사용자 모델은 덮어쓰지 않습니다.
+- 업데이트·복구 완료 후 설치된 버전 표시를 갱신하고 WebView2, CUDA, cuDNN, SAM 관련 고지문을 보완했습니다.
+
+## 알려진 한계와 공개 조건
+
+- 인페인트의 요청 색상이 결과에 정확히 반영되지 않을 수 있습니다. 이 품질 한계는 유지하며, 개선 완료로 표시하지 않습니다.
+- 모델·자산 및 일부 CUDA 구성 요소의 이용·재배포 조건은 미확정 항목이 남아 있습니다. 공식 다운로드 방식이 해당 라이선스 조건을 없애지는 않습니다.
+- 최종 설치기와 공개 대상 산출물 검증 및 미해결 라이선스 항목 해소 전에는 공개하지 않습니다.
+
+## English
+
+This is an unpublished 8.0.0 candidate, not a release or full-audit approval.
+It adds 3D pose editing and per-person prompts, persisted pose state, a shared
+frozen ComfyUI 0.42.0 runtime for GUI/CMD installation and update/repair, the
+7.5.4.1 updater transition, and hash-verified official pose-model downloads.
+Existing user models are not overwritten. Installed-version display and
+third-party notices are updated. Inpaint color fidelity remains a known
+limitation, and unresolved licensing and final-artifact gates still block
+publication. The existing 7.5.4 release is preserved.
+
+---
+
+# 이전 변경 기록: LAKIS v7.5.2
 
 ## 주요 변경 사항
 
