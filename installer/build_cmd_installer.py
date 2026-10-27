@@ -47,7 +47,9 @@ def build(repo: Path, dist: Path, archive: Path, contract_path: Path, pinned_set
         if source.read(f"{source_root}/VERSION").decode("utf-8-sig").strip() != version:
             raise ValueError("source archive version mismatch")
         for name in PACKAGE_FILES:
-            if source.read(f"{source_root}/installer/{name}") != (repo / "installer" / name).read_bytes():
+            archived = source.read(f"{source_root}/installer/{name}").replace(b"\r\n", b"\n")
+            checked_out = (repo / "installer" / name).read_bytes().replace(b"\r\n", b"\n")
+            if archived != checked_out:
                 raise ValueError("CMD source changed after the frozen source archive: " + name)
 
     installer = repo / "installer"
@@ -89,13 +91,22 @@ def build(repo: Path, dist: Path, archive: Path, contract_path: Path, pinned_set
             raise ValueError('Setup and CMD WebView2 pins differ')
     if manifest.get("webview2") != webview:
         raise ValueError("runtime installer WebView2 pin differs")
-    cmd_bytes = (installer / "LAKIS_CMD_Install.cmd").read_bytes()
+    cmd_bytes = (installer / "LAKIS_CMD_Install.cmd").read_bytes().replace(
+        b"\r\n", b"\n"
+    ).replace(b"\n", b"\r\n")
+    # Pin the generated script without transcoding its CP949 source template.
+    seven_url = b'set "SEVEN_URL=https://www.7-zip.org/a/7zr.exe"'
+    if cmd_bytes.count(seven_url) != 1:
+        raise ValueError("CMD 7-Zip source declaration is ambiguous")
+    cmd_bytes = cmd_bytes.replace(
+        seven_url,
+        b'set "SEVEN_URL=https://github.com/ip7z/7zip/releases/download/26.03/7zr.exe"',
+    )
     cmd = cmd_bytes.decode("cp949")
-    if b"\n" in cmd_bytes.replace(b"\r\n", b""):
-        raise ValueError("CMD must preserve CRLF")
     if manifest["base"]["url"] not in cmd or manifest["base"]["sha256"] not in cmd:
         raise ValueError("CMD bootstrap differs from the dependency template")
     payload = {name: (installer / name).read_bytes() for name in PACKAGE_FILES}
+    payload["LAKIS_CMD_Install.cmd"] = cmd_bytes
     payload["cmd-installer-manifest.json"] = manifest_bytes
     destination = dist / f"LAKIS_CMD_Installer_{version}.zip"
     temporary = destination.with_suffix(".zip.tmp")

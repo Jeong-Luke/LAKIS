@@ -16,7 +16,15 @@ spec.loader.exec_module(builder)
 
 
 class CmdPackageTests(unittest.TestCase):
-    def fixture(self, root):
+    def assert_cmd_payload(self, cmd, source):
+        self.assertNotIn(b'\n', cmd.replace(b'\r\n', b''))
+        expected = source.decode('cp949').replace(
+            'https://www.7-zip.org/a/7zr.exe',
+            'https://github.com/ip7z/7zip/releases/download/26.03/7zr.exe',
+        )
+        self.assertEqual(cmd.decode('cp949').splitlines(), expected.splitlines())
+
+    def fixture(self, root, *, git_line_endings=False):
         repo = root / 'repo'
         dist = root / 'dist'
         installer = repo / 'installer'
@@ -30,7 +38,10 @@ class CmdPackageTests(unittest.TestCase):
         with zipfile.ZipFile(archive, 'w') as z:
             z.writestr(f'LAKIS-{revision}/VERSION', '8.0.0\n')
             for name in builder.PACKAGE_FILES:
-                z.writestr(f'LAKIS-{revision}/installer/{name}', (installer / name).read_bytes())
+                data = (installer / name).read_bytes()
+                if git_line_endings:
+                    data = data.replace(b'\r\n', b'\n')
+                z.writestr(f'LAKIS-{revision}/installer/{name}', data)
         digest = builder.sha256(archive)
         contract = root / 'source-contract.json'
         contract.write_text(json.dumps({'schema': 1, 'revision': revision, 'sha256': digest, 'bytes': archive.stat().st_size}))
@@ -84,8 +95,25 @@ class CmdPackageTests(unittest.TestCase):
                 for key in ('nodes', 'source', 'repair_pack', 'release_layout'):
                     self.assertNotIn(key, manifest)
                 for name in builder.PACKAGE_FILES:
-                    self.assertEqual(z.read(name), (args[0] / 'installer' / name).read_bytes())
-                self.assertEqual(z.read('LAKIS_CMD_Install.cmd'), (args[0] / 'installer/LAKIS_CMD_Install.cmd').read_bytes())
+                    if name != 'LAKIS_CMD_Install.cmd':
+                        self.assertEqual(z.read(name), (args[0] / 'installer' / name).read_bytes())
+                cmd = z.read('LAKIS_CMD_Install.cmd')
+                self.assert_cmd_payload(cmd, (args[0] / 'installer/LAKIS_CMD_Install.cmd').read_bytes())
+
+    def test_git_archive_lf_matches_windows_checkout(self):
+        with tempfile.TemporaryDirectory() as directory:
+            args = self.fixture(Path(directory), git_line_endings=True)
+            self.assertTrue(builder.build(*args).is_file())
+
+    def test_lf_checkout_still_packages_a_crlf_cmd(self):
+        with tempfile.TemporaryDirectory() as directory:
+            args = self.fixture(Path(directory), git_line_endings=True)
+            path = args[0] / 'installer/LAKIS_CMD_Install.cmd'
+            path.write_bytes(path.read_bytes().replace(b'\r\n', b'\n'))
+            package = builder.build(*args)
+            with zipfile.ZipFile(package) as z:
+                cmd = z.read(path.name)
+            self.assert_cmd_payload(cmd, path.read_bytes())
 
     def test_stale_source_contract_rejected(self):
         with tempfile.TemporaryDirectory() as directory:

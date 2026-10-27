@@ -82,7 +82,7 @@ if ($LASTEXITCODE) { throw "Frozen runtime installer manifest preparation failed
 
 $sevenZip = Join-Path $stage "7zr.exe"
 if (-not (Test-Path -LiteralPath $sevenZip)) {
-    Invoke-WebRequest -UseBasicParsing "https://www.7-zip.org/a/7zr.exe" -OutFile $sevenZip
+    Invoke-WebRequest -UseBasicParsing "https://github.com/ip7z/7zip/releases/download/26.03/7zr.exe" -OutFile $sevenZip
 }
 if ((Get-FileHash -Algorithm SHA256 -LiteralPath $sevenZip).Hash -ne "AD4C82FADCBDF93C03B4FC440F300509C7D60C5C2F4D183E35D9D70D6957037D") { throw "Official 7zr.exe verification failed" }
 $webViewPackage = Join-Path $stage "Microsoft.Web.WebView2.1.0.4191.47.nupkg"
