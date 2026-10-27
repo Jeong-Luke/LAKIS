@@ -3,10 +3,6 @@
 .toyxyz-card-title,.toyxyz-card-actions { display:flex;align-items:center;gap:8px; }
 .toyxyz-card-actions { flex:none; }
 .scene-note { font-size:12px;color:#c9bcd5;line-height:1.5;overflow-wrap:anywhere; }
-.scene-model-help { margin-top:10px;font-size:12px;line-height:1.5;overflow-wrap:anywhere; }
-.scene-model-help summary { cursor:pointer; }
-.scene-model-help a { color:#c8afff; }
-.scene-model-help ul { padding-left:18px; }
 .toyxyz-scene-editor { box-sizing:border-box;width:min(1800px,calc(100vw - 32px));height:calc(100dvh - 32px);max-width:none;max-height:none;padding:14px;border:1px solid #644d79;border-radius:14px;background:#141720;color:#eee;overflow:hidden; }
 .toyxyz-scene-editor[open] { display:flex;flex-direction:column;gap:10px; }
 .toyxyz-scene-editor::backdrop { background:#000c; }

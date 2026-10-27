@@ -104,7 +104,7 @@ def handle_get(handler, root, comfy_root):
             with STATE_LOCK:
                 state = load_state(root)
             handler._send_json(200, {
-                "ok": True, "version": "8.0.0", "state": state,
+                "ok": True, "version": "8.0.1", "state": state,
                 "models": {name: model_status(name, comfy_root) for name in MODELS},
             })
         except (ValueError, TypeError, OSError) as error:

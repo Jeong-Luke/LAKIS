@@ -1,13 +1,13 @@
 {
   "schema": 1,
-  "version": "8.0.0",
+  "version": "8.0.1",
   "webview2": {
     "name": "MicrosoftEdgeWebview2Setup.exe",
     "url": "https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/1c9db68b-8343-4d70-85c2-d3e3735cdf15/MicrosoftEdgeWebview2Setup.exe",
     "sha256": "81C01751C8CC385A5991ABB104205D42AC70094350EE8FB9E8EA580B51BB9554",
     "bytes": 1844944
   },
-  "release_base": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.0",
+  "release_base": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.1",
   "base": {
     "name": "ComfyUI_windows_portable_nvidia.7z",
     "url": "https://github.com/Comfy-Org/ComfyUI/releases/download/v0.21.1/ComfyUI_windows_portable_nvidia.7z",

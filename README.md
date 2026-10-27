@@ -1,6 +1,6 @@
 # LAKIS Studio
 
-> 이 작업본은 **8.0.0 공개 전 후보**입니다. 공개 다운로드는 기존 **7.5.4**를 유지하며, 최종 설치기·라이선스·릴리즈 검증이 끝나기 전에는 8.0.0을 공개하지 않습니다.
+> **8.0.1 핫픽스**는 3D 생성 요청과 정밀 프롬프트의 와일드카드 처리를 수정합니다. 기존 8.0.0과 7.5.4 릴리즈는 보존합니다.
 
 LAKIS Studio는 ComfyUI를 더 쉽게 사용할 수 있도록 제작된 외부 사용자 인터페이스이자, 검증된 워크플로 환경입니다.
 
@@ -10,15 +10,23 @@ LAKIS 애플리케이션, 사용자 인터페이스, 설치기, 업데이터, �
 
 ## 다운로드
 
-**[Windows용 LAKIS Studio v7.5.4 설치 파일 및 CMD Version](https://github.com/Jeong-Luke/LAKIS/releases/tag/v7.5.4)**
+**[Windows용 LAKIS Studio v8.0.1 설치 파일 및 CMD Version](https://github.com/Jeong-Luke/LAKIS/releases/tag/v8.0.1)**
 
 일반적으로 `LAKIS_Setup.exe`를 사용하세요. Windows Defender가 Setup을 차단하거나 설치 파일을 실행할 수 없다면 CMD Version ZIP의 압축을 완전히 푼 뒤 `LAKIS_CMD_Install.cmd`를 실행하세요. CMD Version은 관리자 권한이나 Defender 예외 설정을 요구하지 않는 공식 대체 설치 방법입니다.
 
-[v7.5.4 릴리즈 설명과 개별 파일](https://github.com/Jeong-Luke/LAKIS/releases/tag/v7.5.4)도 확인할 수 있습니다.
+[v8.0.1 릴리즈 설명과 개별 파일](https://github.com/Jeong-Luke/LAKIS/releases/tag/v8.0.1)도 확인할 수 있습니다.
 
 ## 안정 버전
 
-현재 공개 안정 버전은 `v7.5.4`이며, 이 작업본의 `8.0.0`은 아직 공개되지 않은 후보입니다. 이전 개발 패키지와 개발용 워크플로는 별도로 관리하며 신규 사용자에게 배포하지 않습니다.
+이 작업본은 `v8.0.1` 릴리즈용 소스입니다. 이전 개발 패키지와 개발용 워크플로는 별도로 관리하며 신규 사용자에게 배포하지 않습니다.
+
+## v8.0.1 수정 사항
+
+- 큰 다인 3D 장면의 생성 요청 크기 제한 수정
+- 꺼진 3D 장면 데이터를 생성 요청에서 제외하고 저장된 장면은 보존
+- 인물별·배경 와일드카드 치환과 번역 순서 수정
+- 제어 모델 설치·이용 조건 안내 박스 제거; 모델 검증과 배포 약관 유지
+- 8.0.0의 ComfyUI 0.42.0 기반 실행 환경과 모델·노드 버전 유지
 
 ## v7.5.3 수정 사항
 
@@ -87,15 +95,23 @@ from AGPL software remain AGPL-3.0-or-later.
 
 ### Download
 
-**[LAKIS Studio v7.5.4 Windows installers and CMD Version](https://github.com/Jeong-Luke/LAKIS/releases/tag/v7.5.4)**
+**[LAKIS Studio v8.0.1 Windows installers and CMD Version](https://github.com/Jeong-Luke/LAKIS/releases/tag/v8.0.1)**
 
 Use `LAKIS_Setup.exe` for normal installation and repair. If Windows Defender blocks Setup or prevents it from running, fully extract the CMD Version ZIP and run `LAKIS_CMD_Install.cmd`. CMD Version is an official alternative installation method that does not require administrator access or a Defender exclusion.
 
-You can also view the [v7.5.4 release notes and individual files](https://github.com/Jeong-Luke/LAKIS/releases/tag/v7.5.4).
+You can also view the [v8.0.1 release notes and individual files](https://github.com/Jeong-Luke/LAKIS/releases/tag/v8.0.1).
 
 ### Stable baseline
 
-The current public stable release is `v7.5.4`. This worktree is an unpublished `8.0.0` candidate; publication remains blocked until final installer, licensing, and release checks are complete. Earlier development packages and workflows are maintained separately and are not distributed to new users.
+This worktree contains the `v8.0.1` release source. Previous 8.0.0 and 7.5.4 releases are preserved. Earlier development packages and workflows are maintained separately and are not distributed to new users.
+
+### v8.0.1 fixes
+
+- Accepts larger multi-person 3D generation requests
+- Omits inactive scene data from generation while retaining saved scenes
+- Resolves per-person and background wildcards before optional translation
+- Removes the control-model installation/terms panel while retaining model verification and distribution terms
+- Retains the ComfyUI 0.42.0 runtime and model/node versions from 8.0.0
 
 ### v7.5.3 fixes
 

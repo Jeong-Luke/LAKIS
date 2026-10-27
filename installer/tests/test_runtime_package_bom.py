@@ -66,6 +66,28 @@ class RuntimePackageBomTests(unittest.TestCase):
             package(self.source, self.manifest, self.binaries, self.work)
         self.assertFalse((self.work / "assets").exists())
 
+    def test_hotfix_version_is_consistent_in_bundle_archive_and_installed_marker(self):
+        self.manifest["version"] = "8.0.1"
+        pins = {
+            name: self.overlay_file(name, ("hotfix-" + name).encode())
+            for name in ("LAKIS_Desktop.exe", "LAKIS_Model_Importer.exe", "Uninstall_LAKIS.exe")
+        }
+        _, bundle = package(self.source, self.manifest, self.binaries, self.work,
+                            application_files=pins)
+        self.assertEqual(bundle["version"], "8.0.1")
+        self.assertEqual(bundle["name"], "LAKIS_Runtime_8.0.1.zip")
+        for part in bundle["parts"]:
+            self.assertEqual(part["url"], "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.1/" + part["name"])
+        with zipfile.ZipFile(self.work / bundle["name"]) as archive:
+            self.assertEqual(archive.read("VERSION"), b"8.0.1")
+            for name, pin in pins.items():
+                self.assertEqual(archive.read(name), pin["source"].read_bytes())
+            manifest = json.loads(archive.read(contract.MANIFEST_NAME))
+            self.assertEqual(manifest["version"], "8.0.1")
+            marker = next(row for row in manifest["files"] if row["path"] == "VERSION")
+            self.assertEqual(marker["sha256"], hashlib.sha256(b"8.0.1").hexdigest().upper())
+        self.assertEqual((self.source / "VERSION").read_bytes(), b"old-VERSION")
+
     def test_vendored_metadata_is_preserved_but_not_counted_as_an_installed_distribution(self):
         vendored = {
             "python_embeded/Lib/site-packages/setuptools/_vendor/actual_package-0.9.dist-info/METADATA":

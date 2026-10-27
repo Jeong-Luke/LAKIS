@@ -9,7 +9,6 @@
   const toyOpenButton = panel.querySelector("[data-open-toyxyz]");
   const toyToggle = panel.querySelector("[data-toyxyz-toggle]");
   const toyCloseButton = toyEditor.querySelector("[data-toyxyz-close]");
-  const refreshButton = panel.querySelector("[data-models-refresh]");
   const toyPending = new Map();
   let toyBoot, toyBootResolve, toyBootReject, toyBootTimer;
   let toyInitialized = false, toyInitializing, toyCapture, toySaveTimer, toyRevision = 0;
@@ -20,26 +19,10 @@
     status.hidden = false;
     status.textContent = error.message || String(error);
   }
-  function showModels(models) {
-    const list = panel.querySelector("[data-model-status]");
-    const entries = Object.values(models);
-    panel.querySelector("[data-model-notice]").textContent =
-      [...new Set(entries.map(model => model.notice))].join("\n");
-    list.replaceChildren(...entries.map(model => {
-      const item = document.createElement("li"), link = document.createElement("a");
-      link.href = model.model_card;
-      link.target = "_blank";
-      link.rel = "noopener noreferrer";
-      link.textContent = model.model;
-      item.append(link, ` · ${model.valid ? "공식 파일 확인됨" : model.installed ? "파일 해시 불일치" : "미설치"}`);
-      return item;
-    }));
-  }
   async function refreshModels() {
     const response = await fetch("/api/scene-controls", { cache: "no-store" });
     const result = await response.json();
     if (!response.ok) throw Error(result.error || "장면 설정을 불러오지 못했습니다.");
-    showModels(result.models);
     return result;
   }
   function persist() {
@@ -93,12 +76,10 @@
       };
     }
     strengthSettings.disabled = false;
-    refreshButton.disabled = false;
     syncToyVisibility();
     lastSavedSceneState = JSON.stringify(config);
   })();
   ready.catch(report);
-  refreshButton.onclick = () => refreshModels().catch(report);
   toyToggle.onclick = () => {
     config.toyxyz_enabled = !(config.enabled && config.toyxyz_enabled);
     changed();
@@ -235,7 +216,8 @@
   };
   window.lakisPrepareScene = async payload => {
     await ready;
-    if (config.enabled && config.toyxyz_enabled) {
+    const enabled = config.enabled && config.toyxyz_enabled;
+    if (enabled) {
       const result = await refreshModels();
       const missing = Object.values(result.models).filter(model => !model.valid);
       if (missing.length) throw Error("공식 제어 모델을 확인해 주세요: " + missing.map(model => model.model).join(", "));
@@ -255,22 +237,30 @@
     }
     clearTimeout(saveTimer);
     await persist();
-    payload.scene_controls = structuredClone(config);
+    payload.scene_controls = enabled ? structuredClone(config) : { enabled: false, toyxyz_enabled: false };
     const scene = payload.scene_controls;
-    if (!scene.enabled) return;
+    if (!enabled) return;
     payload.composition_enabled = false;
     payload.i2i.enabled = false;
     payload.inpaint.enabled = false;
-    if (state.translation_enabled) {
-      const painting = JSON.parse(scene.toyxyz_paint_data);
-      const entries = [...painting.layers.filter(layer => layer.visible), painting.base, painting.background];
-      for (const entry of entries) {
-        if (!entry.prompt.trim()) continue;
-        const translated = await translatedPromptForGeneration({ general: entry.prompt, negative: "" });
-        entry.prompt = translated.general;
+    const painting = JSON.parse(scene.toyxyz_paint_data);
+    const entries = [...painting.layers.filter(layer => layer.visible), painting.base, painting.background];
+    const resolved = await window.lakisResolveWildcardsForGeneration({
+      prompt: Object.fromEntries(entries.map((entry, index) => [String(index), entry.prompt])),
+      inpaint: {}, seed: payload.output.seed,
+    });
+    for (const selection of resolved.selections) {
+      if (!payload.wildcard.selections.some(item => item.name === selection.name)) {
+        payload.wildcard.selections.push(selection);
       }
-      scene.toyxyz_paint_data = JSON.stringify(painting);
     }
+    for (const [index, entry] of entries.entries()) {
+      entry.prompt = resolved.prompt[index];
+      if (!state.translation_enabled || !entry.prompt.trim()) continue;
+      const translated = await translatedPromptForGeneration({ general: entry.prompt, negative: "" });
+      entry.prompt = translated.general;
+    }
+    scene.toyxyz_paint_data = JSON.stringify(painting);
   };
   function flushSceneState() {
     clearTimeout(toySaveTimer);

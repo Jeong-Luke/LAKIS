@@ -32,7 +32,10 @@ try {
     if ([string]::IsNullOrWhiteSpace($InstallerPath)) {
         & $compiler /nologo /target:exe ("/out:" + $testInstaller) `
             /reference:System.Windows.Forms.dll /reference:System.Drawing.dll `
-            /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll $sharedArtwork $source
+            /reference:System.Web.Extensions.dll `
+            /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll `
+            $sharedArtwork (Join-Path $PSScriptRoot "UpdateProtocol.cs") `
+            (Join-Path $PSScriptRoot "RuntimeBundleInstaller.cs") $source
         Require ($LASTEXITCODE -eq 0) "Setup_LAKIS_Safe.cs did not compile."
     }
     else {

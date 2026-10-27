@@ -149,12 +149,6 @@
               </div>
             </div>
             <p class="scene-note" role="status" data-scene-status hidden></p>
-            <details class="scene-model-help">
-              <summary>제어 모델 설치·이용 조건</summary>
-              <p data-model-notice>설치기·업데이터가 공식 배포처에서 제어 모델을 다운로드하고 SHA-256을 검증합니다. 모델이 없으면 최신 설치기의 Repair로 추가해 주세요. Anima의 비상업·비프로덕션 제한과 원본 데이터 이용 조건이 적용됩니다. 파일 확인은 별도의 이용 허가를 뜻하지 않습니다.</p>
-              <ul data-model-status></ul>
-              <button type="button" class="mini-button" data-models-refresh disabled>설치 상태 새로고침</button>
-            </details>
           </article>
           <article class="panel wildcard-panel">
             <div class="panel-heading"><div><h2 class="section-title-accent">와일드카드</h2><small class="inpaint-dev-badge">BETA</small></div><div class="wildcard-heading-actions"><button id="wildcardToggle" class="lora-switch" type="button" aria-label="와일드카드 켜기" aria-pressed="false"></button><button id="wildcardOpen" class="mini-button" type="button">열기</button></div></div>
@@ -435,7 +429,7 @@
     </section>
   </div>
   <div id="wildcardOverlay" class="wildcard-overlay" hidden><section class="wildcard-card" role="dialog" aria-modal="true" aria-labelledby="wildcardTitle"><header><div><span>LAKIS</span><h2 id="wildcardTitle">와일드카드</h2></div><button id="wildcardClose" type="button" aria-label="닫기">×</button></header><nav><button type="button" data-wildcard-source="BUILT_IN" class="active">기본 제공</button><button type="button" data-wildcard-source="USER">내 와일드카드</button></nav><input id="wildcardSearch" type="search" placeholder="와일드카드 검색"><div class="wildcard-browser"><div id="wildcardList" class="wildcard-list"></div><div class="wildcard-preview"><div class="wildcard-selection-head"><div><strong id="wildcardSelectionName">목록에서 선택하세요</strong><small id="wildcardSelectionMeta"></small><small id="wildcardUseCount"></small></div><div><button id="wildcardIncludeAll" type="button">전체 포함</button><button id="wildcardExcludeAll" type="button">전체 해제</button><button id="wildcardReset" type="button">초기화</button></div></div><div id="wildcardEntries" class="wildcard-entry-list"></div></div><aside><h3>사용 중인 와일드카드</h3><div id="activeWildcards" class="active-wildcard-list"><small>프롬프트에 삽입된 와일드카드가 없습니다.</small></div><code id="wildcardToken">__name__</code><button id="wildcardInsert" type="button" disabled>프롬프트에 삽입</button></aside></div><footer><button id="wildcardFolder" type="button">폴더 열기</button><button id="wildcardRefresh" type="button">새로고침</button><span id="wildcardStatus"></span></footer></section></div>
-  <link rel="stylesheet" href="scene-controls.css?v=8.0.0">
+  <link rel="stylesheet" href="scene-controls.css?v=8.0.1">
   <link rel="stylesheet" href="precision-prompts.css?v=8.0.0">
   <dialog id="toyxyzSceneEditor" class="toyxyz-scene-editor" aria-labelledby="toyxyzSceneTitle">
     <header class="scene-editor-heading">
@@ -451,7 +445,7 @@
     <iframe title="3D 인물·영역 편집기"></iframe>
   </dialog>
   <script src="app.js?v=8.0.0-pose"></script>
-  <script src="scene-controls.js?v=8.0.0"></script>
+  <script src="scene-controls.js?v=8.0.1"></script>
   <script src="wildcard-control.js?v=20261006-exclude-all"></script>
   <script src="advanced-node-settings.js?v=20260920-settings-gear"></script>
   <script type="module" src="prompt-highlighting.js?v=20260913-wildcard-experiment-1"></script>

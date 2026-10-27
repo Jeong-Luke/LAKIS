@@ -52,11 +52,14 @@ def invoke(executable, *arguments, environment=None):
 
 def package(source, manifest, binaries, work, *, application_files=None):
     """Merge pinned application files and derive the BOM from verified metadata."""
+    version = manifest["version"]
     overrides = {name: (binaries / name).read_bytes() for name in NATIVE_NAMES}
+    overrides["VERSION"] = version.encode("utf-8")
     for relative, pin in (application_files or {}).items():
         relative = contract.normalized_path(relative)
         allowed = (
             relative in {"LICENSE.md", "THIRD_PARTY_NOTICES.md", "COMPLIANCE.md",
+                         "LAKIS_Desktop.exe", "LAKIS_Model_Importer.exe", "Uninstall_LAKIS.exe",
                          "ComfyUI/custom_nodes/ComfyUI_toyxyz_test_nodes/__init__.py"}
             or relative.startswith("ComfyUI/LAKIS/external_ui/")
             or relative.startswith("third_party_licenses/")
@@ -85,7 +88,7 @@ def package(source, manifest, binaries, work, *, application_files=None):
     missing = set(contract.REQUIRED_FILES) - {row["path"] for row in revised["files"]}
     if missing:
         raise ValueError(f"incomplete runtime: {sorted(missing)}")
-    archive = work / "LAKIS_Runtime_8.0.0.zip"
+    archive = work / f"LAKIS_Runtime_{version}.zip"
     print("LOCAL_PACKAGE_STARTED", flush=True)
     packages = {}
     distribution_names = set()
@@ -146,10 +149,10 @@ def package(source, manifest, binaries, work, *, application_files=None):
                     combined.update(block)
             parts.append({
                 "name": name, "bytes": count, "sha256": part_hash.hexdigest().upper(),
-                "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.0/" + name,
+                "url": f"https://github.com/Jeong-Luke/LAKIS/releases/download/v{version}/" + name,
             })
     bundle = {
-        "schema": 2, "product": "LAKIS", "version": "8.0.0",
+        "schema": 2, "product": "LAKIS", "version": version,
         "comfyui_version": contract.COMFY_VERSION, "name": archive.name,
         "bytes": archive.stat().st_size, "files": len(revised["files"]),
         "sha256": combined.hexdigest().upper(),

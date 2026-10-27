@@ -142,27 +142,29 @@ Require ($approvalIndex -ge 0 -and $draftCreateIndex -gt $approvalIndex -and $dr
 
 $setup = Read-RepoFile "installer\Setup_LAKIS_Safe.cs"
 $uninstaller = Read-RepoFile "installer\LAKIS_Uninstaller.cs"
+$dependencyTemplate = Read-RepoFile "installer\cmd-installer-manifest.json"
+$runtimeContract = Read-RepoFile "installer\runtime_manifest.py"
 Require ($uninstaller.Contains('string version="' + $ExpectedVersion + '";')) "Uninstaller fallback version must match VERSION."
 Require (-not $setup.Contains("ComfyUI-LAKIS-Light-Control")) "Installer must not install retired Light Control."
 Require (-not $setup.Contains("DSINE")) "Installer must not install DSINE source or weights."
 foreach ($needle in @(
-    ('private const string Revision = "v' + $ExpectedVersion + '"'),
     ('private const string ReleaseVersion = "' + $ExpectedVersion + '"'),
-    'LAKIS_Model_Importer.exe',
-    'THIRD_PARTY_NOTICES.md',
-    'LAKIS_runtime_api_v7.4.json',
-    'RealESRGAN_x4plus_anime_6B.pth'
+    'RuntimeBundleInstaller.Install(python,manifest,target,cache,mode,includeAnimeSharp,status)',
+    'RunRuntimeInstaller(manifest,target,cache,"fresh",includeAnimeSharp,status)',
+    'RunRuntimeInstaller(manifest,target,cache,"repair",false,status)'
 )) {
     Require ($setup.Contains($needle)) "Installer/repair invariant is missing: $needle"
 }
-Require ([regex]::Matches($setup, 'File\.WriteAllText\(Path\.Combine\(target,"VERSION"\),ReleaseVersion\)').Count -eq 2) "Fresh Setup and Repair must both write the candidate ReleaseVersion."
+Require ($releaseBuild.Contains("A committed source revision is required.")) "Setup must be pinned to a committed source revision by the release builder."
+Require ($releaseBuild.Contains("SourceArchiveSha256")) "Setup source archive must be hash-pinned by the release builder."
+Require ($runtimeContract.Contains('(root / "VERSION").read_text(encoding="utf-8-sig").strip() != expected_version')) "Shared runtime engine must verify the installed VERSION marker against the requested release."
 Require (-not [regex]::IsMatch($setup, 'File\.WriteAllText\(Path\.Combine\(target,"VERSION"\),"\d+\.\d+\.\d+"\)')) "Setup/Repair must never hardcode a semantic VERSION string; use ReleaseVersion."
-Require ($setup.Contains("if(IsExistingInstallation(target))throw new InvalidOperationException")) "New install must reject an existing LAKIS installation."
-Require ($setup.Contains("if(HasDirectoryEntries(target))throw new InvalidOperationException")) "New install must reject every non-empty destination."
-Require ($setup.Contains("circlestone-labs/Anima/resolve/e26179e4b23bcb3a9e91b4ad2961a76ab9644d43/split_files/text_encoders/qwen_3_06b_base.safetensors")) "Qwen encoder must come from the pinned official Anima source."
-Require ($setup.Contains("circlestone-labs/Anima/resolve/457fbf842cb86e96af72c65bdd13e3f1c448de84/split_files/diffusion_models/anima-base-v1.0.safetensors")) "Anima base must come from the pinned official source."
-Require (-not $setup.Contains("Aitrepreneur/FLX")) "The unlicensed FLX mirror must not remain in the installer."
-Require (-not $setup.Contains("p101111/anima")) "The unlicensed Anima mirror must not remain in the installer."
+Require ([regex]::IsMatch($setup, 'if\s*\(IsExistingInstallation\(target\)\)\s*throw new InvalidOperationException')) "New install must reject an existing LAKIS installation."
+Require ([regex]::IsMatch($setup, 'if\s*\(HasDirectoryEntries\(target\)\)\s*throw new InvalidOperationException')) "New install must reject every non-empty destination."
+Require ($dependencyTemplate.Contains("circlestone-labs/Anima/resolve/e26179e4b23bcb3a9e91b4ad2961a76ab9644d43/split_files/text_encoders/qwen_3_06b_base.safetensors")) "Qwen encoder must come from the pinned official Anima source."
+Require ($dependencyTemplate.Contains("circlestone-labs/Anima/resolve/457fbf842cb86e96af72c65bdd13e3f1c448de84/split_files/diffusion_models/anima-base-v1.0.safetensors")) "Anima base must come from the pinned official source."
+Require (-not ($setup + $dependencyTemplate).Contains("Aitrepreneur/FLX")) "The unlicensed FLX mirror must not remain in the installer."
+Require (-not ($setup + $dependencyTemplate).Contains("p101111/anima")) "The unlicensed Anima mirror must not remain in the installer."
 
 $externalLauncher = Read-RepoFile "src\external_ui\launch_lakis.py"
 $externalServer = Read-RepoFile "src\external_ui\serve_ui.py"

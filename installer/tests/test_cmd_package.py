@@ -8,6 +8,7 @@ import zipfile
 import sys
 
 ROOT = Path(__file__).resolve().parents[2]
+RELEASE_VERSION = (ROOT / 'VERSION').read_text(encoding='utf-8-sig').strip()
 sys.path.insert(0, str(ROOT / 'installer'))
 import build_runtime_installer_manifest as manifest_builder
 spec = importlib.util.spec_from_file_location('builder', ROOT / 'installer/build_cmd_installer.py')
@@ -30,13 +31,13 @@ class CmdPackageTests(unittest.TestCase):
         installer = repo / 'installer'
         installer.mkdir(parents=True)
         dist.mkdir()
-        (repo / 'VERSION').write_text('8.0.0\n')
+        (repo / 'VERSION').write_text(RELEASE_VERSION + '\n')
         for name in (*builder.PACKAGE_FILES, 'cmd-installer-manifest.json', 'Setup_LAKIS_Safe.cs'):
             shutil.copyfile(ROOT / 'installer' / name, installer / name)
         archive = root / 'source.zip'
         revision = 'a' * 40
         with zipfile.ZipFile(archive, 'w') as z:
-            z.writestr(f'LAKIS-{revision}/VERSION', '8.0.0\n')
+            z.writestr(f'LAKIS-{revision}/VERSION', RELEASE_VERSION + '\n')
             for name in builder.PACKAGE_FILES:
                 data = (installer / name).read_bytes()
                 if git_line_endings:
@@ -60,12 +61,12 @@ class CmdPackageTests(unittest.TestCase):
             stream.write(f'private const long WebView2BootstrapperBytes = {webview_record["bytes"]};\n')
         bundle_path = root / 'runtime-bundle.json'
         bundle_path.write_text(json.dumps({
-            'schema': 2, 'product': 'LAKIS', 'version': '8.0.0',
-            'comfyui_version': '0.42.0', 'name': 'LAKIS_Runtime_8.0.0.zip',
+            'schema': 2, 'product': 'LAKIS', 'version': RELEASE_VERSION,
+            'comfyui_version': '0.42.0', 'name': f'LAKIS_Runtime_{RELEASE_VERSION}.zip',
             'bytes': 10, 'files': 1, 'sha256': 'A' * 64, 'manifest_sha256': 'B' * 64,
             'parts': [{
-                'name': 'LAKIS_Runtime_8.0.0.zip.part001', 'bytes': 10, 'sha256': 'C' * 64,
-                'url': 'https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.0/LAKIS_Runtime_8.0.0.zip.part001',
+                'name': f'LAKIS_Runtime_{RELEASE_VERSION}.zip.part001', 'bytes': 10, 'sha256': 'C' * 64,
+                'url': f'https://github.com/Jeong-Luke/LAKIS/releases/download/v{RELEASE_VERSION}/LAKIS_Runtime_{RELEASE_VERSION}.zip.part001',
             }],
         }))
         manifest_path = root / 'runtime-installer-manifest.json'
@@ -73,7 +74,7 @@ class CmdPackageTests(unittest.TestCase):
         setup = dist / 'LAKIS_Setup.exe'
         setup.write_bytes(b'fixture setup with pinned runtime manifest')
         (root / 'runtime-installer-contract.json').write_text(json.dumps({
-            'schema': 1, 'version': '8.0.0',
+            'schema': 1, 'version': RELEASE_VERSION,
             'manifest_sha256': builder.sha256(manifest_path),
             'setup_sha256': builder.sha256(setup),
         }))
@@ -90,7 +91,7 @@ class CmdPackageTests(unittest.TestCase):
                 manifest = json.loads(z.read('cmd-installer-manifest.json'))
                 self.assertEqual(z.read('cmd-installer-manifest.json'),
                                  (args[3].parent / 'runtime-installer-manifest.json').read_bytes())
-                self.assertEqual(manifest['runtime_bundle']['version'], '8.0.0')
+                self.assertEqual(manifest['runtime_bundle']['version'], RELEASE_VERSION)
                 self.assertEqual(manifest['webview2']['sha256'], builder.sha256(args[3].parent / 'MicrosoftEdgeWebview2Setup.exe'))
                 for key in ('nodes', 'source', 'repair_pack', 'release_layout'):
                     self.assertNotIn(key, manifest)
@@ -127,7 +128,7 @@ class CmdPackageTests(unittest.TestCase):
             args = list(self.fixture(Path(directory)))
             revision = 'a' * 40
             with zipfile.ZipFile(args[2], 'w') as z:
-                z.writestr('Jeong-Luke-LAKIS-a1b2c3d/VERSION', '8.0.0\n')
+                z.writestr('Jeong-Luke-LAKIS-a1b2c3d/VERSION', RELEASE_VERSION + '\n')
                 for name in builder.PACKAGE_FILES:
                     z.writestr('Jeong-Luke-LAKIS-a1b2c3d/installer/' + name,
                                (args[0] / 'installer' / name).read_bytes())

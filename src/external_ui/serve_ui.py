@@ -1754,7 +1754,8 @@ class Handler(SimpleHTTPRequestHandler):
             incoming: dict[str, Any] = {}
             try:
                 try:
-                    parsed = self._read_json()
+                    # Saved 3D scenes may use 40 MB, plus generation settings.
+                    parsed = self._read_json(45_000_000)
                 except (json.JSONDecodeError, UnicodeDecodeError, ValueError) as error:
                     detail = str(error)
                     reason = (

@@ -14,7 +14,7 @@ def build(repo: Path, bundle_path: Path, webview_path: Path, output: Path) -> di
     template = json.loads(
         (repo / "installer/cmd-installer-manifest.json").read_text(encoding="utf-8")
     )
-    if version != "8.0.0" or template["version"] != version:
+    if template["version"] != version:
         raise ValueError("installer template version mismatch")
     bundle = validate_bundle(
         json.loads(bundle_path.read_text(encoding="utf-8-sig")), version

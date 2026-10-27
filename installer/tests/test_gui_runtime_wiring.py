@@ -8,6 +8,7 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[2]
+RELEASE_VERSION = (ROOT / "VERSION").read_text(encoding="utf-8-sig").strip()
 COMPILER = Path(os.environ.get("WINDIR", "C:/Windows")) / "Microsoft.NET/Framework64/v4.0.30319/csc.exe"
 BOOTSTRAP_SENTINEL = "BOOTSTRAP_REACHED"
 
@@ -47,13 +48,13 @@ internal static class GuiWiringProbe {
                    !RuntimeBundleInstaller.IncludeAnimeSharp ||
                    RuntimeBundleInstaller.Python!="fixture-bootstrap-python.exe" ||
                    RuntimeBundleInstaller.Target!=Path.GetFullPath(target) ||
-                   !RuntimeBundleInstaller.Manifest.Contains("\"version\": \"8.0.0\"") ||
+                   !RuntimeBundleInstaller.Manifest.Contains("\"version\": \"__RELEASE_VERSION__\"") ||
                    !File.Exists(Path.Combine(target,"network-install.log")) ||
                    RuntimeBundleInstaller.Python==Path.Combine(target,"python_embeded","python.exe"))return 10;
                 Console.WriteLine("FRESH_DISPATCH_PASS");return 0;
             }
             if(mode=="repair") {
-                MakeInstalled(target,"8.0.0");
+                MakeInstalled(target,"__RELEASE_VERSION__");
                 Environment.SetEnvironmentVariable("LAKIS_GUI_WIRING_TEST_BOOTSTRAP","allow");
                 SafeInstaller.Repair(target,report);
                 if(RuntimeBundleInstaller.Calls!=1 || RuntimeBundleInstaller.Mode!="repair" ||
@@ -70,7 +71,7 @@ internal static class GuiWiringProbe {
                 try { SafeInstaller.Repair(target,report); return 30; }
                 catch(InvalidOperationException error) {
                     string message=Errors(error);
-                    if(!message.Contains("8.0.0") || message.Contains("BOOTSTRAP_REACHED") ||
+                    if(!message.Contains("__RELEASE_VERSION__") || message.Contains("BOOTSTRAP_REACHED") ||
                        RuntimeBundleInstaller.Calls!=0 ||
                        File.ReadAllText(Path.Combine(target,"VERSION"))!="7.5.3" ||
                        File.ReadAllText(Path.Combine(target,"python_embeded","python.exe"))!="installed-python-must-survive" ||
@@ -81,7 +82,7 @@ internal static class GuiWiringProbe {
                 }
             }
             if(mode=="missing-python-repair") {
-                MakeInstalled(target,"8.0.0");
+                MakeInstalled(target,"__RELEASE_VERSION__");
                 Directory.Delete(Path.Combine(target,"python_embeded"),true);
                 Environment.SetEnvironmentVariable("LAKIS_GUI_WIRING_TEST_BOOTSTRAP","allow");
                 SafeInstaller.Repair(target,report);
@@ -138,7 +139,7 @@ internal static class GuiWiringProbe {
 '''
 
 
-def valid_manifest(version="8.0.0"):
+def valid_manifest(version=RELEASE_VERSION):
     part_name = "LAKIS-runtime.zip.part001"
     return {
         "schema": 1,
@@ -162,7 +163,7 @@ def valid_manifest(version="8.0.0"):
         "runtime_bundle": {
             "schema": 2,
             "product": "LAKIS",
-            "version": "8.0.0",
+            "version": RELEASE_VERSION,
             "comfyui_version": "0.42.0",
             "name": "LAKIS-runtime.zip",
             "sha256": "E" * 64,
@@ -173,7 +174,7 @@ def valid_manifest(version="8.0.0"):
                 "name": part_name,
                 "bytes": 1,
                 "sha256": "1" * 64,
-                "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.0/" + part_name,
+                "url": f"https://github.com/Jeong-Luke/LAKIS/releases/download/v{RELEASE_VERSION}/" + part_name,
             }],
         },
     }
@@ -218,7 +219,7 @@ class GuiRuntimeWiringTests(unittest.TestCase):
         cls.setup = cls.root / "Setup.cs"
         cls.setup.write_text(source, encoding="utf-8")
         cls.probe = cls.root / "GuiWiringProbe.cs"
-        cls.probe.write_text(PROBE, encoding="utf-8")
+        cls.probe.write_text(PROBE.replace("__RELEASE_VERSION__", RELEASE_VERSION), encoding="utf-8")
         cls.stub = ROOT / "installer/tests/RuntimeBundleInstallerStub.cs"
         cls.exe_by_resource = {}
         for key, payload, resource in (
@@ -265,7 +266,7 @@ class GuiRuntimeWiringTests(unittest.TestCase):
         cases = (
             ("missing", "내장 런타임 설치 manifest가 없습니다."),
             ("bad-json", "JSON"),
-            ("wrong-version", "8.0.0"),
+            ("wrong-version", RELEASE_VERSION),
             ("wrong-schema", "schema"),
         )
         for resource, expected in cases:
@@ -307,8 +308,8 @@ class GuiRuntimeWiringTests(unittest.TestCase):
         ):
             self.assertIn(expected, method if "RuntimeBundleInstaller.Install" not in expected else source)
         self.assertIn('Path.Combine(workspace,"ComfyUI_windows_portable","python_embeded","python.exe")',method)
-        self.assertIn('private const string ReleaseVersion = "8.0.0";',source)
-        self.assertIn("LAKIS v8.0.0",source)
+        self.assertIn(f'private const string ReleaseVersion = "{RELEASE_VERSION}";',source)
+        self.assertIn(f"LAKIS v{RELEASE_VERSION}",source)
 
 
 if __name__ == "__main__":

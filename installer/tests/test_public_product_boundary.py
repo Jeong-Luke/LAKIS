@@ -120,7 +120,7 @@ class PublicProductBoundaryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             ext = Path(temp) / "ComfyUI" / runtime_name / "external_ui"
             ext.mkdir(parents=True)
-            for name in ("launch_lakis.py", "workflow_bridge.py", "serve_ui.py"):
+            for name in ("launch_lakis.py", "workflow_bridge.py", "serve_ui.py", "scene_controls.py"):
                 shutil.copy2(EXTERNAL / name, ext / name)
             code = (
                 "import json,sys,types; "

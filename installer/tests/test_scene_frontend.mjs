@@ -49,41 +49,25 @@ function element() {
   };
 }
 
-test("model status shows shared terms once, as text, without hiding verification results", () => {
-  const notice = {
-    textContent: "",
-    set innerHTML(_) { assert.fail("model terms must not be interpreted as HTML"); },
+test("model checks load without the removed installation notice UI", async () => {
+  const result = {
+    state: { enabled: true, toyxyz_enabled: true },
+    models: { pose: { model: "pose.safetensors", valid: true } },
   };
-  let items = [];
-  const list = { replaceChildren: (...children) => { items = children; } };
-  const shared = "설치기·업데이터 공식 다운로드 · 비상업·비프로덕션 <b>조건</b>";
-  const models = {
-    pose: { model: "pose.safetensors", valid: true, installed: true, notice: shared,
-      model_card: "https://huggingface.co/toyxyz/Anima_ControlNet-LLLite" },
-    region: { model: "region.safetensors", valid: false, installed: true, notice: shared,
-      model_card: "https://huggingface.co/toyxyz/Anima_ControlNet-LLLite" },
-  };
+  const requests = [];
   const context = {
-    panel: { querySelector: selector => ({
-      "[data-model-status]": list, "[data-model-notice]": notice,
-    })[selector] },
-    document: { createElement: tag => ({
-      tag, children: [], append(...children) { this.children.push(...children); },
-    }) },
+    panel: { querySelector() { assert.fail("model checks must not require notice elements"); } },
+    fetch: async (url, options) => {
+      requests.push([url, options.cache]);
+      return { ok: true, json: async () => result };
+    },
   };
-  vm.runInNewContext(functionSource(sceneSource, "showModels") + "; this.showModels = showModels;", context);
-  context.showModels(models);
-  assert.equal(notice.textContent, shared);
-  assert.equal(items.length, 2);
-  assert.equal(items[0].children[0].textContent, "pose.safetensors");
-  assert.equal(items[0].children[1], " · 공식 파일 확인됨");
-  assert.equal(items[1].children[1], " · 파일 해시 불일치");
-  assert.equal(items[0].children[0].rel, "noopener noreferrer");
-  models.region.installed = false;
-  models.region.notice = "별도 원본 데이터 조건";
-  context.showModels(models);
-  assert.equal(notice.textContent, shared + "\n별도 원본 데이터 조건");
-  assert.equal(items[1].children[1], " · 미설치");
+  vm.runInNewContext("async " + functionSource(sceneSource, "refreshModels")
+    + "; this.refreshModels = refreshModels;", context);
+  assert.equal(await context.refreshModels(), result);
+  assert.deepEqual(requests, [["/api/scene-controls", "no-store"]]);
+  context.fetch = async () => ({ ok: false, json: async () => ({ error: "모델 상태 조회 실패" }) });
+  await assert.rejects(context.refreshModels(), /모델 상태 조회 실패/);
 });
 
 test("unchanged generation windows never overwrite another editor on hide or close", async () => {
@@ -274,14 +258,16 @@ test("failed pose capture submits nothing and permits a later explicit click", a
   assert.equal(h.dispatched.length, 1);
 });
 
-test("scene payload uses current captured pose, translates a copy and disables conflicting modes", async () => {
+function sceneHarness() {
   const painting = { layers: [{ id: "person", visible: true, prompt: "coat" }],
     base: { prompt: "" }, background: { prompt: "sky" } };
   const config = { enabled: true, toyxyz_enabled: true, pose_data: "pose",
     toyxyz_render_data: "capture", toyxyz_paint_data: JSON.stringify(painting) };
   const calls = [];
   const context = vm.createContext({
-    config, state: { translation_enabled: true }, window: {}, ready: Promise.resolve(),
+    config, state: { translation_enabled: true },
+    window: { lakisResolveWildcardsForGeneration: async ({ prompt }) => ({ prompt, selections: [] }) },
+    ready: Promise.resolve(),
     refreshModels: async () => ({ models: { pose: { valid: true }, region: { valid: true } } }),
     ensureToyEditor: async () => calls.push("load"), toySaveTimer: null, toyCapture: null,
     requestToy: async (type, validate) => { calls.push([type, validate]); return { captured: true }; },
@@ -292,7 +278,13 @@ test("scene payload uses current captured pose, translates a copy and disables c
   const begin = sceneSource.indexOf("window.lakisPrepareScene =");
   const body = sceneSource.indexOf("{", begin);
   vm.runInContext(sceneSource.slice(begin, blockEnd(sceneSource, body)), context);
-  const payload = { composition_enabled: true, i2i: { enabled: true }, inpaint: { enabled: true } };
+  const payload = { composition_enabled: true, i2i: { enabled: true }, inpaint: { enabled: true },
+    output: { seed: 719 }, wildcard: { selections: [] } };
+  return { painting, config, calls, context, payload };
+}
+
+test("scene payload uses current captured pose, translates a copy and disables conflicting modes", async () => {
+  const { painting, config, calls, context, payload } = sceneHarness();
   await context.window.lakisPrepareScene(payload);
   assert.equal(payload.composition_enabled, false);
   assert.equal(payload.i2i.enabled, false);
@@ -301,6 +293,106 @@ test("scene payload uses current captured pose, translates a copy and disables c
   assert.equal(JSON.parse(payload.scene_controls.toyxyz_paint_data).layers[0].prompt, "translated:coat");
   assert.equal(config.toyxyz_paint_data, JSON.stringify(painting));
   assert.notEqual(payload.scene_controls, config);
+  calls.length = 0;
+  context.refreshModels = async () => ({
+    models: { pose: { model: "pose.safetensors", valid: false }, region: { valid: true } },
+  });
+  await assert.rejects(context.window.lakisPrepareScene({}), /pose\.safetensors/);
+  assert.deepEqual(calls, []);
+});
+
+test("disabled poses keep saved scene data but exclude it from generation", async () => {
+  for (const [enabled, toyxyz_enabled] of [[false, false], [false, true], [true, false]]) {
+    const { config, calls, context, payload } = sceneHarness();
+    Object.assign(config, { enabled, toyxyz_enabled, toyxyz_render_data: "x".repeat(1_500_000) });
+    const original = JSON.stringify(config);
+    context.window.lakisResolveWildcardsForGeneration = async () => assert.fail("disabled scene must not resolve prompts");
+    await context.window.lakisPrepareScene(payload);
+    assert.deepEqual({ ...payload.scene_controls }, { enabled: false, toyxyz_enabled: false });
+    assert.equal(JSON.stringify(config), original);
+    assert.equal(payload.composition_enabled, true);
+    assert.equal(payload.i2i.enabled, true);
+    assert.equal(payload.inpaint.enabled, true);
+    assert.deepEqual(calls, ["persist"]);
+  }
+});
+
+test("two-person scene wildcards resolve before optional translation without changing saved masks or templates", async () => {
+  for (const translationEnabled of [false, true]) {
+    const { config, context, payload } = sceneHarness();
+    const painting = {
+      layers: [
+        { id: "first", visible: true, prompt: "__outfit__", mask: "first-mask" },
+        { id: "second", visible: true, prompt: "__outfit__", mask: "second-mask" },
+        { id: "hidden", visible: false, prompt: "__missing__", mask: "hidden-mask" },
+      ],
+      base: { prompt: "__common__" }, background: { prompt: "__background__" },
+    };
+    config.toyxyz_paint_data = JSON.stringify(painting);
+    const original = JSON.stringify(config);
+    context.state.translation_enabled = translationEnabled;
+    const outfit = { name: "outfit", value: "coat" };
+    const common = { name: "common", value: "daylight" };
+    const background = { name: "background", value: "park" };
+    payload.wildcard.selections = [outfit];
+    let resolutions = 0;
+    const translations = [];
+    context.window.lakisResolveWildcardsForGeneration = async request => {
+      resolutions++;
+      assert.deepEqual({ ...request.prompt }, {
+        0: "__outfit__", 1: "__outfit__", 2: "__common__", 3: "__background__",
+      });
+      assert.equal(request.seed, payload.output.seed);
+      assert.deepEqual({ ...request.inpaint }, {});
+      return {
+        prompt: { 0: "coat", 1: "coat", 2: "daylight", 3: "park" },
+        selections: [outfit, common, background],
+      };
+    };
+    context.translatedPromptForGeneration = async value => {
+      translations.push(value.general);
+      return { general: `translated:${value.general}` };
+    };
+    await context.window.lakisPrepareScene(payload);
+    const submitted = JSON.parse(payload.scene_controls.toyxyz_paint_data);
+    const text = value => translationEnabled ? `translated:${value}` : value;
+    assert.deepEqual(submitted.layers, [
+      { ...painting.layers[0], prompt: text("coat") },
+      { ...painting.layers[1], prompt: text("coat") },
+      painting.layers[2],
+    ]);
+    assert.equal(submitted.base.prompt, text("daylight"));
+    assert.equal(submitted.background.prompt, text("park"));
+    assert.equal(resolutions, 1);
+    assert.deepEqual(translations, translationEnabled ? ["coat", "coat", "daylight", "park"] : []);
+    assert.deepEqual(payload.wildcard.selections, [outfit, common, background]);
+    assert.equal(JSON.stringify(config), original);
+  }
+});
+
+test("a scene wildcard error submits nothing and a corrected explicit retry succeeds", async () => {
+  const scene = sceneHarness(), generation = generationHarness();
+  generation.context.window.lakisPrepareScene = scene.context.window.lakisPrepareScene;
+  scene.config.toyxyz_paint_data = JSON.stringify({
+    layers: [{ id: "person", visible: true, prompt: "__outfit__" }],
+    base: { prompt: "" }, background: { prompt: "" },
+  });
+  const original = scene.config.toyxyz_paint_data;
+  scene.context.window.lakisResolveWildcardsForGeneration = async () => { throw Error("와일드카드 'outfit'을 찾을 수 없습니다."); };
+  const first = generation.click();
+  generation.release();
+  await first;
+  assert.deepEqual(generation.errors, ["와일드카드 'outfit'을 찾을 수 없습니다."]);
+  assert.equal(generation.dispatched.length, 0);
+  assert.equal(generation.context.generationPreparationPending, false);
+  scene.context.window.lakisResolveWildcardsForGeneration = async ({ prompt }) => ({
+    prompt: { ...prompt, 0: "coat" }, selections: [{ name: "outfit", value: "coat" }],
+  });
+  await generation.click();
+  assert.equal(generation.dispatched.length, 1);
+  const submitted = JSON.parse(generation.dispatched[0].detail.scene_controls.toyxyz_paint_data);
+  assert.equal(submitted.layers[0].prompt, "translated:coat");
+  assert.equal(scene.config.toyxyz_paint_data, original);
 });
 
 test("the editor API cannot download models or submit a second generation", () => {

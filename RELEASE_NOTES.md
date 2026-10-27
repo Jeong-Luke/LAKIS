@@ -1,4 +1,24 @@
-# LAKIS v8.0.0 — 공개 전 후보
+# LAKIS v8.0.1 — 3D 생성·와일드카드 수정
+
+- 다인 3D 장면의 생성 요청이 기존 1MB 제한에 걸리던 문제를 수정했습니다.
+- 3D 포즈를 끄면 저장된 장면은 유지하면서 생성 요청에서는 장면 데이터를 제외합니다.
+- 인물별·배경 정밀 프롬프트의 와일드카드를 생성 시 치환하며, 번역은 치환 후 적용합니다. 저장된 원문과 마스크는 유지합니다.
+- 제어 모델 설치·이용 조건 안내 박스를 화면에서 제거했습니다. 모델 검증과 배포 약관은 유지합니다.
+- ComfyUI·Python·PyTorch·CUDA 및 모델·노드의 버전은 8.0.0과 동일합니다.
+- 기존 8.0.0과 7.5.4 릴리즈는 보존합니다.
+
+## English
+
+- Fixes the 1MB generation-request limit affecting larger, multi-person 3D scenes.
+- Excludes inactive 3D scene data from generation without deleting saved scenes.
+- Resolves per-person and background wildcards before optional translation, preserving saved templates and masks.
+- Removes the control-model installation/terms panel, while retaining model verification and distribution terms.
+- Keeps the ComfyUI, Python, PyTorch, CUDA, model, and node versions from 8.0.0.
+- Preserves the existing 8.0.0 and 7.5.4 releases.
+
+---
+
+# 이전 개발 기록: LAKIS v8.0.0 — 공개 전 후보
 
 이 문서는 준비 중인 8.0.0의 변경 범위입니다. 공개 및 전체 릴리즈 감사 통과를 의미하지 않으며, 기존 7.5.4 배포본은 그대로 유지합니다.
 
