@@ -38,10 +38,7 @@ internal static class LakisLauncher
     private const string DesktopMutexName = "Local\\LAKIS-Studio-Desktop";
     private const string StartupMutexName = "Local\\LAKIS-Studio-Startup";
 #endif
-    private static readonly string[] ManifestUrls = {
-        "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/main/manifests/update-latest.json",
-        "https://cdn.jsdelivr.net/gh/Jeong-Luke/LAKIS@main/manifests/update-latest.json"
-    };
+    private static readonly string[] ManifestUrls = UpdateProtocol.ManifestUrls;
     private const string LatestReleaseApiUrl = "https://api.github.com/repos/Jeong-Luke/LAKIS/releases/latest";
     private const string RcReleaseBaseVariable = "LAKIS_RC_RELEASE_BASE_URL";
     private const string RcManifestVariable = "LAKIS_RC_MANIFEST_URL";
@@ -633,7 +630,8 @@ internal static class LakisLauncher
                 if (!check.Item1)
                     MessageBox.Show(this, "업데이트 확인에 실패했습니다. LAKIS는 계속 실행됩니다.\n\n" + check.Item3,
                         "LAKIS 업데이트", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                if (File.Exists(updater) && check.Item1 && check.Item2 > current &&
+                if (File.Exists(updater) && check.Item1 &&
+                    UpdateProtocol.CompareVersions(check.Item2.ToString(), current.ToString()) > 0 &&
                     ShowUpdatePrompt(this, check.Item2, GetLatestReleaseNotes(check.Item2)))
                 {
                     SetStatus("업데이트 프로그램 여는 중");
@@ -891,34 +889,15 @@ internal static class LakisLauncher
                 string json;
                 using (var response = request.GetResponse())
                 using (var reader = new StreamReader(response.GetResponseStream(), Encoding.UTF8, true)) json = reader.ReadToEnd();
-                Match match = Regex.Match(json, "\\\"version\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"");
-                Version parsed;
-                if (match.Success && Version.TryParse(match.Groups[1].Value, out parsed)) { latest = parsed; return true; }
-                failure = "업데이트 서버가 올바르지 않은 버전 정보를 반환했습니다.";
+                var manifest = UpdateProtocol.Read(json);
+                latest = UpdateProtocol.ParseVersion(manifest.version);
+                return true;
             }
+            catch (InvalidDataException error) { failure = error.Message; return false; }
             catch (Exception error) { failure = error.Message; }
         }
-        if (!String.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(RcManifestVariable))) return false;
-        // The manifest hosts can be cached or blocked independently.  GitHub's
-        // release API is a third, metadata-only route, so a launcher never gets
-        // stranded merely because raw.githubusercontent.com is unavailable.
-        try
-        {
-            var request = (HttpWebRequest)WebRequest.Create(LatestReleaseApiUrl + "?t=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-            request.UserAgent = "LAKIS-Launcher/7.4.5";
-            request.Accept = "application/vnd.github+json";
-            request.Timeout = 12000;
-            request.ReadWriteTimeout = 12000;
-            request.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
-            string json;
-            using (var response = request.GetResponse())
-            using (var reader = new StreamReader(response.GetResponseStream(), Encoding.UTF8, true)) json = reader.ReadToEnd();
-            Match match = Regex.Match(json, "\\\"tag_name\\\"\\s*:\\s*\\\"v?([^\\\"]+)\\\"");
-            Version parsed;
-            if (match.Success && Version.TryParse(match.Groups[1].Value, out parsed)) { latest = parsed; return true; }
-            failure = "GitHub 릴리스가 올바르지 않은 버전 정보를 반환했습니다.";
-        }
-        catch (Exception error) { failure = error.Message; }
+        // A global GitHub "latest" release is not this engine's update channel.
+        // On channel failure, continue running the installed application.
         return false;
     }
 
@@ -977,6 +956,12 @@ internal static class LakisLauncher
     private static void Main()
     {
         string root = AppDomain.CurrentDomain.BaseDirectory;
+        try { UpdateProtocol.EnsureNoPendingRuntimeTransition(root); }
+        catch (Exception error)
+        {
+            MessageBox.Show(error.Message, ProductTitle, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
         try
         {
             using (Mutex.OpenExisting(DesktopMutexName))

@@ -8,7 +8,13 @@ from pathlib import Path
 import re
 import zipfile
 
-PACKAGE_FILES = ("LAKIS_CMD_Install.cmd", "lakis_cmd_installer.py", "CMD_INSTALL_README_KO.txt")
+from runtime_install import validate_bundle
+
+PACKAGE_FILES = (
+    "LAKIS_CMD_Install.cmd", "lakis_cmd_installer.py", "CMD_INSTALL_README_KO.txt",
+    "runtime_install.py", "runtime_transition.py", "runtime_manifest.py",
+    "runtime_health.py", "runtime_patch.py", "runtime_update.py",
+)
 
 
 def sha256(path: Path) -> str:
@@ -40,16 +46,36 @@ def build(repo: Path, dist: Path, archive: Path, contract_path: Path, pinned_set
         source_root = next(iter(roots))
         if source.read(f"{source_root}/VERSION").decode("utf-8-sig").strip() != version:
             raise ValueError("source archive version mismatch")
+        for name in PACKAGE_FILES:
+            archived = source.read(f"{source_root}/installer/{name}").replace(b"\r\n", b"\n")
+            checked_out = (repo / "installer" / name).read_bytes().replace(b"\r\n", b"\n")
+            if archived != checked_out:
+                raise ValueError("CMD source changed after the frozen source archive: " + name)
 
     installer = repo / "installer"
-    manifest = json.loads((installer / "cmd-installer-manifest.json").read_text(encoding="utf-8"))
+    template = json.loads((installer / "cmd-installer-manifest.json").read_text(encoding="utf-8"))
+    manifest_path = contract_path.parent / "runtime-installer-manifest.json"
+    manifest_bytes = manifest_path.read_bytes()
+    manifest = json.loads(manifest_bytes)
+    runtime_contract = json.loads(
+        (contract_path.parent / "runtime-installer-contract.json").read_text(encoding="utf-8-sig")
+    )
+    if (runtime_contract.get("schema") != 1 or runtime_contract.get("version") != version
+            or runtime_contract.get("manifest_sha256") != sha256(manifest_path)
+            or runtime_contract.get("setup_sha256") != sha256(dist / "LAKIS_Setup.exe")):
+        raise ValueError("GUI and CMD runtime installer contracts differ")
+    if (manifest.get("schema") != 1 or manifest.get("version") != version
+            or template.get("version") != version):
+        raise ValueError("runtime installer version mismatch")
+    validate_bundle(manifest.get("runtime_bundle"), version)
+    for key in ("base", "models", "optional_animesharp"):
+        if manifest.get(key) != template[key]:
+            raise ValueError("runtime installer dependency template is stale: " + key)
+    if any(key in manifest for key in ("nodes", "nested_node", "source", "repair_pack", "release_layout")):
+        raise ValueError("legacy installation fields are not allowed")
     setup = (installer / "Setup_LAKIS_Safe.cs").read_text(encoding="utf-8-sig")
-    required_setup = re.sub(r'private static readonly DownloadItem OptionalAnimeSharp\s*=\s*new DownloadItem\([^;]+;', '', setup)
-    declared = set(re.findall(r'new DownloadItem\(\s*"[^"]+"\s*,\s*"([^"]+)"\s*,\s*"([A-Fa-f0-9]{64})"', required_setup))
-    dependencies = [(manifest["base"]["url"], manifest["base"]["sha256"])]
-    dependencies += [(row[1], row[2]) for row in [*manifest["nodes"], manifest["nested_node"], *manifest["models"]]]
-    if set(dependencies) != declared:
-        raise ValueError("CMD dependency template is stale relative to Setup")
+    if manifest["base"]["url"] not in setup or manifest["base"]["sha256"] not in setup:
+        raise ValueError("GUI and CMD bootstrap pins differ")
     webview_record = contract_path.parent / 'webview2-bootstrapper.json'
     webview = json.loads(webview_record.read_text(encoding='utf-8-sig'))
     webview_path = contract_path.parent / 'MicrosoftEdgeWebview2Setup.exe'
@@ -63,25 +89,25 @@ def build(repo: Path, dist: Path, archive: Path, contract_path: Path, pinned_set
     ):
         if declaration not in compiled_source:
             raise ValueError('Setup and CMD WebView2 pins differ')
-    manifest['webview2'] = webview
-    cmd_bytes = (installer / "LAKIS_CMD_Install.cmd").read_bytes()
+    if manifest.get("webview2") != webview:
+        raise ValueError("runtime installer WebView2 pin differs")
+    cmd_bytes = (installer / "LAKIS_CMD_Install.cmd").read_bytes().replace(
+        b"\r\n", b"\n"
+    ).replace(b"\n", b"\r\n")
+    # Pin the generated script without transcoding its CP949 source template.
+    seven_url = b'set "SEVEN_URL=https://www.7-zip.org/a/7zr.exe"'
+    if cmd_bytes.count(seven_url) != 1:
+        raise ValueError("CMD 7-Zip source declaration is ambiguous")
+    cmd_bytes = cmd_bytes.replace(
+        seven_url,
+        b'set "SEVEN_URL=https://github.com/ip7z/7zip/releases/download/26.03/7zr.exe"',
+    )
     cmd = cmd_bytes.decode("cp949")
-    if b"\n" in cmd_bytes.replace(b"\r\n", b""):
-        raise ValueError("CMD must preserve CRLF")
     if manifest["base"]["url"] not in cmd or manifest["base"]["sha256"] not in cmd:
         raise ValueError("CMD bootstrap differs from the dependency template")
-    layout = json.loads((dist / "release-layout.json").read_text(encoding="utf-8-sig"))
-    if layout["version"] != version:
-        raise ValueError("release layout version mismatch")
-    manifest.update(version=version, release_base=f"https://github.com/Jeong-Luke/LAKIS/releases/download/v{version}")
-    manifest["source"] = {"name": f"LAKIS-{revision}.zip",
-                          "url": f"https://api.github.com/repos/Jeong-Luke/LAKIS/zipball/{revision}",
-                          "sha256": digest, "bytes": archive.stat().st_size}
-    for key, name in (("repair_pack", "LAKIS_RepairPack.zip"), ("release_layout", "release-layout.json")):
-        asset = dist / name
-        manifest[key] = {"name": name, "sha256": sha256(asset), "bytes": asset.stat().st_size}
     payload = {name: (installer / name).read_bytes() for name in PACKAGE_FILES}
-    payload["cmd-installer-manifest.json"] = (json.dumps(manifest, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+    payload["LAKIS_CMD_Install.cmd"] = cmd_bytes
+    payload["cmd-installer-manifest.json"] = manifest_bytes
     destination = dist / f"LAKIS_CMD_Installer_{version}.zip"
     temporary = destination.with_suffix(".zip.tmp")
     with zipfile.ZipFile(temporary, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as bundle:

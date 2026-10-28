@@ -34,6 +34,8 @@ UI_ROOT = Path(__file__).resolve().parent
 if str(UI_ROOT) not in sys.path:
     sys.path.insert(0, str(UI_ROOT))
 
+import scene_controls
+
 from workflow_bridge import (
     InvalidGenerationRequestError,
     LOCAL_INPAINT_V2,
@@ -77,7 +79,7 @@ LLLITE_INPAINT_MODEL = "anima-lllite-inpainting-v2.safetensors"
 LLLITE_INPAINT_SHA256 = "5242e677d2be34ee70ca7c97c3b14ff5ee49838c03fc1e60ac4852a180db6ef5"
 LLLITE_INPAINT_SOURCE = "https://huggingface.co/kohya-ss/Anima-LLLite"
 LLLITE_INPAINT_LICENSE = "CircleStone Labs Non-Commercial License"
-LLLITE_INPAINT_LICENSE_PATH = INSTALL_ROOT / "third_party_licenses" / "Anima-LLLite-CircleStone-Non-Commercial-License.txt"
+LLLITE_INPAINT_LICENSE_PATH = INSTALL_ROOT / "third_party_licenses" / "CircleStone-Labs-Non-Commercial-License-v1.0.txt"
 LAKIS_VERSION_PATH = (
     RUNTIME_ROOT / "DEV_VERSION" if DEVELOPMENT else COMFY_ROOT.parent / "VERSION"
 )
@@ -1352,6 +1354,8 @@ class Handler(SimpleHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802
         if not self._authorize_api_request():
             return
+        if scene_controls.handle_get(self, UI_STATE_PATH.parent, COMFY_ROOT):
+            return
         if urlparse(self.path).path == "/api/inpaint-model-notice":
             self._send_json(200, inpaint_model_notice_status())
             return
@@ -1528,14 +1532,34 @@ class Handler(SimpleHTTPRequestHandler):
 
     def _read_json(self, max_size: int = 1_000_000) -> dict:
         size = int(self.headers.get("Content-Length", "0"))
+        self._last_json_size = size
         if size <= 0:
             raise ValueError("Request body is empty")
         if size > max_size:
             raise ValueError(f"Request body exceeds {max_size} bytes")
         return json.loads(self.rfile.read(size).decode("utf-8"))
 
+    def _send_generation_json(self, status: int, payload: dict, diagnostic: dict,
+                              started: float) -> None:
+        diagnostic["request_bytes"] = getattr(self, "_last_json_size", None)
+        diagnostic["elapsed_ms"] = round((time.monotonic() - started) * 1000)
+        response = {**payload, "request_diagnostic": diagnostic}
+        try:
+            self._send_json(status, response)
+        except Exception as error:
+            audit({
+                "event": "external_ui_generate_response_failed",
+                "error_code": "LKS-GEN-1030", "failure_step": "response_send",
+                "request_id": payload.get("request_id"),
+                "exception_type": type(error).__name__,
+                "request_diagnostic": diagnostic, "error": repr(error),
+            })
+            raise
+
     def do_POST(self) -> None:  # noqa: N802
         if not self._authorize_api_request():
+            return
+        if scene_controls.handle_post(self, UI_STATE_PATH.parent):
             return
         if self.path == "/api/inpaint-model-notice":
             try:
@@ -1746,9 +1770,18 @@ class Handler(SimpleHTTPRequestHandler):
             return
         if self.path == "/api/generate":
             incoming: dict[str, Any] = {}
+            started = time.monotonic()
+            client_id = self.headers.get("X-LAKIS-Client-Request-ID", "")
+            diagnostic = {
+                "client_request_id": client_id if re.fullmatch(r"[a-f0-9]{32}", client_id) else None,
+                "request_limit_bytes": 45_000_000,
+                "server_step": "request_body", "acceptance": "unknown",
+            }
+            audit({"event": "external_ui_generate_received", "request_diagnostic": dict(diagnostic)})
             try:
                 try:
-                    parsed = self._read_json()
+                    # Saved 3D scenes may use 40 MB, plus generation settings.
+                    parsed = self._read_json(45_000_000)
                 except (json.JSONDecodeError, UnicodeDecodeError, ValueError) as error:
                     detail = str(error)
                     reason = (
@@ -1762,23 +1795,26 @@ class Handler(SimpleHTTPRequestHandler):
                 if not isinstance(parsed, dict):
                     raise InvalidGenerationRequestError("Generation request body must be a JSON object")
                 incoming = parsed
+                diagnostic["server_step"] = "request_validation"
+                inpaint_rejection = None
                 inpaint = incoming.get("inpaint") if isinstance(incoming.get("inpaint"), dict) else {}
                 if bool(inpaint.get("enabled")):
                     weight = lllite_inpaint_weight_status()
                     if not weight["valid"]:
-                        self._send_json(409, {
-                            **weight,
-                            "ok": False,
-                            "error_code": "LKS-INP-1101",
-                            "error_stage": "요청 검증",
-                            "error": "Anima LLLite Inpainting 모델을 공식 배포처에서 직접 설치해 주세요.",
-                        })
-                        return
-                result = GENERATION_BRIDGE.start(incoming)
-                self._send_json(202, result)
+                        inpaint_rejection = weight
+                if inpaint_rejection is None:
+                    diagnostic["server_step"] = "prompt_preparation"
+                    audit({
+                        "event": "external_ui_generate_preparing",
+                        "request_bytes": getattr(self, "_last_json_size", None),
+                        "request_diagnostic": dict(diagnostic),
+                    })
+                    result = GENERATION_BRIDGE.start(incoming)
             except FileExistsError as error:
-                audit({"event": "external_ui_generate_allowance_conflict", "error": repr(error)})
-                self._send_json(409, {
+                diagnostic["acceptance"] = "rejected"
+                audit({"event": "external_ui_generate_allowance_conflict", "error": repr(error),
+                       "request_diagnostic": dict(diagnostic)})
+                self._send_generation_json(409, {
                     "ok": False,
                     "error": "다른 생성 요청이 준비 중입니다. 잠시 후 다시 시도해 주세요.",
                     "error_code": "LKS-GEN-1010",
@@ -1788,11 +1824,13 @@ class Handler(SimpleHTTPRequestHandler):
                     "setting_diagnostic": None,
                     "diagnostic_context": GENERATION_BRIDGE._diagnostic_context(incoming),
                     "request_id": None,
-                })
+                }, diagnostic, started)
             except Exception as error:
-                audit({"event": "external_ui_generate_rejected", "error": repr(error)})
+                diagnostic["acceptance"] = "rejected"
+                audit({"event": "external_ui_generate_rejected", "error": repr(error),
+                       "request_diagnostic": dict(diagnostic)})
                 error_code, public_message = GENERATION_BRIDGE._public_error(error)
-                self._send_json(409, {
+                self._send_generation_json(409, {
                     "ok": False, "error": public_message, "error_code": error_code,
                     "error_detail": str(error)[:1000],
                     "error_stage": "요청 검증",
@@ -1801,7 +1839,27 @@ class Handler(SimpleHTTPRequestHandler):
                     "setting_diagnostic": error.diagnostic() if hasattr(error, "diagnostic") else None,
                     "diagnostic_context": GENERATION_BRIDGE._diagnostic_context(incoming),
                     "request_id": None,
+                    "error_exception_type": type(error).__name__,
+                }, diagnostic, started)
+            else:
+                if inpaint_rejection is not None:
+                    diagnostic["acceptance"] = "rejected"
+                    self._send_generation_json(409, {
+                        **inpaint_rejection,
+                        "ok": False,
+                        "error_code": "LKS-INP-1101",
+                        "error_stage": "요청 검증",
+                        "error": "Anima LLLite Inpainting 모델을 공식 배포처에서 직접 설치해 주세요.",
+                    }, diagnostic, started)
+                    return
+                diagnostic["server_step"] = "accepted"
+                diagnostic["acceptance"] = "accepted"
+                audit({
+                    "event": "external_ui_generate_accepted",
+                    "request_id": result.get("request_id"),
+                    "request_diagnostic": dict(diagnostic),
                 })
+                self._send_generation_json(202, result, diagnostic, started)
             return
         if self.path == "/api/cancel":
             try:

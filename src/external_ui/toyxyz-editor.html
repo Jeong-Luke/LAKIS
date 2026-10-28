@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LAKIS · 3D 인물·영역 편집기</title>
+  <link rel="stylesheet" href="precision-pose-controls.css">
+  <style>
+    :root{color-scheme:dark;--bg:#090b10;--panel:#11141b;--panel2:#171b24;--line:#272c38;--text:#f3f5fa;--muted:#858d9e;--violet:#8b6cff}
+    html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font:13px sans-serif}
+    body{display:flex;flex-direction:column}
+    main{position:relative;flex:1;min-height:0}
+    main>div{width:100%;height:100%}
+    main>div[hidden]{display:none!important}
+    #error{margin:0;padding:8px;color:#ffb4bd;flex:none}
+  </style>
+</head>
+<body>
+  <main><div id="pose" aria-label="3D 인물·포즈"></div><div id="painter" hidden></div></main>
+  <p id="error" role="alert" hidden></p>
+  <script type="module" src="toyxyz-editor.js"></script>
+</body>
+</html>

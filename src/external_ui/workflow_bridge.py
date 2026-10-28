@@ -28,6 +28,8 @@ import uuid
 
 import aiohttp
 
+import scene_controls
+
 try:
     from PIL import Image
 except ImportError:
@@ -838,6 +840,11 @@ def remove_persisted_upscaler_override() -> bool:
     return True
 
 
+def _normalize_seed_mode(value: Any) -> str:
+    # The UI uses "current"; "fixed" is the legacy persisted/API alias.
+    return "current" if str(value) in {"current", "fixed"} else "random"
+
+
 @_state_transaction
 def load_external_generation_state() -> dict[str, Any]:
     payload = _load_external_ui_payload()
@@ -870,7 +877,10 @@ def load_external_generation_state() -> dict[str, Any]:
             pass
     return {
         "model": {key: model[key] for key in MODEL_STATE_KEYS if isinstance(model, dict) and key in model},
-        "output": {key: output[key] for key in OUTPUT_STATE_KEYS if isinstance(output, dict) and key in output},
+        "output": {
+            key: _normalize_seed_mode(output[key]) if key == "seed_mode" else output[key]
+            for key in OUTPUT_STATE_KEYS if isinstance(output, dict) and key in output
+        },
         "generation": {
             "lakis_mode": saved_lakis_mode,
             "upscale_engine": saved_engine
@@ -915,8 +925,7 @@ def save_external_generation_state(
         clean_output.get("seed", 0), 0, 0, COMFYUI_SEED_MAX, integer=True,
     )
     clean_output["aspect_locked"] = _coerce_bool(clean_output.get("aspect_locked", False))
-    if str(clean_output.get("seed_mode", "random")) not in {"random", "fixed"}:
-        clean_output["seed_mode"] = "random"
+    clean_output["seed_mode"] = _normalize_seed_mode(clean_output.get("seed_mode"))
     if not isinstance(loras, list):
         loras = []
     if len(loras) > 64:
@@ -2413,6 +2422,13 @@ def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dic
     ignored_assertions.add("prompt_contract")
     if not all(value for key, value in assertions.items() if key not in ignored_assertions):
         raise RuntimeError(f"External UI prompt preflight failed: {assertions}")
+    assertions.update(scene_controls.apply_scene_controls(
+        prompt, application_state, live_object_info, COMFY_ROOT, width, height,
+    ))
+    if assertions["scene_controls_enabled"]:
+        prompt = _final_only(prompt)
+        assertions["node_count"] = len(prompt)
+        assertions["prompt_contract"].update(assertions.pop("scene_prompt_contract"))
     return prompt, assertions
 
 

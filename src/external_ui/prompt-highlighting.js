@@ -353,6 +353,8 @@ function installAll() {
   for (const id of TARGET_IDS) install(document.getElementById(id));
 }
 
+export { install as installPromptEditor };
+
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", installAll, { once: true });
 } else {
