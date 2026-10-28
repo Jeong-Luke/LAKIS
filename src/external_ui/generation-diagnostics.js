@@ -99,7 +99,7 @@
     if (context.request_bytes > limitBytes) {
       mark(context, "request_size_check");
       const error = failure(new RangeError(), context, "LKS-CFG-1003",
-        "생성 요청 크기 검사", "생성 요청 데이터��� 허용 크기를 초과했어요.");
+        "생성 요청 크기 검사", "생성 요청 데이터가 허용 크기를 초과했어요.");
       error.lakis.setting_diagnostic = { request_validation_reason: "body_too_large" };
       throw error;
     }
