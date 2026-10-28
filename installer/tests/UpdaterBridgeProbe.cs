@@ -58,6 +58,14 @@ internal static class UpdaterBridgeProbe
                     Console.WriteLine(String.Join("|", (string[])type.GetField("ManifestUrls", Methods).GetValue(null)));
                 return 0;
             }
+            if (args[0] == "assembly-defaults")
+            {
+                Assembly inspectedAssembly = Assembly.LoadFrom(args[1]);
+                Type protocol = inspectedAssembly.GetType("UpdateProtocol", true);
+                Console.WriteLine(String.Join("|",
+                    (string[])protocol.GetField("ManifestUrls", Methods).GetValue(null)));
+                return 0;
+            }
             if (args[0] == "version-display")
             {
                 using (var form = new UpdaterForm(args[1], false))

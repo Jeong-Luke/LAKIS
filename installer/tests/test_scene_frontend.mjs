@@ -210,6 +210,10 @@ function generationHarness() {
     generateButtonLabel: {}, generateButtonHint: {},
     document: { querySelector: () => ({}) }, structuredClone,
     window: {
+      LAKISGenerationDiagnostics: {
+        createContext: () => ({}), bind() {}, mark() {},
+        preparationFailure: () => ({ lakis: { error: "Preparation failed" } }),
+      },
       lakisPromptForGeneration: async prompt => { await pending; return structuredClone(prompt); },
       lakisResolveWildcardsForGeneration: async ({ prompt, inpaint }) => ({ prompt, inpaint, selections: [] }),
       lakisPrepareScene: async () => {},
@@ -222,6 +226,7 @@ function generationHarness() {
     translatedPromptForGeneration: async value => value,
     translatedInpaintForGeneration: async value => value,
     setGenerationProgress() { context.generationActive = true; },
+    clientGenerationDiagnostics: () => ({}),
     showGenerationError(message) { errors.push(message); context.generationActive = false; },
   });
   const begin = appSource.indexOf('generateButton.addEventListener("click",');

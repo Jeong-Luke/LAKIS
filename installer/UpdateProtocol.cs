@@ -32,8 +32,14 @@ internal static class UpdateProtocol
     internal const string RuntimeBridgeVersion = "7.5.4.1";
     internal const int Schema = 2;
     internal static readonly string[] ManifestUrls = {
+#if LAKIS_RUNTIME_BRIDGE
+        // The intermediate installation still needs the 8.0.0 runtime,
+        // even after the normal channel advances to application-only patches.
+        "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.0/update-v3-latest.json"
+#else
         "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/main/manifests/update-v3-latest.json",
         "https://cdn.jsdelivr.net/gh/Jeong-Luke/LAKIS@main/manifests/update-v3-latest.json"
+#endif
     };
 
     internal static Version ParseVersion(string value)

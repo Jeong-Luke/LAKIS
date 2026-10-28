@@ -2203,29 +2203,35 @@ function showGenerationError(message, errorCode = "", context = {}) {
   if (code) details.push(`오류 코드: ${code}`);
   if (context.stage) details.push(`실패 단계: ${context.stage}`);
   if (context.nodeType || context.nodeId) details.push(`실패 노드: ${context.nodeType || "알 수 없음"}${context.nodeId ? ` (${context.nodeId})` : ""}`);
-  if (context.requestId) details.push(`추적 ID: ${String(context.requestId).slice(0, 12)}`);
+  if (context.failureStep) details.push(`발생 위치: ${context.failureStep}`);
+  if (context.requestId || context.clientRequestId) details.push(`추적 ID: ${String(context.requestId || context.clientRequestId).slice(0, 12)}`);
   const displayMessage = `${message || "생성 중 오류가 발생했어요."}${details.length ? `\n\n${details.join("\n")}` : ""}`;
   lastErrorReport = {
+    report_schema: 1,
     error_code: code || "LKS-GEN-1001",
-    message: message || "생성 중 오류가 발생했어요.",
+    message: context.reportMessage || message || "생성 중 오류가 발생했어요.",
     failure_stage: context.stage || null,
+    failure_component: context.failureComponent || null,
+    failure_step: context.failureStep || null,
     node_id: context.nodeId || null,
     node_type: context.nodeType || null,
     exception_type: context.exceptionType || null,
     request_id: context.requestId || null,
+    client_request_id: context.clientRequestId || null,
     prompt_id: context.promptId || null,
     occurred_at: new Date().toISOString(),
-    error_detail: context.errorDetail || null,
-    settings: context.diagnostics || null,
+    error_detail: context.failureComponent === "frontend" ? context.errorDetail || null : null,
+    settings: context.diagnostics ? clientGenerationDiagnostics(context.diagnostics) : null,
     setting_diagnostic: context.settingDiagnostic || null,
     runtime_trace: context.runtimeTrace || null,
+    submission: context.submissionDiagnostic || null,
   };
   showDevModal({type:"ERROR", title:"생성 오류", message:displayMessage, copyError:true, focusTarget:generateButton});
 }
 
 function compactDiagnosticValue(value, depth = 0) {
   if (typeof value === "string") {
-    return value.length > 200 ? `<omitted string: ${value.length} chars>` : value;
+    return { type: "string", chars: value.length };
   }
   if (depth >= 6) return "<omitted nested value>";
   if (Array.isArray(value)) return value.slice(0, 64).map((item) => compactDiagnosticValue(item, depth + 1));
@@ -2241,25 +2247,35 @@ function clientGenerationDiagnostics(payload) {
   const source = payload && typeof payload === "object" ? payload : {};
   const inpaint = source.inpaint && typeof source.inpaint === "object" ? source.inpaint : {};
   const i2i = source.i2i && typeof source.i2i === "object" ? source.i2i : {};
+  const pick = (value, keys) => Object.fromEntries(keys
+    .filter(key => value && value[key] !== undefined)
+    .map(key => [key, value[key]]));
+  const model = pick(source.model, ["checkpoint", "vae", "clip", "sampler", "scheduler", "steps", "cfg"]);
+  const fileName = value => typeof value === "string" ? value.replaceAll("\\", "/").split("/").pop() : value;
+  for (const key of ["checkpoint", "vae", "clip"]) {
+    if (key in model) model[key] = fileName(model[key]);
+  }
   return {
-    generation: structuredClone(source.generation || {}),
-    model: structuredClone(source.model || {}),
-    output: structuredClone(source.output || {}),
+    generation: pick(source.generation, ["mode", "lakis_mode", "upscale_engine"]),
+    model,
+    output: pick(source.output, ["width", "height", "seed_mode", "aspect_locked"]),
     loras_enabled: Boolean(source.lora_enabled ?? source.loras_enabled ?? true),
-    loras: Array.isArray(source.loras) ? structuredClone(source.loras) : [],
-    camera: structuredClone(source.camera || {}),
+    loras: Array.isArray(source.loras) ? source.loras.map(item => ({
+      name: fileName(item.name), enabled: Boolean(item.enabled), strength: item.strength,
+    })) : [],
+    camera: pick(source.camera, ["x", "y", "z", "roll", "frame_y"]),
     i2i: {
       enabled: Boolean(i2i.enabled),
-      has_source: Boolean(i2i.image || i2i.source || i2i.filename),
+      has_source: Boolean(i2i.has_source || i2i.image || i2i.source || i2i.filename),
       denoise: i2i.denoise ?? null,
       source_size_enabled: Boolean(i2i.source_size_enabled),
     },
     inpaint: {
       enabled: Boolean(inpaint.enabled),
-      has_source: Boolean(inpaint.source_image || inpaint.source || inpaint.source_filename),
-      has_mask: Boolean(inpaint.mask_image || inpaint.mask || inpaint.mask_filename),
-      has_prompt: Boolean(String(inpaint.prompt || "").trim()),
-      has_negative_prompt: Boolean(String(inpaint.negative_prompt || "").trim()),
+      has_source: Boolean(inpaint.has_source || inpaint.source_image || inpaint.source || inpaint.source_filename),
+      has_mask: Boolean(inpaint.has_mask || inpaint.mask_image || inpaint.mask || inpaint.mask_filename),
+      has_prompt: Boolean(inpaint.has_prompt || String(inpaint.prompt || "").trim()),
+      has_negative_prompt: Boolean(inpaint.has_negative_prompt || String(inpaint.negative_prompt || "").trim()),
       operation: inpaint.operation || null,
       denoise: inpaint.denoise ?? null,
       strength: inpaint.strength ?? null,
@@ -2267,6 +2283,40 @@ function clientGenerationDiagnostics(payload) {
     },
     advanced_node_settings: compactDiagnosticValue(source.advanced_node_settings || {}),
   };
+}
+
+function compactErrorReport(value) {
+  if (Array.isArray(value)) return value.map(compactErrorReport);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value)
+      .filter(([, item]) => item !== null && item !== undefined)
+      .map(([key, item]) => [key, compactErrorReport(item)]));
+  }
+  return value;
+}
+
+async function formatGenerationErrorReport(report, version) {
+  const detail = compactErrorReport({
+    ...report, report_schema: 1, version,
+  });
+  const submission = detail.submission || {};
+  const acceptance = {
+    not_submitted: "전송 전 실패", rejected: "거절 응답 확인",
+    accepted: "서버 접수 확인", unknown: "서버 접수 여부 미확인",
+  }[submission.acceptance] || "서버 접수 여부 미확인";
+  const summary = [
+    `LAKIS ${version} | ${detail.error_code} | ${detail.failure_stage || "단계 미확인"}`,
+    detail.failure_step ? `위치: ${detail.failure_step}` : "",
+    `통신: ${submission.http_status === undefined ? "HTTP 응답 미확인" : `HTTP ${submission.http_status}`} | ${acceptance}${submission.request_bytes === undefined ? "" : ` | 요청 ${submission.request_bytes} B`}`,
+    detail.request_id || detail.client_request_id
+      ? `추적: ${detail.request_id || detail.client_request_id}` : "",
+  ].filter(Boolean).join("\n");
+  try {
+    return `${summary}\n진단: ${await window.LAKISDiagnosticPacket.encode(detail)}`;
+  } catch (error) {
+    detail.packet_error = { error_code: "LKS-UI-1020", exception_type: error.name || "Error" };
+    return `${summary}\n진단(압축 실패·전체 원문): ${JSON.stringify(detail)}`;
+  }
 }
 
 function closeGenerationError() {
@@ -2277,15 +2327,16 @@ errorDialogClose.addEventListener("click", () => closeDevModal("confirm"));
 errorDialogCancel.addEventListener("click", () => closeDevModal("cancel"));
 errorDialogCopy.addEventListener("click", async event => {
   if (!lastErrorReport) return;
+  const snapshot = structuredClone(lastErrorReport);
   const button = event.currentTarget;
   button.disabled = true;
   button.textContent = "복사 중...";
   let version = "unknown";
   try {
-    const response = await fetch("/api/launcher-identity", { cache: "no-store" });
+    const response = await fetch("/api/launcher-identity", { cache: "no-store", signal: AbortSignal.timeout(1500) });
     if (response.ok) version = String((await response.json()).version || version);
   } catch (_) {}
-  const report = `LAKIS 오류 보고\n버전: ${version}\n${JSON.stringify(lastErrorReport, null, 2)}`;
+  const report = await formatGenerationErrorReport(snapshot, version);
   let copied = false;
   try {
     await navigator.clipboard.writeText(report);
@@ -2337,6 +2388,7 @@ window.addEventListener("lakis:generation-cancelled", () => { continuousRun=null
 window.LAKISGenerationProgress = setGenerationProgress;
 
 let lastGenerationState = "idle";
+let lastGenerationSubmission = null;
 async function pollGenerationStatus() {
   try {
     const response = await fetch("/api/generation-status", { cache: "no-store" });
@@ -2400,6 +2452,12 @@ async function pollGenerationStatus() {
         diagnostics: status.diagnostic_context,
         settingDiagnostic: status.setting_diagnostic,
         errorDetail: status.error_detail,
+        failureComponent: "generation_backend",
+        failureStep: status.error_stage || "backend_execution",
+        clientRequestId: lastGenerationSubmission?.bridge_request_id === status.request_id
+          ? lastGenerationSubmission.client_request_id : null,
+        submissionDiagnostic: lastGenerationSubmission?.bridge_request_id === status.request_id
+          ? lastGenerationSubmission : null,
         runtimeTrace: {
           last_node_id: status.last_node_id || null,
           last_node_type: status.last_node_type || null,
@@ -2519,11 +2577,16 @@ generateButton.addEventListener("click", async () => {
   // A zoom chosen for the previous aspect ratio must not make the next image
   // appear cropped or locked to that ratio.
   setPreviewZoom(100);
-  const generationPayload = structuredClone(state);
-  generationPayload.composition_enabled = state.composition_enabled && !state.i2i.enabled && !state.inpaint.enabled;
+  const generationTrace = window.LAKISGenerationDiagnostics.createContext();
+  let generationPayload;
   try {
+    generationPayload = structuredClone(state);
+    generationPayload.composition_enabled = state.composition_enabled && !state.i2i.enabled && !state.inpaint.enabled;
+    window.LAKISGenerationDiagnostics.bind(generationPayload, generationTrace);
+    window.LAKISGenerationDiagnostics.mark(generationTrace, "prompt_prepare");
     const promptTemplate = await window.lakisPromptForGeneration(state.prompt);
     const inpaintTemplate = structuredClone(state.inpaint);
+    window.LAKISGenerationDiagnostics.mark(generationTrace, "wildcard_resolve");
     const wildcardResult = await window.lakisResolveWildcardsForGeneration({
       prompt: promptTemplate, inpaint: inpaintTemplate, seed: state.output.seed,
     });
@@ -2541,8 +2604,11 @@ generateButton.addEventListener("click", async () => {
     if ((state.translation_enabled && Object.values(state.prompt).some(containsKoreanPrompt)) || inpaintNeedsTranslation) {
       setGenerationProgress(0, "프롬프트 번역 중");
     }
+    window.LAKISGenerationDiagnostics.mark(generationTrace, "prompt_translate");
     generationPayload.prompt = await translatedPromptForGeneration(generationPayload.prompt);
+    window.LAKISGenerationDiagnostics.mark(generationTrace, "inpaint_translate");
     generationPayload.inpaint = await translatedInpaintForGeneration(generationPayload.inpaint);
+    window.LAKISGenerationDiagnostics.mark(generationTrace, "scene_prepare");
     await window.lakisPrepareScene(generationPayload);
     lastPreviewRevision = 0;
     lastGenerationState = "preparing";
@@ -2550,7 +2616,16 @@ generateButton.addEventListener("click", async () => {
     generationSubmissionPending = true;
     window.dispatchEvent(new CustomEvent("lakis:generate", { detail: generationPayload }));
   } catch (error) {
-    showGenerationError(error.message || "프롬프트 자동 번역에 실패했어요.");
+    const failure = window.LAKISGenerationDiagnostics.preparationFailure(error, generationTrace).lakis;
+    showGenerationError(error.message || failure.error, failure.error_code, {
+      stage: failure.error_stage, failureComponent: failure.failure_component,
+      failureStep: failure.failure_step, exceptionType: failure.error_exception_type,
+      reportMessage: failure.error,
+      clientRequestId: failure.client_request_id,
+      submissionDiagnostic: failure.submission_diagnostic,
+      diagnostics: clientGenerationDiagnostics(generationPayload || state),
+      errorDetail: failure.error_detail,
+    });
   }
   } finally {
     generationPreparationPending = false;
@@ -2577,29 +2652,8 @@ document.addEventListener("keydown", event => {
 
 window.addEventListener("lakis:generate", async event => {
   try {
-    const response = await fetch("/api/generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(event.detail)
-    });
-    const responseText = await response.text();
-    let result;
-    try {
-      result = responseText ? JSON.parse(responseText) : {};
-    } catch (_) {
-      const failure = new Error(`생성 서버 응답을 읽지 못했어요. (HTTP ${response.status})`);
-      failure.lakis = {
-        error_code: "LKS-GEN-1011",
-        error_stage: "생성 요청 응답",
-        error_detail: `Non-JSON response (HTTP ${response.status}): ${responseText.slice(0, 1000)}`,
-      };
-      throw failure;
-    }
-    if (!response.ok || !result.ok) {
-      const failure = new Error(result.error || `HTTP ${response.status}`);
-      failure.lakis = result;
-      throw failure;
-    }
+    const result = await window.LAKISGenerationDiagnostics.submit(event.detail);
+    lastGenerationSubmission = result.submission_diagnostic;
     lastGenerationState = "preparing";
   } catch (error) {
     const transportFailure = !error.lakis;
@@ -2607,6 +2661,12 @@ window.addEventListener("lakis:generate", async event => {
       stage: error.lakis?.error_stage || (transportFailure ? "생성 서버 연결" : "요청 검증"),
       nodeId: error.lakis?.error_node_id, nodeType: error.lakis?.error_node_type,
       requestId: error.lakis?.request_id,
+      promptId: error.lakis?.prompt_id,
+      exceptionType: error.lakis?.error_exception_type || error.name,
+      failureComponent: error.lakis?.failure_component || "frontend",
+      failureStep: error.lakis?.failure_step || "request_send",
+      clientRequestId: error.lakis?.client_request_id,
+      submissionDiagnostic: error.lakis?.submission_diagnostic,
       settingDiagnostic: error.lakis?.setting_diagnostic,
       diagnostics: error.lakis?.diagnostic_context || clientGenerationDiagnostics(event.detail),
       errorDetail: error.lakis?.error_detail || (transportFailure

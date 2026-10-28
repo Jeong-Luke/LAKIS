@@ -50,9 +50,11 @@ class GenerationRequestTests(unittest.TestCase):
         self.addCleanup(stop)
         return server.server_port
 
-    def post(self, port, path, payload=None, content_length=None):
+    def post(self, port, path, payload=None, content_length=None, client_id=None):
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8") if payload is not None else b""
         headers = {"Content-Type": "application/json"}
+        if client_id is not None:
+            headers["X-LAKIS-Client-Request-ID"] = client_id
         if content_length is not None:
             headers["Content-Length"] = str(content_length)
         connection = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
@@ -111,6 +113,51 @@ class GenerationRequestTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "body exceeds 1000000 bytes"):
             request._read_json()
         self.assertEqual(request.rfile.tell(), 0)
+
+    def test_client_trace_links_accepted_response_and_audit_without_payload_content(self):
+        client_id = "a" * 32
+        payload = {"prompt": {"general": "PRIVATE_PROMPT"}, "inpaint": {"enabled": False}}
+        status, result = self.post(self.serve(), "/api/generate", payload, client_id=client_id)
+        self.assertEqual(status, 202)
+        diagnostic = result["request_diagnostic"]
+        self.assertEqual(diagnostic["client_request_id"], client_id)
+        self.assertEqual(diagnostic["acceptance"], "accepted")
+        self.assertEqual(diagnostic["server_step"], "accepted")
+        self.assertEqual(diagnostic["request_bytes"], len(json.dumps(payload).encode()))
+        self.assertEqual(diagnostic["request_limit_bytes"], 45_000_000)
+        audit = serve_ui.AUDIT_PATH.read_text(encoding="utf-8")
+        self.assertNotIn("PRIVATE_PROMPT", audit)
+        accepted = [json.loads(line) for line in audit.splitlines()
+                    if json.loads(line)["event"] == "external_ui_generate_accepted"]
+        self.assertEqual(accepted[0]["request_id"], "isolated-no-gpu")
+        self.assertEqual(accepted[0]["request_diagnostic"]["client_request_id"], client_id)
+
+    def test_rejected_request_preserves_client_trace_and_exact_phase(self):
+        client_id = "b" * 32
+        status, result = self.post(self.serve(), "/api/generate", [], client_id=client_id)
+        self.assertEqual(status, 409)
+        self.assertEqual(result["error_code"], "LKS-CFG-1001")
+        self.assertEqual(result["request_diagnostic"]["client_request_id"], client_id)
+        self.assertEqual(result["request_diagnostic"]["server_step"], "request_body")
+        self.assertEqual(result["request_diagnostic"]["acceptance"], "rejected")
+        self.start.assert_not_called()
+
+    def test_lost_accepted_response_is_not_recorded_as_generation_rejection(self):
+        request = object.__new__(serve_ui.Handler)
+        request.path = "/api/generate"
+        request.headers = {"Content-Length": "2", "Host": "127.0.0.1",
+                           "X-LAKIS-Client-Request-ID": "c" * 32}
+        request.rfile = io.BytesIO(b"{}")
+        with patch.object(request, "_authorize_api_request", return_value=True), \
+                patch.object(request, "_send_json", side_effect=BrokenPipeError("fixture closed")):
+            with self.assertRaises(BrokenPipeError):
+                request.do_POST()
+        events = [json.loads(line) for line in serve_ui.AUDIT_PATH.read_text(encoding="utf-8").splitlines()]
+        self.assertNotIn("external_ui_generate_rejected", [event["event"] for event in events])
+        failure = next(event for event in events if event["event"] == "external_ui_generate_response_failed")
+        self.assertEqual(failure["error_code"], "LKS-GEN-1030")
+        self.assertEqual(failure["request_diagnostic"]["acceptance"], "accepted")
+        self.start.assert_called_once()
 
     def test_scene_prompt_keys_share_seed_selection_and_exclusions_with_global_prompt(self):
         serve_ui.USER_WILDCARD_ROOT.mkdir()

@@ -32,11 +32,13 @@ def compiler():
     return Path(os.environ["WINDIR"]) / "Microsoft.NET/Framework64/v4.0.30319/csc.exe"
 
 
-def compile_native(output, sources, *, main=None):
+def compile_native(output, sources, *, main=None, defines=()):
     command = [str(compiler()), "/nologo", "/target:" + ("exe" if main else "winexe"),
                "/out:" + str(output), "/win32icon:" + str(ROOT / "resources/LAKIS_windows_compatible.ico")]
     if main:
         command.append("/main:" + main)
+    if defines:
+        command.append("/define:" + ";".join(defines))
     command += ["/reference:" + name for name in (
         "System.Windows.Forms.dll", "System.Drawing.dll", "System.Web.Extensions.dll",
         "System.IO.Compression.dll", "System.IO.Compression.FileSystem.dll")]
