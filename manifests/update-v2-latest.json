@@ -8,18 +8,18 @@
   "files": [
     {
       "path": "LAKIS.exe",
-      "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.0/LAKIS.exe",
-      "sha256": "6AE0C18D28F3AA6408417D1125698FC452F988AC455F38D9F3642E53797831EF"
+      "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.1/LAKIS_RuntimeBridge_Launcher.exe",
+      "sha256": "44FA12B3143DF743AEF0CAC71A25FF50CACCCECEFE744D0817177A2A7CC3F7EB"
     },
     {
       "path": "LAKIS_Updater.exe",
-      "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.0/LAKIS_Updater.exe",
-      "sha256": "F1812B96534B1A940999A7CE7FA085EEAC505EC18CF7271CB671DDBADF6B11E7"
+      "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.1/LAKIS_RuntimeBridge_Updater.exe",
+      "sha256": "243A5215B2F97B0C08AFAB52C765A399E173B57CF246A92A7BD7D944623B2031"
     },
     {
       "path": "LAKIS_Patcher.exe",
-      "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.0/LAKIS_Patcher.exe",
-      "sha256": "F1812B96534B1A940999A7CE7FA085EEAC505EC18CF7271CB671DDBADF6B11E7"
+      "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.1/LAKIS_RuntimeBridge_Patcher.exe",
+      "sha256": "243A5215B2F97B0C08AFAB52C765A399E173B57CF246A92A7BD7D944623B2031"
     }
   ],
   "delete": []

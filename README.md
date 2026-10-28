@@ -14,11 +14,21 @@ LAKIS 애플리케이션, 사용자 인터페이스, 설치기, 업데이터, �
 
 일반적으로 `LAKIS_Setup.exe`를 사용하세요. Windows Defender가 Setup을 차단하거나 설치 파일을 실행할 수 없다면 CMD Version ZIP의 압축을 완전히 푼 뒤 `LAKIS_CMD_Install.cmd`를 실행하세요. CMD Version은 관리자 권한이나 Defender 예외 설정을 요구하지 않는 공식 대체 설치 방법입니다.
 
-[v8.0.0 릴리즈 설명과 개별 파일](https://github.com/Jeong-Luke/LAKIS/releases/tag/v8.0.0)도 확인할 수 있습니다. 이번 배포는 **Windows·NVIDIA GPU 환경용**입니다.
+[v8.0.1 릴리즈 설명과 개별 파일](https://github.com/Jeong-Luke/LAKIS/releases/tag/v8.0.1)도 확인할 수 있습니다. 이번 배포는 **Windows·NVIDIA GPU 환경용**입니다.
 
 ## 안정 버전
 
-이 저장소는 LAKIS의 안정 배포 버전을 관리합니다. 현재 안정 버전은 **`v8.0.0`**입니다. 이전 정식 릴리즈는 보존하며, 개발 패키지와 개발용 워크플로는 별도로 관리합니다.
+이 저장소는 LAKIS의 안정 배포 버전을 관리합니다. 현재 안정 버전은 **`v8.0.1`**입니다. 이전 정식 릴리즈는 보존하며, 개발 패키지와 개발용 워크플로는 별도로 관리합니다.
+
+## v8.0.1 — 3D 생성 수정과 상세 오류 진단
+
+- 다인 3D 생성 요청의 1MB 제한을 45MB로 확대하고, 3D를 끄면 저장된 장면을 생성 요청에서 제외합니다.
+- 인물별·배경 와일드카드를 치환한 뒤 번역하며, 원문·마스크는 유지합니다.
+- 제어 모델 안내 박스를 제거하고 실제 모델 검증과 배포 약관은 유지합니다.
+- 오류 발생 단계를 세분화하고 요청 크기·통신 상태·접수 여부·추적 정보를 기록합니다.
+- 한 번 복사하면 요약과 압축된 상세 진단이 함께 포함되며, 외부 서비스 없이 로컬에서 처리합니다.
+
+8.0.0 사용자는 변경된 프로그램 파일만 받습니다. 신규 사용자는 위 8.0.0 기본 설치기로 설치한 뒤 자동 업데이트하면 8.0.1이 됩니다. ComfyUI·Python·PyTorch·CUDA·모델은 변경하지 않습니다.
 
 ## v8.0.0 — 3D 포즈 편집과 실행 환경 업데이트
 
@@ -81,9 +91,9 @@ Local Inpaint V2에 필요한 `anima-lllite-inpainting-v2.safetensors`는 LAKIS�
 
 설치된 LAKIS에는 명시적으로 공개된 안정 릴리즈에서 변경된 파일만 전달합니다. 사용자 워크플로, 설정, 프롬프트와 생성 이미지는 유지합니다. 업데이트 파일은 교체 전에 별도로 준비하고 검증하며, 실패하면 기존 상태로 복구합니다.
 
-7.5.4 사용자는 **7.5.4 → 7.5.4.1(업데이터 교체) → 8.0.0(실행 환경 교체)** 순서로 업데이트됩니다. 중간에 표시되는 7.5.4.1은 최종 버전이 아닙니다. 기존 런처에서는 중간 버전과 GitHub 릴리즈의 버전 차이로 변경 설명을 불러오지 못한다는 안내가 나올 수 있으며, 전체 변경 내용은 [8.0.0 릴리즈](https://github.com/Jeong-Luke/LAKIS/releases/tag/v8.0.0)에서 확인할 수 있습니다.
+7.5.4 사용자는 **7.5.4 → 7.5.4.1(업데이터 교체) → 8.0.0(실행 환경 교체) → 8.0.1(프로그램 파일 패치)** 순서로 업데이트됩니다. 중간에 표시되는 7.5.4.1은 최종 버전이 아닙니다. 기존 런처에서는 중간 버전과 GitHub 릴리즈의 버전 차이로 변경 설명을 불러오지 못한다는 안내가 나올 수 있으며, 전체 변경 내용은 [8.0.0 릴리즈](https://github.com/Jeong-Luke/LAKIS/releases/tag/v8.0.0)에서 확인할 수 있습니다.
 
-런타임 다운로드는 약 **3.25GB**이며 모델 다운로드는 별도입니다. 다운로드·파일 검증·실행 확인이 끝난 뒤 최종 버전이 8.0.0으로 표시됩니다.
+런타임 다운로드는 약 **3.25GB**이며 모델 다운로드는 별도입니다. 8.0.0 런타임 전환 후 프로그램 파일 패치를 적용하면 최종 버전은 8.0.1로 표시됩니다. 이미 8.0.0인 사용자는 이 런타임을 다시 받지 않습니다.
 
 ## 제3자 소프트웨어
 
@@ -113,11 +123,21 @@ from AGPL software remain AGPL-3.0-or-later.
 
 Use `LAKIS_Setup.exe` for normal installation and repair. If Windows Defender blocks Setup or prevents it from running, fully extract the CMD Version ZIP and run `LAKIS_CMD_Install.cmd`. CMD Version is an official alternative installation method that does not require administrator access or a Defender exclusion.
 
-You can also view the [v8.0.0 release notes and individual files](https://github.com/Jeong-Luke/LAKIS/releases/tag/v8.0.0). This distribution supports **Windows with an NVIDIA GPU**.
+You can also view the [v8.0.1 release notes and individual files](https://github.com/Jeong-Luke/LAKIS/releases/tag/v8.0.1). This distribution supports **Windows with an NVIDIA GPU**.
 
 ### Stable baseline
 
-This repository contains the stable LAKIS distribution line. The current stable release is **`v8.0.0`**. Previous stable releases are preserved; development packages and workflows are maintained separately.
+This repository contains the stable LAKIS distribution line. The current stable release is **`v8.0.1`**. Previous stable releases are preserved; development packages and workflows are maintained separately.
+
+### v8.0.1 — 3D generation fixes and detailed diagnostics
+
+- Raises the generation request limit from 1MB to 45MB and excludes saved scenes from requests when 3D is off.
+- Resolves per-person/background wildcards before translation while preserving templates and masks.
+- Removes the control-model notice panel while retaining model verification and distribution terms.
+- Distinguishes failure stages and records request size, transport state, acceptance certainty, and correlation IDs.
+- Copies a readable summary and compressed detailed diagnostics together, using local processing without an external service.
+
+Existing 8.0.0 users receive only changed application files. New users install the 8.0.0 baseline above, then automatically update to 8.0.1. ComfyUI, Python, PyTorch, CUDA, and models are unchanged.
 
 ### v8.0.0 — 3D pose editing and runtime update
 
@@ -180,9 +200,9 @@ The `anima-lllite-inpainting-v2.safetensors` weight required by Local Inpaint V2
 
 Installed clients receive only files changed by an explicitly published stable release. User workflows, settings, prompts, and generated images are preserved. Updates are staged and verified before replacement, with rollback on failure.
 
-Users on 7.5.4 update through **7.5.4 → 7.5.4.1 (updater replacement) → 8.0.0 (runtime replacement)**. The intermediate 7.5.4.1 label is not the final version. The previous launcher may report unavailable release notes because the intermediate version differs from the GitHub release version; see the [8.0.0 release](https://github.com/Jeong-Luke/LAKIS/releases/tag/v8.0.0) for the full changes.
+Users on 7.5.4 update through **7.5.4 → 7.5.4.1 (updater replacement) → 8.0.0 (runtime replacement) → 8.0.1 (application patch)**. The intermediate 7.5.4.1 label is not the final version. The previous launcher may report unavailable release notes because the intermediate version differs from the GitHub release version; see the [8.0.0 release](https://github.com/Jeong-Luke/LAKIS/releases/tag/v8.0.0) for the full changes.
 
-The runtime download is approximately **3.25GB**, excluding models. The final version is shown as 8.0.0 after downloading, file verification, and runtime checks finish.
+The runtime download is approximately **3.25GB**, excluding models. The final version is 8.0.1 after the runtime transition and application patch. Users already on 8.0.0 do not download that runtime again.
 
 ### Third-party software
 

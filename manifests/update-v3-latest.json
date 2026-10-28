@@ -1,47 +1,51 @@
 {
   "schema": 2,
-  "kind": "runtime-update",
-  "version": "8.0.0",
-  "minimum_version": "7.5.4.1",
+  "kind": "file-patch",
+  "version": "8.0.1",
+  "minimum_version": "8.0.0",
   "minimum_updater_version": "8.0.0",
-  "release_notes": "LAKIS 8.0.0 — 3D 포즈 편집과 실행 환경 업데이트\n새로운 기능\n3D 포즈 편집: 인체의 자세와 구도를 직접 조절하고 이미지 생성에 적용할 수 있습니다.\n인물별 프롬프트: 인물마다 설명을 지정해 포즈와 함께 생성에 반영할 수 있습니다.\n포즈 설정 복원: 앱을 다시 실행해도 저장한 포즈 설정을 이어 사용할 수 있습니다.\n설치·업데이트 개선\nComfyUI 0.42.0 기반으로 실행 환경을 업데이트했습니다.\nGUI·CMD 설치기를 새 설치 엔진으로 통합하고, CMD 실행 오류를 수정했습니다.\n업데이트·복구 과정에서 기존 모델, LoRA, 설정, 워크플로, 생성 이미지를 보존하도록 개선했습니다.\n필요한 포즈 모델은 공식 배포처에서 다운로드하고 파일 무결성을 확인합니다. 기존 사용자 모델은 덮어쓰지 않습니다.\n업데이트 후 버전 표시 오류를 수정하고, 구성 요소의 라이선스·고지문을 보완했습니다.",
-  "files": [],
+  "files": [
+    {
+      "path": "ComfyUI/LAKIS/external_ui/index.html",
+      "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.1/index.html",
+      "sha256": "F6041A7DB38AF548E959D676C06CEF55485E600561D4871555740B825F81E49C"
+    },
+    {
+      "path": "ComfyUI/LAKIS/external_ui/scene-controls.css",
+      "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.1/scene-controls.css",
+      "sha256": "BABFAB27E04F39D6C848E844459691F83DF5C002B3D40BC906DDE01BEC2E9F25"
+    },
+    {
+      "path": "ComfyUI/LAKIS/external_ui/scene-controls.js",
+      "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.1/scene-controls.js",
+      "sha256": "28D87216FD57D4B41E3159D9B43275CC277FB7B79AB2960B5482CA788CB839D9"
+    },
+    {
+      "path": "ComfyUI/LAKIS/external_ui/scene_controls.py",
+      "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.1/scene_controls.py",
+      "sha256": "B4165B7D8E184C66FF516AC3F44F80C7F16EC020B04C8212766B515D826B9CAA"
+    },
+    {
+      "path": "ComfyUI/LAKIS/external_ui/serve_ui.py",
+      "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.1/serve_ui.py",
+      "sha256": "BF894C671883CF3B351B36C0EE864510F6E7ED0512A29115433D9178DEC754F6"
+    },
+    {
+      "path": "ComfyUI/LAKIS/external_ui/app.js",
+      "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.1/app.js",
+      "sha256": "7C69B4F68B214D7E7DACDB2560847D9575C68DDAF85254450DA8BF18CE9CC030"
+    },
+    {
+      "path": "ComfyUI/LAKIS/external_ui/diagnostic-packet.js",
+      "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.1/diagnostic-packet.js",
+      "sha256": "0B34B6260521299C823B66D767F40C4541AC455FC8EB5063E5502EDBAB6A306E"
+    },
+    {
+      "path": "ComfyUI/LAKIS/external_ui/generation-diagnostics.js",
+      "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.1/generation-diagnostics.js",
+      "sha256": "9155C897CE1FDF28709B344B1B61BE19A38A0B7B3040602B5ACAA21418A778E4"
+    }
+  ],
   "delete": [],
-  "runtime_bundle": {
-    "schema": 2,
-    "product": "LAKIS",
-    "version": "8.0.0",
-    "comfyui_version": "0.42.0",
-    "name": "LAKIS_Runtime_8.0.0.zip",
-    "bytes": 3247463971,
-    "files": 62993,
-    "sha256": "A310FF8221A19BB9C7DFDFA1D6237419BEC5252321030F718C323BD2D760180B",
-    "manifest_sha256": "F173D6B516381626A9A325DA67AB77C2CC2B6144FC2E7682581D6EEA3F4DE791",
-    "parts": [
-      {
-        "name": "LAKIS_Runtime_8.0.0.zip.part001",
-        "bytes": 1073741824,
-        "sha256": "3A163983E897DFBBC7BF897AE92BA4C6AAE043CD98002B762B4D1AA74AB017B0",
-        "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.0/LAKIS_Runtime_8.0.0.zip.part001"
-      },
-      {
-        "name": "LAKIS_Runtime_8.0.0.zip.part002",
-        "bytes": 1073741824,
-        "sha256": "9FC191EA21D8AC8DA82593BF4B1A49E259834D85989041D1AB5DF3354E02A4D5",
-        "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.0/LAKIS_Runtime_8.0.0.zip.part002"
-      },
-      {
-        "name": "LAKIS_Runtime_8.0.0.zip.part003",
-        "bytes": 1073741824,
-        "sha256": "0B2BC2B8F214847A8D12F2B5A9931A19F5DBB910149C3DF2FFAAE65BB1CCD41C",
-        "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.0/LAKIS_Runtime_8.0.0.zip.part003"
-      },
-      {
-        "name": "LAKIS_Runtime_8.0.0.zip.part004",
-        "bytes": 26238499,
-        "sha256": "61B6FB7691D57C903BB67E5916A760592CAEF154DF136333EEC48E9C671B295F",
-        "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.0/LAKIS_Runtime_8.0.0.zip.part004"
-      }
-    ]
-  }
+  "release_notes": "# LAKIS 8.0.1 — 3D 생성 수정·상세 오류 진단\n\n## 수정 사항\n- 생성 요청 제한을 1MB에서 45MB로 늘려 다인 3D 장면의 연결 끊김 재현 문제에 대응했습니다.\n- 3D를 끄면 저장된 장면은 유지하고 생성 요청에서 장면 데이터를 제외합니다.\n- 인물별·배경 정밀 프롬프트의 와일드카드를 치환한 뒤 번역하며, 저장된 원문과 마스크는 유지합니다.\n- 제어 모델 설치·이용 조건 안내 박스를 제거했습니다. 3D 기능·모델 검증·배포 약관은 유지합니다.\n\n## 오류 진단 개선\n- 프롬프트·와일드카드·번역·3D 준비와 요청 전송·응답 수신·JSON/HTTP 오류를 단계별로 구분합니다.\n- 요청 크기·단계별 시간·HTTP 상태·노드·추적 ID와 서버 접수 확인/거절/미확인을 기록합니다.\n- 오류 정보는 한 번 복사하면 요약과 압축된 상세 진단이 함께 포함됩니다.\n- 압축·복원은 로컬에서 처리하고 민감한 입력은 제외합니다. 진단 기능이 생성을 자동 재제출하지 않습니다.\n\n## 업데이트·설치\n- 기존 8.0.0 사용자는 변경된 프로그램 파일만 업데이트하며, 적용 후 LAKIS 버전은 8.0.1입니다.\n- ComfyUI·Python·PyTorch·CUDA·모델 실행환경은 8.0.0과 동일하며 전체 런타임을 다시 받지 않습니다.\n- 처음 설치하는 사용자는 기존 8.0.0 기본 설치기로 설치한 뒤 자동 업데이트를 적용합니다.\n- 기존 8.0.0·7.5.4 릴리즈와 모델·LoRA·설정·워크플로·생성 이미지는 유지합니다.\n"
 }
