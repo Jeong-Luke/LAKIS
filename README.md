@@ -8,13 +8,21 @@ LAKIS 애플리케이션, 사용자 인터페이스, 설치기, 업데이터, �
 
 ## 다운로드
 
-**[Windows용 LAKIS Studio v8.0.0 다운로드](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.0/LAKIS_Setup.exe)**
+**[최신 버전: LAKIS Studio v8.0.2 릴리즈](https://github.com/Jeong-Luke/LAKIS/releases/tag/v8.0.2)**
 
-**[Windows용 LAKIS Studio v8.0.0 CMD Version 다운로드](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.0/LAKIS_CMD_Installer_8.0.0.zip)**
+기존 8.0.0·8.0.1 사용자는 LAKIS를 다시 실행해 **8.0.2 업데이트**를 적용하세요.
+
+### 신규 설치
+
+신규 사용자는 아래 **8.0.0 기본 설치기**로 설치한 뒤 8.0.2 업데이트를 적용하세요. 8.0.2는 앱 파일 패치이며 별도의 새 실행환경 설치기는 배포하지 않습니다.
+
+**[Windows용 기본 설치기 (v8.0.0)](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.0/LAKIS_Setup.exe)**
+
+**[Windows용 CMD 기본 설치기 (v8.0.0)](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.0/LAKIS_CMD_Installer_8.0.0.zip)**
 
 일반적으로 `LAKIS_Setup.exe`를 사용하세요. Windows Defender가 Setup을 차단하거나 설치 파일을 실행할 수 없다면 CMD Version ZIP의 압축을 완전히 푼 뒤 `LAKIS_CMD_Install.cmd`를 실행하세요. CMD Version은 관리자 권한이나 Defender 예외 설정을 요구하지 않는 공식 대체 설치 방법입니다.
 
-[v8.0.2 릴리즈 설명과 개별 파일](https://github.com/Jeong-Luke/LAKIS/releases/tag/v8.0.2)도 확인할 수 있습니다. 이번 배포는 **Windows·NVIDIA GPU 환경용**입니다.
+이번 배포는 **Windows·NVIDIA GPU 환경용**입니다.
 
 ## 안정 버전
 
@@ -24,11 +32,21 @@ LAKIS 애플리케이션, 사용자 인터페이스, 설치기, 업데이터, �
 
 - LAKIS UI 없이 사용할 수 있는 공식 v8.0 워크플로를 제공하고, 사용자 편집용·API용을 사이드바에 각각 연결합니다.
 - 수정할 노드는 보기 편하게 정리하고, 모니터와 최종 이미지 표시를 보완합니다.
+- 디테일 분기도 공통 Anima 모델·LoRA 설정을 사용하며, 불필요한 별도 체크포인트 연결을 제거했습니다.
 - 큰 3D 메타데이터의 저장 결과 탐색 오류, HTTP Link의 제작 버튼 오류, 초기 태그·설정 덮어쓰기, 연속 제작의 큐 정리 경합을 수정합니다.
 - 결과 화면과 라이브러리에서 원본 이미지를 기기에 다운로드할 수 있습니다.
 - 공식 템플릿은 앱 전용 리소스에 포함하며, 개인 워크플로와 기존 v7.4 편집본은 보존합니다.
 
-8.0.0·8.0.1 사용자는 변경된 앱 파일만 업데이트합니다. 신규 사용자는 위 8.0.0 기본 설치기로 설치한 뒤 최신 업데이트를 적용하세요. ComfyUI 0.42.0·Python·PyTorch·CUDA·모델 실행환경은 교체하지 않습니다.
+ComfyUI 0.42.0·Python·PyTorch·CUDA·모델 실행환경은 교체하지 않습니다.
+
+### 공식 워크플로 다운로드
+
+- [사용자 편집용 워크플로](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.2/LAKIS_custom_v8.0_editable.json): 값을 수정할 노드를 앞쪽에 정리한 ComfyUI 편집용 파일입니다.
+- [API용 워크플로](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.2/LAKIS_runtime_api_v8.0.json): API 실행용 그래프입니다.
+
+LAKIS에서는 사이드바의 **ComfyUI 워크플로 선택** 버튼에서 사용자 편집용·API용을 각각 열 수 있습니다. 별도 ComfyUI에서 JSON 파일만 사용하는 경우에는 LAKIS용 커스텀 노드도 필요합니다.
+
+**검증 범위:** 소스·회귀 검사는 수행했습니다. 최종 실생성·모바일 실기기·업데이트/복구 검증과 독립 최종 감사는 완료하지 않았습니다.
 
 ## v8.0.1 — 3D 생성 수정과 상세 오류 진단
 
@@ -101,9 +119,9 @@ Local Inpaint V2에 필요한 `anima-lllite-inpainting-v2.safetensors`는 LAKIS�
 
 설치된 LAKIS에는 명시적으로 공개된 안정 릴리즈에서 변경된 파일만 전달합니다. 사용자 워크플로, 설정, 프롬프트와 생성 이미지는 유지합니다. 업데이트 파일은 교체 전에 별도로 준비하고 검증하며, 실패하면 기존 상태로 복구합니다.
 
-7.5.4 사용자는 **7.5.4 → 7.5.4.1(업데이터 교체) → 8.0.0(실행 환경 교체) → 8.0.1(프로그램 파일 패치)** 순서로 업데이트됩니다. 중간에 표시되는 7.5.4.1은 최종 버전이 아닙니다. 기존 런처에서는 중간 버전과 GitHub 릴리즈의 버전 차이로 변경 설명을 불러오지 못한다는 안내가 나올 수 있으며, 전체 변경 내용은 [8.0.0 릴리즈](https://github.com/Jeong-Luke/LAKIS/releases/tag/v8.0.0)에서 확인할 수 있습니다.
+7.5.4 사용자는 **7.5.4 → 7.5.4.1(업데이터 교체) → 8.0.0(실행 환경 교체) → 8.0.2(프로그램 파일 패치)** 순서로 업데이트됩니다. 중간에 표시되는 7.5.4.1은 최종 버전이 아닙니다. 기존 런처에서는 중간 버전과 GitHub 릴리즈의 버전 차이로 변경 설명을 불러오지 못한다는 안내가 나올 수 있으며, 실행환경 전환의 전체 변경 내용은 [8.0.0 릴리즈](https://github.com/Jeong-Luke/LAKIS/releases/tag/v8.0.0)에서 확인할 수 있습니다.
 
-런타임 다운로드는 약 **3.25GB**이며 모델 다운로드는 별도입니다. 8.0.0 런타임 전환 후 프로그램 파일 패치를 적용하면 최종 버전은 8.0.1로 표시됩니다. 이미 8.0.0인 사용자는 이 런타임을 다시 받지 않습니다.
+런타임 다운로드는 약 **3.25GB**이며 모델 다운로드는 별도입니다. 8.0.0 런타임 전환 후 프로그램 파일 패치를 적용하면 최종 버전은 **8.0.2**로 표시됩니다. 이미 8.0.0·8.0.1인 사용자는 이 런타임을 다시 받지 않습니다.
 
 ## 제3자 소프트웨어
 
