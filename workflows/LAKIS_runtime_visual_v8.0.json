@@ -1,8 +1,8 @@
 {
   "id": "e6c09ee0-ce4a-4ec0-99db-9381da28e080",
   "revision": 1,
-  "last_node_id": 4104,
-  "last_link_id": 381,
+  "last_node_id": 4103,
+  "last_link_id": 379,
   "nodes": [
     {
       "id": 215,
@@ -79,7 +79,7 @@
           "name": "INT",
           "type": "INT",
           "links": [
-            174
+            172
           ]
         },
         {
@@ -133,7 +133,7 @@
           "name": "INT",
           "type": "INT",
           "links": [
-            137
+            135
           ]
         },
         {
@@ -859,8 +859,8 @@
           "name": "CONTEXT",
           "type": "RGTHREE_CONTEXT",
           "links": [
-            153,
-            190
+            151,
+            188
           ]
         },
         {
@@ -1013,8 +1013,8 @@
           "name": "BOOLEAN",
           "type": "BOOLEAN",
           "links": [
-            145,
-            148
+            143,
+            146
           ]
         }
       ],
@@ -1061,8 +1061,8 @@
           "name": "BOOLEAN",
           "type": "BOOLEAN",
           "links": [
-            182,
-            185
+            180,
+            183
           ]
         }
       ],
@@ -1078,7 +1078,7 @@
       ]
     },
     {
-      "id": 4102,
+      "id": 4101,
       "type": "Context (rgthree)",
       "title": "ctx_SAM3",
       "pos": [
@@ -1098,22 +1098,22 @@
         {
           "name": "base_ctx",
           "type": "RGTHREE_CONTEXT",
-          "link": null
+          "link": 30
         },
         {
           "name": "model",
           "type": "MODEL",
-          "link": 30
+          "link": null
         },
         {
           "name": "clip",
           "type": "CLIP",
-          "link": 31
+          "link": null
         },
         {
           "name": "vae",
           "type": "VAE",
-          "link": 32
+          "link": null
         },
         {
           "name": "positive",
@@ -1146,8 +1146,8 @@
           "name": "CONTEXT",
           "type": "RGTHREE_CONTEXT",
           "links": [
-            138,
-            175
+            136,
+            173
           ]
         },
         {
@@ -1199,12 +1199,12 @@
       "widgets_values": []
     },
     {
-      "id": 4101,
-      "type": "CheckpointLoaderSimple",
-      "title": "SAM3 로드",
+      "id": 4098,
+      "type": "CLIPTextEncode",
+      "title": "아니마 긍정 프롬프트",
       "pos": [
-        1864,
-        1182
+        1124,
+        136
       ],
       "size": [
         320,
@@ -1215,48 +1215,49 @@
       },
       "order": 14,
       "mode": 0,
-      "inputs": [],
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 31,
+          "widget": {
+            "name": "text"
+          }
+        },
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 32
+        }
+      ],
       "outputs": [
         {
-          "name": "MODEL",
-          "type": "MODEL",
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
           "links": [
-            30
-          ]
-        },
-        {
-          "name": "CLIP",
-          "type": "CLIP",
-          "links": [
-            31
-          ]
-        },
-        {
-          "name": "VAE",
-          "type": "VAE",
-          "links": [
-            32
+            45,
+            73
           ]
         }
       ],
       "properties": {
-        "Node name for S&R": "CheckpointLoaderSimple",
-        "lakis_source_id": "893:891",
+        "Node name for S&R": "CLIPTextEncode",
+        "lakis_source_id": "890:903",
         "lakis_widget_names": [
-          "ckpt_name"
+          "text"
         ]
       },
       "widgets_values": [
-        "sam3.1_multiplex_fp16.safetensors"
+        ""
       ]
     },
     {
-      "id": 4098,
+      "id": 4099,
       "type": "CLIPTextEncode",
-      "title": "아니마 긍정 프롬프트",
+      "title": "아니마 부정 프롬프트",
       "pos": [
         1124,
-        136
+        154
       ],
       "size": [
         320,
@@ -1287,61 +1288,8 @@
           "name": "CONDITIONING",
           "type": "CONDITIONING",
           "links": [
-            47,
-            75
-          ]
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "CLIPTextEncode",
-        "lakis_source_id": "890:903",
-        "lakis_widget_names": [
-          "text"
-        ]
-      },
-      "widgets_values": [
-        ""
-      ]
-    },
-    {
-      "id": 4099,
-      "type": "CLIPTextEncode",
-      "title": "아니마 부정 프롬프트",
-      "pos": [
-        1124,
-        154
-      ],
-      "size": [
-        320,
-        240
-      ],
-      "flags": {
-        "collapsed": true
-      },
-      "order": 16,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "text",
-          "type": "STRING",
-          "link": 35,
-          "widget": {
-            "name": "text"
-          }
-        },
-        {
-          "name": "clip",
-          "type": "CLIP",
-          "link": 36
-        }
-      ],
-      "outputs": [
-        {
-          "name": "CONDITIONING",
-          "type": "CONDITIONING",
-          "links": [
-            48,
-            76
+            46,
+            74
           ]
         }
       ],
@@ -1371,13 +1319,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 17,
+      "order": 16,
       "mode": 0,
       "inputs": [
         {
           "name": "model",
           "type": "MODEL",
-          "link": 37
+          "link": 35
         }
       ],
       "outputs": [
@@ -1385,7 +1333,7 @@
           "name": "MODEL",
           "type": "MODEL",
           "links": [
-            38
+            36
           ]
         }
       ],
@@ -1415,13 +1363,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 18,
+      "order": 17,
       "mode": 0,
       "inputs": [
         {
           "name": "model",
           "type": "MODEL",
-          "link": 38
+          "link": 36
         }
       ],
       "outputs": [
@@ -1429,7 +1377,7 @@
           "name": "MODEL",
           "type": "MODEL",
           "links": [
-            39
+            37
           ]
         }
       ],
@@ -1459,13 +1407,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 19,
+      "order": 18,
       "mode": 0,
       "inputs": [
         {
           "name": "model",
           "type": "MODEL",
-          "link": 39
+          "link": 37
         }
       ],
       "outputs": [
@@ -1474,9 +1422,9 @@
           "type": "MODEL",
           "links": [
             27,
-            67,
-            71,
-            293
+            65,
+            69,
+            291
           ]
         }
       ],
@@ -1508,13 +1456,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 20,
+      "order": 19,
       "mode": 0,
       "inputs": [
         {
           "name": "model",
           "type": "MODEL",
-          "link": 40
+          "link": 38
         }
       ],
       "outputs": [
@@ -1522,7 +1470,7 @@
           "name": "MODEL",
           "type": "MODEL",
           "links": [
-            61
+            59
           ]
         }
       ],
@@ -1566,23 +1514,23 @@
       "flags": {
         "collapsed": true
       },
-      "order": 21,
+      "order": 20,
       "mode": 0,
       "inputs": [
         {
           "name": "lora_stack",
           "type": "LORA_STACK",
-          "link": 41
+          "link": 39
         },
         {
           "name": "model",
           "type": "MODEL",
-          "link": 42
+          "link": 40
         },
         {
           "name": "optional_clip",
           "type": "CLIP",
-          "link": 43
+          "link": 41
         }
       ],
       "outputs": [
@@ -1590,19 +1538,19 @@
           "name": "model",
           "type": "MODEL",
           "links": [
-            37
+            35
           ]
         },
         {
           "name": "clip",
           "type": "CLIP",
           "links": [
+            32,
             34,
-            36,
-            45,
+            43,
+            298,
             300,
-            302,
-            327
+            325
           ]
         }
       ],
@@ -1628,7 +1576,7 @@
       "flags": {
         "collapsed": true
       },
-      "order": 22,
+      "order": 21,
       "mode": 0,
       "inputs": [
         {
@@ -1639,32 +1587,32 @@
         {
           "name": "model",
           "type": "MODEL",
-          "link": 44
+          "link": 42
         },
         {
           "name": "clip",
           "type": "CLIP",
-          "link": 45
+          "link": 43
         },
         {
           "name": "vae",
           "type": "VAE",
-          "link": 46
+          "link": 44
         },
         {
           "name": "positive",
           "type": "CONDITIONING",
-          "link": 47
+          "link": 45
         },
         {
           "name": "negative",
           "type": "CONDITIONING",
-          "link": 48
+          "link": 46
         },
         {
           "name": "latent",
           "type": "LATENT",
-          "link": 49
+          "link": 47
         },
         {
           "name": "images",
@@ -1674,22 +1622,22 @@
         {
           "name": "seed",
           "type": "INT",
-          "link": 50
+          "link": 48
         },
         {
           "name": "steps",
           "type": "INT",
-          "link": 51
+          "link": 49
         },
         {
           "name": "step_refiner",
           "type": "INT",
-          "link": 52
+          "link": 50
         },
         {
           "name": "cfg",
           "type": "FLOAT",
-          "link": 53
+          "link": 51
         },
         {
           "name": "ckpt_name",
@@ -1699,12 +1647,12 @@
         {
           "name": "sampler",
           "type": "COMBO",
-          "link": 54
+          "link": 52
         },
         {
           "name": "scheduler",
           "type": "COMBO",
-          "link": 55
+          "link": 53
         },
         {
           "name": "clip_width",
@@ -1754,9 +1702,10 @@
           "links": [
             18,
             26,
-            111,
-            114,
-            214
+            30,
+            109,
+            112,
+            212
           ]
         },
         {
@@ -1892,7 +1841,7 @@
       "flags": {
         "collapsed": true
       },
-      "order": 23,
+      "order": 22,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -1900,7 +1849,7 @@
           "name": "BOOLEAN",
           "type": "BOOLEAN",
           "links": [
-            59
+            57
           ]
         }
       ],
@@ -1930,7 +1879,7 @@
       "flags": {
         "collapsed": true
       },
-      "order": 24,
+      "order": 23,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -1938,7 +1887,7 @@
           "name": "BOOLEAN",
           "type": "BOOLEAN",
           "links": [
-            56
+            54
           ]
         }
       ],
@@ -1968,13 +1917,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 25,
+      "order": 24,
       "mode": 0,
       "inputs": [
         {
           "name": "switch",
           "type": "BOOLEAN",
-          "link": 56,
+          "link": 54,
           "widget": {
             "name": "switch"
           }
@@ -1982,12 +1931,12 @@
         {
           "name": "on_false",
           "type": "MODEL",
-          "link": 57
+          "link": 55
         },
         {
           "name": "on_true",
           "type": "MODEL",
-          "link": 58
+          "link": 56
         }
       ],
       "outputs": [
@@ -1995,7 +1944,7 @@
           "name": "output",
           "type": "MODEL",
           "links": [
-            44
+            42
           ]
         }
       ],
@@ -2025,13 +1974,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 26,
+      "order": 25,
       "mode": 0,
       "inputs": [
         {
           "name": "switch",
           "type": "BOOLEAN",
-          "link": 59,
+          "link": 57,
           "widget": {
             "name": "switch"
           }
@@ -2039,12 +1988,12 @@
         {
           "name": "on_false",
           "type": "MODEL",
-          "link": 60
+          "link": 58
         },
         {
           "name": "on_true",
           "type": "MODEL",
-          "link": 61
+          "link": 59
         }
       ],
       "outputs": [
@@ -2052,8 +2001,8 @@
           "name": "output",
           "type": "MODEL",
           "links": [
-            57,
-            62
+            55,
+            60
           ]
         }
       ],
@@ -2083,13 +2032,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 27,
+      "order": 26,
       "mode": 0,
       "inputs": [
         {
           "name": "model",
           "type": "MODEL",
-          "link": 62
+          "link": 60
         }
       ],
       "outputs": [
@@ -2097,7 +2046,7 @@
           "name": "MODEL",
           "type": "MODEL",
           "links": [
-            58
+            56
           ]
         }
       ],
@@ -2131,13 +2080,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 28,
+      "order": 27,
       "mode": 0,
       "inputs": [
         {
           "name": "value",
           "type": "STRING",
-          "link": 63,
+          "link": 61,
           "widget": {
             "name": "value"
           }
@@ -2148,8 +2097,8 @@
           "name": "STRING",
           "type": "STRING",
           "links": [
-            33,
-            326
+            31,
+            324
           ]
         }
       ],
@@ -2179,13 +2128,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 29,
+      "order": 28,
       "mode": 0,
       "inputs": [
         {
           "name": "value",
           "type": "STRING",
-          "link": 64,
+          "link": 62,
           "widget": {
             "name": "value"
           }
@@ -2196,7 +2145,7 @@
           "name": "STRING",
           "type": "STRING",
           "links": [
-            35
+            33
           ]
         }
       ],
@@ -2226,13 +2175,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 30,
+      "order": 29,
       "mode": 0,
       "inputs": [
         {
           "name": "value",
           "type": "BOOLEAN",
-          "link": 65,
+          "link": 63,
           "widget": {
             "name": "value"
           }
@@ -2243,7 +2192,7 @@
           "name": "BOOLEAN",
           "type": "BOOLEAN",
           "links": [
-            66
+            64
           ]
         }
       ],
@@ -2273,13 +2222,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 31,
+      "order": 30,
       "mode": 0,
       "inputs": [
         {
           "name": "switch",
           "type": "BOOLEAN",
-          "link": 66,
+          "link": 64,
           "widget": {
             "name": "switch"
           }
@@ -2287,12 +2236,12 @@
         {
           "name": "on_false",
           "type": "MODEL",
-          "link": 67
+          "link": 65
         },
         {
           "name": "on_true",
           "type": "MODEL",
-          "link": 68
+          "link": 66
         }
       ],
       "outputs": [
@@ -2300,8 +2249,8 @@
           "name": "output",
           "type": "MODEL",
           "links": [
-            40,
-            60
+            38,
+            58
           ]
         }
       ],
@@ -2331,13 +2280,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 32,
+      "order": 31,
       "mode": 0,
       "inputs": [
         {
           "name": "value",
           "type": "BOOLEAN",
-          "link": 69,
+          "link": 67,
           "widget": {
             "name": "value"
           }
@@ -2348,7 +2297,7 @@
           "name": "BOOLEAN",
           "type": "BOOLEAN",
           "links": [
-            78
+            76
           ]
         }
       ],
@@ -2378,13 +2327,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 33,
+      "order": 32,
       "mode": 0,
       "inputs": [
         {
           "name": "value",
           "type": "STRING",
-          "link": 70,
+          "link": 68,
           "widget": {
             "name": "value"
           }
@@ -2395,7 +2344,7 @@
           "name": "STRING",
           "type": "STRING",
           "links": [
-            73
+            71
           ]
         }
       ],
@@ -2425,23 +2374,23 @@
       "flags": {
         "collapsed": true
       },
-      "order": 34,
+      "order": 33,
       "mode": 0,
       "inputs": [
         {
           "name": "model",
           "type": "MODEL",
-          "link": 71
+          "link": 69
         },
         {
           "name": "clip",
           "type": "CLIP",
-          "link": 72
+          "link": 70
         },
         {
           "name": "quality_tags",
           "type": "STRING",
-          "link": 73,
+          "link": 71,
           "widget": {
             "name": "quality_tags"
           }
@@ -2449,7 +2398,7 @@
         {
           "name": "quality_neg",
           "type": "STRING",
-          "link": 74,
+          "link": 72,
           "widget": {
             "name": "quality_neg"
           }
@@ -2457,12 +2406,12 @@
         {
           "name": "positive",
           "type": "CONDITIONING",
-          "link": 75
+          "link": 73
         },
         {
           "name": "negative",
           "type": "CONDITIONING",
-          "link": 76
+          "link": 74
         }
       ],
       "outputs": [
@@ -2470,7 +2419,7 @@
           "name": "MODEL",
           "type": "MODEL",
           "links": [
-            68
+            66
           ]
         }
       ],
@@ -2504,13 +2453,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 35,
+      "order": 34,
       "mode": 0,
       "inputs": [
         {
           "name": "value",
           "type": "STRING",
-          "link": 77,
+          "link": 75,
           "widget": {
             "name": "value"
           }
@@ -2521,7 +2470,7 @@
           "name": "STRING",
           "type": "STRING",
           "links": [
-            80
+            78
           ]
         }
       ],
@@ -2551,7 +2500,7 @@
       "flags": {
         "collapsed": true
       },
-      "order": 36,
+      "order": 35,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -2559,7 +2508,7 @@
           "name": "STRING",
           "type": "STRING",
           "links": [
-            79
+            77
           ]
         }
       ],
@@ -2589,13 +2538,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 37,
+      "order": 36,
       "mode": 0,
       "inputs": [
         {
           "name": "switch",
           "type": "BOOLEAN",
-          "link": 78,
+          "link": 76,
           "widget": {
             "name": "switch"
           }
@@ -2603,12 +2552,12 @@
         {
           "name": "on_false",
           "type": "STRING",
-          "link": 79
+          "link": 77
         },
         {
           "name": "on_true",
           "type": "STRING",
-          "link": 80
+          "link": 78
         }
       ],
       "outputs": [
@@ -2616,7 +2565,7 @@
           "name": "output",
           "type": "STRING",
           "links": [
-            74
+            72
           ]
         }
       ],
@@ -2646,13 +2595,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 38,
+      "order": 37,
       "mode": 0,
       "inputs": [
         {
           "name": "value",
           "type": "*",
-          "link": 81
+          "link": 79
         }
       ],
       "outputs": [
@@ -2686,18 +2635,18 @@
       "flags": {
         "collapsed": true
       },
-      "order": 39,
+      "order": 38,
       "mode": 0,
       "inputs": [
         {
           "name": "pixels",
           "type": "IMAGE",
-          "link": 82
+          "link": 80
         },
         {
           "name": "vae",
           "type": "VAE",
-          "link": 83
+          "link": 81
         }
       ],
       "outputs": [
@@ -2705,7 +2654,7 @@
           "name": "LATENT",
           "type": "LATENT",
           "links": [
-            86
+            84
           ]
         }
       ],
@@ -2731,13 +2680,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 40,
+      "order": 39,
       "mode": 0,
       "inputs": [
         {
           "name": "switch",
           "type": "BOOLEAN",
-          "link": 84,
+          "link": 82,
           "widget": {
             "name": "switch"
           }
@@ -2745,12 +2694,12 @@
         {
           "name": "on_false",
           "type": "LATENT",
-          "link": 85
+          "link": 83
         },
         {
           "name": "on_true",
           "type": "LATENT",
-          "link": 86
+          "link": 84
         }
       ],
       "outputs": [
@@ -2758,7 +2707,7 @@
           "name": "output",
           "type": "LATENT",
           "links": [
-            49
+            47
           ]
         }
       ],
@@ -2788,13 +2737,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 41,
+      "order": 40,
       "mode": 0,
       "inputs": [
         {
           "name": "value",
           "type": "BOOLEAN",
-          "link": 87,
+          "link": 85,
           "widget": {
             "name": "value"
           }
@@ -2805,7 +2754,7 @@
           "name": "BOOLEAN",
           "type": "BOOLEAN",
           "links": [
-            84
+            82
           ]
         }
       ],
@@ -2835,13 +2784,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 42,
+      "order": 41,
       "mode": 0,
       "inputs": [
         {
           "name": "width",
           "type": "INT",
-          "link": 88,
+          "link": 86,
           "widget": {
             "name": "width"
           }
@@ -2849,7 +2798,7 @@
         {
           "name": "height",
           "type": "INT",
-          "link": 89,
+          "link": 87,
           "widget": {
             "name": "height"
           }
@@ -2860,7 +2809,7 @@
           "name": "LATENT",
           "type": "LATENT",
           "links": [
-            85
+            83
           ]
         }
       ],
@@ -2894,18 +2843,18 @@
       "flags": {
         "collapsed": true
       },
-      "order": 43,
+      "order": 42,
       "mode": 0,
       "inputs": [
         {
           "name": "image",
           "type": "IMAGE",
-          "link": 90
+          "link": 88
         },
         {
           "name": "width",
           "type": "INT",
-          "link": 91,
+          "link": 89,
           "widget": {
             "name": "width"
           }
@@ -2913,7 +2862,7 @@
         {
           "name": "height",
           "type": "INT",
-          "link": 92,
+          "link": 90,
           "widget": {
             "name": "height"
           }
@@ -2924,7 +2873,7 @@
           "name": "IMAGE",
           "type": "IMAGE",
           "links": [
-            82
+            80
           ]
         }
       ],
@@ -2960,7 +2909,7 @@
       "flags": {
         "collapsed": true
       },
-      "order": 44,
+      "order": 43,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -2968,7 +2917,7 @@
           "name": "FLOAT",
           "type": "FLOAT",
           "links": [
-            94
+            92
           ]
         }
       ],
@@ -2998,13 +2947,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 45,
+      "order": 44,
       "mode": 0,
       "inputs": [
         {
           "name": "switch",
           "type": "BOOLEAN",
-          "link": 93,
+          "link": 91,
           "widget": {
             "name": "switch"
           }
@@ -3012,12 +2961,12 @@
         {
           "name": "on_false",
           "type": "FLOAT",
-          "link": 94
+          "link": 92
         },
         {
           "name": "on_true",
           "type": "FLOAT",
-          "link": 95
+          "link": 93
         }
       ],
       "outputs": [
@@ -3025,7 +2974,7 @@
           "name": "output",
           "type": "FLOAT",
           "links": [
-            105
+            103
           ]
         }
       ],
@@ -3055,18 +3004,18 @@
       "flags": {
         "collapsed": true
       },
-      "order": 46,
+      "order": 45,
       "mode": 0,
       "inputs": [
         {
           "name": "model",
           "type": "MODEL",
-          "link": 96
+          "link": 94
         },
         {
           "name": "seed",
           "type": "INT",
-          "link": 97,
+          "link": 95,
           "widget": {
             "name": "seed"
           }
@@ -3074,7 +3023,7 @@
         {
           "name": "steps",
           "type": "INT",
-          "link": 98,
+          "link": 96,
           "widget": {
             "name": "steps"
           }
@@ -3082,7 +3031,7 @@
         {
           "name": "cfg",
           "type": "FLOAT",
-          "link": 99,
+          "link": 97,
           "widget": {
             "name": "cfg"
           }
@@ -3090,7 +3039,7 @@
         {
           "name": "sampler_name",
           "type": "COMBO",
-          "link": 100,
+          "link": 98,
           "widget": {
             "name": "sampler_name"
           }
@@ -3098,7 +3047,7 @@
         {
           "name": "scheduler",
           "type": "COMBO",
-          "link": 101,
+          "link": 99,
           "widget": {
             "name": "scheduler"
           }
@@ -3106,22 +3055,22 @@
         {
           "name": "positive",
           "type": "CONDITIONING",
-          "link": 102
+          "link": 100
         },
         {
           "name": "negative",
           "type": "CONDITIONING",
-          "link": 103
+          "link": 101
         },
         {
           "name": "latent_image",
           "type": "LATENT",
-          "link": 104
+          "link": 102
         },
         {
           "name": "denoise",
           "type": "FLOAT",
-          "link": 105,
+          "link": 103,
           "widget": {
             "name": "denoise"
           }
@@ -3132,8 +3081,8 @@
           "name": "LATENT",
           "type": "LATENT",
           "links": [
-            118,
-            129
+            116,
+            127
           ]
         }
       ],
@@ -3175,18 +3124,18 @@
       "flags": {
         "collapsed": true
       },
-      "order": 47,
+      "order": 46,
       "mode": 0,
       "inputs": [
         {
           "name": "model",
           "type": "MODEL",
-          "link": 106
+          "link": 104
         },
         {
           "name": "steps",
           "type": "INT",
-          "link": 107,
+          "link": 105,
           "widget": {
             "name": "steps"
           }
@@ -3197,7 +3146,7 @@
           "name": "MODEL",
           "type": "MODEL",
           "links": [
-            96
+            94
           ]
         }
       ],
@@ -3249,18 +3198,18 @@
       "flags": {
         "collapsed": true
       },
-      "order": 48,
+      "order": 47,
       "mode": 0,
       "inputs": [
         {
           "name": "model",
           "type": "MODEL",
-          "link": 108
+          "link": 106
         },
         {
           "name": "lambda_l",
           "type": "FLOAT",
-          "link": 109,
+          "link": 107,
           "widget": {
             "name": "lambda_l"
           }
@@ -3268,7 +3217,7 @@
         {
           "name": "lambda_h",
           "type": "FLOAT",
-          "link": 110,
+          "link": 108,
           "widget": {
             "name": "lambda_h"
           }
@@ -3279,8 +3228,8 @@
           "name": "model",
           "type": "MODEL",
           "links": [
-            332,
-            342
+            330,
+            340
           ]
         }
       ],
@@ -3332,13 +3281,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 49,
+      "order": 48,
       "mode": 0,
       "inputs": [
         {
           "name": "base_ctx",
           "type": "RGTHREE_CONTEXT",
-          "link": 111
+          "link": 109
         },
         {
           "name": "model",
@@ -3461,7 +3410,7 @@
           "name": "MODEL",
           "type": "MODEL",
           "links": [
-            108
+            106
           ]
         },
         {
@@ -3478,22 +3427,22 @@
           "name": "POSITIVE",
           "type": "CONDITIONING",
           "links": [
-            345
+            343
           ]
         },
         {
           "name": "NEGATIVE",
           "type": "CONDITIONING",
           "links": [
-            340,
-            348
+            338,
+            346
           ]
         },
         {
           "name": "LATENT",
           "type": "LATENT",
           "links": [
-            104
+            102
           ]
         },
         {
@@ -3505,15 +3454,15 @@
           "name": "SEED",
           "type": "INT",
           "links": [
-            97
+            95
           ]
         },
         {
           "name": "STEPS",
           "type": "INT",
           "links": [
-            98,
-            107
+            96,
+            105
           ]
         },
         {
@@ -3525,7 +3474,7 @@
           "name": "CFG",
           "type": "FLOAT",
           "links": [
-            99
+            97
           ]
         },
         {
@@ -3537,14 +3486,14 @@
           "name": "SAMPLER",
           "type": "COMBO",
           "links": [
-            100
+            98
           ]
         },
         {
           "name": "SCHEDULER",
           "type": "COMBO",
           "links": [
-            101
+            99
           ]
         },
         {
@@ -3610,7 +3559,7 @@
       "flags": {
         "collapsed": true
       },
-      "order": 50,
+      "order": 49,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -3618,8 +3567,8 @@
           "name": "float",
           "type": "FLOAT",
           "links": [
-            109,
-            294
+            107,
+            292
           ]
         }
       ],
@@ -3649,7 +3598,7 @@
       "flags": {
         "collapsed": true
       },
-      "order": 51,
+      "order": 50,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -3657,8 +3606,8 @@
           "name": "float",
           "type": "FLOAT",
           "links": [
-            110,
-            295
+            108,
+            293
           ]
         }
       ],
@@ -3688,18 +3637,18 @@
       "flags": {
         "collapsed": true
       },
-      "order": 52,
+      "order": 51,
       "mode": 0,
       "inputs": [
         {
           "name": "samples",
           "type": "LATENT",
-          "link": 112
+          "link": 110
         },
         {
           "name": "vae",
           "type": "VAE",
-          "link": 113
+          "link": 111
         }
       ],
       "outputs": [
@@ -3707,9 +3656,9 @@
           "name": "IMAGE",
           "type": "IMAGE",
           "links": [
-            143,
-            212,
-            238
+            141,
+            210,
+            236
           ]
         }
       ],
@@ -3735,13 +3684,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 53,
+      "order": 52,
       "mode": 0,
       "inputs": [
         {
           "name": "base_ctx",
           "type": "RGTHREE_CONTEXT",
-          "link": 114
+          "link": 112
         },
         {
           "name": "model",
@@ -3864,7 +3813,7 @@
           "name": "MODEL",
           "type": "MODEL",
           "links": [
-            115
+            113
           ]
         },
         {
@@ -3881,15 +3830,15 @@
           "name": "POSITIVE",
           "type": "CONDITIONING",
           "links": [
-            363
+            361
           ]
         },
         {
           "name": "NEGATIVE",
           "type": "CONDITIONING",
           "links": [
-            358,
-            366
+            356,
+            364
           ]
         },
         {
@@ -3906,7 +3855,7 @@
           "name": "SEED",
           "type": "INT",
           "links": [
-            121
+            119
           ]
         },
         {
@@ -4002,18 +3951,18 @@
       "flags": {
         "collapsed": true
       },
-      "order": 54,
+      "order": 53,
       "mode": 0,
       "inputs": [
         {
           "name": "model",
           "type": "MODEL",
-          "link": 115
+          "link": 113
         },
         {
           "name": "lambda_l",
           "type": "FLOAT",
-          "link": 116,
+          "link": 114,
           "widget": {
             "name": "lambda_l"
           }
@@ -4021,7 +3970,7 @@
         {
           "name": "lambda_h",
           "type": "FLOAT",
-          "link": 117,
+          "link": 115,
           "widget": {
             "name": "lambda_h"
           }
@@ -4032,8 +3981,8 @@
           "name": "model",
           "type": "MODEL",
           "links": [
-            248,
-            251
+            246,
+            249
           ]
         }
       ],
@@ -4085,7 +4034,7 @@
       "flags": {
         "collapsed": true
       },
-      "order": 55,
+      "order": 54,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -4093,7 +4042,7 @@
           "name": "float",
           "type": "FLOAT",
           "links": [
-            116
+            114
           ]
         }
       ],
@@ -4123,7 +4072,7 @@
       "flags": {
         "collapsed": true
       },
-      "order": 56,
+      "order": 55,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -4131,7 +4080,7 @@
           "name": "float",
           "type": "FLOAT",
           "links": [
-            117
+            115
           ]
         }
       ],
@@ -4161,18 +4110,18 @@
       "flags": {
         "collapsed": true
       },
-      "order": 57,
+      "order": 56,
       "mode": 0,
       "inputs": [
         {
           "name": "on_false",
           "type": "LATENT",
-          "link": 118
+          "link": 116
         },
         {
           "name": "on_true",
           "type": "LATENT",
-          "link": 119
+          "link": 117
         }
       ],
       "outputs": [
@@ -4180,7 +4129,7 @@
           "name": "output",
           "type": "LATENT",
           "links": [
-            112
+            110
           ]
         }
       ],
@@ -4210,18 +4159,18 @@
       "flags": {
         "collapsed": true
       },
-      "order": 58,
+      "order": 57,
       "mode": 0,
       "inputs": [
         {
           "name": "model",
           "type": "MODEL",
-          "link": 120
+          "link": 118
         },
         {
           "name": "seed",
           "type": "INT",
-          "link": 121,
+          "link": 119,
           "widget": {
             "name": "seed"
           }
@@ -4229,7 +4178,7 @@
         {
           "name": "steps",
           "type": "INT",
-          "link": 122,
+          "link": 120,
           "widget": {
             "name": "steps"
           }
@@ -4237,7 +4186,7 @@
         {
           "name": "cfg",
           "type": "FLOAT",
-          "link": 123,
+          "link": 121,
           "widget": {
             "name": "cfg"
           }
@@ -4245,7 +4194,7 @@
         {
           "name": "sampler_name",
           "type": "COMBO",
-          "link": 124,
+          "link": 122,
           "widget": {
             "name": "sampler_name"
           }
@@ -4253,22 +4202,22 @@
         {
           "name": "positive",
           "type": "CONDITIONING",
-          "link": 125
+          "link": 123
         },
         {
           "name": "negative",
           "type": "CONDITIONING",
-          "link": 126
+          "link": 124
         },
         {
           "name": "latent_image",
           "type": "LATENT",
-          "link": 127
+          "link": 125
         },
         {
           "name": "denoise",
           "type": "FLOAT",
-          "link": 128,
+          "link": 126,
           "widget": {
             "name": "denoise"
           }
@@ -4279,7 +4228,7 @@
           "name": "LATENT",
           "type": "LATENT",
           "links": [
-            119
+            117
           ]
         }
       ],
@@ -4321,18 +4270,18 @@
       "flags": {
         "collapsed": true
       },
-      "order": 59,
+      "order": 58,
       "mode": 0,
       "inputs": [
         {
           "name": "samples",
           "type": "LATENT",
-          "link": 129
+          "link": 127
         },
         {
           "name": "vae",
           "type": "VAE",
-          "link": 130
+          "link": 128
         }
       ],
       "outputs": [
@@ -4340,7 +4289,7 @@
           "name": "IMAGE",
           "type": "IMAGE",
           "links": [
-            133
+            131
           ]
         }
       ],
@@ -4366,18 +4315,18 @@
       "flags": {
         "collapsed": true
       },
-      "order": 60,
+      "order": 59,
       "mode": 0,
       "inputs": [
         {
           "name": "pixels",
           "type": "IMAGE",
-          "link": 131
+          "link": 129
         },
         {
           "name": "vae",
           "type": "VAE",
-          "link": 132
+          "link": 130
         }
       ],
       "outputs": [
@@ -4385,7 +4334,7 @@
           "name": "LATENT",
           "type": "LATENT",
           "links": [
-            127
+            125
           ]
         }
       ],
@@ -4411,13 +4360,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 61,
+      "order": 60,
       "mode": 0,
       "inputs": [
         {
           "name": "image",
           "type": "IMAGE",
-          "link": 133
+          "link": 131
         }
       ],
       "outputs": [
@@ -4425,7 +4374,7 @@
           "name": "image",
           "type": "IMAGE",
           "links": [
-            131
+            129
           ]
         },
         {
@@ -4467,7 +4416,7 @@
       "title": "Integer to String",
       "pos": [
         1864,
-        1200
+        1182
       ],
       "size": [
         320,
@@ -4476,13 +4425,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 62,
+      "order": 61,
       "mode": 0,
       "inputs": [
         {
           "name": "int_",
           "type": "INT",
-          "link": 134
+          "link": 132
         }
       ],
       "outputs": [
@@ -4490,7 +4439,7 @@
           "name": "STRING",
           "type": "STRING",
           "links": [
-            136
+            134
           ]
         }
       ],
@@ -4507,7 +4456,7 @@
       "title": "부위 입력",
       "pos": [
         1864,
-        1218
+        1200
       ],
       "size": [
         320,
@@ -4516,13 +4465,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 63,
+      "order": 62,
       "mode": 0,
       "inputs": [
         {
           "name": "string_a",
           "type": "STRING",
-          "link": 135,
+          "link": 133,
           "widget": {
             "name": "string_a"
           }
@@ -4530,7 +4479,7 @@
         {
           "name": "string_b",
           "type": "STRING",
-          "link": 136,
+          "link": 134,
           "widget": {
             "name": "string_b"
           }
@@ -4541,7 +4490,7 @@
           "name": "STRING",
           "type": "STRING",
           "links": [
-            139
+            137
           ]
         }
       ],
@@ -4566,7 +4515,7 @@
       "title": "정수",
       "pos": [
         1864,
-        1236
+        1218
       ],
       "size": [
         320,
@@ -4575,13 +4524,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 64,
+      "order": 63,
       "mode": 0,
       "inputs": [
         {
           "name": "value",
           "type": "INT",
-          "link": 137,
+          "link": 135,
           "widget": {
             "name": "value"
           }
@@ -4592,7 +4541,7 @@
           "name": "INT",
           "type": "INT",
           "links": [
-            134
+            132
           ]
         }
       ],
@@ -4615,7 +4564,7 @@
       "title": "ctx_SAM3",
       "pos": [
         1864,
-        1254
+        1236
       ],
       "size": [
         320,
@@ -4624,13 +4573,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 65,
+      "order": 64,
       "mode": 0,
       "inputs": [
         {
           "name": "base_ctx",
           "type": "RGTHREE_CONTEXT",
-          "link": 138
+          "link": 136
         },
         {
           "name": "model",
@@ -4683,14 +4632,14 @@
           "name": "MODEL",
           "type": "MODEL",
           "links": [
-            142
+            140
           ]
         },
         {
           "name": "CLIP",
           "type": "CLIP",
           "links": [
-            140
+            138
           ]
         },
         {
@@ -4737,7 +4686,7 @@
       "title": "SAM3 DETECT 부위",
       "pos": [
         1864,
-        1272
+        1254
       ],
       "size": [
         320,
@@ -4746,13 +4695,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 66,
+      "order": 65,
       "mode": 0,
       "inputs": [
         {
           "name": "text",
           "type": "STRING",
-          "link": 139,
+          "link": 137,
           "widget": {
             "name": "text"
           }
@@ -4760,7 +4709,7 @@
         {
           "name": "clip",
           "type": "CLIP",
-          "link": 140
+          "link": 138
         }
       ],
       "outputs": [
@@ -4768,7 +4717,7 @@
           "name": "CONDITIONING",
           "type": "CONDITIONING",
           "links": [
-            144
+            142
           ]
         }
       ],
@@ -4789,7 +4738,7 @@
       "title": "Masks Combine Batch",
       "pos": [
         1864,
-        1290
+        1272
       ],
       "size": [
         320,
@@ -4798,13 +4747,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 67,
+      "order": 66,
       "mode": 0,
       "inputs": [
         {
           "name": "masks",
           "type": "MASK",
-          "link": 141
+          "link": 139
         }
       ],
       "outputs": [
@@ -4812,7 +4761,7 @@
           "name": "mask",
           "type": "MASK",
           "links": [
-            157
+            155
           ]
         }
       ],
@@ -4829,7 +4778,7 @@
       "title": "SAM3 Detect",
       "pos": [
         1864,
-        1308
+        1290
       ],
       "size": [
         320,
@@ -4838,23 +4787,23 @@
       "flags": {
         "collapsed": true
       },
-      "order": 68,
+      "order": 67,
       "mode": 0,
       "inputs": [
         {
           "name": "model",
           "type": "MODEL",
-          "link": 142
+          "link": 140
         },
         {
           "name": "image",
           "type": "IMAGE",
-          "link": 143
+          "link": 141
         },
         {
           "name": "conditioning",
           "type": "CONDITIONING",
-          "link": 144
+          "link": 142
         },
         {
           "name": "bboxes",
@@ -4877,7 +4826,7 @@
           "name": "masks",
           "type": "MASK",
           "links": [
-            141
+            139
           ]
         },
         {
@@ -4907,7 +4856,7 @@
       "title": "Use Detailer",
       "pos": [
         1864,
-        1326
+        1308
       ],
       "size": [
         320,
@@ -4916,13 +4865,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 69,
+      "order": 68,
       "mode": 0,
       "inputs": [
         {
           "name": "switch",
           "type": "BOOLEAN",
-          "link": 145,
+          "link": 143,
           "widget": {
             "name": "switch"
           }
@@ -4930,12 +4879,12 @@
         {
           "name": "on_false",
           "type": "SEGS",
-          "link": 146
+          "link": 144
         },
         {
           "name": "on_true",
           "type": "SEGS",
-          "link": 147
+          "link": 145
         }
       ],
       "outputs": [
@@ -4943,7 +4892,7 @@
           "name": "output",
           "type": "SEGS",
           "links": [
-            159
+            157
           ]
         }
       ],
@@ -4964,7 +4913,7 @@
       "title": "EmptySegs",
       "pos": [
         1864,
-        1344
+        1326
       ],
       "size": [
         320,
@@ -4973,7 +4922,7 @@
       "flags": {
         "collapsed": true
       },
-      "order": 70,
+      "order": 69,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -4981,7 +4930,7 @@
           "name": "SEGS",
           "type": "SEGS",
           "links": [
-            146
+            144
           ]
         }
       ],
@@ -4998,7 +4947,7 @@
       "title": "Use Detailer",
       "pos": [
         1864,
-        1362
+        1344
       ],
       "size": [
         320,
@@ -5007,13 +4956,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 71,
+      "order": 70,
       "mode": 0,
       "inputs": [
         {
           "name": "switch",
           "type": "BOOLEAN",
-          "link": 148,
+          "link": 146,
           "widget": {
             "name": "switch"
           }
@@ -5021,12 +4970,12 @@
         {
           "name": "on_false",
           "type": "IMAGE",
-          "link": 149
+          "link": 147
         },
         {
           "name": "on_true",
           "type": "IMAGE",
-          "link": 150
+          "link": 148
         }
       ],
       "outputs": [
@@ -5034,7 +4983,7 @@
           "name": "output",
           "type": "IMAGE",
           "links": [
-            239
+            237
           ]
         }
       ],
@@ -5055,7 +5004,7 @@
       "title": "Use DCW",
       "pos": [
         1864,
-        1380
+        1362
       ],
       "size": [
         320,
@@ -5064,18 +5013,18 @@
       "flags": {
         "collapsed": true
       },
-      "order": 72,
+      "order": 71,
       "mode": 0,
       "inputs": [
         {
           "name": "on_false",
           "type": "MODEL",
-          "link": 151
+          "link": 149
         },
         {
           "name": "on_true",
           "type": "MODEL",
-          "link": 152
+          "link": 150
         }
       ],
       "outputs": [
@@ -5083,8 +5032,8 @@
           "name": "output",
           "type": "MODEL",
           "links": [
-            160,
-            254
+            158,
+            252
           ]
         }
       ],
@@ -5105,7 +5054,7 @@
       "title": "ctx_ANIMA",
       "pos": [
         1864,
-        1398
+        1380
       ],
       "size": [
         320,
@@ -5114,13 +5063,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 73,
+      "order": 72,
       "mode": 0,
       "inputs": [
         {
           "name": "base_ctx",
           "type": "RGTHREE_CONTEXT",
-          "link": 153
+          "link": 151
         },
         {
           "name": "model",
@@ -5243,38 +5192,38 @@
           "name": "MODEL",
           "type": "MODEL",
           "links": [
-            155
+            153
           ]
         },
         {
           "name": "CLIP",
           "type": "CLIP",
           "links": [
-            161,
-            255
+            159,
+            253
           ]
         },
         {
           "name": "VAE",
           "type": "VAE",
           "links": [
-            162
+            160
           ]
         },
         {
           "name": "POSITIVE",
           "type": "CONDITIONING",
           "links": [
-            168,
-            257
+            166,
+            255
           ]
         },
         {
           "name": "NEGATIVE",
           "type": "CONDITIONING",
           "links": [
-            169,
-            258
+            167,
+            256
           ]
         },
         {
@@ -5291,8 +5240,8 @@
           "name": "SEED",
           "type": "INT",
           "links": [
-            163,
-            259
+            161,
+            257
           ]
         },
         {
@@ -5304,16 +5253,16 @@
           "name": "STEP_REFINER",
           "type": "INT",
           "links": [
-            156,
-            164
+            154,
+            162
           ]
         },
         {
           "name": "CFG",
           "type": "FLOAT",
           "links": [
-            165,
-            260
+            163,
+            258
           ]
         },
         {
@@ -5325,16 +5274,16 @@
           "name": "SAMPLER",
           "type": "COMBO",
           "links": [
-            166,
-            261
+            164,
+            259
           ]
         },
         {
           "name": "SCHEDULER",
           "type": "COMBO",
           "links": [
-            262,
-            380
+            260,
+            378
           ]
         },
         {
@@ -5391,7 +5340,7 @@
       "title": "문자열",
       "pos": [
         1864,
-        1416
+        1398
       ],
       "size": [
         320,
@@ -5400,7 +5349,7 @@
       "flags": {
         "collapsed": true
       },
-      "order": 74,
+      "order": 73,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -5408,7 +5357,7 @@
           "name": "STRING",
           "type": "STRING",
           "links": [
-            135
+            133
           ]
         }
       ],
@@ -5429,7 +5378,7 @@
       "title": "DCW(+a)",
       "pos": [
         1864,
-        1434
+        1416
       ],
       "size": [
         320,
@@ -5438,13 +5387,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 75,
+      "order": 74,
       "mode": 0,
       "inputs": [
         {
           "name": "model",
           "type": "MODEL",
-          "link": 154
+          "link": 152
         }
       ],
       "outputs": [
@@ -5452,7 +5401,7 @@
           "name": "model",
           "type": "MODEL",
           "links": [
-            152
+            150
           ]
         }
       ],
@@ -5495,7 +5444,7 @@
       "title": "DiT Spectrum 패치",
       "pos": [
         1864,
-        1452
+        1434
       ],
       "size": [
         320,
@@ -5504,18 +5453,18 @@
       "flags": {
         "collapsed": true
       },
-      "order": 76,
+      "order": 75,
       "mode": 0,
       "inputs": [
         {
           "name": "model",
           "type": "MODEL",
-          "link": 155
+          "link": 153
         },
         {
           "name": "steps",
           "type": "INT",
-          "link": 156,
+          "link": 154,
           "widget": {
             "name": "steps"
           }
@@ -5526,8 +5475,8 @@
           "name": "MODEL",
           "type": "MODEL",
           "links": [
-            151,
-            154
+            149,
+            152
           ]
         }
       ],
@@ -5570,7 +5519,7 @@
       "title": "Anima 디테일러 정렬 Hook",
       "pos": [
         1864,
-        1470
+        1452
       ],
       "size": [
         320,
@@ -5579,7 +5528,7 @@
       "flags": {
         "collapsed": true
       },
-      "order": 77,
+      "order": 76,
       "mode": 0,
       "inputs": [
         {
@@ -5593,8 +5542,8 @@
           "name": "detailer_hook",
           "type": "DETAILER_HOOK",
           "links": [
-            170,
-            263
+            168,
+            261
           ]
         }
       ],
@@ -5615,7 +5564,7 @@
       "title": "MASK to SEGS",
       "pos": [
         1864,
-        1488
+        1470
       ],
       "size": [
         320,
@@ -5624,13 +5573,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 78,
+      "order": 77,
       "mode": 0,
       "inputs": [
         {
           "name": "mask",
           "type": "MASK",
-          "link": 157
+          "link": 155
         }
       ],
       "outputs": [
@@ -5638,8 +5587,8 @@
           "name": "SEGS",
           "type": "SEGS",
           "links": [
-            147,
-            253
+            145,
+            251
           ]
         }
       ],
@@ -5668,7 +5617,7 @@
       "title": "얼굴 디테일러 (SEGS)",
       "pos": [
         1864,
-        1506
+        1488
       ],
       "size": [
         320,
@@ -5677,38 +5626,38 @@
       "flags": {
         "collapsed": true
       },
-      "order": 79,
+      "order": 78,
       "mode": 0,
       "inputs": [
         {
           "name": "image",
           "type": "IMAGE",
-          "link": 158
+          "link": 156
         },
         {
           "name": "segs",
           "type": "SEGS",
-          "link": 159
+          "link": 157
         },
         {
           "name": "model",
           "type": "MODEL",
-          "link": 160
+          "link": 158
         },
         {
           "name": "clip",
           "type": "CLIP",
-          "link": 161
+          "link": 159
         },
         {
           "name": "vae",
           "type": "VAE",
-          "link": 162
+          "link": 160
         },
         {
           "name": "seed",
           "type": "INT",
-          "link": 163,
+          "link": 161,
           "widget": {
             "name": "seed"
           }
@@ -5716,7 +5665,7 @@
         {
           "name": "steps",
           "type": "INT",
-          "link": 164,
+          "link": 162,
           "widget": {
             "name": "steps"
           }
@@ -5724,7 +5673,7 @@
         {
           "name": "cfg",
           "type": "FLOAT",
-          "link": 165,
+          "link": 163,
           "widget": {
             "name": "cfg"
           }
@@ -5732,7 +5681,7 @@
         {
           "name": "sampler_name",
           "type": "COMBO",
-          "link": 166,
+          "link": 164,
           "widget": {
             "name": "sampler_name"
           }
@@ -5740,7 +5689,7 @@
         {
           "name": "scheduler",
           "type": "COMBO",
-          "link": 167,
+          "link": 165,
           "widget": {
             "name": "scheduler"
           }
@@ -5748,17 +5697,17 @@
         {
           "name": "positive",
           "type": "CONDITIONING",
-          "link": 168
+          "link": 166
         },
         {
           "name": "negative",
           "type": "CONDITIONING",
-          "link": 169
+          "link": 167
         },
         {
           "name": "detailer_hook",
           "type": "DETAILER_HOOK",
-          "link": 170
+          "link": 168
         },
         {
           "name": "scheduler_func_opt",
@@ -5771,7 +5720,7 @@
           "name": "IMAGE",
           "type": "IMAGE",
           "links": [
-            150
+            148
           ]
         }
       ],
@@ -5828,7 +5777,7 @@
       "title": "Integer to String",
       "pos": [
         1864,
-        1524
+        1506
       ],
       "size": [
         320,
@@ -5837,13 +5786,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 80,
+      "order": 79,
       "mode": 0,
       "inputs": [
         {
           "name": "int_",
           "type": "INT",
-          "link": 171
+          "link": 169
         }
       ],
       "outputs": [
@@ -5851,7 +5800,7 @@
           "name": "STRING",
           "type": "STRING",
           "links": [
-            173
+            171
           ]
         }
       ],
@@ -5868,7 +5817,7 @@
       "title": "부위 입력",
       "pos": [
         1864,
-        1542
+        1524
       ],
       "size": [
         320,
@@ -5877,13 +5826,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 81,
+      "order": 80,
       "mode": 0,
       "inputs": [
         {
           "name": "string_a",
           "type": "STRING",
-          "link": 172,
+          "link": 170,
           "widget": {
             "name": "string_a"
           }
@@ -5891,7 +5840,7 @@
         {
           "name": "string_b",
           "type": "STRING",
-          "link": 173,
+          "link": 171,
           "widget": {
             "name": "string_b"
           }
@@ -5902,7 +5851,7 @@
           "name": "STRING",
           "type": "STRING",
           "links": [
-            176
+            174
           ]
         }
       ],
@@ -5927,7 +5876,7 @@
       "title": "정수",
       "pos": [
         1864,
-        1560
+        1542
       ],
       "size": [
         320,
@@ -5936,13 +5885,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 82,
+      "order": 81,
       "mode": 0,
       "inputs": [
         {
           "name": "value",
           "type": "INT",
-          "link": 174,
+          "link": 172,
           "widget": {
             "name": "value"
           }
@@ -5953,7 +5902,7 @@
           "name": "INT",
           "type": "INT",
           "links": [
-            171
+            169
           ]
         }
       ],
@@ -5976,7 +5925,7 @@
       "title": "ctx_SAM3",
       "pos": [
         1864,
-        1578
+        1560
       ],
       "size": [
         320,
@@ -5985,13 +5934,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 83,
+      "order": 82,
       "mode": 0,
       "inputs": [
         {
           "name": "base_ctx",
           "type": "RGTHREE_CONTEXT",
-          "link": 175
+          "link": 173
         },
         {
           "name": "model",
@@ -6044,14 +5993,14 @@
           "name": "MODEL",
           "type": "MODEL",
           "links": [
-            179
+            177
           ]
         },
         {
           "name": "CLIP",
           "type": "CLIP",
           "links": [
-            177
+            175
           ]
         },
         {
@@ -6098,7 +6047,7 @@
       "title": "SAM3 DETECT 부위",
       "pos": [
         1864,
-        1596
+        1578
       ],
       "size": [
         320,
@@ -6107,13 +6056,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 84,
+      "order": 83,
       "mode": 0,
       "inputs": [
         {
           "name": "text",
           "type": "STRING",
-          "link": 176,
+          "link": 174,
           "widget": {
             "name": "text"
           }
@@ -6121,7 +6070,7 @@
         {
           "name": "clip",
           "type": "CLIP",
-          "link": 177
+          "link": 175
         }
       ],
       "outputs": [
@@ -6129,7 +6078,7 @@
           "name": "CONDITIONING",
           "type": "CONDITIONING",
           "links": [
-            181
+            179
           ]
         }
       ],
@@ -6150,7 +6099,7 @@
       "title": "Masks Combine Batch",
       "pos": [
         1864,
-        1614
+        1596
       ],
       "size": [
         320,
@@ -6159,13 +6108,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 85,
+      "order": 84,
       "mode": 0,
       "inputs": [
         {
           "name": "masks",
           "type": "MASK",
-          "link": 178
+          "link": 176
         }
       ],
       "outputs": [
@@ -6173,7 +6122,7 @@
           "name": "mask",
           "type": "MASK",
           "links": [
-            191
+            189
           ]
         }
       ],
@@ -6190,7 +6139,7 @@
       "title": "SAM3 Detect",
       "pos": [
         1864,
-        1632
+        1614
       ],
       "size": [
         320,
@@ -6199,23 +6148,23 @@
       "flags": {
         "collapsed": true
       },
-      "order": 86,
+      "order": 85,
       "mode": 0,
       "inputs": [
         {
           "name": "model",
           "type": "MODEL",
-          "link": 179
+          "link": 177
         },
         {
           "name": "image",
           "type": "IMAGE",
-          "link": 180
+          "link": 178
         },
         {
           "name": "conditioning",
           "type": "CONDITIONING",
-          "link": 181
+          "link": 179
         },
         {
           "name": "bboxes",
@@ -6238,7 +6187,7 @@
           "name": "masks",
           "type": "MASK",
           "links": [
-            178
+            176
           ]
         },
         {
@@ -6268,7 +6217,7 @@
       "title": "Use Detailer",
       "pos": [
         1864,
-        1650
+        1632
       ],
       "size": [
         320,
@@ -6277,13 +6226,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 87,
+      "order": 86,
       "mode": 0,
       "inputs": [
         {
           "name": "switch",
           "type": "BOOLEAN",
-          "link": 182,
+          "link": 180,
           "widget": {
             "name": "switch"
           }
@@ -6291,12 +6240,12 @@
         {
           "name": "on_false",
           "type": "SEGS",
-          "link": 183
+          "link": 181
         },
         {
           "name": "on_true",
           "type": "SEGS",
-          "link": 184
+          "link": 182
         }
       ],
       "outputs": [
@@ -6304,7 +6253,7 @@
           "name": "output",
           "type": "SEGS",
           "links": [
-            196
+            194
           ]
         }
       ],
@@ -6325,7 +6274,7 @@
       "title": "EmptySegs",
       "pos": [
         1864,
-        1668
+        1650
       ],
       "size": [
         320,
@@ -6334,7 +6283,7 @@
       "flags": {
         "collapsed": true
       },
-      "order": 88,
+      "order": 87,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -6342,7 +6291,7 @@
           "name": "SEGS",
           "type": "SEGS",
           "links": [
-            183
+            181
           ]
         }
       ],
@@ -6359,7 +6308,7 @@
       "title": "Use Detailer",
       "pos": [
         1864,
-        1686
+        1668
       ],
       "size": [
         320,
@@ -6368,13 +6317,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 89,
+      "order": 88,
       "mode": 0,
       "inputs": [
         {
           "name": "switch",
           "type": "BOOLEAN",
-          "link": 185,
+          "link": 183,
           "widget": {
             "name": "switch"
           }
@@ -6382,12 +6331,12 @@
         {
           "name": "on_false",
           "type": "IMAGE",
-          "link": 186
+          "link": 184
         },
         {
           "name": "on_true",
           "type": "IMAGE",
-          "link": 187
+          "link": 185
         }
       ],
       "outputs": [
@@ -6395,7 +6344,7 @@
           "name": "output",
           "type": "IMAGE",
           "links": [
-            265
+            263
           ]
         }
       ],
@@ -6416,7 +6365,7 @@
       "title": "Use DCW",
       "pos": [
         1864,
-        1704
+        1686
       ],
       "size": [
         320,
@@ -6425,18 +6374,18 @@
       "flags": {
         "collapsed": true
       },
-      "order": 90,
+      "order": 89,
       "mode": 0,
       "inputs": [
         {
           "name": "on_false",
           "type": "MODEL",
-          "link": 188
+          "link": 186
         },
         {
           "name": "on_true",
           "type": "MODEL",
-          "link": 189
+          "link": 187
         }
       ],
       "outputs": [
@@ -6444,7 +6393,7 @@
           "name": "output",
           "type": "MODEL",
           "links": [
-            197
+            195
           ]
         }
       ],
@@ -6465,7 +6414,7 @@
       "title": "ctx_ANIMA",
       "pos": [
         1864,
-        1722
+        1704
       ],
       "size": [
         320,
@@ -6474,13 +6423,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 91,
+      "order": 90,
       "mode": 0,
       "inputs": [
         {
           "name": "base_ctx",
           "type": "RGTHREE_CONTEXT",
-          "link": 190
+          "link": 188
         },
         {
           "name": "model",
@@ -6603,35 +6552,35 @@
           "name": "MODEL",
           "type": "MODEL",
           "links": [
-            193
+            191
           ]
         },
         {
           "name": "CLIP",
           "type": "CLIP",
           "links": [
-            198
+            196
           ]
         },
         {
           "name": "VAE",
           "type": "VAE",
           "links": [
-            199
+            197
           ]
         },
         {
           "name": "POSITIVE",
           "type": "CONDITIONING",
           "links": [
-            205
+            203
           ]
         },
         {
           "name": "NEGATIVE",
           "type": "CONDITIONING",
           "links": [
-            206
+            204
           ]
         },
         {
@@ -6648,7 +6597,7 @@
           "name": "SEED",
           "type": "INT",
           "links": [
-            200
+            198
           ]
         },
         {
@@ -6660,15 +6609,15 @@
           "name": "STEP_REFINER",
           "type": "INT",
           "links": [
-            194,
-            201
+            192,
+            199
           ]
         },
         {
           "name": "CFG",
           "type": "FLOAT",
           "links": [
-            202
+            200
           ]
         },
         {
@@ -6680,14 +6629,14 @@
           "name": "SAMPLER",
           "type": "COMBO",
           "links": [
-            203
+            201
           ]
         },
         {
           "name": "SCHEDULER",
           "type": "COMBO",
           "links": [
-            381
+            379
           ]
         },
         {
@@ -6743,8 +6692,8 @@
       "type": "PrimitiveString",
       "title": "문자열",
       "pos": [
-        1880,
-        1056
+        1864,
+        1722
       ],
       "size": [
         320,
@@ -6753,7 +6702,7 @@
       "flags": {
         "collapsed": true
       },
-      "order": 92,
+      "order": 91,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -6761,7 +6710,7 @@
           "name": "STRING",
           "type": "STRING",
           "links": [
-            172
+            170
           ]
         }
       ],
@@ -6782,7 +6731,7 @@
       "title": "MASK to SEGS",
       "pos": [
         1880,
-        1074
+        1056
       ],
       "size": [
         320,
@@ -6791,13 +6740,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 93,
+      "order": 92,
       "mode": 0,
       "inputs": [
         {
           "name": "mask",
           "type": "MASK",
-          "link": 191
+          "link": 189
         }
       ],
       "outputs": [
@@ -6805,7 +6754,7 @@
           "name": "SEGS",
           "type": "SEGS",
           "links": [
-            184
+            182
           ]
         }
       ],
@@ -6834,7 +6783,7 @@
       "title": "DCW(+a)",
       "pos": [
         1880,
-        1092
+        1074
       ],
       "size": [
         320,
@@ -6843,13 +6792,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 94,
+      "order": 93,
       "mode": 0,
       "inputs": [
         {
           "name": "model",
           "type": "MODEL",
-          "link": 192
+          "link": 190
         }
       ],
       "outputs": [
@@ -6857,7 +6806,7 @@
           "name": "model",
           "type": "MODEL",
           "links": [
-            189
+            187
           ]
         }
       ],
@@ -6900,7 +6849,7 @@
       "title": "DiT Spectrum 패치",
       "pos": [
         1880,
-        1110
+        1092
       ],
       "size": [
         320,
@@ -6909,18 +6858,18 @@
       "flags": {
         "collapsed": true
       },
-      "order": 95,
+      "order": 94,
       "mode": 0,
       "inputs": [
         {
           "name": "model",
           "type": "MODEL",
-          "link": 193
+          "link": 191
         },
         {
           "name": "steps",
           "type": "INT",
-          "link": 194,
+          "link": 192,
           "widget": {
             "name": "steps"
           }
@@ -6931,8 +6880,8 @@
           "name": "MODEL",
           "type": "MODEL",
           "links": [
-            188,
-            192
+            186,
+            190
           ]
         }
       ],
@@ -6975,7 +6924,7 @@
       "title": "Anima 디테일러 정렬 Hook",
       "pos": [
         1880,
-        1128
+        1110
       ],
       "size": [
         320,
@@ -6984,7 +6933,7 @@
       "flags": {
         "collapsed": true
       },
-      "order": 96,
+      "order": 95,
       "mode": 0,
       "inputs": [
         {
@@ -6998,7 +6947,7 @@
           "name": "detailer_hook",
           "type": "DETAILER_HOOK",
           "links": [
-            207
+            205
           ]
         }
       ],
@@ -7019,7 +6968,7 @@
       "title": "얼굴 디테일러 (SEGS)",
       "pos": [
         1880,
-        1146
+        1128
       ],
       "size": [
         320,
@@ -7028,38 +6977,38 @@
       "flags": {
         "collapsed": true
       },
-      "order": 97,
+      "order": 96,
       "mode": 0,
       "inputs": [
         {
           "name": "image",
           "type": "IMAGE",
-          "link": 195
+          "link": 193
         },
         {
           "name": "segs",
           "type": "SEGS",
-          "link": 196
+          "link": 194
         },
         {
           "name": "model",
           "type": "MODEL",
-          "link": 197
+          "link": 195
         },
         {
           "name": "clip",
           "type": "CLIP",
-          "link": 198
+          "link": 196
         },
         {
           "name": "vae",
           "type": "VAE",
-          "link": 199
+          "link": 197
         },
         {
           "name": "seed",
           "type": "INT",
-          "link": 200,
+          "link": 198,
           "widget": {
             "name": "seed"
           }
@@ -7067,7 +7016,7 @@
         {
           "name": "steps",
           "type": "INT",
-          "link": 201,
+          "link": 199,
           "widget": {
             "name": "steps"
           }
@@ -7075,7 +7024,7 @@
         {
           "name": "cfg",
           "type": "FLOAT",
-          "link": 202,
+          "link": 200,
           "widget": {
             "name": "cfg"
           }
@@ -7083,7 +7032,7 @@
         {
           "name": "sampler_name",
           "type": "COMBO",
-          "link": 203,
+          "link": 201,
           "widget": {
             "name": "sampler_name"
           }
@@ -7091,7 +7040,7 @@
         {
           "name": "scheduler",
           "type": "COMBO",
-          "link": 204,
+          "link": 202,
           "widget": {
             "name": "scheduler"
           }
@@ -7099,17 +7048,17 @@
         {
           "name": "positive",
           "type": "CONDITIONING",
-          "link": 205
+          "link": 203
         },
         {
           "name": "negative",
           "type": "CONDITIONING",
-          "link": 206
+          "link": 204
         },
         {
           "name": "detailer_hook",
           "type": "DETAILER_HOOK",
-          "link": 207
+          "link": 205
         },
         {
           "name": "scheduler_func_opt",
@@ -7122,7 +7071,7 @@
           "name": "IMAGE",
           "type": "IMAGE",
           "links": [
-            187
+            185
           ]
         }
       ],
@@ -7188,23 +7137,23 @@
       "flags": {
         "collapsed": true
       },
-      "order": 98,
+      "order": 97,
       "mode": 0,
       "inputs": [
         {
           "name": "values.a",
           "type": "FLOAT,INT,BOOLEAN",
-          "link": 208
+          "link": 206
         },
         {
           "name": "values.b",
           "type": "FLOAT,INT,BOOLEAN",
-          "link": 209
+          "link": 207
         },
         {
           "name": "values.c",
           "type": "FLOAT,INT,BOOLEAN",
-          "link": 210
+          "link": 208
         }
       ],
       "outputs": [
@@ -7217,8 +7166,8 @@
           "name": "INT",
           "type": "INT",
           "links": [
-            231,
-            279
+            229,
+            277
           ]
         },
         {
@@ -7253,13 +7202,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 99,
+      "order": 98,
       "mode": 0,
       "inputs": [
         {
           "name": "switch",
           "type": "BOOLEAN",
-          "link": 211,
+          "link": 209,
           "widget": {
             "name": "switch"
           }
@@ -7267,12 +7216,12 @@
         {
           "name": "on_false",
           "type": "IMAGE",
-          "link": 212
+          "link": 210
         },
         {
           "name": "on_true",
           "type": "IMAGE",
-          "link": 213
+          "link": 211
         }
       ],
       "outputs": [
@@ -7280,7 +7229,7 @@
           "name": "output",
           "type": "IMAGE",
           "links": [
-            369
+            367
           ]
         }
       ],
@@ -7310,13 +7259,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 100,
+      "order": 99,
       "mode": 0,
       "inputs": [
         {
           "name": "base_ctx",
           "type": "RGTHREE_CONTEXT",
-          "link": 214
+          "link": 212
         },
         {
           "name": "model",
@@ -7439,8 +7388,8 @@
           "name": "MODEL",
           "type": "MODEL",
           "links": [
-            233,
-            234
+            231,
+            232
           ]
         },
         {
@@ -7452,24 +7401,24 @@
           "name": "VAE",
           "type": "VAE",
           "links": [
-            223,
-            271
+            221,
+            269
           ]
         },
         {
           "name": "POSITIVE",
           "type": "CONDITIONING",
           "links": [
-            221,
-            269
+            219,
+            267
           ]
         },
         {
           "name": "NEGATIVE",
           "type": "CONDITIONING",
           "links": [
-            222,
-            270
+            220,
+            268
           ]
         },
         {
@@ -7486,8 +7435,8 @@
           "name": "SEED",
           "type": "INT",
           "links": [
-            225,
-            274
+            223,
+            272
           ]
         },
         {
@@ -7499,15 +7448,15 @@
           "name": "STEP_REFINER",
           "type": "INT",
           "links": [
-            237
+            235
           ]
         },
         {
           "name": "CFG",
           "type": "FLOAT",
           "links": [
-            227,
-            276
+            225,
+            274
           ]
         },
         {
@@ -7519,16 +7468,16 @@
           "name": "SAMPLER",
           "type": "COMBO",
           "links": [
-            228,
-            277
+            226,
+            275
           ]
         },
         {
           "name": "SCHEDULER",
           "type": "COMBO",
           "links": [
-            229,
-            278
+            227,
+            276
           ]
         },
         {
@@ -7594,23 +7543,23 @@
       "flags": {
         "collapsed": true
       },
-      "order": 101,
+      "order": 100,
       "mode": 0,
       "inputs": [
         {
           "name": "values.a",
           "type": "FLOAT,INT,BOOLEAN",
-          "link": 215
+          "link": 213
         },
         {
           "name": "values.b",
           "type": "FLOAT,INT,BOOLEAN",
-          "link": 216
+          "link": 214
         },
         {
           "name": "values.c",
           "type": "FLOAT,INT,BOOLEAN",
-          "link": 217
+          "link": 215
         }
       ],
       "outputs": [
@@ -7623,7 +7572,7 @@
           "name": "INT",
           "type": "INT",
           "links": [
-            232
+            230
           ]
         },
         {
@@ -7658,13 +7607,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 102,
+      "order": 101,
       "mode": 0,
       "inputs": [
         {
           "name": "image",
           "type": "IMAGE",
-          "link": 218
+          "link": 216
         }
       ],
       "outputs": [
@@ -7672,14 +7621,14 @@
           "name": "width",
           "type": "INT",
           "links": [
-            208
+            206
           ]
         },
         {
           "name": "height",
           "type": "INT",
           "links": [
-            215
+            213
           ]
         },
         {
@@ -7710,7 +7659,7 @@
       "flags": {
         "collapsed": true
       },
-      "order": 103,
+      "order": 102,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -7718,8 +7667,8 @@
           "name": "INT",
           "type": "INT",
           "links": [
-            210,
-            217
+            208,
+            215
           ]
         }
       ],
@@ -7751,38 +7700,38 @@
       "flags": {
         "collapsed": true
       },
-      "order": 104,
+      "order": 103,
       "mode": 0,
       "inputs": [
         {
           "name": "image",
           "type": "IMAGE",
-          "link": 219
+          "link": 217
         },
         {
           "name": "model",
           "type": "MODEL",
-          "link": 220
+          "link": 218
         },
         {
           "name": "positive",
           "type": "CONDITIONING",
-          "link": 221
+          "link": 219
         },
         {
           "name": "negative",
           "type": "CONDITIONING",
-          "link": 222
+          "link": 220
         },
         {
           "name": "vae",
           "type": "VAE",
-          "link": 223
+          "link": 221
         },
         {
           "name": "upscale_by",
           "type": "FLOAT",
-          "link": 224,
+          "link": 222,
           "widget": {
             "name": "upscale_by"
           }
@@ -7790,7 +7739,7 @@
         {
           "name": "seed",
           "type": "INT",
-          "link": 225,
+          "link": 223,
           "widget": {
             "name": "seed"
           }
@@ -7798,7 +7747,7 @@
         {
           "name": "steps",
           "type": "INT",
-          "link": 226,
+          "link": 224,
           "widget": {
             "name": "steps"
           }
@@ -7806,7 +7755,7 @@
         {
           "name": "cfg",
           "type": "FLOAT",
-          "link": 227,
+          "link": 225,
           "widget": {
             "name": "cfg"
           }
@@ -7814,7 +7763,7 @@
         {
           "name": "sampler_name",
           "type": "COMBO",
-          "link": 228,
+          "link": 226,
           "widget": {
             "name": "sampler_name"
           }
@@ -7822,7 +7771,7 @@
         {
           "name": "scheduler",
           "type": "COMBO",
-          "link": 229,
+          "link": 227,
           "widget": {
             "name": "scheduler"
           }
@@ -7830,12 +7779,12 @@
         {
           "name": "upscale_model",
           "type": "UPSCALE_MODEL",
-          "link": 230
+          "link": 228
         },
         {
           "name": "tile_width",
           "type": "INT",
-          "link": 231,
+          "link": 229,
           "widget": {
             "name": "tile_width"
           }
@@ -7843,7 +7792,7 @@
         {
           "name": "tile_height",
           "type": "INT",
-          "link": 232,
+          "link": 230,
           "widget": {
             "name": "tile_height"
           }
@@ -7854,7 +7803,7 @@
           "name": "IMAGE",
           "type": "IMAGE",
           "links": [
-            281
+            279
           ]
         }
       ],
@@ -7924,13 +7873,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 105,
+      "order": 104,
       "mode": 0,
       "inputs": [
         {
           "name": "model",
           "type": "MODEL",
-          "link": 233
+          "link": 231
         }
       ],
       "outputs": [
@@ -7938,7 +7887,7 @@
           "name": "model",
           "type": "MODEL",
           "links": [
-            235
+            233
           ]
         }
       ],
@@ -7990,18 +7939,18 @@
       "flags": {
         "collapsed": true
       },
-      "order": 106,
+      "order": 105,
       "mode": 0,
       "inputs": [
         {
           "name": "on_false",
           "type": "MODEL",
-          "link": 234
+          "link": 232
         },
         {
           "name": "on_true",
           "type": "MODEL",
-          "link": 235
+          "link": 233
         }
       ],
       "outputs": [
@@ -8009,7 +7958,7 @@
           "name": "output",
           "type": "MODEL",
           "links": [
-            236
+            234
           ]
         }
       ],
@@ -8039,18 +7988,18 @@
       "flags": {
         "collapsed": true
       },
-      "order": 107,
+      "order": 106,
       "mode": 0,
       "inputs": [
         {
           "name": "model",
           "type": "MODEL",
-          "link": 236
+          "link": 234
         },
         {
           "name": "steps",
           "type": "INT",
-          "link": 237,
+          "link": 235,
           "widget": {
             "name": "steps"
           }
@@ -8061,8 +8010,8 @@
           "name": "MODEL",
           "type": "MODEL",
           "links": [
-            220,
-            268
+            218,
+            266
           ]
         }
       ],
@@ -8100,12 +8049,12 @@
       ]
     },
     {
-      "id": 4103,
+      "id": 4102,
       "type": "LAKIS_VRAM_GATE",
       "title": "LAKIS_VRAM_GATE",
       "pos": [
         1880,
-        1164
+        1146
       ],
       "size": [
         320,
@@ -8114,13 +8063,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 108,
+      "order": 107,
       "mode": 0,
       "inputs": [
         {
           "name": "image",
           "type": "IMAGE",
-          "link": 238
+          "link": 236
         }
       ],
       "outputs": [
@@ -8128,9 +8077,9 @@
           "name": "image",
           "type": "IMAGE",
           "links": [
-            149,
-            158,
-            252
+            147,
+            156,
+            250
           ]
         },
         {
@@ -8153,12 +8102,12 @@
       ]
     },
     {
-      "id": 4104,
+      "id": 4103,
       "type": "LAKIS_VRAM_GATE",
       "title": "LAKIS_VRAM_GATE",
       "pos": [
         1880,
-        1182
+        1164
       ],
       "size": [
         320,
@@ -8167,13 +8116,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 109,
+      "order": 108,
       "mode": 0,
       "inputs": [
         {
           "name": "image",
           "type": "IMAGE",
-          "link": 239
+          "link": 237
         }
       ],
       "outputs": [
@@ -8181,9 +8130,9 @@
           "name": "image",
           "type": "IMAGE",
           "links": [
-            180,
-            186,
-            195
+            178,
+            184,
+            193
           ]
         },
         {
@@ -8220,18 +8169,18 @@
       "flags": {
         "collapsed": true
       },
-      "order": 110,
+      "order": 109,
       "mode": 0,
       "inputs": [
         {
           "name": "positive",
           "type": "STRING",
-          "link": 240
+          "link": 238
         },
         {
           "name": "enabled",
           "type": "BOOLEAN",
-          "link": 241,
+          "link": 239,
           "widget": {
             "name": "enabled"
           }
@@ -8239,7 +8188,7 @@
         {
           "name": "camera",
           "type": "STRING",
-          "link": 242
+          "link": 240
         }
       ],
       "outputs": [
@@ -8247,7 +8196,7 @@
           "name": "STRING",
           "type": "STRING",
           "links": [
-            63
+            61
           ]
         }
       ],
@@ -8277,13 +8226,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 111,
+      "order": 110,
       "mode": 0,
       "inputs": [
         {
           "name": "source",
           "type": "BOOLEAN",
-          "link": 243,
+          "link": 241,
           "widget": {
             "name": "source"
           }
@@ -8291,7 +8240,7 @@
         {
           "name": "steps",
           "type": "INT",
-          "link": 244,
+          "link": 242,
           "widget": {
             "name": "steps"
           }
@@ -8299,7 +8248,7 @@
         {
           "name": "cfg",
           "type": "FLOAT",
-          "link": 245,
+          "link": 243,
           "widget": {
             "name": "cfg"
           }
@@ -8307,12 +8256,12 @@
         {
           "name": "sampler",
           "type": "COMBO",
-          "link": 246
+          "link": 244
         },
         {
           "name": "scheduler",
           "type": "COMBO",
-          "link": 247
+          "link": 245
         }
       ],
       "outputs": [
@@ -8320,28 +8269,28 @@
           "name": "steps",
           "type": "INT",
           "links": [
-            51
+            49
           ]
         },
         {
           "name": "cfg",
           "type": "FLOAT",
           "links": [
-            53
+            51
           ]
         },
         {
           "name": "sampler",
           "type": "COMBO",
           "links": [
-            54
+            52
           ]
         },
         {
           "name": "scheduler",
           "type": "COMBO",
           "links": [
-            55
+            53
           ]
         }
       ],
@@ -8375,13 +8324,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 112,
+      "order": 111,
       "mode": 0,
       "inputs": [
         {
           "name": "model",
           "type": "MODEL",
-          "link": 248
+          "link": 246
         }
       ],
       "outputs": [
@@ -8389,7 +8338,7 @@
           "name": "MODEL",
           "type": "MODEL",
           "links": [
-            250
+            248
           ]
         }
       ],
@@ -8421,13 +8370,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 113,
+      "order": 112,
       "mode": 0,
       "inputs": [
         {
           "name": "switch",
           "type": "BOOLEAN",
-          "link": 249,
+          "link": 247,
           "widget": {
             "name": "switch"
           }
@@ -8435,12 +8384,12 @@
         {
           "name": "on_false",
           "type": "MODEL",
-          "link": 250
+          "link": 248
         },
         {
           "name": "on_true",
           "type": "MODEL",
-          "link": 251
+          "link": 249
         }
       ],
       "outputs": [
@@ -8448,8 +8397,8 @@
           "name": "output",
           "type": "MODEL",
           "links": [
-            350,
-            360
+            348,
+            358
           ]
         }
       ],
@@ -8470,7 +8419,7 @@
       "title": "ComfySwitchNode",
       "pos": [
         1880,
-        1200
+        1182
       ],
       "size": [
         320,
@@ -8479,13 +8428,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 114,
+      "order": 113,
       "mode": 0,
       "inputs": [
         {
           "name": "switch",
           "type": "BOOLEAN",
-          "link": 264,
+          "link": 262,
           "widget": {
             "name": "switch"
           }
@@ -8493,12 +8442,12 @@
         {
           "name": "on_false",
           "type": "IMAGE",
-          "link": 265
+          "link": 263
         },
         {
           "name": "on_true",
           "type": "IMAGE",
-          "link": 266
+          "link": 264
         }
       ],
       "outputs": [
@@ -8506,9 +8455,9 @@
           "name": "output",
           "type": "IMAGE",
           "links": [
-            218,
-            219,
-            267
+            216,
+            217,
+            265
           ]
         }
       ],
@@ -8538,13 +8487,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 115,
+      "order": 114,
       "mode": 0,
       "inputs": [
         {
           "name": "switch",
           "type": "BOOLEAN",
-          "link": 280,
+          "link": 278,
           "widget": {
             "name": "switch"
           }
@@ -8552,12 +8501,12 @@
         {
           "name": "on_false",
           "type": "IMAGE",
-          "link": 281
+          "link": 279
         },
         {
           "name": "on_true",
           "type": "IMAGE",
-          "link": 282
+          "link": 280
         }
       ],
       "outputs": [
@@ -8565,7 +8514,7 @@
           "name": "output",
           "type": "IMAGE",
           "links": [
-            213
+            211
           ]
         }
       ],
@@ -8595,18 +8544,18 @@
       "flags": {
         "collapsed": true
       },
-      "order": 116,
+      "order": 115,
       "mode": 0,
       "inputs": [
         {
           "name": "mask",
           "type": "MASK",
-          "link": 285
+          "link": 283
         },
         {
           "name": "expand",
           "type": "INT",
-          "link": 286,
+          "link": 284,
           "widget": {
             "name": "expand"
           }
@@ -8617,7 +8566,7 @@
           "name": "MASK",
           "type": "MASK",
           "links": [
-            288
+            286
           ]
         }
       ],
@@ -8649,18 +8598,18 @@
       "flags": {
         "collapsed": true
       },
-      "order": 117,
+      "order": 116,
       "mode": 0,
       "inputs": [
         {
           "name": "image",
           "type": "IMAGE",
-          "link": 287
+          "link": 285
         },
         {
           "name": "mask",
           "type": "MASK",
-          "link": 288
+          "link": 286
         }
       ],
       "outputs": [
@@ -8668,45 +8617,45 @@
           "name": "crop",
           "type": "IMAGE",
           "links": [
-            289,
-            297
+            287,
+            295
           ]
         },
         {
           "name": "crop_mask",
           "type": "MASK",
           "links": [
-            292,
-            298,
-            314
+            290,
+            296,
+            312
           ]
         },
         {
           "name": "x",
           "type": "INT",
           "links": [
-            315
+            313
           ]
         },
         {
           "name": "y",
           "type": "INT",
           "links": [
-            316
+            314
           ]
         },
         {
           "name": "crop_width",
           "type": "INT",
           "links": [
-            317
+            315
           ]
         },
         {
           "name": "crop_height",
           "type": "INT",
           "links": [
-            318
+            316
           ]
         },
         {
@@ -8733,7 +8682,7 @@
           "name": "metadata",
           "type": "STRING",
           "links": [
-            379
+            377
           ]
         }
       ],
@@ -8775,18 +8724,18 @@
       "flags": {
         "collapsed": true
       },
-      "order": 118,
+      "order": 117,
       "mode": 0,
       "inputs": [
         {
           "name": "pixels",
           "type": "IMAGE",
-          "link": 289
+          "link": 287
         },
         {
           "name": "vae",
           "type": "VAE",
-          "link": 290
+          "link": 288
         }
       ],
       "outputs": [
@@ -8794,7 +8743,7 @@
           "name": "LATENT",
           "type": "LATENT",
           "links": [
-            291
+            289
           ]
         }
       ],
@@ -8820,18 +8769,18 @@
       "flags": {
         "collapsed": true
       },
-      "order": 119,
+      "order": 118,
       "mode": 0,
       "inputs": [
         {
           "name": "samples",
           "type": "LATENT",
-          "link": 291
+          "link": 289
         },
         {
           "name": "mask",
           "type": "MASK",
-          "link": 292
+          "link": 290
         }
       ],
       "outputs": [
@@ -8839,7 +8788,7 @@
           "name": "LATENT",
           "type": "LATENT",
           "links": [
-            308
+            306
           ]
         }
       ],
@@ -8865,18 +8814,18 @@
       "flags": {
         "collapsed": true
       },
-      "order": 120,
+      "order": 119,
       "mode": 0,
       "inputs": [
         {
           "name": "model",
           "type": "MODEL",
-          "link": 293
+          "link": 291
         },
         {
           "name": "lambda_l",
           "type": "FLOAT",
-          "link": 294,
+          "link": 292,
           "widget": {
             "name": "lambda_l"
           }
@@ -8884,7 +8833,7 @@
         {
           "name": "lambda_h",
           "type": "FLOAT",
-          "link": 295,
+          "link": 293,
           "widget": {
             "name": "lambda_h"
           }
@@ -8895,7 +8844,7 @@
           "name": "model",
           "type": "MODEL",
           "links": [
-            296
+            294
           ]
         }
       ],
@@ -8947,13 +8896,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 121,
+      "order": 120,
       "mode": 0,
       "inputs": [
         {
           "name": "text",
           "type": "STRING",
-          "link": 299,
+          "link": 297,
           "widget": {
             "name": "text"
           }
@@ -8961,7 +8910,7 @@
         {
           "name": "clip",
           "type": "CLIP",
-          "link": 300
+          "link": 298
         }
       ],
       "outputs": [
@@ -8969,7 +8918,7 @@
           "name": "CONDITIONING",
           "type": "CONDITIONING",
           "links": [
-            306
+            304
           ]
         }
       ],
@@ -8999,13 +8948,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 122,
+      "order": 121,
       "mode": 0,
       "inputs": [
         {
           "name": "text",
           "type": "STRING",
-          "link": 301,
+          "link": 299,
           "widget": {
             "name": "text"
           }
@@ -9013,7 +8962,7 @@
         {
           "name": "clip",
           "type": "CLIP",
-          "link": 302
+          "link": 300
         }
       ],
       "outputs": [
@@ -9021,7 +8970,7 @@
           "name": "CONDITIONING",
           "type": "CONDITIONING",
           "links": [
-            307
+            305
           ]
         }
       ],
@@ -9051,13 +9000,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 123,
+      "order": 122,
       "mode": 0,
       "inputs": [
         {
           "name": "model",
           "type": "MODEL",
-          "link": 303
+          "link": 301
         }
       ],
       "outputs": [
@@ -9065,7 +9014,7 @@
           "name": "MODEL",
           "type": "MODEL",
           "links": [
-            304
+            302
           ]
         }
       ],
@@ -9117,18 +9066,18 @@
       "flags": {
         "collapsed": true
       },
-      "order": 124,
+      "order": 123,
       "mode": 0,
       "inputs": [
         {
           "name": "model",
           "type": "MODEL",
-          "link": 304
+          "link": 302
         },
         {
           "name": "seed",
           "type": "INT",
-          "link": 305,
+          "link": 303,
           "widget": {
             "name": "seed"
           }
@@ -9136,22 +9085,22 @@
         {
           "name": "positive",
           "type": "CONDITIONING",
-          "link": 306
+          "link": 304
         },
         {
           "name": "negative",
           "type": "CONDITIONING",
-          "link": 307
+          "link": 305
         },
         {
           "name": "latent_image",
           "type": "LATENT",
-          "link": 308
+          "link": 306
         },
         {
           "name": "denoise",
           "type": "FLOAT",
-          "link": 309,
+          "link": 307,
           "widget": {
             "name": "denoise"
           }
@@ -9162,7 +9111,7 @@
           "name": "LATENT",
           "type": "LATENT",
           "links": [
-            310
+            308
           ]
         }
       ],
@@ -9204,18 +9153,18 @@
       "flags": {
         "collapsed": true
       },
-      "order": 125,
+      "order": 124,
       "mode": 0,
       "inputs": [
         {
           "name": "samples",
           "type": "LATENT",
-          "link": 310
+          "link": 308
         },
         {
           "name": "vae",
           "type": "VAE",
-          "link": 311
+          "link": 309
         }
       ],
       "outputs": [
@@ -9223,7 +9172,7 @@
           "name": "IMAGE",
           "type": "IMAGE",
           "links": [
-            313
+            311
           ]
         }
       ],
@@ -9249,28 +9198,28 @@
       "flags": {
         "collapsed": true
       },
-      "order": 126,
+      "order": 125,
       "mode": 0,
       "inputs": [
         {
           "name": "original",
           "type": "IMAGE",
-          "link": 312
+          "link": 310
         },
         {
           "name": "edited_crop",
           "type": "IMAGE",
-          "link": 313
+          "link": 311
         },
         {
           "name": "crop_mask",
           "type": "MASK",
-          "link": 314
+          "link": 312
         },
         {
           "name": "x",
           "type": "INT",
-          "link": 315,
+          "link": 313,
           "widget": {
             "name": "x"
           }
@@ -9278,7 +9227,7 @@
         {
           "name": "y",
           "type": "INT",
-          "link": 316,
+          "link": 314,
           "widget": {
             "name": "y"
           }
@@ -9286,7 +9235,7 @@
         {
           "name": "crop_width",
           "type": "INT",
-          "link": 317,
+          "link": 315,
           "widget": {
             "name": "crop_width"
           }
@@ -9294,7 +9243,7 @@
         {
           "name": "crop_height",
           "type": "INT",
-          "link": 318,
+          "link": 316,
           "widget": {
             "name": "crop_height"
           }
@@ -9302,7 +9251,7 @@
         {
           "name": "feather",
           "type": "INT",
-          "link": 319,
+          "link": 317,
           "widget": {
             "name": "feather"
           }
@@ -9310,7 +9259,7 @@
         {
           "name": "color_match_strength",
           "type": "FLOAT",
-          "link": 320,
+          "link": 318,
           "widget": {
             "name": "color_match_strength"
           }
@@ -9321,7 +9270,7 @@
           "name": "IMAGE",
           "type": "IMAGE",
           "links": [
-            370
+            368
           ]
         }
       ],
@@ -9361,18 +9310,18 @@
       "flags": {
         "collapsed": true
       },
-      "order": 127,
+      "order": 126,
       "mode": 0,
       "inputs": [
         {
           "name": "stack",
           "type": "LORA_STACK",
-          "link": 321
+          "link": 319
         },
         {
           "name": "inpaint",
           "type": "BOOLEAN",
-          "link": 322,
+          "link": 320,
           "widget": {
             "name": "inpaint"
           }
@@ -9380,7 +9329,7 @@
         {
           "name": "paint_loras",
           "type": "BOOLEAN",
-          "link": 323,
+          "link": 321,
           "widget": {
             "name": "paint_loras"
           }
@@ -9391,7 +9340,7 @@
           "name": "LORA_STACK",
           "type": "LORA_STACK",
           "links": [
-            41
+            39
           ]
         }
       ],
@@ -9425,13 +9374,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 128,
+      "order": 127,
       "mode": 0,
       "inputs": [
         {
           "name": "base_prompt_text",
           "type": "STRING",
-          "link": 326,
+          "link": 324,
           "widget": {
             "name": "base_prompt_text"
           }
@@ -9447,7 +9396,7 @@
           "name": "region",
           "type": "region",
           "links": [
-            330
+            328
           ]
         }
       ],
@@ -9477,23 +9426,23 @@
       "flags": {
         "collapsed": true
       },
-      "order": 129,
+      "order": 128,
       "mode": 0,
       "inputs": [
         {
           "name": "model",
           "type": "MODEL",
-          "link": 332
+          "link": 330
         },
         {
           "name": "image",
           "type": "IMAGE",
-          "link": 333
+          "link": 331
         },
         {
           "name": "strength",
           "type": "FLOAT",
-          "link": 334,
+          "link": 332,
           "widget": {
             "name": "strength"
           }
@@ -9509,7 +9458,7 @@
           "name": "model",
           "type": "MODEL",
           "links": [
-            335
+            333
           ]
         }
       ],
@@ -9547,23 +9496,23 @@
       "flags": {
         "collapsed": true
       },
-      "order": 130,
+      "order": 129,
       "mode": 0,
       "inputs": [
         {
           "name": "model",
           "type": "MODEL",
-          "link": 335
+          "link": 333
         },
         {
           "name": "image",
           "type": "IMAGE",
-          "link": 336
+          "link": 334
         },
         {
           "name": "strength",
           "type": "FLOAT",
-          "link": 337,
+          "link": 335,
           "widget": {
             "name": "strength"
           }
@@ -9579,7 +9528,7 @@
           "name": "model",
           "type": "MODEL",
           "links": [
-            338
+            336
           ]
         }
       ],
@@ -9617,23 +9566,23 @@
       "flags": {
         "collapsed": true
       },
-      "order": 131,
+      "order": 130,
       "mode": 0,
       "inputs": [
         {
           "name": "model",
           "type": "MODEL",
-          "link": 338
+          "link": 336
         },
         {
           "name": "region",
           "type": "region",
-          "link": 339
+          "link": 337
         },
         {
           "name": "negative",
           "type": "CONDITIONING",
-          "link": 340
+          "link": 338
         }
       ],
       "outputs": [
@@ -9641,21 +9590,21 @@
           "name": "model",
           "type": "MODEL",
           "links": [
-            343
+            341
           ]
         },
         {
           "name": "positive",
           "type": "CONDITIONING",
           "links": [
-            346
+            344
           ]
         },
         {
           "name": "negative",
           "type": "CONDITIONING",
           "links": [
-            349
+            347
           ]
         }
       ],
@@ -9693,13 +9642,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 132,
+      "order": 131,
       "mode": 0,
       "inputs": [
         {
           "name": "switch",
           "type": "BOOLEAN",
-          "link": 341,
+          "link": 339,
           "widget": {
             "name": "switch"
           }
@@ -9707,12 +9656,12 @@
         {
           "name": "on_false",
           "type": "MODEL",
-          "link": 342
+          "link": 340
         },
         {
           "name": "on_true",
           "type": "MODEL",
-          "link": 343
+          "link": 341
         }
       ],
       "outputs": [
@@ -9720,7 +9669,7 @@
           "name": "output",
           "type": "MODEL",
           "links": [
-            106
+            104
           ]
         }
       ],
@@ -9750,13 +9699,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 133,
+      "order": 132,
       "mode": 0,
       "inputs": [
         {
           "name": "switch",
           "type": "BOOLEAN",
-          "link": 344,
+          "link": 342,
           "widget": {
             "name": "switch"
           }
@@ -9764,12 +9713,12 @@
         {
           "name": "on_false",
           "type": "CONDITIONING",
-          "link": 345
+          "link": 343
         },
         {
           "name": "on_true",
           "type": "CONDITIONING",
-          "link": 346
+          "link": 344
         }
       ],
       "outputs": [
@@ -9777,7 +9726,7 @@
           "name": "output",
           "type": "CONDITIONING",
           "links": [
-            102
+            100
           ]
         }
       ],
@@ -9807,13 +9756,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 134,
+      "order": 133,
       "mode": 0,
       "inputs": [
         {
           "name": "switch",
           "type": "BOOLEAN",
-          "link": 347,
+          "link": 345,
           "widget": {
             "name": "switch"
           }
@@ -9821,12 +9770,12 @@
         {
           "name": "on_false",
           "type": "CONDITIONING",
-          "link": 348
+          "link": 346
         },
         {
           "name": "on_true",
           "type": "CONDITIONING",
-          "link": 349
+          "link": 347
         }
       ],
       "outputs": [
@@ -9834,7 +9783,7 @@
           "name": "output",
           "type": "CONDITIONING",
           "links": [
-            103
+            101
           ]
         }
       ],
@@ -9864,23 +9813,23 @@
       "flags": {
         "collapsed": true
       },
-      "order": 135,
+      "order": 134,
       "mode": 0,
       "inputs": [
         {
           "name": "model",
           "type": "MODEL",
-          "link": 350
+          "link": 348
         },
         {
           "name": "image",
           "type": "IMAGE",
-          "link": 351
+          "link": 349
         },
         {
           "name": "strength",
           "type": "FLOAT",
-          "link": 352,
+          "link": 350,
           "widget": {
             "name": "strength"
           }
@@ -9896,7 +9845,7 @@
           "name": "model",
           "type": "MODEL",
           "links": [
-            353
+            351
           ]
         }
       ],
@@ -9934,23 +9883,23 @@
       "flags": {
         "collapsed": true
       },
-      "order": 136,
+      "order": 135,
       "mode": 0,
       "inputs": [
         {
           "name": "model",
           "type": "MODEL",
-          "link": 353
+          "link": 351
         },
         {
           "name": "image",
           "type": "IMAGE",
-          "link": 354
+          "link": 352
         },
         {
           "name": "strength",
           "type": "FLOAT",
-          "link": 355,
+          "link": 353,
           "widget": {
             "name": "strength"
           }
@@ -9966,7 +9915,7 @@
           "name": "model",
           "type": "MODEL",
           "links": [
-            356
+            354
           ]
         }
       ],
@@ -10004,23 +9953,23 @@
       "flags": {
         "collapsed": true
       },
-      "order": 137,
+      "order": 136,
       "mode": 0,
       "inputs": [
         {
           "name": "model",
           "type": "MODEL",
-          "link": 356
+          "link": 354
         },
         {
           "name": "region",
           "type": "region",
-          "link": 357
+          "link": 355
         },
         {
           "name": "negative",
           "type": "CONDITIONING",
-          "link": 358
+          "link": 356
         }
       ],
       "outputs": [
@@ -10028,21 +9977,21 @@
           "name": "model",
           "type": "MODEL",
           "links": [
-            361
+            359
           ]
         },
         {
           "name": "positive",
           "type": "CONDITIONING",
           "links": [
-            364
+            362
           ]
         },
         {
           "name": "negative",
           "type": "CONDITIONING",
           "links": [
-            367
+            365
           ]
         }
       ],
@@ -10080,13 +10029,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 138,
+      "order": 137,
       "mode": 0,
       "inputs": [
         {
           "name": "switch",
           "type": "BOOLEAN",
-          "link": 359,
+          "link": 357,
           "widget": {
             "name": "switch"
           }
@@ -10094,12 +10043,12 @@
         {
           "name": "on_false",
           "type": "MODEL",
-          "link": 360
+          "link": 358
         },
         {
           "name": "on_true",
           "type": "MODEL",
-          "link": 361
+          "link": 359
         }
       ],
       "outputs": [
@@ -10107,7 +10056,7 @@
           "name": "output",
           "type": "MODEL",
           "links": [
-            120
+            118
           ]
         }
       ],
@@ -10137,13 +10086,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 139,
+      "order": 138,
       "mode": 0,
       "inputs": [
         {
           "name": "switch",
           "type": "BOOLEAN",
-          "link": 362,
+          "link": 360,
           "widget": {
             "name": "switch"
           }
@@ -10151,12 +10100,12 @@
         {
           "name": "on_false",
           "type": "CONDITIONING",
-          "link": 363
+          "link": 361
         },
         {
           "name": "on_true",
           "type": "CONDITIONING",
-          "link": 364
+          "link": 362
         }
       ],
       "outputs": [
@@ -10164,7 +10113,7 @@
           "name": "output",
           "type": "CONDITIONING",
           "links": [
-            125
+            123
           ]
         }
       ],
@@ -10194,13 +10143,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 140,
+      "order": 139,
       "mode": 0,
       "inputs": [
         {
           "name": "switch",
           "type": "BOOLEAN",
-          "link": 365,
+          "link": 363,
           "widget": {
             "name": "switch"
           }
@@ -10208,12 +10157,12 @@
         {
           "name": "on_false",
           "type": "CONDITIONING",
-          "link": 366
+          "link": 364
         },
         {
           "name": "on_true",
           "type": "CONDITIONING",
-          "link": 367
+          "link": 365
         }
       ],
       "outputs": [
@@ -10221,7 +10170,7 @@
           "name": "output",
           "type": "CONDITIONING",
           "links": [
-            126
+            124
           ]
         }
       ],
@@ -10251,13 +10200,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 141,
+      "order": 140,
       "mode": 0,
       "inputs": [
         {
           "name": "switch",
           "type": "BOOLEAN",
-          "link": 368,
+          "link": 366,
           "widget": {
             "name": "switch"
           }
@@ -10265,12 +10214,12 @@
         {
           "name": "on_false",
           "type": "IMAGE",
-          "link": 369
+          "link": 367
         },
         {
           "name": "on_true",
           "type": "IMAGE",
-          "link": 370
+          "link": 368
         }
       ],
       "outputs": [
@@ -10310,13 +10259,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 142,
+      "order": 141,
       "mode": 0,
       "inputs": [
         {
           "name": "switch",
           "type": "BOOLEAN",
-          "link": 371,
+          "link": 369,
           "widget": {
             "name": "switch"
           }
@@ -10324,12 +10273,12 @@
         {
           "name": "on_false",
           "type": "STRING",
-          "link": 372
+          "link": 370
         },
         {
           "name": "on_true",
           "type": "STRING",
-          "link": 373
+          "link": 371
         }
       ],
       "outputs": [
@@ -10367,13 +10316,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 143,
+      "order": 142,
       "mode": 0,
       "inputs": [
         {
           "name": "switch",
           "type": "BOOLEAN",
-          "link": 374,
+          "link": 372,
           "widget": {
             "name": "switch"
           }
@@ -10381,12 +10330,12 @@
         {
           "name": "on_false",
           "type": "STRING",
-          "link": 375
+          "link": 373
         },
         {
           "name": "on_true",
           "type": "STRING",
-          "link": 376
+          "link": 374
         }
       ],
       "outputs": [
@@ -10424,7 +10373,7 @@
       "flags": {
         "collapsed": true
       },
-      "order": 144,
+      "order": 143,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -10432,7 +10381,7 @@
           "name": "STRING",
           "type": "STRING",
           "links": [
-            378
+            376
           ]
         }
       ],
@@ -10462,13 +10411,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 145,
+      "order": 144,
       "mode": 0,
       "inputs": [
         {
           "name": "switch",
           "type": "BOOLEAN",
-          "link": 377,
+          "link": 375,
           "widget": {
             "name": "switch"
           }
@@ -10476,12 +10425,12 @@
         {
           "name": "on_false",
           "type": "STRING",
-          "link": 378
+          "link": 376
         },
         {
           "name": "on_true",
           "type": "STRING",
-          "link": 379
+          "link": 377
         }
       ],
       "outputs": [
@@ -10510,7 +10459,7 @@
       "title": "ImpactSchedulerAdapter",
       "pos": [
         1880,
-        1218
+        1200
       ],
       "size": [
         320,
@@ -10519,13 +10468,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 146,
+      "order": 145,
       "mode": 0,
       "inputs": [
         {
           "name": "scheduler",
           "type": "COMBO",
-          "link": 380,
+          "link": 378,
           "widget": {
             "name": "scheduler"
           }
@@ -10536,7 +10485,7 @@
           "name": "scheduler",
           "type": "COMBO",
           "links": [
-            167
+            165
           ]
         }
       ],
@@ -10559,7 +10508,7 @@
       "title": "ImpactSchedulerAdapter",
       "pos": [
         1880,
-        1236
+        1218
       ],
       "size": [
         320,
@@ -10568,13 +10517,13 @@
       "flags": {
         "collapsed": true
       },
-      "order": 147,
+      "order": 146,
       "mode": 0,
       "inputs": [
         {
           "name": "scheduler",
           "type": "COMBO",
-          "link": 381,
+          "link": 379,
           "widget": {
             "name": "scheduler"
           }
@@ -10585,7 +10534,7 @@
           "name": "scheduler",
           "type": "COMBO",
           "links": [
-            204
+            202
           ]
         }
       ],
@@ -10615,7 +10564,7 @@
         820
       ],
       "flags": {},
-      "order": 148,
+      "order": 147,
       "mode": 0,
       "inputs": [
         {
@@ -10816,7 +10765,7 @@
         1240
       ],
       "flags": {},
-      "order": 149,
+      "order": 148,
       "mode": 0,
       "inputs": [
         {
@@ -10852,7 +10801,7 @@
         220
       ],
       "flags": {},
-      "order": 150,
+      "order": 149,
       "mode": 0,
       "inputs": [
         {
@@ -10869,7 +10818,7 @@
           "name": "image",
           "type": "IMAGE",
           "links": [
-            90
+            88
           ]
         },
         {
@@ -10906,7 +10855,7 @@
         740
       ],
       "flags": {},
-      "order": 151,
+      "order": 150,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -10919,7 +10868,7 @@
           "name": "LORA_STACK",
           "type": "LORA_STACK",
           "links": [
-            321
+            319
           ]
         },
         {
@@ -10974,7 +10923,7 @@
         1460
       ],
       "flags": {},
-      "order": 152,
+      "order": 151,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -10982,56 +10931,56 @@
           "name": "positive_prompt",
           "type": "STRING",
           "links": [
-            240
+            238
           ]
         },
         {
           "name": "negative_prompt",
           "type": "STRING",
           "links": [
-            64
+            62
           ]
         },
         {
           "name": "anima_mod_guidance_quality_tags",
           "type": "STRING",
           "links": [
-            70
+            68
           ]
         },
         {
           "name": "anima_mod_guidance_negative_prompt",
           "type": "STRING",
           "links": [
-            77
+            75
           ]
         },
         {
           "name": "use_anima_mod_guidance",
           "type": "BOOLEAN",
           "links": [
-            65
+            63
           ]
         },
         {
           "name": "use_negative_anima_mod_guidance",
           "type": "BOOLEAN",
           "links": [
-            69
+            67
           ]
         },
         {
           "name": "metadata_prompt",
           "type": "STRING",
           "links": [
-            372
+            370
           ]
         },
         {
           "name": "metadata_negative_prompt",
           "type": "STRING",
           "links": [
-            375
+            373
           ]
         },
         {
@@ -11095,7 +11044,7 @@
         700
       ],
       "flags": {},
-      "order": 153,
+      "order": 152,
       "mode": 0,
       "inputs": [
         {
@@ -11109,7 +11058,7 @@
           "name": "카메라 프롬프트",
           "type": "STRING",
           "links": [
-            242
+            240
           ]
         }
       ],
@@ -11147,7 +11096,7 @@
         100
       ],
       "flags": {},
-      "order": 154,
+      "order": 153,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -11155,14 +11104,14 @@
           "name": "VAE",
           "type": "VAE",
           "links": [
-            46,
-            83,
-            113,
+            44,
+            81,
+            111,
+            128,
             130,
-            132,
-            256,
-            290,
-            311
+            254,
+            288,
+            309
           ]
         }
       ],
@@ -11190,7 +11139,7 @@
         220
       ],
       "flags": {},
-      "order": 155,
+      "order": 154,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -11198,35 +11147,35 @@
           "name": "STEPS",
           "type": "INT",
           "links": [
-            244
+            242
           ]
         },
         {
           "name": "REFINER_STEP",
           "type": "INT",
           "links": [
-            52
+            50
           ]
         },
         {
           "name": "CFG",
           "type": "FLOAT",
           "links": [
-            245
+            243
           ]
         },
         {
           "name": "SAMPLER",
           "type": "COMBO",
           "links": [
-            246
+            244
           ]
         },
         {
           "name": "SCHEDULER",
           "type": "COMBO",
           "links": [
-            247
+            245
           ]
         }
       ],
@@ -11262,7 +11211,7 @@
         130
       ],
       "flags": {},
-      "order": 156,
+      "order": 155,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -11270,8 +11219,8 @@
           "name": "SEED",
           "type": "INT",
           "links": [
-            50,
-            305
+            48,
+            303
           ]
         }
       ],
@@ -11299,7 +11248,7 @@
         160
       ],
       "flags": {},
-      "order": 157,
+      "order": 156,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -11307,8 +11256,8 @@
           "name": "CLIP",
           "type": "CLIP",
           "links": [
-            43,
-            72
+            41,
+            70
           ]
         }
       ],
@@ -11340,7 +11289,7 @@
         270
       ],
       "flags": {},
-      "order": 158,
+      "order": 157,
       "mode": 0,
       "inputs": [
         {
@@ -11354,14 +11303,14 @@
           "name": "model",
           "type": "MODEL",
           "links": [
-            42
+            40
           ]
         },
         {
           "name": "model_name",
           "type": "STRING",
           "links": [
-            81
+            79
           ]
         }
       ],
@@ -11399,7 +11348,7 @@
         120
       ],
       "flags": {},
-      "order": 159,
+      "order": 158,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -11407,8 +11356,8 @@
           "name": "UPSCALE_MODEL",
           "type": "UPSCALE_MODEL",
           "links": [
-            230,
-            272
+            228,
+            270
           ]
         }
       ],
@@ -11436,7 +11385,7 @@
         100
       ],
       "flags": {},
-      "order": 160,
+      "order": 159,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -11444,10 +11393,10 @@
           "name": "FLOAT",
           "type": "FLOAT",
           "links": [
-            209,
-            216,
-            224,
-            273
+            207,
+            214,
+            222,
+            271
           ]
         }
       ],
@@ -11475,7 +11424,7 @@
         100
       ],
       "flags": {},
-      "order": 161,
+      "order": 160,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -11483,8 +11432,8 @@
           "name": "INT",
           "type": "INT",
           "links": [
-            226,
-            275
+            224,
+            273
           ]
         }
       ],
@@ -11514,7 +11463,7 @@
         270
       ],
       "flags": {},
-      "order": 162,
+      "order": 161,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -11530,22 +11479,22 @@
           "name": "detail",
           "type": "BOOLEAN",
           "links": [
-            211
+            209
           ]
         },
         {
           "name": "lakis_detail",
           "type": "BOOLEAN",
           "links": [
-            264,
-            280
+            262,
+            278
           ]
         },
         {
           "name": "composition",
           "type": "BOOLEAN",
           "links": [
-            241
+            239
           ]
         },
         {
@@ -11553,35 +11502,35 @@
           "type": "BOOLEAN",
           "links": [
             24,
-            87,
-            93,
-            243,
-            249
+            85,
+            91,
+            241,
+            247
           ]
         },
         {
           "name": "inpaint",
           "type": "BOOLEAN",
           "links": [
-            283,
-            284,
-            322,
-            368,
-            371,
-            374,
-            377
+            281,
+            282,
+            320,
+            366,
+            369,
+            372,
+            375
           ]
         },
         {
           "name": "pose",
           "type": "BOOLEAN",
           "links": [
-            341,
-            344,
-            347,
-            359,
-            362,
-            365
+            339,
+            342,
+            345,
+            357,
+            360,
+            363
           ]
         },
         {
@@ -11593,35 +11542,35 @@
           "name": "source_denoise",
           "type": "FLOAT",
           "links": [
-            95
+            93
           ]
         },
         {
           "name": "highrez_steps",
           "type": "INT",
           "links": [
-            122
+            120
           ]
         },
         {
           "name": "highrez_cfg",
           "type": "FLOAT",
           "links": [
-            123
+            121
           ]
         },
         {
           "name": "highrez_sampler",
           "type": "COMBO",
           "links": [
-            124
+            122
           ]
         },
         {
           "name": "highrez_denoise",
           "type": "FLOAT",
           "links": [
-            128
+            126
           ]
         }
       ],
@@ -11659,7 +11608,7 @@
         150
       ],
       "flags": {},
-      "order": 163,
+      "order": 162,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -11667,20 +11616,20 @@
           "name": "width",
           "type": "INT",
           "links": [
-            88,
-            91,
-            324,
-            328
+            86,
+            89,
+            322,
+            326
           ]
         },
         {
           "name": "height",
           "type": "INT",
           "links": [
-            89,
-            92,
-            325,
-            329
+            87,
+            90,
+            323,
+            327
           ]
         }
       ],
@@ -11710,48 +11659,48 @@
         800
       ],
       "flags": {},
-      "order": 164,
+      "order": 163,
       "mode": 0,
       "inputs": [
         {
           "name": "image",
           "type": "IMAGE",
-          "link": 252
+          "link": 250
         },
         {
           "name": "face_segs",
           "type": "SEGS",
-          "link": 253
+          "link": 251
         },
         {
           "name": "model",
           "type": "MODEL",
-          "link": 254
+          "link": 252
         },
         {
           "name": "clip",
           "type": "CLIP",
-          "link": 255
+          "link": 253
         },
         {
           "name": "vae",
           "type": "VAE",
-          "link": 256
+          "link": 254
         },
         {
           "name": "positive",
           "type": "CONDITIONING",
-          "link": 257
+          "link": 255
         },
         {
           "name": "negative",
           "type": "CONDITIONING",
-          "link": 258
+          "link": 256
         },
         {
           "name": "seed",
           "type": "INT",
-          "link": 259,
+          "link": 257,
           "widget": {
             "name": "seed"
           }
@@ -11759,7 +11708,7 @@
         {
           "name": "cfg",
           "type": "FLOAT",
-          "link": 260,
+          "link": 258,
           "widget": {
             "name": "cfg"
           }
@@ -11767,7 +11716,7 @@
         {
           "name": "sampler_name",
           "type": "COMBO",
-          "link": 261,
+          "link": 259,
           "widget": {
             "name": "sampler_name"
           }
@@ -11775,7 +11724,7 @@
         {
           "name": "scheduler",
           "type": "COMBO",
-          "link": 262,
+          "link": 260,
           "widget": {
             "name": "scheduler"
           }
@@ -11783,7 +11732,7 @@
         {
           "name": "detailer_hook",
           "type": "DETAILER_HOOK",
-          "link": 263
+          "link": 261
         }
       ],
       "outputs": [
@@ -11791,7 +11740,7 @@
           "name": "image",
           "type": "IMAGE",
           "links": [
-            266
+            264
           ]
         },
         {
@@ -11870,43 +11819,43 @@
         360
       ],
       "flags": {},
-      "order": 165,
+      "order": 164,
       "mode": 0,
       "inputs": [
         {
           "name": "image",
           "type": "IMAGE",
-          "link": 267
+          "link": 265
         },
         {
           "name": "model",
           "type": "MODEL",
-          "link": 268
+          "link": 266
         },
         {
           "name": "positive",
           "type": "CONDITIONING",
-          "link": 269
+          "link": 267
         },
         {
           "name": "negative",
           "type": "CONDITIONING",
-          "link": 270
+          "link": 268
         },
         {
           "name": "vae",
           "type": "VAE",
-          "link": 271
+          "link": 269
         },
         {
           "name": "upscale_model",
           "type": "UPSCALE_MODEL",
-          "link": 272
+          "link": 270
         },
         {
           "name": "upscale_by",
           "type": "FLOAT",
-          "link": 273,
+          "link": 271,
           "widget": {
             "name": "upscale_by"
           }
@@ -11914,7 +11863,7 @@
         {
           "name": "seed",
           "type": "INT",
-          "link": 274,
+          "link": 272,
           "widget": {
             "name": "seed"
           }
@@ -11922,7 +11871,7 @@
         {
           "name": "steps",
           "type": "INT",
-          "link": 275,
+          "link": 273,
           "widget": {
             "name": "steps"
           }
@@ -11930,7 +11879,7 @@
         {
           "name": "cfg",
           "type": "FLOAT",
-          "link": 276,
+          "link": 274,
           "widget": {
             "name": "cfg"
           }
@@ -11938,7 +11887,7 @@
         {
           "name": "sampler_name",
           "type": "COMBO",
-          "link": 277,
+          "link": 275,
           "widget": {
             "name": "sampler_name"
           }
@@ -11946,7 +11895,7 @@
         {
           "name": "scheduler",
           "type": "COMBO",
-          "link": 278,
+          "link": 276,
           "widget": {
             "name": "scheduler"
           }
@@ -11954,7 +11903,7 @@
         {
           "name": "tile_size",
           "type": "INT",
-          "link": 279,
+          "link": 277,
           "widget": {
             "name": "tile_size"
           }
@@ -11965,7 +11914,7 @@
           "name": "IMAGE",
           "type": "IMAGE",
           "links": [
-            282
+            280
           ]
         }
       ],
@@ -12015,13 +11964,13 @@
         220
       ],
       "flags": {},
-      "order": 166,
+      "order": 165,
       "mode": 0,
       "inputs": [
         {
           "name": "enabled",
           "type": "BOOLEAN",
-          "link": 283,
+          "link": 281,
           "widget": {
             "name": "enabled"
           }
@@ -12032,8 +11981,8 @@
           "name": "image",
           "type": "IMAGE",
           "links": [
-            287,
-            312
+            285,
+            310
           ]
         },
         {
@@ -12070,13 +12019,13 @@
         220
       ],
       "flags": {},
-      "order": 167,
+      "order": 166,
       "mode": 0,
       "inputs": [
         {
           "name": "enabled",
           "type": "BOOLEAN",
-          "link": 284,
+          "link": 282,
           "widget": {
             "name": "enabled"
           }
@@ -12092,7 +12041,7 @@
           "name": "mask",
           "type": "MASK",
           "links": [
-            285
+            283
           ]
         }
       ],
@@ -12124,7 +12073,7 @@
         660
       ],
       "flags": {},
-      "order": 168,
+      "order": 167,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -12132,51 +12081,51 @@
           "name": "positive",
           "type": "STRING",
           "links": [
-            299,
-            373
+            297,
+            371
           ]
         },
         {
           "name": "negative",
           "type": "STRING",
           "links": [
-            301,
-            376
+            299,
+            374
           ]
         },
         {
           "name": "denoise",
           "type": "FLOAT",
           "links": [
-            309
+            307
           ]
         },
         {
           "name": "feather",
           "type": "INT",
           "links": [
-            319
+            317
           ]
         },
         {
           "name": "color_match_strength",
           "type": "FLOAT",
           "links": [
-            320
+            318
           ]
         },
         {
           "name": "use_loras",
           "type": "BOOLEAN",
           "links": [
-            323
+            321
           ]
         },
         {
           "name": "mask_expand",
           "type": "INT",
           "links": [
-            286
+            284
           ]
         }
       ],
@@ -12212,23 +12161,23 @@
         230
       ],
       "flags": {},
-      "order": 169,
+      "order": 168,
       "mode": 0,
       "inputs": [
         {
           "name": "model",
           "type": "MODEL",
-          "link": 296
+          "link": 294
         },
         {
           "name": "image",
           "type": "IMAGE",
-          "link": 297
+          "link": 295
         },
         {
           "name": "mask",
           "type": "MASK",
-          "link": 298
+          "link": 296
         }
       ],
       "outputs": [
@@ -12236,7 +12185,7 @@
           "name": "model",
           "type": "MODEL",
           "links": [
-            303
+            301
           ]
         }
       ],
@@ -12272,13 +12221,13 @@
         840
       ],
       "flags": {},
-      "order": 170,
+      "order": 169,
       "mode": 0,
       "inputs": [
         {
           "name": "width",
           "type": "INT",
-          "link": 324,
+          "link": 322,
           "widget": {
             "name": "width"
           }
@@ -12286,7 +12235,7 @@
         {
           "name": "height",
           "type": "INT",
-          "link": 325,
+          "link": 323,
           "widget": {
             "name": "height"
           }
@@ -12302,8 +12251,8 @@
           "name": "images",
           "type": "IMAGE",
           "links": [
-            333,
-            351
+            331,
+            349
           ]
         },
         {
@@ -12330,7 +12279,7 @@
           "name": "region painter",
           "type": "TOYXYZ_REGION_PAINTER",
           "links": [
-            331
+            329
           ]
         }
       ],
@@ -12364,18 +12313,18 @@
         840
       ],
       "flags": {},
-      "order": 171,
+      "order": 170,
       "mode": 0,
       "inputs": [
         {
           "name": "clip",
           "type": "CLIP",
-          "link": 327
+          "link": 325
         },
         {
           "name": "width",
           "type": "INT",
-          "link": 328,
+          "link": 326,
           "widget": {
             "name": "width"
           }
@@ -12383,7 +12332,7 @@
         {
           "name": "height",
           "type": "INT",
-          "link": 329,
+          "link": 327,
           "widget": {
             "name": "height"
           }
@@ -12391,12 +12340,12 @@
         {
           "name": "region",
           "type": "region",
-          "link": 330
+          "link": 328
         },
         {
           "name": "region_painter",
           "type": "TOYXYZ_REGION_PAINTER",
-          "link": 331
+          "link": 329
         }
       ],
       "outputs": [
@@ -12404,16 +12353,16 @@
           "name": "images",
           "type": "IMAGE",
           "links": [
-            336,
-            354
+            334,
+            352
           ]
         },
         {
           "name": "region",
           "type": "region",
           "links": [
-            339,
-            357
+            337,
+            355
           ]
         }
       ],
@@ -12445,7 +12394,7 @@
         100
       ],
       "flags": {},
-      "order": 172,
+      "order": 171,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -12453,8 +12402,8 @@
           "name": "FLOAT",
           "type": "FLOAT",
           "links": [
-            334,
-            352
+            332,
+            350
           ]
         }
       ],
@@ -12482,7 +12431,7 @@
         100
       ],
       "flags": {},
-      "order": 173,
+      "order": 172,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -12490,8 +12439,8 @@
           "name": "FLOAT",
           "type": "FLOAT",
           "links": [
-            337,
-            355
+            335,
+            353
           ]
         }
       ],
@@ -12518,7 +12467,7 @@
         760
       ],
       "flags": {},
-      "order": 174,
+      "order": 173,
       "mode": 0,
       "inputs": [],
       "outputs": [],
@@ -12762,33 +12711,33 @@
     ],
     [
       30,
+      4097,
+      0,
       4101,
       0,
-      4102,
-      1,
-      "MODEL"
+      "RGTHREE_CONTEXT"
     ],
     [
       31,
-      4101,
-      1,
-      4102,
-      2,
-      "CLIP"
-    ],
-    [
-      32,
-      4101,
-      2,
-      4102,
-      3,
-      "VAE"
-    ],
-    [
-      33,
       4089,
       0,
       4098,
+      0,
+      "STRING"
+    ],
+    [
+      32,
+      4075,
+      1,
+      4098,
+      1,
+      "CLIP"
+    ],
+    [
+      33,
+      4090,
+      0,
+      4099,
       0,
       "STRING"
     ],
@@ -12796,28 +12745,12 @@
       34,
       4075,
       1,
-      4098,
+      4099,
       1,
       "CLIP"
     ],
     [
       35,
-      4090,
-      0,
-      4099,
-      0,
-      "STRING"
-    ],
-    [
-      36,
-      4075,
-      1,
-      4099,
-      1,
-      "CLIP"
-    ],
-    [
-      37,
       4075,
       0,
       4074,
@@ -12825,7 +12758,7 @@
       "MODEL"
     ],
     [
-      38,
+      36,
       4074,
       0,
       4072,
@@ -12833,7 +12766,7 @@
       "MODEL"
     ],
     [
-      39,
+      37,
       4072,
       0,
       4073,
@@ -12841,7 +12774,7 @@
       "MODEL"
     ],
     [
-      40,
+      38,
       4080,
       0,
       4082,
@@ -12849,7 +12782,7 @@
       "MODEL"
     ],
     [
-      41,
+      39,
       3026,
       0,
       4075,
@@ -12857,7 +12790,7 @@
       "LORA_STACK"
     ],
     [
-      42,
+      40,
       4076,
       0,
       4075,
@@ -12865,7 +12798,7 @@
       "MODEL"
     ],
     [
-      43,
+      41,
       4078,
       0,
       4075,
@@ -12873,7 +12806,7 @@
       "CLIP"
     ],
     [
-      44,
+      42,
       4088,
       0,
       4097,
@@ -12881,7 +12814,7 @@
       "MODEL"
     ],
     [
-      45,
+      43,
       4075,
       1,
       4097,
@@ -12889,7 +12822,7 @@
       "CLIP"
     ],
     [
-      46,
+      44,
       4077,
       0,
       4097,
@@ -12897,7 +12830,7 @@
       "VAE"
     ],
     [
-      47,
+      45,
       4098,
       0,
       4097,
@@ -12905,7 +12838,7 @@
       "CONDITIONING"
     ],
     [
-      48,
+      46,
       4099,
       0,
       4097,
@@ -12913,7 +12846,7 @@
       "CONDITIONING"
     ],
     [
-      49,
+      47,
       4052,
       0,
       4097,
@@ -12921,7 +12854,7 @@
       "LATENT"
     ],
     [
-      50,
+      48,
       4085,
       0,
       4097,
@@ -12929,7 +12862,7 @@
       "INT"
     ],
     [
-      51,
+      49,
       3004,
       0,
       4097,
@@ -12937,7 +12870,7 @@
       "INT"
     ],
     [
-      52,
+      50,
       4100,
       1,
       4097,
@@ -12945,7 +12878,7 @@
       "INT"
     ],
     [
-      53,
+      51,
       3004,
       1,
       4097,
@@ -12953,7 +12886,7 @@
       "FLOAT"
     ],
     [
-      54,
+      52,
       3004,
       2,
       4097,
@@ -12961,7 +12894,7 @@
       "COMBO"
     ],
     [
-      55,
+      53,
       3004,
       3,
       4097,
@@ -12969,7 +12902,7 @@
       "COMBO"
     ],
     [
-      56,
+      54,
       4087,
       0,
       4088,
@@ -12977,7 +12910,7 @@
       "BOOLEAN"
     ],
     [
-      57,
+      55,
       4084,
       0,
       4088,
@@ -12985,7 +12918,7 @@
       "MODEL"
     ],
     [
-      58,
+      56,
       4086,
       0,
       4088,
@@ -12993,7 +12926,7 @@
       "MODEL"
     ],
     [
-      59,
+      57,
       4083,
       0,
       4084,
@@ -13001,7 +12934,7 @@
       "BOOLEAN"
     ],
     [
-      60,
+      58,
       4080,
       0,
       4084,
@@ -13009,7 +12942,7 @@
       "MODEL"
     ],
     [
-      61,
+      59,
       4082,
       0,
       4084,
@@ -13017,7 +12950,7 @@
       "MODEL"
     ],
     [
-      62,
+      60,
       4084,
       0,
       4086,
@@ -13025,7 +12958,7 @@
       "MODEL"
     ],
     [
-      63,
+      61,
       3002,
       0,
       4089,
@@ -13033,7 +12966,7 @@
       "STRING"
     ],
     [
-      64,
+      62,
       2133,
       1,
       4090,
@@ -13041,7 +12974,7 @@
       "STRING"
     ],
     [
-      65,
+      63,
       2133,
       4,
       4081,
@@ -13049,7 +12982,7 @@
       "BOOLEAN"
     ],
     [
-      66,
+      64,
       4081,
       0,
       4080,
@@ -13057,7 +12990,7 @@
       "BOOLEAN"
     ],
     [
-      67,
+      65,
       4073,
       0,
       4080,
@@ -13065,7 +12998,7 @@
       "MODEL"
     ],
     [
-      68,
+      66,
       4079,
       0,
       4080,
@@ -13073,7 +13006,7 @@
       "MODEL"
     ],
     [
-      69,
+      67,
       2133,
       5,
       4091,
@@ -13081,7 +13014,7 @@
       "BOOLEAN"
     ],
     [
-      70,
+      68,
       2133,
       2,
       4093,
@@ -13089,7 +13022,7 @@
       "STRING"
     ],
     [
-      71,
+      69,
       4073,
       0,
       4079,
@@ -13097,7 +13030,7 @@
       "MODEL"
     ],
     [
-      72,
+      70,
       4078,
       0,
       4079,
@@ -13105,7 +13038,7 @@
       "CLIP"
     ],
     [
-      73,
+      71,
       4093,
       0,
       4079,
@@ -13113,7 +13046,7 @@
       "STRING"
     ],
     [
-      74,
+      72,
       4092,
       0,
       4079,
@@ -13121,7 +13054,7 @@
       "STRING"
     ],
     [
-      75,
+      73,
       4098,
       0,
       4079,
@@ -13129,7 +13062,7 @@
       "CONDITIONING"
     ],
     [
-      76,
+      74,
       4099,
       0,
       4079,
@@ -13137,7 +13070,7 @@
       "CONDITIONING"
     ],
     [
-      77,
+      75,
       2133,
       3,
       4094,
@@ -13145,7 +13078,7 @@
       "STRING"
     ],
     [
-      78,
+      76,
       4091,
       0,
       4092,
@@ -13153,7 +13086,7 @@
       "BOOLEAN"
     ],
     [
-      79,
+      77,
       4095,
       0,
       4092,
@@ -13161,7 +13094,7 @@
       "STRING"
     ],
     [
-      80,
+      78,
       4094,
       0,
       4092,
@@ -13169,7 +13102,7 @@
       "STRING"
     ],
     [
-      81,
+      79,
       4076,
       1,
       4096,
@@ -13177,7 +13110,7 @@
       "STRING"
     ],
     [
-      82,
+      80,
       4051,
       0,
       4050,
@@ -13185,7 +13118,7 @@
       "IMAGE"
     ],
     [
-      83,
+      81,
       4077,
       0,
       4050,
@@ -13193,7 +13126,7 @@
       "VAE"
     ],
     [
-      84,
+      82,
       4049,
       0,
       4052,
@@ -13201,7 +13134,7 @@
       "BOOLEAN"
     ],
     [
-      85,
+      83,
       4053,
       0,
       4052,
@@ -13209,7 +13142,7 @@
       "LATENT"
     ],
     [
-      86,
+      84,
       4050,
       0,
       4052,
@@ -13217,7 +13150,7 @@
       "LATENT"
     ],
     [
-      87,
+      85,
       3000,
       4,
       4049,
@@ -13225,23 +13158,23 @@
       "BOOLEAN"
     ],
     [
+      86,
+      3001,
+      0,
+      4053,
+      0,
+      "INT"
+    ],
+    [
+      87,
+      3001,
+      1,
+      4053,
+      1,
+      "INT"
+    ],
+    [
       88,
-      3001,
-      0,
-      4053,
-      0,
-      "INT"
-    ],
-    [
-      89,
-      3001,
-      1,
-      4053,
-      1,
-      "INT"
-    ],
-    [
-      90,
       1744,
       0,
       4051,
@@ -13249,7 +13182,7 @@
       "IMAGE"
     ],
     [
-      91,
+      89,
       3001,
       0,
       4051,
@@ -13257,7 +13190,7 @@
       "INT"
     ],
     [
-      92,
+      90,
       3001,
       1,
       4051,
@@ -13265,7 +13198,7 @@
       "INT"
     ],
     [
-      93,
+      91,
       3000,
       4,
       4045,
@@ -13273,7 +13206,7 @@
       "BOOLEAN"
     ],
     [
-      94,
+      92,
       4046,
       0,
       4045,
@@ -13281,7 +13214,7 @@
       "FLOAT"
     ],
     [
-      95,
+      93,
       3000,
       8,
       4045,
@@ -13289,7 +13222,7 @@
       "FLOAT"
     ],
     [
-      96,
+      94,
       4044,
       0,
       4041,
@@ -13297,7 +13230,7 @@
       "MODEL"
     ],
     [
-      97,
+      95,
       4042,
       8,
       4041,
@@ -13305,7 +13238,7 @@
       "INT"
     ],
     [
-      98,
+      96,
       4042,
       9,
       4041,
@@ -13313,7 +13246,7 @@
       "INT"
     ],
     [
-      99,
+      97,
       4042,
       11,
       4041,
@@ -13321,7 +13254,7 @@
       "FLOAT"
     ],
     [
-      100,
+      98,
       4042,
       13,
       4041,
@@ -13329,7 +13262,7 @@
       "COMBO"
     ],
     [
-      101,
+      99,
       4042,
       14,
       4041,
@@ -13337,7 +13270,7 @@
       "COMBO"
     ],
     [
-      102,
+      100,
       3064,
       0,
       4041,
@@ -13345,7 +13278,7 @@
       "CONDITIONING"
     ],
     [
-      103,
+      101,
       3065,
       0,
       4041,
@@ -13353,7 +13286,7 @@
       "CONDITIONING"
     ],
     [
-      104,
+      102,
       4042,
       6,
       4041,
@@ -13361,7 +13294,7 @@
       "LATENT"
     ],
     [
-      105,
+      103,
       4045,
       0,
       4041,
@@ -13369,7 +13302,7 @@
       "FLOAT"
     ],
     [
-      106,
+      104,
       3063,
       0,
       4044,
@@ -13377,7 +13310,7 @@
       "MODEL"
     ],
     [
-      107,
+      105,
       4042,
       9,
       4044,
@@ -13385,7 +13318,7 @@
       "INT"
     ],
     [
-      108,
+      106,
       4042,
       1,
       4043,
@@ -13393,7 +13326,7 @@
       "MODEL"
     ],
     [
-      109,
+      107,
       4047,
       0,
       4043,
@@ -13401,7 +13334,7 @@
       "FLOAT"
     ],
     [
-      110,
+      108,
       4048,
       0,
       4043,
@@ -13409,7 +13342,7 @@
       "FLOAT"
     ],
     [
-      111,
+      109,
       4097,
       0,
       4042,
@@ -13417,7 +13350,7 @@
       "RGTHREE_CONTEXT"
     ],
     [
-      112,
+      110,
       4033,
       0,
       4031,
@@ -13425,7 +13358,7 @@
       "LATENT"
     ],
     [
-      113,
+      111,
       4077,
       0,
       4031,
@@ -13433,7 +13366,7 @@
       "VAE"
     ],
     [
-      114,
+      112,
       4097,
       0,
       4034,
@@ -13441,7 +13374,7 @@
       "RGTHREE_CONTEXT"
     ],
     [
-      115,
+      113,
       4034,
       1,
       4035,
@@ -13449,7 +13382,7 @@
       "MODEL"
     ],
     [
-      116,
+      114,
       4038,
       0,
       4035,
@@ -13457,7 +13390,7 @@
       "FLOAT"
     ],
     [
-      117,
+      115,
       4039,
       0,
       4035,
@@ -13465,7 +13398,7 @@
       "FLOAT"
     ],
     [
-      118,
+      116,
       4041,
       0,
       4033,
@@ -13473,7 +13406,7 @@
       "LATENT"
     ],
     [
-      119,
+      117,
       4032,
       0,
       4033,
@@ -13481,7 +13414,7 @@
       "LATENT"
     ],
     [
-      120,
+      118,
       3073,
       0,
       4032,
@@ -13489,7 +13422,7 @@
       "MODEL"
     ],
     [
-      121,
+      119,
       4034,
       8,
       4032,
@@ -13497,7 +13430,7 @@
       "INT"
     ],
     [
-      122,
+      120,
       3000,
       9,
       4032,
@@ -13505,7 +13438,7 @@
       "INT"
     ],
     [
-      123,
+      121,
       3000,
       10,
       4032,
@@ -13513,7 +13446,7 @@
       "FLOAT"
     ],
     [
-      124,
+      122,
       3000,
       11,
       4032,
@@ -13521,7 +13454,7 @@
       "COMBO"
     ],
     [
-      125,
+      123,
       3074,
       0,
       4032,
@@ -13529,7 +13462,7 @@
       "CONDITIONING"
     ],
     [
-      126,
+      124,
       3075,
       0,
       4032,
@@ -13537,7 +13470,7 @@
       "CONDITIONING"
     ],
     [
-      127,
+      125,
       4037,
       0,
       4032,
@@ -13545,7 +13478,7 @@
       "LATENT"
     ],
     [
-      128,
+      126,
       3000,
       12,
       4032,
@@ -13553,7 +13486,7 @@
       "FLOAT"
     ],
     [
-      129,
+      127,
       4041,
       0,
       4036,
@@ -13561,31 +13494,31 @@
       "LATENT"
     ],
     [
-      130,
+      128,
       4077,
       0,
       4036,
+      1,
+      "VAE"
+    ],
+    [
+      129,
+      4040,
+      0,
+      4037,
+      0,
+      "IMAGE"
+    ],
+    [
+      130,
+      4077,
+      0,
+      4037,
       1,
       "VAE"
     ],
     [
       131,
-      4040,
-      0,
-      4037,
-      0,
-      "IMAGE"
-    ],
-    [
-      132,
-      4077,
-      0,
-      4037,
-      1,
-      "VAE"
-    ],
-    [
-      133,
       4036,
       0,
       4040,
@@ -13593,7 +13526,7 @@
       "IMAGE"
     ],
     [
-      134,
+      132,
       4002,
       0,
       4000,
@@ -13601,7 +13534,7 @@
       "INT"
     ],
     [
-      135,
+      133,
       4016,
       0,
       4001,
@@ -13609,7 +13542,7 @@
       "STRING"
     ],
     [
-      136,
+      134,
       4000,
       0,
       4001,
@@ -13617,7 +13550,7 @@
       "STRING"
     ],
     [
-      137,
+      135,
       256,
       1,
       4002,
@@ -13625,15 +13558,15 @@
       "INT"
     ],
     [
-      138,
-      4102,
+      136,
+      4101,
       0,
       4003,
       0,
       "RGTHREE_CONTEXT"
     ],
     [
-      139,
+      137,
       4001,
       0,
       4004,
@@ -13641,7 +13574,7 @@
       "STRING"
     ],
     [
-      140,
+      138,
       4003,
       2,
       4004,
@@ -13649,7 +13582,7 @@
       "CLIP"
     ],
     [
-      141,
+      139,
       4006,
       0,
       4005,
@@ -13657,7 +13590,7 @@
       "MASK"
     ],
     [
-      142,
+      140,
       4003,
       1,
       4006,
@@ -13665,7 +13598,7 @@
       "MODEL"
     ],
     [
-      143,
+      141,
       4031,
       0,
       4006,
@@ -13673,7 +13606,7 @@
       "IMAGE"
     ],
     [
-      144,
+      142,
       4004,
       0,
       4006,
@@ -13681,7 +13614,7 @@
       "CONDITIONING"
     ],
     [
-      145,
+      143,
       2138,
       0,
       4009,
@@ -13689,7 +13622,7 @@
       "BOOLEAN"
     ],
     [
-      146,
+      144,
       4010,
       0,
       4009,
@@ -13697,7 +13630,7 @@
       "SEGS"
     ],
     [
-      147,
+      145,
       4008,
       0,
       4009,
@@ -13705,7 +13638,7 @@
       "SEGS"
     ],
     [
-      148,
+      146,
       2138,
       0,
       4011,
@@ -13713,15 +13646,15 @@
       "BOOLEAN"
     ],
     [
-      149,
-      4103,
+      147,
+      4102,
       0,
       4011,
       1,
       "IMAGE"
     ],
     [
-      150,
+      148,
       4007,
       0,
       4011,
@@ -13729,7 +13662,7 @@
       "IMAGE"
     ],
     [
-      151,
+      149,
       4014,
       0,
       4012,
@@ -13737,7 +13670,7 @@
       "MODEL"
     ],
     [
-      152,
+      150,
       4015,
       0,
       4012,
@@ -13745,7 +13678,7 @@
       "MODEL"
     ],
     [
-      153,
+      151,
       2136,
       0,
       4013,
@@ -13753,7 +13686,7 @@
       "RGTHREE_CONTEXT"
     ],
     [
-      154,
+      152,
       4014,
       0,
       4015,
@@ -13761,7 +13694,7 @@
       "MODEL"
     ],
     [
-      155,
+      153,
       4013,
       1,
       4014,
@@ -13769,7 +13702,7 @@
       "MODEL"
     ],
     [
-      156,
+      154,
       4013,
       10,
       4014,
@@ -13777,7 +13710,7 @@
       "INT"
     ],
     [
-      157,
+      155,
       4005,
       0,
       4008,
@@ -13785,15 +13718,15 @@
       "MASK"
     ],
     [
-      158,
-      4103,
+      156,
+      4102,
       0,
       4007,
       0,
       "IMAGE"
     ],
     [
-      159,
+      157,
       4009,
       0,
       4007,
@@ -13801,7 +13734,7 @@
       "SEGS"
     ],
     [
-      160,
+      158,
       4012,
       0,
       4007,
@@ -13809,7 +13742,7 @@
       "MODEL"
     ],
     [
-      161,
+      159,
       4013,
       2,
       4007,
@@ -13817,7 +13750,7 @@
       "CLIP"
     ],
     [
-      162,
+      160,
       4013,
       3,
       4007,
@@ -13825,7 +13758,7 @@
       "VAE"
     ],
     [
-      163,
+      161,
       4013,
       8,
       4007,
@@ -13833,7 +13766,7 @@
       "INT"
     ],
     [
-      164,
+      162,
       4013,
       10,
       4007,
@@ -13841,7 +13774,7 @@
       "INT"
     ],
     [
-      165,
+      163,
       4013,
       11,
       4007,
@@ -13849,7 +13782,7 @@
       "FLOAT"
     ],
     [
-      166,
+      164,
       4013,
       13,
       4007,
@@ -13857,7 +13790,7 @@
       "COMBO"
     ],
     [
-      167,
+      165,
       3041,
       0,
       4007,
@@ -13865,7 +13798,7 @@
       "COMBO"
     ],
     [
-      168,
+      166,
       4013,
       4,
       4007,
@@ -13873,7 +13806,7 @@
       "CONDITIONING"
     ],
     [
-      169,
+      167,
       4013,
       5,
       4007,
@@ -13881,7 +13814,7 @@
       "CONDITIONING"
     ],
     [
-      170,
+      168,
       4017,
       0,
       4007,
@@ -13889,7 +13822,7 @@
       "DETAILER_HOOK"
     ],
     [
-      171,
+      169,
       4056,
       0,
       4054,
@@ -13897,7 +13830,7 @@
       "INT"
     ],
     [
-      172,
+      170,
       4067,
       0,
       4055,
@@ -13905,7 +13838,7 @@
       "STRING"
     ],
     [
-      173,
+      171,
       4054,
       0,
       4055,
@@ -13913,7 +13846,7 @@
       "STRING"
     ],
     [
-      174,
+      172,
       227,
       1,
       4056,
@@ -13921,15 +13854,15 @@
       "INT"
     ],
     [
-      175,
-      4102,
+      173,
+      4101,
       0,
       4057,
       0,
       "RGTHREE_CONTEXT"
     ],
     [
-      176,
+      174,
       4055,
       0,
       4058,
@@ -13937,7 +13870,7 @@
       "STRING"
     ],
     [
-      177,
+      175,
       4057,
       2,
       4058,
@@ -13945,7 +13878,7 @@
       "CLIP"
     ],
     [
-      178,
+      176,
       4060,
       0,
       4059,
@@ -13953,7 +13886,7 @@
       "MASK"
     ],
     [
-      179,
+      177,
       4057,
       1,
       4060,
@@ -13961,15 +13894,15 @@
       "MODEL"
     ],
     [
-      180,
-      4104,
+      178,
+      4103,
       0,
       4060,
       1,
       "IMAGE"
     ],
     [
-      181,
+      179,
       4058,
       0,
       4060,
@@ -13977,7 +13910,7 @@
       "CONDITIONING"
     ],
     [
-      182,
+      180,
       2139,
       0,
       4062,
@@ -13985,7 +13918,7 @@
       "BOOLEAN"
     ],
     [
-      183,
+      181,
       4063,
       0,
       4062,
@@ -13993,7 +13926,7 @@
       "SEGS"
     ],
     [
-      184,
+      182,
       4068,
       0,
       4062,
@@ -14001,7 +13934,7 @@
       "SEGS"
     ],
     [
-      185,
+      183,
       2139,
       0,
       4064,
@@ -14009,15 +13942,15 @@
       "BOOLEAN"
     ],
     [
-      186,
-      4104,
+      184,
+      4103,
       0,
       4064,
       1,
       "IMAGE"
     ],
     [
-      187,
+      185,
       4061,
       0,
       4064,
@@ -14025,7 +13958,7 @@
       "IMAGE"
     ],
     [
-      188,
+      186,
       4070,
       0,
       4065,
@@ -14033,7 +13966,7 @@
       "MODEL"
     ],
     [
-      189,
+      187,
       4069,
       0,
       4065,
@@ -14041,7 +13974,7 @@
       "MODEL"
     ],
     [
-      190,
+      188,
       2136,
       0,
       4066,
@@ -14049,7 +13982,7 @@
       "RGTHREE_CONTEXT"
     ],
     [
-      191,
+      189,
       4059,
       0,
       4068,
@@ -14057,7 +13990,7 @@
       "MASK"
     ],
     [
-      192,
+      190,
       4070,
       0,
       4069,
@@ -14065,7 +13998,7 @@
       "MODEL"
     ],
     [
-      193,
+      191,
       4066,
       1,
       4070,
@@ -14073,7 +14006,7 @@
       "MODEL"
     ],
     [
-      194,
+      192,
       4066,
       10,
       4070,
@@ -14081,15 +14014,15 @@
       "INT"
     ],
     [
-      195,
-      4104,
+      193,
+      4103,
       0,
       4061,
       0,
       "IMAGE"
     ],
     [
-      196,
+      194,
       4062,
       0,
       4061,
@@ -14097,7 +14030,7 @@
       "SEGS"
     ],
     [
-      197,
+      195,
       4065,
       0,
       4061,
@@ -14105,7 +14038,7 @@
       "MODEL"
     ],
     [
-      198,
+      196,
       4066,
       2,
       4061,
@@ -14113,7 +14046,7 @@
       "CLIP"
     ],
     [
-      199,
+      197,
       4066,
       3,
       4061,
@@ -14121,7 +14054,7 @@
       "VAE"
     ],
     [
-      200,
+      198,
       4066,
       8,
       4061,
@@ -14129,7 +14062,7 @@
       "INT"
     ],
     [
-      201,
+      199,
       4066,
       10,
       4061,
@@ -14137,7 +14070,7 @@
       "INT"
     ],
     [
-      202,
+      200,
       4066,
       11,
       4061,
@@ -14145,7 +14078,7 @@
       "FLOAT"
     ],
     [
-      203,
+      201,
       4066,
       13,
       4061,
@@ -14153,7 +14086,7 @@
       "COMBO"
     ],
     [
-      204,
+      202,
       3042,
       0,
       4061,
@@ -14161,7 +14094,7 @@
       "COMBO"
     ],
     [
-      205,
+      203,
       4066,
       4,
       4061,
@@ -14169,7 +14102,7 @@
       "CONDITIONING"
     ],
     [
-      206,
+      204,
       4066,
       5,
       4061,
@@ -14177,7 +14110,7 @@
       "CONDITIONING"
     ],
     [
-      207,
+      205,
       4071,
       0,
       4061,
@@ -14185,7 +14118,7 @@
       "DETAILER_HOOK"
     ],
     [
-      208,
+      206,
       4018,
       0,
       4020,
@@ -14193,7 +14126,7 @@
       "INT"
     ],
     [
-      209,
+      207,
       4022,
       0,
       4020,
@@ -14201,7 +14134,7 @@
       "FLOAT"
     ],
     [
-      210,
+      208,
       4021,
       0,
       4020,
@@ -14209,7 +14142,7 @@
       "INT"
     ],
     [
-      211,
+      209,
       3000,
       1,
       4028,
@@ -14217,7 +14150,7 @@
       "BOOLEAN"
     ],
     [
-      212,
+      210,
       4031,
       0,
       4028,
@@ -14225,7 +14158,7 @@
       "IMAGE"
     ],
     [
-      213,
+      211,
       3052,
       0,
       4028,
@@ -14233,7 +14166,7 @@
       "IMAGE"
     ],
     [
-      214,
+      212,
       4097,
       0,
       4025,
@@ -14241,7 +14174,7 @@
       "RGTHREE_CONTEXT"
     ],
     [
-      215,
+      213,
       4018,
       1,
       4019,
@@ -14249,7 +14182,7 @@
       "INT"
     ],
     [
-      216,
+      214,
       4022,
       0,
       4019,
@@ -14257,7 +14190,7 @@
       "FLOAT"
     ],
     [
-      217,
+      215,
       4021,
       0,
       4019,
@@ -14265,7 +14198,7 @@
       "INT"
     ],
     [
-      218,
+      216,
       3050,
       0,
       4018,
@@ -14273,7 +14206,7 @@
       "IMAGE"
     ],
     [
-      219,
+      217,
       3050,
       0,
       4024,
@@ -14281,7 +14214,7 @@
       "IMAGE"
     ],
     [
-      220,
+      218,
       4029,
       0,
       4024,
@@ -14289,7 +14222,7 @@
       "MODEL"
     ],
     [
-      221,
+      219,
       4025,
       4,
       4024,
@@ -14297,7 +14230,7 @@
       "CONDITIONING"
     ],
     [
-      222,
+      220,
       4025,
       5,
       4024,
@@ -14305,7 +14238,7 @@
       "CONDITIONING"
     ],
     [
-      223,
+      221,
       4025,
       3,
       4024,
@@ -14313,7 +14246,7 @@
       "VAE"
     ],
     [
-      224,
+      222,
       4022,
       0,
       4024,
@@ -14321,7 +14254,7 @@
       "FLOAT"
     ],
     [
-      225,
+      223,
       4025,
       8,
       4024,
@@ -14329,7 +14262,7 @@
       "INT"
     ],
     [
-      226,
+      224,
       4030,
       0,
       4024,
@@ -14337,7 +14270,7 @@
       "INT"
     ],
     [
-      227,
+      225,
       4025,
       11,
       4024,
@@ -14345,7 +14278,7 @@
       "FLOAT"
     ],
     [
-      228,
+      226,
       4025,
       13,
       4024,
@@ -14353,7 +14286,7 @@
       "COMBO"
     ],
     [
-      229,
+      227,
       4025,
       14,
       4024,
@@ -14361,7 +14294,7 @@
       "COMBO"
     ],
     [
-      230,
+      228,
       4023,
       0,
       4024,
@@ -14369,7 +14302,7 @@
       "UPSCALE_MODEL"
     ],
     [
-      231,
+      229,
       4020,
       1,
       4024,
@@ -14377,7 +14310,7 @@
       "INT"
     ],
     [
-      232,
+      230,
       4019,
       1,
       4024,
@@ -14385,31 +14318,31 @@
       "INT"
     ],
     [
-      233,
+      231,
       4025,
       1,
       4026,
       0,
+      "MODEL"
+    ],
+    [
+      232,
+      4025,
+      1,
+      4027,
+      0,
+      "MODEL"
+    ],
+    [
+      233,
+      4026,
+      0,
+      4027,
+      1,
       "MODEL"
     ],
     [
       234,
-      4025,
-      1,
-      4027,
-      0,
-      "MODEL"
-    ],
-    [
-      235,
-      4026,
-      0,
-      4027,
-      1,
-      "MODEL"
-    ],
-    [
-      236,
       4027,
       0,
       4029,
@@ -14417,7 +14350,7 @@
       "MODEL"
     ],
     [
-      237,
+      235,
       4025,
       10,
       4029,
@@ -14425,23 +14358,23 @@
       "INT"
     ],
     [
-      238,
+      236,
       4031,
+      0,
+      4102,
+      0,
+      "IMAGE"
+    ],
+    [
+      237,
+      4011,
       0,
       4103,
       0,
       "IMAGE"
     ],
     [
-      239,
-      4011,
-      0,
-      4104,
-      0,
-      "IMAGE"
-    ],
-    [
-      240,
+      238,
       2133,
       0,
       3002,
@@ -14449,7 +14382,7 @@
       "STRING"
     ],
     [
-      241,
+      239,
       3000,
       3,
       3002,
@@ -14457,7 +14390,7 @@
       "BOOLEAN"
     ],
     [
-      242,
+      240,
       2135,
       0,
       3002,
@@ -14465,7 +14398,7 @@
       "STRING"
     ],
     [
-      243,
+      241,
       3000,
       4,
       3004,
@@ -14473,7 +14406,7 @@
       "BOOLEAN"
     ],
     [
-      244,
+      242,
       4100,
       0,
       3004,
@@ -14481,7 +14414,7 @@
       "INT"
     ],
     [
-      245,
+      243,
       4100,
       2,
       3004,
@@ -14489,23 +14422,23 @@
       "FLOAT"
     ],
     [
+      244,
+      4100,
+      3,
+      3004,
+      3,
+      "COMBO"
+    ],
+    [
+      245,
+      4100,
+      4,
+      3004,
+      4,
+      "COMBO"
+    ],
+    [
       246,
-      4100,
-      3,
-      3004,
-      3,
-      "COMBO"
-    ],
-    [
-      247,
-      4100,
-      4,
-      3004,
-      4,
-      "COMBO"
-    ],
-    [
-      248,
       4035,
       0,
       3005,
@@ -14513,7 +14446,7 @@
       "MODEL"
     ],
     [
-      249,
+      247,
       3000,
       4,
       3006,
@@ -14521,7 +14454,7 @@
       "BOOLEAN"
     ],
     [
-      250,
+      248,
       3005,
       0,
       3006,
@@ -14529,7 +14462,7 @@
       "MODEL"
     ],
     [
-      251,
+      249,
       4035,
       0,
       3006,
@@ -14537,15 +14470,15 @@
       "MODEL"
     ],
     [
-      252,
-      4103,
+      250,
+      4102,
       0,
       3040,
       0,
       "IMAGE"
     ],
     [
-      253,
+      251,
       4008,
       0,
       3040,
@@ -14553,7 +14486,7 @@
       "SEGS"
     ],
     [
-      254,
+      252,
       4012,
       0,
       3040,
@@ -14561,7 +14494,7 @@
       "MODEL"
     ],
     [
-      255,
+      253,
       4013,
       2,
       3040,
@@ -14569,7 +14502,7 @@
       "CLIP"
     ],
     [
-      256,
+      254,
       4077,
       0,
       3040,
@@ -14577,7 +14510,7 @@
       "VAE"
     ],
     [
-      257,
+      255,
       4013,
       4,
       3040,
@@ -14585,7 +14518,7 @@
       "CONDITIONING"
     ],
     [
-      258,
+      256,
       4013,
       5,
       3040,
@@ -14593,7 +14526,7 @@
       "CONDITIONING"
     ],
     [
-      259,
+      257,
       4013,
       8,
       3040,
@@ -14601,7 +14534,7 @@
       "INT"
     ],
     [
-      260,
+      258,
       4013,
       11,
       3040,
@@ -14609,7 +14542,7 @@
       "FLOAT"
     ],
     [
-      261,
+      259,
       4013,
       13,
       3040,
@@ -14617,7 +14550,7 @@
       "COMBO"
     ],
     [
-      262,
+      260,
       4013,
       14,
       3040,
@@ -14625,7 +14558,7 @@
       "COMBO"
     ],
     [
-      263,
+      261,
       4017,
       0,
       3040,
@@ -14633,7 +14566,7 @@
       "DETAILER_HOOK"
     ],
     [
-      264,
+      262,
       3000,
       2,
       3050,
@@ -14641,7 +14574,7 @@
       "BOOLEAN"
     ],
     [
-      265,
+      263,
       4064,
       0,
       3050,
@@ -14649,7 +14582,7 @@
       "IMAGE"
     ],
     [
-      266,
+      264,
       3040,
       0,
       3050,
@@ -14657,7 +14590,7 @@
       "IMAGE"
     ],
     [
-      267,
+      265,
       3050,
       0,
       3051,
@@ -14665,7 +14598,7 @@
       "IMAGE"
     ],
     [
-      268,
+      266,
       4029,
       0,
       3051,
@@ -14673,7 +14606,7 @@
       "MODEL"
     ],
     [
-      269,
+      267,
       4025,
       4,
       3051,
@@ -14681,7 +14614,7 @@
       "CONDITIONING"
     ],
     [
-      270,
+      268,
       4025,
       5,
       3051,
@@ -14689,7 +14622,7 @@
       "CONDITIONING"
     ],
     [
-      271,
+      269,
       4025,
       3,
       3051,
@@ -14697,7 +14630,7 @@
       "VAE"
     ],
     [
-      272,
+      270,
       4023,
       0,
       3051,
@@ -14705,7 +14638,7 @@
       "UPSCALE_MODEL"
     ],
     [
-      273,
+      271,
       4022,
       0,
       3051,
@@ -14713,7 +14646,7 @@
       "FLOAT"
     ],
     [
-      274,
+      272,
       4025,
       8,
       3051,
@@ -14721,7 +14654,7 @@
       "INT"
     ],
     [
-      275,
+      273,
       4030,
       0,
       3051,
@@ -14729,7 +14662,7 @@
       "INT"
     ],
     [
-      276,
+      274,
       4025,
       11,
       3051,
@@ -14737,7 +14670,7 @@
       "FLOAT"
     ],
     [
-      277,
+      275,
       4025,
       13,
       3051,
@@ -14745,7 +14678,7 @@
       "COMBO"
     ],
     [
-      278,
+      276,
       4025,
       14,
       3051,
@@ -14753,7 +14686,7 @@
       "COMBO"
     ],
     [
-      279,
+      277,
       4020,
       1,
       3051,
@@ -14761,7 +14694,7 @@
       "INT"
     ],
     [
-      280,
+      278,
       3000,
       2,
       3052,
@@ -14769,7 +14702,7 @@
       "BOOLEAN"
     ],
     [
-      281,
+      279,
       4024,
       0,
       3052,
@@ -14777,7 +14710,7 @@
       "IMAGE"
     ],
     [
-      282,
+      280,
       3051,
       0,
       3052,
@@ -14785,7 +14718,7 @@
       "IMAGE"
     ],
     [
-      283,
+      281,
       3000,
       5,
       3011,
@@ -14793,7 +14726,7 @@
       "BOOLEAN"
     ],
     [
-      284,
+      282,
       3000,
       5,
       3012,
@@ -14801,7 +14734,7 @@
       "BOOLEAN"
     ],
     [
-      285,
+      283,
       3012,
       1,
       3014,
@@ -14809,7 +14742,7 @@
       "MASK"
     ],
     [
-      286,
+      284,
       3013,
       6,
       3014,
@@ -14817,7 +14750,7 @@
       "INT"
     ],
     [
-      287,
+      285,
       3011,
       0,
       3015,
@@ -14825,7 +14758,7 @@
       "IMAGE"
     ],
     [
-      288,
+      286,
       3014,
       0,
       3015,
@@ -14833,7 +14766,7 @@
       "MASK"
     ],
     [
-      289,
+      287,
       3015,
       0,
       3016,
@@ -14841,7 +14774,7 @@
       "IMAGE"
     ],
     [
-      290,
+      288,
       4077,
       0,
       3016,
@@ -14849,7 +14782,7 @@
       "VAE"
     ],
     [
-      291,
+      289,
       3016,
       0,
       3017,
@@ -14857,7 +14790,7 @@
       "LATENT"
     ],
     [
-      292,
+      290,
       3015,
       1,
       3017,
@@ -14865,7 +14798,7 @@
       "MASK"
     ],
     [
-      293,
+      291,
       4073,
       0,
       3018,
@@ -14873,7 +14806,7 @@
       "MODEL"
     ],
     [
-      294,
+      292,
       4047,
       0,
       3018,
@@ -14881,7 +14814,7 @@
       "FLOAT"
     ],
     [
-      295,
+      293,
       4048,
       0,
       3018,
@@ -14889,7 +14822,7 @@
       "FLOAT"
     ],
     [
-      296,
+      294,
       3018,
       0,
       3019,
@@ -14897,7 +14830,7 @@
       "MODEL"
     ],
     [
-      297,
+      295,
       3015,
       0,
       3019,
@@ -14905,7 +14838,7 @@
       "IMAGE"
     ],
     [
-      298,
+      296,
       3015,
       1,
       3019,
@@ -14913,10 +14846,26 @@
       "MASK"
     ],
     [
-      299,
+      297,
       3013,
       0,
       3020,
+      0,
+      "STRING"
+    ],
+    [
+      298,
+      4075,
+      1,
+      3020,
+      1,
+      "CLIP"
+    ],
+    [
+      299,
+      3013,
+      1,
+      3021,
       0,
       "STRING"
     ],
@@ -14924,28 +14873,12 @@
       300,
       4075,
       1,
-      3020,
+      3021,
       1,
       "CLIP"
     ],
     [
       301,
-      3013,
-      1,
-      3021,
-      0,
-      "STRING"
-    ],
-    [
-      302,
-      4075,
-      1,
-      3021,
-      1,
-      "CLIP"
-    ],
-    [
-      303,
       3019,
       0,
       3022,
@@ -14953,7 +14886,7 @@
       "MODEL"
     ],
     [
-      304,
+      302,
       3022,
       0,
       3023,
@@ -14961,7 +14894,7 @@
       "MODEL"
     ],
     [
-      305,
+      303,
       4085,
       0,
       3023,
@@ -14969,7 +14902,7 @@
       "INT"
     ],
     [
-      306,
+      304,
       3020,
       0,
       3023,
@@ -14977,7 +14910,7 @@
       "CONDITIONING"
     ],
     [
-      307,
+      305,
       3021,
       0,
       3023,
@@ -14985,7 +14918,7 @@
       "CONDITIONING"
     ],
     [
-      308,
+      306,
       3017,
       0,
       3023,
@@ -14993,7 +14926,7 @@
       "LATENT"
     ],
     [
-      309,
+      307,
       3013,
       2,
       3023,
@@ -15001,7 +14934,7 @@
       "FLOAT"
     ],
     [
-      310,
+      308,
       3023,
       0,
       3024,
@@ -15009,7 +14942,7 @@
       "LATENT"
     ],
     [
-      311,
+      309,
       4077,
       0,
       3024,
@@ -15017,7 +14950,7 @@
       "VAE"
     ],
     [
-      312,
+      310,
       3011,
       0,
       3025,
@@ -15025,7 +14958,7 @@
       "IMAGE"
     ],
     [
-      313,
+      311,
       3024,
       0,
       3025,
@@ -15033,7 +14966,7 @@
       "IMAGE"
     ],
     [
-      314,
+      312,
       3015,
       1,
       3025,
@@ -15041,7 +14974,7 @@
       "MASK"
     ],
     [
-      315,
+      313,
       3015,
       2,
       3025,
@@ -15049,7 +14982,7 @@
       "INT"
     ],
     [
-      316,
+      314,
       3015,
       3,
       3025,
@@ -15057,7 +14990,7 @@
       "INT"
     ],
     [
-      317,
+      315,
       3015,
       4,
       3025,
@@ -15065,7 +14998,7 @@
       "INT"
     ],
     [
-      318,
+      316,
       3015,
       5,
       3025,
@@ -15073,7 +15006,7 @@
       "INT"
     ],
     [
-      319,
+      317,
       3013,
       3,
       3025,
@@ -15081,7 +15014,7 @@
       "INT"
     ],
     [
-      320,
+      318,
       3013,
       4,
       3025,
@@ -15089,7 +15022,7 @@
       "FLOAT"
     ],
     [
-      321,
+      319,
       1925,
       1,
       3026,
@@ -15097,7 +15030,7 @@
       "LORA_STACK"
     ],
     [
-      322,
+      320,
       3000,
       5,
       3026,
@@ -15105,7 +15038,7 @@
       "BOOLEAN"
     ],
     [
-      323,
+      321,
       3013,
       5,
       3026,
@@ -15113,23 +15046,23 @@
       "BOOLEAN"
     ],
     [
+      322,
+      3001,
+      0,
+      3030,
+      0,
+      "INT"
+    ],
+    [
+      323,
+      3001,
+      1,
+      3030,
+      1,
+      "INT"
+    ],
+    [
       324,
-      3001,
-      0,
-      3030,
-      0,
-      "INT"
-    ],
-    [
-      325,
-      3001,
-      1,
-      3030,
-      1,
-      "INT"
-    ],
-    [
-      326,
       4089,
       0,
       3031,
@@ -15137,7 +15070,7 @@
       "STRING"
     ],
     [
-      327,
+      325,
       4075,
       1,
       3032,
@@ -15145,7 +15078,7 @@
       "CLIP"
     ],
     [
-      328,
+      326,
       3001,
       0,
       3032,
@@ -15153,7 +15086,7 @@
       "INT"
     ],
     [
-      329,
+      327,
       3001,
       1,
       3032,
@@ -15161,7 +15094,7 @@
       "INT"
     ],
     [
-      330,
+      328,
       3031,
       0,
       3032,
@@ -15169,7 +15102,7 @@
       "region"
     ],
     [
-      331,
+      329,
       3030,
       5,
       3032,
@@ -15177,7 +15110,7 @@
       "TOYXYZ_REGION_PAINTER"
     ],
     [
-      332,
+      330,
       4043,
       0,
       3060,
@@ -15185,7 +15118,7 @@
       "MODEL"
     ],
     [
-      333,
+      331,
       3030,
       0,
       3060,
@@ -15193,7 +15126,7 @@
       "IMAGE"
     ],
     [
-      334,
+      332,
       3033,
       0,
       3060,
@@ -15201,7 +15134,7 @@
       "FLOAT"
     ],
     [
-      335,
+      333,
       3060,
       0,
       3061,
@@ -15209,7 +15142,7 @@
       "MODEL"
     ],
     [
-      336,
+      334,
       3032,
       0,
       3061,
@@ -15217,7 +15150,7 @@
       "IMAGE"
     ],
     [
-      337,
+      335,
       3034,
       0,
       3061,
@@ -15225,7 +15158,7 @@
       "FLOAT"
     ],
     [
-      338,
+      336,
       3061,
       0,
       3062,
@@ -15233,7 +15166,7 @@
       "MODEL"
     ],
     [
-      339,
+      337,
       3032,
       1,
       3062,
@@ -15241,7 +15174,7 @@
       "region"
     ],
     [
-      340,
+      338,
       4042,
       5,
       3062,
@@ -15249,7 +15182,7 @@
       "CONDITIONING"
     ],
     [
-      341,
+      339,
       3000,
       6,
       3063,
@@ -15257,7 +15190,7 @@
       "BOOLEAN"
     ],
     [
-      342,
+      340,
       4043,
       0,
       3063,
@@ -15265,7 +15198,7 @@
       "MODEL"
     ],
     [
-      343,
+      341,
       3062,
       0,
       3063,
@@ -15273,7 +15206,7 @@
       "MODEL"
     ],
     [
-      344,
+      342,
       3000,
       6,
       3064,
@@ -15281,7 +15214,7 @@
       "BOOLEAN"
     ],
     [
-      345,
+      343,
       4042,
       4,
       3064,
@@ -15289,31 +15222,31 @@
       "CONDITIONING"
     ],
     [
-      346,
+      344,
       3062,
       1,
       3064,
       2,
+      "CONDITIONING"
+    ],
+    [
+      345,
+      3000,
+      6,
+      3065,
+      0,
+      "BOOLEAN"
+    ],
+    [
+      346,
+      4042,
+      5,
+      3065,
+      1,
       "CONDITIONING"
     ],
     [
       347,
-      3000,
-      6,
-      3065,
-      0,
-      "BOOLEAN"
-    ],
-    [
-      348,
-      4042,
-      5,
-      3065,
-      1,
-      "CONDITIONING"
-    ],
-    [
-      349,
       3062,
       2,
       3065,
@@ -15321,7 +15254,7 @@
       "CONDITIONING"
     ],
     [
-      350,
+      348,
       3006,
       0,
       3070,
@@ -15329,7 +15262,7 @@
       "MODEL"
     ],
     [
-      351,
+      349,
       3030,
       0,
       3070,
@@ -15337,7 +15270,7 @@
       "IMAGE"
     ],
     [
-      352,
+      350,
       3033,
       0,
       3070,
@@ -15345,7 +15278,7 @@
       "FLOAT"
     ],
     [
-      353,
+      351,
       3070,
       0,
       3071,
@@ -15353,7 +15286,7 @@
       "MODEL"
     ],
     [
-      354,
+      352,
       3032,
       0,
       3071,
@@ -15361,7 +15294,7 @@
       "IMAGE"
     ],
     [
-      355,
+      353,
       3034,
       0,
       3071,
@@ -15369,7 +15302,7 @@
       "FLOAT"
     ],
     [
-      356,
+      354,
       3071,
       0,
       3072,
@@ -15377,7 +15310,7 @@
       "MODEL"
     ],
     [
-      357,
+      355,
       3032,
       1,
       3072,
@@ -15385,7 +15318,7 @@
       "region"
     ],
     [
-      358,
+      356,
       4034,
       5,
       3072,
@@ -15393,7 +15326,7 @@
       "CONDITIONING"
     ],
     [
-      359,
+      357,
       3000,
       6,
       3073,
@@ -15401,7 +15334,7 @@
       "BOOLEAN"
     ],
     [
-      360,
+      358,
       3006,
       0,
       3073,
@@ -15409,7 +15342,7 @@
       "MODEL"
     ],
     [
-      361,
+      359,
       3072,
       0,
       3073,
@@ -15417,7 +15350,7 @@
       "MODEL"
     ],
     [
-      362,
+      360,
       3000,
       6,
       3074,
@@ -15425,7 +15358,7 @@
       "BOOLEAN"
     ],
     [
-      363,
+      361,
       4034,
       4,
       3074,
@@ -15433,7 +15366,7 @@
       "CONDITIONING"
     ],
     [
-      364,
+      362,
       3072,
       1,
       3074,
@@ -15441,7 +15374,7 @@
       "CONDITIONING"
     ],
     [
-      365,
+      363,
       3000,
       6,
       3075,
@@ -15449,7 +15382,7 @@
       "BOOLEAN"
     ],
     [
-      366,
+      364,
       4034,
       5,
       3075,
@@ -15457,7 +15390,7 @@
       "CONDITIONING"
     ],
     [
-      367,
+      365,
       3072,
       2,
       3075,
@@ -15465,7 +15398,7 @@
       "CONDITIONING"
     ],
     [
-      368,
+      366,
       3000,
       5,
       3003,
@@ -15473,7 +15406,7 @@
       "BOOLEAN"
     ],
     [
-      369,
+      367,
       4028,
       0,
       3003,
@@ -15481,7 +15414,7 @@
       "IMAGE"
     ],
     [
-      370,
+      368,
       3025,
       0,
       3003,
@@ -15489,7 +15422,7 @@
       "IMAGE"
     ],
     [
-      371,
+      369,
       3000,
       5,
       3080,
@@ -15497,7 +15430,7 @@
       "BOOLEAN"
     ],
     [
-      372,
+      370,
       2133,
       6,
       3080,
@@ -15505,7 +15438,7 @@
       "STRING"
     ],
     [
-      373,
+      371,
       3013,
       0,
       3080,
@@ -15513,7 +15446,7 @@
       "STRING"
     ],
     [
-      374,
+      372,
       3000,
       5,
       3081,
@@ -15521,7 +15454,7 @@
       "BOOLEAN"
     ],
     [
-      375,
+      373,
       2133,
       7,
       3081,
@@ -15529,7 +15462,7 @@
       "STRING"
     ],
     [
-      376,
+      374,
       3013,
       1,
       3081,
@@ -15537,7 +15470,7 @@
       "STRING"
     ],
     [
-      377,
+      375,
       3000,
       5,
       3082,
@@ -15545,7 +15478,7 @@
       "BOOLEAN"
     ],
     [
-      378,
+      376,
       3083,
       0,
       3082,
@@ -15553,7 +15486,7 @@
       "STRING"
     ],
     [
-      379,
+      377,
       3015,
       10,
       3082,
@@ -15561,7 +15494,7 @@
       "STRING"
     ],
     [
-      380,
+      378,
       4013,
       14,
       3041,
@@ -15569,7 +15502,7 @@
       "COMBO"
     ],
     [
-      381,
+      379,
       4066,
       14,
       3042,

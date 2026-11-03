@@ -87,6 +87,10 @@ def validate_enum_edges(prompt, info):
 def build_graph(reference):
     p = deepcopy(reference)
 
+    # Face/Eye contexts inherit the shared LoRA-applied Anima context. Keeping
+    # these inactive branches independent would still require their own checkpoint.
+    p["893:892"]["inputs"] = {"base_ctx": ["890:857", 0]}
+
     def add(key, kind, inputs, title=None):
         p[key] = {"class_type": kind, "inputs": inputs, "_meta": {"title": title or kind}}
 

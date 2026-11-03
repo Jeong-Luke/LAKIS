@@ -334,35 +334,17 @@
       "lakis_source_id": "2139"
     }
   },
-  "4102": {
+  "4101": {
     "inputs": {
-      "model": [
-        "4101",
+      "base_ctx": [
+        "4097",
         0
-      ],
-      "clip": [
-        "4101",
-        1
-      ],
-      "vae": [
-        "4101",
-        2
       ]
     },
     "class_type": "Context (rgthree)",
     "_meta": {
       "title": "ctx_SAM3",
       "lakis_source_id": "893:892"
-    }
-  },
-  "4101": {
-    "inputs": {
-      "ckpt_name": "sam3.1_multiplex_fp16.safetensors"
-    },
-    "class_type": "CheckpointLoaderSimple",
-    "_meta": {
-      "title": "SAM3 로드",
-      "lakis_source_id": "893:891"
     }
   },
   "4098": {
@@ -1364,7 +1346,7 @@
   "4003": {
     "inputs": {
       "base_ctx": [
-        "4102",
+        "4101",
         0
       ]
     },
@@ -1464,7 +1446,7 @@
         0
       ],
       "on_false": [
-        "4103",
+        "4102",
         0
       ],
       "on_true": [
@@ -1636,7 +1618,7 @@
       "tiled_encode": false,
       "tiled_decode": false,
       "image": [
-        "4103",
+        "4102",
         0
       ],
       "segs": [
@@ -1721,7 +1703,7 @@
   "4057": {
     "inputs": {
       "base_ctx": [
-        "4102",
+        "4101",
         0
       ]
     },
@@ -1771,7 +1753,7 @@
         1
       ],
       "image": [
-        "4104",
+        "4103",
         0
       ],
       "conditioning": [
@@ -1821,7 +1803,7 @@
         0
       ],
       "on_false": [
-        "4104",
+        "4103",
         0
       ],
       "on_true": [
@@ -1993,7 +1975,7 @@
       "tiled_encode": false,
       "tiled_decode": false,
       "image": [
-        "4104",
+        "4103",
         0
       ],
       "segs": [
@@ -2310,7 +2292,7 @@
       "lakis_source_id": "1541:1838"
     }
   },
-  "4103": {
+  "4102": {
     "class_type": "LAKIS_VRAM_GATE",
     "inputs": {
       "image": [
@@ -2325,7 +2307,7 @@
       "lakis_source_id": "lakis:vram:base_to_face"
     }
   },
-  "4104": {
+  "4103": {
     "class_type": "LAKIS_VRAM_GATE",
     "inputs": {
       "image": [
@@ -2456,7 +2438,7 @@
     "class_type": "LAKIS_DETAIL",
     "inputs": {
       "image": [
-        "4103",
+        "4102",
         0
       ],
       "face_segs": [

@@ -444,8 +444,18 @@ class StandaloneWorkflow(unittest.TestCase):
         active = active_nodes(deepcopy(self.graph))
         self.assertFalse(any(n["class_type"] == "LAKIS_NativeLLLiteApply" for n in active.values()))
 
-    def test_schema_types_bounds_and_enums_from_supplied_runtime(self):
+    def test_all_reachable_inputs_match_runtime_without_checkpoint_inventory(self):
         info = captured_native_info()
+        info["CheckpointLoaderSimple"]["input"]["required"]["ckpt_name"][0].clear()
+        self.assertNotIn("893:891", self.graph)
+        self.assertNotIn("CheckpointLoaderSimple", {node["class_type"] for node in self.api.values()})
+        self.assertEqual("Context (rgthree)", self.graph["893:892"]["class_type"])
+        self.assertEqual({"base_ctx": ["890:857", 0]}, self.graph["893:892"]["inputs"])
+        for consumer in ("1530:1821", "1836:2064"):
+            self.assertEqual(["893:892", 0], self.graph[consumer]["inputs"]["base_ctx"])
+
+        # The API file is the complete dependency closure, including inactive
+        # branches; validate it without mode-based pruning.
         for key, node in self.api.items():
             with self.subTest(node=key, kind=node["class_type"]):
                 schema = info[node["class_type"]]["input"]
@@ -480,11 +490,14 @@ class StandaloneWorkflow(unittest.TestCase):
                             self.assertGreaterEqual(v, opts["min"])
                         if "max" in opts:
                             self.assertLessEqual(v, opts["max"])
-                    elif isinstance(kind, list):
+                    elif isinstance(kind, list) or kind == "COMBO":
                         # File inventories are installation-specific. Other
                         # choices must match the captured installed schema.
                         if name not in {"model_name", "vae_name", "clip_name", "ckpt_name", "lora_name", "lllite_name"}:
-                            self.assertIn(v, kind)
+                            choices = kind if isinstance(kind, list) else opts.get("options")
+                            self.assertIsInstance(choices, (list, tuple))
+                            self.assertIn(v, choices)
+        validate_enum_edges(self.api, info)
 
     def test_sampler_contracts_bind_to_captured_comfy_enums(self):
         info = captured_native_info()
