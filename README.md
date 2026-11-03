@@ -10,11 +10,9 @@ LAKIS 애플리케이션, 사용자 인터페이스, 설치기, 업데이터, �
 
 **[최신 버전: LAKIS Studio v8.0.2 릴리즈](https://github.com/Jeong-Luke/LAKIS/releases/tag/v8.0.2)**
 
-기존 8.0.0·8.0.1 사용자는 LAKIS를 다시 실행해 **8.0.2 업데이트**를 적용하세요.
-
 ### 신규 설치
 
-신규 사용자는 아래 **8.0.0 기본 설치기**로 설치한 뒤 8.0.2 업데이트를 적용하세요. 8.0.2는 앱 파일 패치이며 별도의 새 실행환경 설치기는 배포하지 않습니다.
+신규 사용자는 아래 **8.0.0 기본 설치기**로 설치한 뒤 8.0.2 업데이트를 적용하시면 됩니다 :)
 
 **[Windows용 기본 설치기 (v8.0.0)](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.0/LAKIS_Setup.exe)**
 
