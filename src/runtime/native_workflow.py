@@ -87,9 +87,8 @@ def validate_enum_edges(prompt, info):
 def build_graph(reference):
     p = deepcopy(reference)
 
-    # Face/Eye contexts inherit the shared LoRA-applied Anima context. Keeping
-    # these inactive branches independent would still require their own checkpoint.
-    p["893:892"]["inputs"] = {"base_ctx": ["890:857", 0]}
+    # Keep the dedicated SAM3 checkpoint/context from the reference. Detection
+    # needs SAM3's model and text encoder, not the LoRA-applied Anima context.
 
     def add(key, kind, inputs, title=None):
         p[key] = {"class_type": kind, "inputs": inputs, "_meta": {"title": title or kind}}
@@ -304,7 +303,10 @@ def build_graph(reference):
         p[detailer]["inputs"]["scheduler"] = [adapter, 0]
     p = dependency_graph(p)
     mapping = {key: key for key in p if key.isdecimal()}
-    mapping.update({key: str(4000 + i) for i, key in enumerate(sorted(k for k in p if not k.isdecimal()))})
+    # Restore SAM3 without renumbering the already shipped native graph.
+    mapping["893:891"] = "4104"
+    mapping.update({key: str(4000 + i) for i, key in enumerate(
+        sorted(k for k in p if not k.isdecimal() and k != "893:891"))})
     for key, node in p.items():
         node.setdefault("_meta", {})["lakis_source_id"] = key
     return native_view(p, {mapping[key]: node for key, node in p.items()})

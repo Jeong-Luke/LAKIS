@@ -8,11 +8,11 @@ LAKIS 애플리케이션, 사용자 인터페이스, 설치기, 업데이터, �
 
 ## 다운로드
 
-**[최신 버전: LAKIS Studio v8.0.2 릴리즈](https://github.com/Jeong-Luke/LAKIS/releases/tag/v8.0.2)**
+**[최신 버전: LAKIS Studio v8.0.3 릴리즈](https://github.com/Jeong-Luke/LAKIS/releases/tag/v8.0.3)**
 
 ### 신규 설치
 
-신규 사용자는 아래 **8.0.0 기본 설치기**로 설치한 뒤 8.0.2 업데이트를 적용하시면 됩니다 :)
+신규 사용자는 아래 **8.0.0 기본 설치기**로 설치한 뒤 8.0.3 업데이트를 적용하시면 됩니다 :)
 
 **[Windows용 기본 설치기 (v8.0.0)](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.0/LAKIS_Setup.exe)**
 
@@ -24,23 +24,31 @@ LAKIS 애플리케이션, 사용자 인터페이스, 설치기, 업데이터, �
 
 ## 안정 버전
 
-이 저장소는 LAKIS의 안정 배포 버전을 관리합니다. 현재 안정 버전은 **`v8.0.2`**입니다. 이전 정식 릴리즈는 보존하며, 개발 패키지와 개발용 워크플로는 별도로 관리합니다.
+이 저장소는 LAKIS의 안정 배포 버전을 관리합니다. 현재 안정 버전은 **`v8.0.3`**입니다. 이전 정식 릴리즈는 보존하며, 개발 패키지와 개발용 워크플로는 별도로 관리합니다.
+
+## v8.0.3 — DETAIL 생성 중단 수정
+
+- 8.0.2에서 DETAIL·LAKIS DETAIL이 `SAM3_Detect`의 `TypeError`와 `LKS-GEN-1001`로 중단되던 모델 연결 오류를 수정했습니다.
+- 얼굴·눈 감지에는 SAM3 전용 모델과 텍스트 인코더를 사용하고, 이미지 생성에는 기존 Anima 모델·LoRA 설정을 유지합니다.
+- FAST 경로와 기존 노드 ID는 유지하며, 공식 워크플로 3종과 워크플로 생성 도구에 같은 수정을 적용했습니다.
+
+8.0.0·8.0.1·8.0.2 사용자는 LAKIS를 다시 실행해 8.0.3 업데이트를 적용하세요. 실행환경과 사용자 모델·설정·개인 워크플로·이미지는 교체하지 않습니다.
 
 ## v8.0.2 — 독립 워크플로와 Link 모바일 개선
 
 - LAKIS UI 없이 사용할 수 있는 공식 v8.0 워크플로를 제공하고, 사용자 편집용·API용을 사이드바에 각각 연결합니다.
 - 수정할 노드는 보기 편하게 정리하고, 모니터와 최종 이미지 표시를 보완합니다.
-- 디테일 분기도 공통 Anima 모델·LoRA 설정을 사용하며, 불필요한 별도 체크포인트 연결을 제거했습니다.
+- 디테일 생성은 공통 Anima 모델·LoRA 설정을 사용하며, 얼굴·눈 감지는 별도 SAM3 모델을 사용합니다.
 - 큰 3D 메타데이터의 저장 결과 탐색 오류, HTTP Link의 제작 버튼 오류, 초기 태그·설정 덮어쓰기, 연속 제작의 큐 정리 경합을 수정합니다.
 - 결과 화면과 라이브러리에서 원본 이미지를 기기에 다운로드할 수 있습니다.
 - 공식 템플릿은 앱 전용 리소스에 포함하며, 개인 워크플로와 기존 v7.4 편집본은 보존합니다.
 
 ComfyUI 0.42.0·Python·PyTorch·CUDA·모델 실행환경은 교체하지 않습니다.
 
-### 공식 워크플로 다운로드
+### 공식 워크플로 다운로드 (8.0.3 수정본)
 
-- [사용자 편집용 워크플로](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.2/LAKIS_custom_v8.0_editable.json): 값을 수정할 노드를 앞쪽에 정리한 ComfyUI 편집용 파일입니다.
-- [API용 워크플로](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.2/LAKIS_runtime_api_v8.0.json): API 실행용 그래프입니다.
+- [사용자 편집용 워크플로](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.3/LAKIS_custom_v8.0_editable.json): 값을 수정할 노드를 앞쪽에 정리한 ComfyUI 편집용 파일입니다.
+- [API용 워크플로](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.3/LAKIS_runtime_api_v8.0.json): API 실행용 그래프입니다.
 
 LAKIS에서는 사이드바의 **ComfyUI 워크플로 선택** 버튼에서 사용자 편집용·API용을 각각 열 수 있습니다. 별도 ComfyUI에서 JSON 파일만 사용하는 경우에는 LAKIS용 커스텀 노드도 필요합니다.
 
@@ -117,9 +125,9 @@ Local Inpaint V2에 필요한 `anima-lllite-inpainting-v2.safetensors`는 LAKIS�
 
 설치된 LAKIS에는 명시적으로 공개된 안정 릴리즈에서 변경된 파일만 전달합니다. 사용자 워크플로, 설정, 프롬프트와 생성 이미지는 유지합니다. 업데이트 파일은 교체 전에 별도로 준비하고 검증하며, 실패하면 기존 상태로 복구합니다.
 
-7.5.4 사용자는 **7.5.4 → 7.5.4.1(업데이터 교체) → 8.0.0(실행 환경 교체) → 8.0.2(프로그램 파일 패치)** 순서로 업데이트됩니다. 중간에 표시되는 7.5.4.1은 최종 버전이 아닙니다. 기존 런처에서는 중간 버전과 GitHub 릴리즈의 버전 차이로 변경 설명을 불러오지 못한다는 안내가 나올 수 있으며, 실행환경 전환의 전체 변경 내용은 [8.0.0 릴리즈](https://github.com/Jeong-Luke/LAKIS/releases/tag/v8.0.0)에서 확인할 수 있습니다.
+7.5.4 사용자는 **7.5.4 → 7.5.4.1(업데이터 교체) → 8.0.0(실행 환경 교체) → 8.0.3(프로그램 파일 패치)** 순서로 업데이트됩니다. 중간에 표시되는 7.5.4.1은 최종 버전이 아닙니다. 기존 런처에서는 중간 버전과 GitHub 릴리즈의 버전 차이로 변경 설명을 불러오지 못한다는 안내가 나올 수 있으며, 실행환경 전환의 전체 변경 내용은 [8.0.0 릴리즈](https://github.com/Jeong-Luke/LAKIS/releases/tag/v8.0.0)에서 확인할 수 있습니다.
 
-런타임 다운로드는 약 **3.25GB**이며 모델 다운로드는 별도입니다. 8.0.0 런타임 전환 후 프로그램 파일 패치를 적용하면 최종 버전은 **8.0.2**로 표시됩니다. 이미 8.0.0·8.0.1인 사용자는 이 런타임을 다시 받지 않습니다.
+런타임 다운로드는 약 **3.25GB**이며 모델 다운로드는 별도입니다. 8.0.0 런타임 전환 후 프로그램 파일 패치를 적용하면 최종 버전은 **8.0.3**로 표시됩니다. 이미 8.0.0·8.0.1·8.0.2인 사용자는 이 런타임을 다시 받지 않습니다.
 
 ## 제3자 소프트웨어
 
@@ -149,11 +157,21 @@ from AGPL software remain AGPL-3.0-or-later.
 
 Use `LAKIS_Setup.exe` for normal installation and repair. If Windows Defender blocks Setup or prevents it from running, fully extract the CMD Version ZIP and run `LAKIS_CMD_Install.cmd`. CMD Version is an official alternative installation method that does not require administrator access or a Defender exclusion.
 
-You can also view the [v8.0.1 release notes and individual files](https://github.com/Jeong-Luke/LAKIS/releases/tag/v8.0.1). This distribution supports **Windows with an NVIDIA GPU**.
+Install the 8.0.0 baseline above, then apply the latest application update. See the [v8.0.3 release notes and individual files](https://github.com/Jeong-Luke/LAKIS/releases/tag/v8.0.3). This distribution supports **Windows with an NVIDIA GPU**.
 
 ### Stable baseline
 
-This repository contains the stable LAKIS distribution line. The current stable release is **`v8.0.1`**. Previous stable releases are preserved; development packages and workflows are maintained separately.
+This repository contains the stable LAKIS distribution line. The current stable release is **`v8.0.3`**. Previous stable releases are preserved; development packages and workflows are maintained separately.
+
+### v8.0.3 — DETAIL generation fix
+
+- Fixes the incorrect model connection that caused `SAM3_Detect` to fail with `TypeError` / `LKS-GEN-1001` in DETAIL and LAKIS DETAIL after 8.0.2.
+- Restores the dedicated SAM3 model and text encoder for detection, while preserving Anima/LoRA generation settings, FAST, and existing node IDs.
+- Updates all three official workflow templates and the workflow generator. Existing models, settings, personal workflows, and images are preserved.
+
+Existing 8.0.0, 8.0.1, and 8.0.2 users receive the latest application patch without replacing the runtime. New users install the 8.0.0 baseline, then update to 8.0.3.
+
+Focused graph checks and Python syntax checks passed during implementation. Final image generation, mobile-device, Update/Repair validation, and an independent final audit have not been completed.
 
 ### v8.0.1 — 3D generation fixes and detailed diagnostics
 
@@ -163,7 +181,7 @@ This repository contains the stable LAKIS distribution line. The current stable 
 - Distinguishes failure stages and records request size, transport state, acceptance certainty, and correlation IDs.
 - Copies a readable summary and compressed detailed diagnostics together, using local processing without an external service.
 
-Existing 8.0.0 users receive only changed application files. New users install the 8.0.0 baseline above, then automatically update to 8.0.1. ComfyUI, Python, PyTorch, CUDA, and models are unchanged.
+The 8.0.1 release changed application files only; ComfyUI, Python, PyTorch, CUDA, and models were unchanged.
 
 ### v8.0.0 — 3D pose editing and runtime update
 
@@ -226,9 +244,9 @@ The `anima-lllite-inpainting-v2.safetensors` weight required by Local Inpaint V2
 
 Installed clients receive only files changed by an explicitly published stable release. User workflows, settings, prompts, and generated images are preserved. Updates are staged and verified before replacement, with rollback on failure.
 
-Users on 7.5.4 update through **7.5.4 → 7.5.4.1 (updater replacement) → 8.0.0 (runtime replacement) → 8.0.1 (application patch)**. The intermediate 7.5.4.1 label is not the final version. The previous launcher may report unavailable release notes because the intermediate version differs from the GitHub release version; see the [8.0.0 release](https://github.com/Jeong-Luke/LAKIS/releases/tag/v8.0.0) for the full changes.
+Users on 7.5.4 update through **7.5.4 → 7.5.4.1 (updater replacement) → 8.0.0 (runtime replacement) → 8.0.3 (application patch)**. The intermediate 7.5.4.1 label is not the final version. The previous launcher may report unavailable release notes because the intermediate version differs from the GitHub release version; see the [8.0.0 release](https://github.com/Jeong-Luke/LAKIS/releases/tag/v8.0.0) for the full changes.
 
-The runtime download is approximately **3.25GB**, excluding models. The final version is 8.0.1 after the runtime transition and application patch. Users already on 8.0.0 do not download that runtime again.
+The runtime download is approximately **3.25GB**, excluding models. The final version is 8.0.3 after the runtime transition and application patch. Users already on 8.0.0, 8.0.1, or 8.0.2 do not download that runtime again.
 
 ### Third-party software
 

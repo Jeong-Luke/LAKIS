@@ -334,11 +334,29 @@
       "lakis_source_id": "2139"
     }
   },
+  "4104": {
+    "inputs": {
+      "ckpt_name": "sam3.1_multiplex_fp16.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {
+      "title": "SAM3 로드",
+      "lakis_source_id": "893:891"
+    }
+  },
   "4101": {
     "inputs": {
-      "base_ctx": [
-        "4097",
+      "model": [
+        "4104",
         0
+      ],
+      "clip": [
+        "4104",
+        1
+      ],
+      "vae": [
+        "4104",
+        2
       ]
     },
     "class_type": "Context (rgthree)",

@@ -1,8 +1,8 @@
 {
   "id": "e6c09ee0-ce4a-4ec0-99db-9381da28e080",
   "revision": 1,
-  "last_node_id": 4103,
-  "last_link_id": 379,
+  "last_node_id": 4104,
+  "last_link_id": 381,
   "nodes": [
     {
       "id": 215,
@@ -1078,6 +1078,58 @@
       ]
     },
     {
+      "id": 4104,
+      "type": "CheckpointLoaderSimple",
+      "title": "SAM3 로드",
+      "pos": [
+        1864,
+        1444
+      ],
+      "size": [
+        320,
+        98
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 174,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            30
+          ]
+        },
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            380
+          ]
+        },
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            381
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CheckpointLoaderSimple",
+        "lakis_source_id": "893:891",
+        "lakis_widget_names": [
+          "ckpt_name"
+        ]
+      },
+      "widgets_values": [
+        "sam3.1_multiplex_fp16.safetensors"
+      ]
+    },
+    {
       "id": 4101,
       "type": "Context (rgthree)",
       "title": "ctx_SAM3",
@@ -1098,22 +1150,22 @@
         {
           "name": "base_ctx",
           "type": "RGTHREE_CONTEXT",
-          "link": 30
+          "link": null
         },
         {
           "name": "model",
           "type": "MODEL",
-          "link": null
+          "link": 30
         },
         {
           "name": "clip",
           "type": "CLIP",
-          "link": null
+          "link": 380
         },
         {
           "name": "vae",
           "type": "VAE",
-          "link": null
+          "link": 381
         },
         {
           "name": "positive",
@@ -1702,7 +1754,6 @@
           "links": [
             18,
             26,
-            30,
             109,
             112,
             212
@@ -12711,11 +12762,11 @@
     ],
     [
       30,
-      4097,
+      4104,
       0,
       4101,
-      0,
-      "RGTHREE_CONTEXT"
+      1,
+      "MODEL"
     ],
     [
       31,
@@ -15508,6 +15559,22 @@
       3042,
       0,
       "COMBO"
+    ],
+    [
+      380,
+      4104,
+      1,
+      4101,
+      2,
+      "CLIP"
+    ],
+    [
+      381,
+      4104,
+      2,
+      4101,
+      3,
+      "VAE"
     ]
   ],
   "groups": [

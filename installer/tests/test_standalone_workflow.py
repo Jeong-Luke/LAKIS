@@ -16,7 +16,7 @@ from unittest.mock import Mock, patch
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src/runtime"))
 sys.path.insert(0, str(ROOT / "src/external_ui"))
-from native_workflow import alias_view, native_view, is_link, serialize_native, validate_enum_edges, NAMES
+from native_workflow import alias_view, native_view, is_link, serialize_native, validate_enum_edges, build_graph, NAMES
 from sync_runtime_workflow import synchronize
 
 CONTROLS = runpy.run_path(str(ROOT / "src/custom_nodes/ComfyUI-LAKIS-Detail/native_controls.py"))
@@ -332,6 +332,7 @@ class StandaloneWorkflow(unittest.TestCase):
         p = active_nodes(deepcopy(self.graph))
         types = {n["class_type"] for n in p.values()}
         self.assertFalse(types & {"DetailerForEach", "LAKIS_DETAIL", "SAM3_Detect",
+                                  "CheckpointLoaderSimple",
                                   "UltimateSDUpscale", "LAKIS_SCOPE", "AnimaLLLiteApply_sdscripts",
                                   "LAKIS_NativeLLLiteApply"})
         self.assertIn("3005", p)
@@ -352,6 +353,33 @@ class StandaloneWorkflow(unittest.TestCase):
         active = active_nodes(p)
         self.assertTrue({"3040", "3051"} <= set(active))
         self.assertFalse({"1530:1826", "1836:2069", "1541:1538"} & set(active))
+
+    def test_sam3_detection_keeps_its_own_model_and_text_encoder(self):
+        rebuilt = build_graph(read("LAKIS_runtime_api_v7.4.json"))
+        for api in (self.api, rebuilt):
+            graph = alias_view(api)
+            with self.subTest(rebuilt=api is rebuilt):
+                self.assertEqual("CheckpointLoaderSimple", graph["893:891"]["class_type"])
+                self.assertEqual("sam3.1_multiplex_fp16.safetensors",
+                                 graph["893:891"]["inputs"]["ckpt_name"])
+                self.assertEqual({
+                    "model": ["893:891", 0], "clip": ["893:891", 1],
+                    "vae": ["893:891", 2],
+                }, graph["893:892"]["inputs"])
+                for detector, context in (("1530:1824", "1530:1821"),
+                                          ("1836:2067", "1836:2064")):
+                    self.assertEqual(["893:892", 0], graph[context]["inputs"]["base_ctx"])
+                    self.assertEqual([context, 1], graph[detector]["inputs"]["model"])
+                    conditioning = graph[graph[detector]["inputs"]["conditioning"][0]]
+                    self.assertEqual([context, 2], conditioning["inputs"]["clip"])
+                for mode in ("FAST", "DETAIL", "LAKIS DETAIL"):
+                    selected = deepcopy(graph)
+                    selected["3000"]["inputs"]["mode"] = mode
+                    self.assertEqual(mode != "FAST", "893:891" in active_nodes(selected))
+        for key, node in self.api.items():
+            self.assertIn(key, rebuilt)
+            self.assertEqual(node["_meta"]["lakis_source_id"],
+                             rebuilt[key]["_meta"]["lakis_source_id"])
 
     def test_inpaint_is_independent_and_bypasses_normal_generation(self):
         p = deepcopy(self.graph)
@@ -447,10 +475,12 @@ class StandaloneWorkflow(unittest.TestCase):
     def test_all_reachable_inputs_match_runtime_without_checkpoint_inventory(self):
         info = captured_native_info()
         info["CheckpointLoaderSimple"]["input"]["required"]["ckpt_name"][0].clear()
-        self.assertNotIn("893:891", self.graph)
-        self.assertNotIn("CheckpointLoaderSimple", {node["class_type"] for node in self.api.values()})
+        self.assertEqual("sam3.1_multiplex_fp16.safetensors",
+                         self.graph["893:891"]["inputs"]["ckpt_name"])
         self.assertEqual("Context (rgthree)", self.graph["893:892"]["class_type"])
-        self.assertEqual({"base_ctx": ["890:857", 0]}, self.graph["893:892"]["inputs"])
+        self.assertEqual({
+            "model": ["893:891", 0], "clip": ["893:891", 1], "vae": ["893:891", 2],
+        }, self.graph["893:892"]["inputs"])
         for consumer in ("1530:1821", "1836:2064"):
             self.assertEqual(["893:892", 0], self.graph[consumer]["inputs"]["base_ctx"])
 
