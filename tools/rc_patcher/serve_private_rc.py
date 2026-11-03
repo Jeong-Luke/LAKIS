@@ -48,8 +48,11 @@ def load_artifacts(directory):
 
 def make_manifest(layout, payload, base_url):
     return {
+        "schema": 2,
+        "kind": "file-patch",
         "version": layout["version"],
-        "minimum_version": "7.4.5",
+        "minimum_version": "8.0.0",
+        "minimum_updater_version": "8.0.0",
         "release_notes": "Tester-only Private RC route; exact candidate payload.",
         "files": [
             {
@@ -58,6 +61,7 @@ def make_manifest(layout, payload, base_url):
                 "sha256": sha256(payload[item["path"]]),
             }
             for item in layout["files"]
+            if item["path"] != "VERSION"
         ],
         "delete": layout.get("retired", []),
     }
