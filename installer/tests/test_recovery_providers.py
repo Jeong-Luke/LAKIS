@@ -23,7 +23,7 @@ def load_node(name):
     samplers.CFGGuider=type('CFGGuider',(),{})
     samplers.KSampler=types.SimpleNamespace(SAMPLERS=['euler','euler_ancestral'],SCHEDULERS=['normal'])
     sample=types.ModuleType('comfy.sample');comfy.samplers=samplers;comfy.sample=sample
-    with patch.dict(sys.modules,{'comfy':comfy,'comfy.samplers':samplers,'comfy.sample':sample}):
+    with patch.dict(sys.modules,{spec.name:node,'comfy':comfy,'comfy.samplers':samplers,'comfy.sample':sample}):
         spec.loader.exec_module(node)
     return node
 

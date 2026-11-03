@@ -12,10 +12,14 @@ class RcOverrideContractTests(unittest.TestCase):
         cls.updater = (ROOT / "installer" / "LAKIS_Updater.cs").read_text(encoding="utf-8")
 
     def test_public_defaults_are_unchanged(self):
+        protocol = (ROOT / "installer" / "UpdateProtocol.cs").read_text(encoding="utf-8")
+        public_defaults = protocol.split("#else", 1)[1].split("#endif", 1)[0]
+        self.assertIn("https://raw.githubusercontent.com/Jeong-Luke/LAKIS/main/manifests/update-v3-latest.json", public_defaults)
+        self.assertIn("https://cdn.jsdelivr.net/gh/Jeong-Luke/LAKIS@main/manifests/update-v3-latest.json", public_defaults)
         for source in (self.launcher, self.updater):
-            self.assertIn("https://raw.githubusercontent.com/Jeong-Luke/LAKIS/main/manifests/update-latest.json", source)
-            self.assertIn("https://cdn.jsdelivr.net/gh/Jeong-Luke/LAKIS@main/manifests/update-latest.json", source)
+            self.assertIn("private static readonly string[] ManifestUrls = UpdateProtocol.ManifestUrls;", source)
             self.assertIn("String.IsNullOrWhiteSpace(overrideUrl)", source)
+            self.assertIn("if (String.IsNullOrWhiteSpace(overrideUrl)) return ManifestUrls;", source)
         self.assertIn("https://github.com/Jeong-Luke/LAKIS/releases/download/v", self.launcher)
 
     def test_overrides_are_loopback_only_and_block_unsafe_forms(self):
