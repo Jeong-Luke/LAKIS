@@ -93,11 +93,13 @@ PORT = 8766
 COMFY_PORT = int(os.environ.get("LAKIS_COMFY_PORT") or 8190) if DEVELOPMENT else 8189
 COMFY_SERVER = f"http://127.0.0.1:{COMFY_PORT}"
 WORKFLOW_ROOT = COMFY_ROOT / "user" / "default" / "workflows"
-PACKAGED_WORKFLOW_ROOT = (RUNTIME_ROOT / "workflows") if DEVELOPMENT else (COMFY_ROOT / "LAKIS" / "workflows")
-PREFERRED_LAKIS_WORKFLOW = PACKAGED_WORKFLOW_ROOT / "LAKIS_runtime_api_v7.4.json"
-RUNTIME_LAKIS_WORKFLOW = PACKAGED_WORKFLOW_ROOT / "LAKIS_runtime_api_v7.4.json"
+# Official templates are application resources, not saved user workflows.
+# The external_ui prefix is supported by the already-published 8.0.0 updater.
+PACKAGED_WORKFLOW_ROOT = (RUNTIME_ROOT / "workflows") if DEVELOPMENT else (UI_ROOT / "workflows")
+PREFERRED_LAKIS_WORKFLOW = PACKAGED_WORKFLOW_ROOT / "LAKIS_runtime_api_v8.0.json"
+RUNTIME_LAKIS_WORKFLOW = PREFERRED_LAKIS_WORKFLOW
 RUNTIME_LAKIS_SOURCE_NAME = RUNTIME_LAKIS_WORKFLOW.name
-EDITABLE_LAKIS_WORKFLOW = PACKAGED_WORKFLOW_ROOT / "LAKIS_custom_v7.4_editable.json"
+EDITABLE_LAKIS_WORKFLOW = PACKAGED_WORKFLOW_ROOT / "LAKIS_custom_v8.0_editable.json"
 AUTOPATCH_MARKER = COMFY_ROOT / "custom_nodes" / "ComfyUI-LAKIS-AutoPatch" / "startup_workflow.json"
 GENERATION_BRIDGE = WorkflowBridge()
 KOREAN_PATTERN = re.compile(r"[\u1100-\u11ff\u3130-\u318f\uac00-\ud7af]")
@@ -1192,15 +1194,24 @@ def _workflow_sort_key(path: Path) -> tuple[int, ...]:
         return ()
 
 
-def resolve_lakis_workflow(kind: str = "runtime") -> tuple[Path, dict]:
+def _normalize_lakis_workflow_kind(kind: str) -> str:
+    if not isinstance(kind, str):
+        raise ValueError("Unknown workflow kind")
+    if kind == "runtime":
+        return "api"
+    if kind not in {"api", "editable"}:
+        raise ValueError("Unknown workflow kind")
+    return kind
+
+
+def resolve_lakis_workflow(kind: str = "api") -> tuple[Path, dict]:
     """Return the packaged workflow selected by the sidebar."""
+    kind = _normalize_lakis_workflow_kind(kind)
     if kind == "editable":
         candidates = [EDITABLE_LAKIS_WORKFLOW, WORKFLOW_ROOT / "LAKIS_custom_v7.1_fullsync_review.json"]
-    elif kind == "runtime":
-        # The monitor must never fall back to a user-editable workflow.
-        candidates = [RUNTIME_LAKIS_WORKFLOW]
     else:
-        raise ValueError("Unknown workflow kind")
+        # The API loader must never fall back to an editable or visual graph.
+        candidates = [RUNTIME_LAKIS_WORKFLOW]
     seen: set[Path] = set()
     errors = []
     for candidate in candidates:
@@ -1212,9 +1223,12 @@ def resolve_lakis_workflow(kind: str = "runtime") -> tuple[Path, dict]:
             if not candidate.is_file() or candidate.parent.resolve() not in allowed_roots:
                 continue
             workflow = json.loads(candidate.read_text(encoding="utf-8-sig"))
-            if kind == "runtime":
+            if kind == "api":
                 valid = isinstance(workflow, dict) and bool(workflow) and all(
-                    isinstance(node, dict) and isinstance(node.get("class_type"), str)
+                    isinstance(node, dict)
+                    and isinstance(node.get("class_type"), str)
+                    and bool(node["class_type"].strip())
+                    and isinstance(node.get("inputs"), dict)
                     for node in workflow.values()
                 )
             else:
@@ -1224,8 +1238,9 @@ def resolve_lakis_workflow(kind: str = "runtime") -> tuple[Path, dict]:
             errors.append(f"{candidate.name}: invalid workflow structure")
         except (OSError, ValueError, json.JSONDecodeError) as error:
             errors.append(f"{candidate.name}: {error}")
-    detail = "; ".join(errors) if errors else "no LAKIS_custom_v*.json files found"
-    raise FileNotFoundError(f"No valid LAKIS workflow in {WORKFLOW_ROOT}: {detail}")
+    detail = "; ".join(errors) if errors else "no candidate workflow files found"
+    search_root = PACKAGED_WORKFLOW_ROOT if kind == "api" else WORKFLOW_ROOT
+    raise FileNotFoundError(f"No valid LAKIS {kind} workflow in {search_root}: {detail}")
 
 
 def lakis_version() -> str:
@@ -1273,9 +1288,10 @@ class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(UI_ROOT), **kwargs)
 
-    def _prepare_lakis_workflow(self, kind: str = "runtime") -> dict:
+    def _prepare_lakis_workflow(self, kind: str = "api") -> dict:
+        kind = _normalize_lakis_workflow_kind(kind)
         workflow_path, workflow = resolve_lakis_workflow(kind)
-        display_name = RUNTIME_LAKIS_SOURCE_NAME if kind == "runtime" else workflow_path.name
+        display_name = workflow_path.name
         saved_choice = upscaler_choice_status().get("choice")
         selected = REALESRGAN_MODEL if saved_choice == "realesrgan" else ANIMESHARP_MODEL if saved_choice == "animesharp" else None
         if selected:
@@ -1285,7 +1301,7 @@ class Handler(SimpleHTTPRequestHandler):
         marker = {
             "lakis_autopatch": {
                 "display_name": display_name,
-                "format": "api" if kind == "runtime" else "workflow",
+                "format": "api" if kind == "api" else "workflow",
             },
             "workflow": workflow,
         }
@@ -1313,6 +1329,12 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
             self.send_header("Pragma", "no-cache")
         super().end_headers()
+
+    def _send_image_download_header(self, filename: str) -> None:
+        if parse_qs(urlparse(self.path).query).get("download", [""])[0] == "1":
+            name = filename.replace("\\", "/").rsplit("/", 1)[-1]
+            self.send_header("Content-Disposition",
+                             "attachment; filename*=UTF-8''" + quote(name, safe=""))
 
     def _api_request_allowed(self) -> bool:
         """Reject browser requests that did not originate from this loopback UI."""
@@ -1386,6 +1408,7 @@ class Handler(SimpleHTTPRequestHandler):
                 self.send_response(200)
                 self.send_header("Content-Type", mime)
                 self.send_header("Content-Length", str(len(payload)))
+                self._send_image_download_header(target.name)
                 self.end_headers()
                 self.wfile.write(payload)
             except (OSError, ValueError):
@@ -1430,6 +1453,7 @@ class Handler(SimpleHTTPRequestHandler):
                 self.send_response(200)
                 self.send_header("Content-Type", mime)
                 self.send_header("Content-Length", str(len(payload)))
+                self._send_image_download_header(filename)
                 self.end_headers()
                 self.wfile.write(payload)
             except (OSError, URLError, ValueError):
@@ -1659,7 +1683,7 @@ class Handler(SimpleHTTPRequestHandler):
         if self.path == "/api/open-workflow":
             try:
                 incoming = self._read_json()
-                self._send_json(200, self._prepare_lakis_workflow(str(incoming.get("kind") or "runtime")))
+                self._send_json(200, self._prepare_lakis_workflow(str(incoming.get("kind") or "api")))
             except Exception as error:
                 audit({"event": "external_ui_workflow_open_failed", "error": repr(error)})
                 self._send_json(500, {"ok": False, "error": "LAKIS 워크플로를 준비하지 못했어요."})

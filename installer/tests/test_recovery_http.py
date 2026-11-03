@@ -107,6 +107,9 @@ class LoopbackGeneration(unittest.IsolatedAsyncioTestCase):
             # An event for another prompt must not terminate this one.
             await self.ws[-1].send_json({'type':'execution_success','data':{'prompt_id':'OTHER'}})
             await self.ws[-1].send_json({'type':'execution_success','data':{'prompt_id':'P'}})
+            if self.mode=='late_queue_release':
+                await asyncio.sleep(.05)
+                self.queue={'queue_running':[],'queue_pending':[]}
     async def submit(self,request):
         self.posts.append(await request.json())
         if self.mode=='reject':
@@ -122,6 +125,8 @@ class LoopbackGeneration(unittest.IsolatedAsyncioTestCase):
             return web.json_response({'prompt_id':'P'})
         self.history={'P':{'status':{'completed':True,'status_str':'success'},
             'outputs':{'775':{'ui':{'images':[{'filename':'owned.png','type':'output','subfolder':''}]}}}}}
+        if self.mode in ('late_queue_release','queue_held_after_success'):
+            self.queue={'queue_running':[[0,'P']],'queue_pending':[]}
         self.tasks.append(asyncio.create_task(self.emit()))
         return web.json_response({'prompt_id':'P','number':0})
     async def execute(self):
@@ -136,6 +141,27 @@ class LoopbackGeneration(unittest.IsolatedAsyncioTestCase):
         await self.execute();self.single_submission()
         self.assertEqual('complete',self.bridge.status.state)
         self.assertIn('owned.png',self.bridge.status.output_url)
+    async def test_success_retires_owned_queue_before_second_authorized_generation(self):
+        self.mode='late_queue_release'
+        await self.execute();self.single_submission()
+        self.assertFalse(self.queue['queue_running'])
+        self.assertEqual('complete',self.bridge.status.state)
+        self.mode='success'
+        self.token={**self.token,'request_id':'second-authorized-request'}
+        m.ALLOW_FILE.write_text(json.dumps(self.token))
+        self.bridge.status.update(state='preparing',request_id=self.token['request_id'])
+        await self.execute()
+        self.assertEqual(2,len(self.posts))
+        self.assertEqual('complete',self.bridge.status.state)
+        self.assertEqual(0,self.resets)
+    async def test_success_with_unreleased_queue_does_not_enable_another_job(self):
+        self.mode='queue_held_after_success'
+        with patch.object(m.asyncio,'sleep',new=AsyncMock()):
+            with self.assertRaises(m.SubmissionOutcomeUnknownError):
+                await self.execute()
+        self.single_submission()
+        self.assertNotEqual('complete',self.bridge.status.state)
+        self.assertTrue(self.queue['queue_running'])
     async def test_closed_ws_uses_same_history_and_no_second_prompt(self):
         self.mode='closed';await self.execute();self.single_submission()
         self.assertEqual('complete',self.bridge.status.state)

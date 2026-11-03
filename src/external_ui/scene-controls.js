@@ -95,7 +95,7 @@
     }
     await toyBoot;
     return new Promise((resolve, reject) => {
-      const id = crypto.randomUUID();
+      const id = window.LAKISGenerationDiagnostics.createSecureUUID();
       const timer = setTimeout(() => {
         toyPending.delete(id);
         reject(Error("3D 인물·영역 편집기의 처리가 완료되지 않았습니다."));

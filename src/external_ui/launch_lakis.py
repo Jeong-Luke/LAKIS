@@ -96,7 +96,9 @@ def required_runtime_node_types(workflow: dict) -> set[str]:
 
 def runtime_capability_check() -> tuple[bool, list[str], str | None]:
     """Verify that the live ComfyUI can execute the packaged public runtime."""
-    workflow_path = RUNTIME_ROOT / "workflows" / "LAKIS_runtime_api_v7.4.json"
+    workflow_path = Path(__file__).resolve().parent / "workflows" / "LAKIS_runtime_api_v8.0.json"
+    if not workflow_path.is_file():
+        workflow_path = RUNTIME_ROOT / "workflows" / "LAKIS_runtime_api_v7.4.json"
     try:
         workflow = json.loads(workflow_path.read_text(encoding="utf-8-sig"))
         required = required_runtime_node_types(workflow)

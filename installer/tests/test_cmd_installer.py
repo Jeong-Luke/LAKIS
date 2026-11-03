@@ -4,9 +4,9 @@ import importlib.util
 import io
 import json
 import os
-from datetime import datetime, timedelta
 from pathlib import Path
 import struct
+import sys
 import tempfile
 import unittest
 from unittest import mock
@@ -21,6 +21,10 @@ spec = importlib.util.spec_from_file_location("lakis_cmd_installer", SCRIPT)
 module = importlib.util.module_from_spec(spec)
 assert spec.loader
 spec.loader.exec_module(module)
+sys.path.insert(0, str(ROOT / "installer"))
+import runtime_install
+import runtime_manifest as runtime_contract
+import runtime_transition
 
 
 class CmdInstallerTests(unittest.TestCase):
@@ -33,7 +37,9 @@ class CmdInstallerTests(unittest.TestCase):
     def test_manifest_is_pinned_and_matches_cmd_bootstrap(self):
         data = json.loads(MANIFEST.read_text(encoding="utf-8"))
         cmd = CMD.read_text(encoding="cp949")
-        self.assertEqual(data["version"], "7.5.3")
+        self.assertEqual(data["version"], (ROOT / "VERSION").read_text(encoding="utf-8-sig").strip())
+        self.assertEqual(data["version"], "8.0.2")
+        self.assertEqual(data["release_base"], "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.2")
         self.assertEqual(data["base"]["sha256"], "7C380D4309BBDA395366C49564EDF8996181FD45E61B6F353EA417F32BC3B970")
         self.assertIn(data["base"]["url"], cmd)
         self.assertIn(data["base"]["sha256"], cmd)
@@ -52,17 +58,34 @@ class CmdInstallerTests(unittest.TestCase):
         self.assertIn('node_stage = scratch / "n"', source)
         self.assertNotIn('scratch / archive.name', source)
 
-    def test_manifest_dependency_contract_matches_setup(self):
+    def test_manifest_dependency_contract_matches_runtime_loader(self):
         data = json.loads(MANIFEST.read_text(encoding="utf-8"))
         setup = (ROOT / "installer" / "Setup_LAKIS_Safe.cs").read_text(encoding="utf-8")
-        records = [data["base"], *(
+        self.assertIn('GetManifestResourceStream("LAKIS.RuntimeInstallManifest")', setup)
+        self.assertIn('ValidateModelList(RequiredList(manifest,"models"),"models",false)', setup)
+        self.assertIn('ValidateModelList(RequiredList(manifest,"optional_animesharp"),"optional_animesharp",true)', setup)
+        records = [data["base"], data["source"], data["webview2"], *(
             {"url": row[1], "sha256": row[2]} for row in data["nodes"]
         ), {"url": data["nested_node"][1], "sha256": data["nested_node"][2]}, *(
             {"url": row[1], "sha256": row[2]} for row in data["models"]
-        )]
+        ), {"url": data["optional_animesharp"][1], "sha256": data["optional_animesharp"][2]}]
         for record in records:
-            self.assertIn(record["url"], setup)
-            self.assertIn(record["sha256"], setup)
+            self.assertTrue(record["url"].startswith("https://"), record)
+            self.assertRegex(record["sha256"], r"^[A-F0-9]{64}$")
+        for record in [data["source"], *(
+            {"url": row[1]} for row in [*data["nodes"], data["nested_node"]]
+        )]:
+            self.assertRegex(record["url"], r"^https://codeload\.github\.com/[^/]+/[^/]+/zip/[a-f0-9]{40}$")
+        for row in [*data["models"], data["optional_animesharp"]]:
+            self.assertEqual(len(row), 5)
+            self.assertIs(type(row[4]), int)
+            self.assertGreater(row[4], 0)
+            self.assertRegex(row[1], r"/resolve/[a-f0-9]{40}/|/releases/download/")
+        self.assertEqual(data["source"]["url"],
+                         "https://codeload.github.com/Jeong-Luke/LAKIS/zip/373cbf40a2f94553dde26ccad31c33275e27babc")
+        for forbidden in ("LAKIS_DEV", "LAKIS_LUKE", "DEKIS", "LUKIS", "Light-Control",
+                          "DSINE", "Aitrepreneur/FLX", "p101111/anima"):
+            self.assertNotIn(forbidden, json.dumps(data))
 
     def test_cmd_has_no_powershell_or_defender_bypass(self):
         cmd = CMD.read_text(encoding="cp949").casefold()
@@ -428,85 +451,153 @@ class CmdInstallerTests(unittest.TestCase):
             self.assertIn("codeload.github.com/ltdrdata/ffmpy/zip/f000737", text)
             self.assertNotIn("git+https://", text)
 
-    def test_synthetic_fresh_install_promotes_only_after_exact_layout(self):
+    def _runtime_candidate(self, root):
+        version = json.loads(MANIFEST.read_text(encoding="utf-8"))["version"]
+        candidate = root / "candidate"
+        for relative in runtime_contract.REQUIRED_FILES:
+            path = candidate / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(version.encode("ascii") if relative == "VERSION" else b"release-owned fixture\n")
+        inventory = runtime_contract.create_manifest(candidate, version,
+            "373cbf40a2f94553dde26ccad31c33275e27babc", {
+                "comfyui_version": runtime_contract.COMFY_VERSION,
+                "comfyui_commit": runtime_contract.COMFY_COMMIT,
+            })
+        inventory_path = candidate / runtime_contract.MANIFEST_NAME
+        inventory_path.write_text(json.dumps(inventory), encoding="utf-8")
+        manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+        name = "LAKIS_RuntimeBundle.zip"
+        manifest["runtime_bundle"] = {
+            "schema": 2, "product": "LAKIS", "version": version,
+            "comfyui_version": runtime_contract.COMFY_VERSION, "name": name,
+            "sha256": "A" * 64, "manifest_sha256": module.sha256(inventory_path),
+            "bytes": 1, "files": len(inventory["files"]),
+            "parts": [{"name": name + ".part001", "sha256": "B" * 64, "bytes": 1,
+                       "url": manifest["release_base"] + "/" + name + ".part001"}],
+        }
+        return candidate, manifest
+
+    def test_synthetic_cmd_fresh_install_uses_verified_runtime_activation(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
-            portable = root / "stage" / "ComfyUI_windows_portable"
+            candidate, manifest = self._runtime_candidate(root)
+            portable = root / "bootstrap"
             (portable / "python_embeded").mkdir(parents=True)
             (portable / "python_embeded" / "python.exe").write_bytes(b"stub")
             sibling = portable.parent / "keep-unrelated-user-file.txt"
             sibling.write_bytes(b"must survive promotion")
-            (portable / "ComfyUI" / "custom_nodes").mkdir(parents=True)
-            assets = root / "assets"
-            assets.mkdir()
-            node = assets / "node.zip"
-            nested = assets / "nested.zip"
-            self._zip_tree(node, "node-root", {"__init__.py": "NODE = True\n"})
-            self._zip_tree(nested, "nested-root", {"marker.txt": "nested\n"})
-            model = assets / "model.bin"
-            model.write_bytes(b"model")
-            source = assets / "source.zip"
-            self._zip_tree(source, "source-root", {
-                "resources/PRODUCTION_NODE_PACKAGES.txt": "LAKIS-Demo\n",
-                "resources/STOP_AUTOMATION": "stop\n",
-                "src/custom_nodes/LAKIS-Demo/__init__.py": "NODE = True\n",
-                "src/external_ui/index.html": "ui\n",
-                "src/runtime/sync_runtime_workflow.py": "SYNC = True\n",
-                "workflows/LAKIS_runtime_api_v7.4.json": "{}\n",
-                "workflows/LAKIS_runtime_visual_v7.4.json": "{}\n",
-                "workflows/LAKIS_custom_v7.4_editable.json": "{}\n",
-                "LICENSE.md": "license\n",
-                "THIRD_PARTY_NOTICES.md": "notices\n",
-                "third_party_licenses/demo.txt": "license\n",
-                "patches/ComfyUI-Spectrum-KSampler/files/nodes.py": "patched\n",
-                "patches/ComfyUI-Spectrum-KSampler/files/spectrum.py": "patched\n",
-            })
-            repair = assets / "LAKIS_RepairPack.zip"
-            with zipfile.ZipFile(repair, "w") as bundle:
-                bundle.writestr("LAKIS.exe", b"launcher")
-                bundle.writestr("VERSION", b"7.5.0")
-            layout = assets / "release-layout.json"
-            files = []
-            for name, content in (("LAKIS.exe", b"launcher"), ("VERSION", b"7.5.0")):
-                files.append({"path": name, "sha256": hashlib.sha256(content).hexdigest().upper()})
-            layout.write_text(json.dumps({"files": files}), encoding="utf-8")
-            manifest = root / "manifest.json"
-            manifest.write_text(json.dumps({
-                "schema": 1,
-                "version": "7.5.0",
-                "release_base": assets.as_uri(),
-                "base": {},
-                "source": {
-                    "name": source.name,
-                    "url": source.as_uri(),
-                    "sha256": module.sha256(source),
-                    "bytes": source.stat().st_size,
-                },
-                "repair_pack": {"name": repair.name, "sha256": module.sha256(repair)},
-                "release_layout": {"name": layout.name, "sha256": module.sha256(layout)},
-                "nodes": [[node.name, node.as_uri(), module.sha256(node), "demo-node"]],
-                "nested_node": [nested.name, nested.as_uri(), module.sha256(nested), "demo-node/repositories/nested"],
-                "models": [[model.name, model.as_uri(), module.sha256(model), "demo-models", model.stat().st_size]],
-            }), encoding="utf-8")
+            seed = root / "defaults"
+            (seed / ".lakis").mkdir(parents=True)
+            (seed / ".lakis/install-method.txt").write_text("cmd\n", encoding="ascii")
+            manifest_path = root / "manifest.json"
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
             target = root / "installed"
             with mock.patch.object(
-                module,
-                "create_desktop_shortcut",
-                return_value=root / "Desktop" / "LAKIS.lnk",
-            ), mock.patch.object(module, "ensure_webview2_runtime") as webview:
-                module.install(manifest, portable, target, root / "cache", False)
+                runtime_install, "prepare_bundle", return_value=candidate
+            ), mock.patch.object(runtime_install, "prepare_default_data", return_value=seed) as defaults, \
+                 mock.patch.object(runtime_install, "ensure_webview2_runtime") as webview, \
+                 mock.patch.object(runtime_transition, "check_runtime"), \
+                 mock.patch.object(runtime_transition, "assert_idle"), \
+                 mock.patch.object(module, "create_desktop_shortcut", return_value=root / "LAKIS.lnk"), \
+                 mock.patch("sys.stdout", io.StringIO()):
+                module.install(manifest_path, portable, target, root / "cache", False)
                 webview.assert_called_once()
-            self.assertEqual((target / "VERSION").read_text(encoding="utf-8"), "7.5.0")
-            completed_at = (target / "install.complete").read_text(encoding="utf-8")
-            self.assertEqual(datetime.fromisoformat(completed_at).utcoffset(), timedelta(0))
-            self.assertEqual((target / "LAKIS.exe").read_bytes(), b"launcher")
-            self.assertTrue((target / "ComfyUI" / "custom_nodes" / "demo-node" / "__init__.py").is_file())
-            self.assertTrue((target / "ComfyUI" / "custom_nodes" / "LAKIS-Demo" / "__init__.py").is_file())
-            self.assertTrue((target / "ComfyUI" / "LAKIS" / "workflows" / "LAKIS_custom_v7.4_editable.json").is_file())
-            self.assertTrue((target / "ComfyUI" / "input" / "LAKIS_1_2026-09-01-221228.webp").is_file())
-            self.assertTrue((target / "ComfyUI" / "models" / "demo-models" / "model.bin").is_file())
+                defaults.assert_called_once_with(candidate, manifest, root / "cache", "cmd", False)
+            self.assertEqual((target / "VERSION").read_text(encoding="utf-8"), "8.0.2")
+            for relative in runtime_contract.REQUIRED_FILES:
+                self.assertEqual((target / relative).read_bytes(), (candidate / relative).read_bytes())
+            runtime_contract.verify_runtime(target, manifest["runtime_bundle"]["manifest_sha256"], "8.0.2", allow_user_data=True)
             self.assertEqual((target / ".lakis" / "install-method.txt").read_text(encoding="ascii"), "cmd\n")
             self.assertEqual(sibling.read_bytes(), b"must survive promotion")
+
+    def test_runtime_repair_keeps_exact_version_and_all_protected_data(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            candidate, manifest = self._runtime_candidate(root)
+            target = root / "installed"
+            for relative in ("VERSION", "ComfyUI/LAKIS/STOP_AUTOMATION"):
+                path = target / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes((candidate / relative).read_bytes())
+            protected = [name + "/user-owned.bin" for name in runtime_contract.PROTECTED_DIRECTORIES]
+            protected.extend(runtime_contract.PROTECTED_FILES)
+            for relative in protected:
+                path = target / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b"unique user data: " + relative.encode("utf-8"))
+            before = {relative: (target / relative).read_bytes() for relative in protected}
+            with mock.patch.object(runtime_install, "prepare_bundle", return_value=candidate), \
+                 mock.patch.object(runtime_install, "prepare_default_data") as defaults, \
+                 mock.patch.object(runtime_install, "ensure_webview2_runtime") as webview, \
+                 mock.patch.object(runtime_install, "prepare_pose_models", return_value=None), \
+                 mock.patch.object(runtime_transition, "check_runtime"), \
+                 mock.patch.object(runtime_transition, "assert_idle"):
+                result = runtime_install.install(manifest, target, root / "cache", "repair", "gui")
+                defaults.assert_not_called()
+                webview.assert_not_called()
+            self.assertEqual(result["status"], "complete")
+            self.assertEqual((target / "VERSION").read_text(encoding="utf-8"), "8.0.2")
+            self.assertEqual({relative: (target / relative).read_bytes() for relative in protected}, before)
+            self.assertEqual((target / "LAKIS_Model_Importer.exe").read_bytes(),
+                             (candidate / "LAKIS_Model_Importer.exe").read_bytes())
+
+    def test_runtime_fresh_rejects_nonempty_and_existing_installation_without_changes(self):
+        for existing_installation in (False, True):
+            with self.subTest(existing_installation=existing_installation),tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                candidate, manifest = self._runtime_candidate(root)
+                target = root / "installed"
+                target.mkdir()
+                (target / "user-owned.bin").write_bytes(b"never overwrite")
+                if existing_installation:
+                    (target / "VERSION").write_text("8.0.2", encoding="ascii")
+                    marker = target / "ComfyUI/LAKIS/STOP_AUTOMATION"
+                    marker.parent.mkdir(parents=True)
+                    marker.write_bytes(b"stop")
+                before = {str(p.relative_to(target)): p.read_bytes() for p in target.rglob("*") if p.is_file()}
+                with mock.patch.object(runtime_transition, "check_runtime"), \
+                     mock.patch.object(runtime_transition, "assert_idle"), \
+                     self.assertRaisesRegex(ValueError, "fresh target is not empty"):
+                    runtime_transition.activate(candidate, target,
+                        manifest["runtime_bundle"]["manifest_sha256"], "8.0.2", "fresh")
+                self.assertEqual({str(p.relative_to(target)): p.read_bytes() for p in target.rglob("*") if p.is_file()}, before)
+
+    def test_runtime_inventory_rejects_every_missing_required_app_file(self):
+        with tempfile.TemporaryDirectory() as folder:
+            candidate, manifest = self._runtime_candidate(Path(folder))
+            inventory_path = candidate / runtime_contract.MANIFEST_NAME
+            original = json.loads(inventory_path.read_text(encoding="utf-8"))
+            for relative in runtime_contract.REQUIRED_FILES:
+                with self.subTest(relative=relative):
+                    inventory = dict(original, files=[row for row in original["files"] if row["path"] != relative])
+                    inventory_path.write_text(json.dumps(inventory), encoding="utf-8")
+                    with self.assertRaisesRegex(ValueError, "incomplete runtime"):
+                        runtime_contract.verify_runtime(candidate, module.sha256(inventory_path), manifest["version"])
+
+    def test_runtime_inventory_rejects_authenticated_but_wrong_installed_version(self):
+        with tempfile.TemporaryDirectory() as folder:
+            candidate, manifest = self._runtime_candidate(Path(folder))
+            version_path = candidate / "VERSION"
+            version_path.write_text("8.0.1", encoding="ascii")
+            inventory_path = candidate / runtime_contract.MANIFEST_NAME
+            inventory = json.loads(inventory_path.read_text(encoding="utf-8"))
+            row = next(row for row in inventory["files"] if row["path"] == "VERSION")
+            row.update(size=version_path.stat().st_size, sha256=module.sha256(version_path))
+            inventory_path.write_text(json.dumps(inventory), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "runtime VERSION mismatch"):
+                runtime_contract.verify_runtime(candidate, module.sha256(inventory_path), manifest["version"])
+
+    def test_runtime_inventory_rejects_tampering_and_unlisted_private_or_retired_files(self):
+        for relative in ("LAKIS_Model_Importer.exe", "ComfyUI/LAKIS_DEV/private.py",
+                         "ComfyUI/custom_nodes/ComfyUI-LAKIS-Light-Control/__init__.py"):
+            with self.subTest(relative=relative),tempfile.TemporaryDirectory() as folder:
+                candidate, manifest = self._runtime_candidate(Path(folder))
+                path = candidate / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b"not authenticated release bytes")
+                with self.assertRaisesRegex(ValueError, "runtime file mismatch|unlisted runtime file"):
+                    runtime_contract.verify_runtime(candidate, manifest["runtime_bundle"]["manifest_sha256"],
+                                                    manifest["version"])
 
     def test_existing_webview_runtime_skips_download_and_install(self):
         with mock.patch.object(module, 'has_webview2_runtime', return_value=True), \

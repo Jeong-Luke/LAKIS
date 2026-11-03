@@ -140,29 +140,93 @@ $releasePublishIndex = $workflow.IndexOf("Publish the fully verified release", [
 $publishIndex = $workflow.IndexOf("Publish only the verified manifest", [System.StringComparison]::Ordinal)
 Require ($approvalIndex -ge 0 -and $draftCreateIndex -gt $approvalIndex -and $draftVerifyIndex -gt $draftCreateIndex -and $releasePublishIndex -gt $draftVerifyIndex -and $publishIndex -gt $releasePublishIndex) "Approval, draft staging, remote verification, release publication, and manifest publication are out of order."
 
-$setup = Read-RepoFile "installer\Setup_LAKIS_Safe.cs"
-$uninstaller = Read-RepoFile "installer\LAKIS_Uninstaller.cs"
-Require ($uninstaller.Contains('string version="' + $ExpectedVersion + '";')) "Uninstaller fallback version must match VERSION."
-Require (-not $setup.Contains("ComfyUI-LAKIS-Light-Control")) "Installer must not install retired Light Control."
-Require (-not $setup.Contains("DSINE")) "Installer must not install DSINE source or weights."
-foreach ($needle in @(
-    ('private const string Revision = "v' + $ExpectedVersion + '"'),
-    ('private const string ReleaseVersion = "' + $ExpectedVersion + '"'),
-    'LAKIS_Model_Importer.exe',
-    'THIRD_PARTY_NOTICES.md',
-    'LAKIS_runtime_api_v7.4.json',
-    'RealESRGAN_x4plus_anime_6B.pth'
-)) {
-    Require ($setup.Contains($needle)) "Installer/repair invariant is missing: $needle"
+function Test-RuntimeInstallerContract([string]$ExpectedVersion) {
+    $setup = Read-RepoFile "installer\Setup_LAKIS_Safe.cs"
+    $uninstaller = Read-RepoFile "installer\LAKIS_Uninstaller.cs"
+    $bridge = Read-RepoFile "installer\RuntimeBundleInstaller.cs"
+    $runtimeInstall = Read-RepoFile "installer\runtime_install.py"
+    $runtimeManifest = Read-RepoFile "installer\runtime_manifest.py"
+    $transition = Read-RepoFile "installer\runtime_transition.py"
+    $manifestText = Read-RepoFile "installer\cmd-installer-manifest.json"
+    $manifest = $manifestText | ConvertFrom-Json
+    Require ($uninstaller.Contains('string version="' + $ExpectedVersion + '";')) "Uninstaller fallback version must match VERSION."
+    foreach ($needle in @(
+        ('private const string Revision = "v' + $ExpectedVersion + '"'),
+        ('private const string ReleaseVersion = "' + $ExpectedVersion + '"'),
+        'GetManifestResourceStream("LAKIS.RuntimeInstallManifest")',
+        'RequiredString(manifest,"version"),ReleaseVersion,StringComparison.Ordinal',
+        'ValidateRuntimeBundle(RequiredObject(manifest,"runtime_bundle"))',
+        'RuntimeBundleInstaller.Install(python,manifest,target,cache,mode,includeAnimeSharp,status)'
+    )) {
+        Require ($setup.Contains($needle)) "Runtime Setup invariant is missing: $needle"
+    }
+    $fresh = $setup.Substring($setup.IndexOf('internal static void Install('),
+        $setup.IndexOf('private static InvalidOperationException RuntimeFailure') - $setup.IndexOf('internal static void Install('))
+    $repair = $setup.Substring($setup.IndexOf('internal static void Repair('),
+        $setup.IndexOf('private static string Fetch') - $setup.IndexOf('internal static void Repair('))
+    foreach ($entry in @($fresh, $repair)) {
+        Require ($entry.Contains('string manifest=ReadRuntimeInstallManifest();')) "Fresh Setup and Repair must both validate the embedded runtime manifest."
+    }
+    Require ($fresh.Contains('ValidateFreshTarget(target);')) "Fresh Setup must validate its destination before runtime work."
+    Require ($fresh.Contains('RunRuntimeInstaller(manifest,target,cache,"fresh",includeAnimeSharp,status)')) "Fresh Setup must use the shared runtime installer."
+    Require ($repair.Contains('RunRuntimeInstaller(manifest,target,cache,"repair",false,status)')) "Repair must use the shared runtime installer without reseeding optional defaults."
+    Require ($repair.Contains('installedVersion,ReleaseVersion,StringComparison.Ordinal')) "Repair must require the exact installed release."
+    Require ([regex]::IsMatch($setup, 'if\(IsExistingInstallation\(target\)\)\s*throw new InvalidOperationException')) "New install must reject an existing LAKIS installation."
+    Require ([regex]::IsMatch($setup, 'if\(HasDirectoryEntries\(target\)\)\s*throw new InvalidOperationException')) "New install must reject every non-empty destination."
+    foreach ($needle in @('runtime_install.py', '"--mode", mode, "--method", "gui"', '(string)result["status"] != "complete"')) {
+        Require ($bridge.Contains($needle)) "RuntimeBundleInstaller.Install invariant is missing: $needle"
+    }
+    foreach ($needle in @(
+        'version = manifest["version"]',
+        'verify_runtime(candidate, bundle["manifest_sha256"], version)',
+        'return activate(candidate, target, bundle["manifest_sha256"], version, mode,',
+        'if mode == "fresh":'
+    )) {
+        Require ($runtimeInstall.Contains($needle)) "Runtime installation invariant is missing: $needle"
+    }
+    # VERSION is authenticated and copied with the candidate, not rewritten by Setup.
+    Require ($runtimeManifest.Contains('(root / "VERSION").read_text(encoding="utf-8-sig").strip() != expected_version')) "Installed VERSION must equal the trusted runtime release."
+    Require ($runtimeManifest.Contains('missing = {name.casefold() for name in REQUIRED_FILES} - expected.keys()')) "Runtime verification must enforce REQUIRED_FILES."
+    foreach ($needle in @(
+        'manifest = verify_runtime(candidate, manifest_sha256, version)',
+        'verify_runtime(stage, manifest_sha256, version)',
+        'verify_runtime(target, manifest_sha256, version, allow_user_data=True)',
+        'had_original = _assert_original(target, version, mode)',
+        'raise ValueError("fresh target is not empty")',
+        '_copy_data(data_source, stage)',
+        '_data_snapshot(target) != original_data'
+    )) {
+        Require ($transition.Contains($needle)) "Runtime activation/data-protection invariant is missing: $needle"
+    }
+    $requiredFiles = [regex]::Match($runtimeManifest, '(?s)REQUIRED_FILES = \((.*?)\r?\n\)').Groups[1].Value
+    foreach ($name in @(
+        "VERSION", "LAKIS.exe", "LAKIS_Updater.exe", "LAKIS_Patcher.exe", "LAKIS_Desktop.exe",
+        "LAKIS_Model_Importer.exe", "Uninstall_LAKIS.exe", "THIRD_PARTY_NOTICES.md",
+        "ComfyUI/LAKIS/STOP_AUTOMATION", "ComfyUI/LAKIS/external_ui/launch_lakis.py",
+        "ComfyUI/LAKIS/workflows/LAKIS_runtime_api_v7.4.json"
+    )) {
+        Require ($requiredFiles.Contains('"' + $name + '"')) "Base runtime REQUIRED_FILES is missing: $name"
+    }
+    Require ($manifest.version -eq $ExpectedVersion) "Installer manifest template must match VERSION."
+    Require ($manifest.release_base -eq "https://github.com/Jeong-Luke/LAKIS/releases/download/v$ExpectedVersion") "Installer manifest template must use the candidate release."
+    Require ($manifest.source.url -eq "https://codeload.github.com/Jeong-Luke/LAKIS/zip/373cbf40a2f94553dde26ccad31c33275e27babc") "Installer source must remain pinned."
+    Require ($manifest.source.sha256 -eq "D6D8BC920C7A74BE4728C0F7703744469E62E80502F297E582EE1A1406FA052D") "Installer source hash must remain pinned."
+    foreach ($model in @(
+        @("qwen_3_06b_base.safetensors", "https://huggingface.co/circlestone-labs/Anima/resolve/e26179e4b23bcb3a9e91b4ad2961a76ab9644d43/split_files/text_encoders/qwen_3_06b_base.safetensors", "CD2A512003E2F9F3CD3C32A9C3573F820BB28C940F73C57B1DDAA983D9223EBA"),
+        @("anima_baseV10.safetensors", "https://huggingface.co/circlestone-labs/Anima/resolve/457fbf842cb86e96af72c65bdd13e3f1c448de84/split_files/diffusion_models/anima-base-v1.0.safetensors", "BD43B7CFFE1ED1153D9C41E7BEB2F18CB1273EAFBAA3AF3EDD6A173DC90A006E"),
+        @("RealESRGAN_x4plus_anime_6B.pth", "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.2.4/RealESRGAN_x4plus_anime_6B.pth", "F872D837D3C90ED2E05227BED711AF5671A6FD1C9F7D7E91C911A61F155E99DA")
+    )) {
+        $records = @($manifest.models | Where-Object { $_[0] -eq $model[0] })
+        Require ($records.Count -eq 1) "Installer model is missing or duplicated: $($model[0])"
+        Require ($records[0][1] -eq $model[1] -and $records[0][2] -eq $model[2]) "Installer model URL/hash must remain pinned: $($model[0])"
+    }
+    foreach ($text in @($setup, $manifestText, $requiredFiles)) {
+        Require (-not [regex]::IsMatch($text, 'ComfyUI-LAKIS-Light-Control|DSINE|Aitrepreneur/FLX|p101111/anima')) "Installer must not include retired components or unlicensed model mirrors."
+    }
+    Require (-not [regex]::IsMatch($manifestText + $requiredFiles, 'LAKIS_DEV|LAKIS_LUKE|DEKIS|LUKIS|DEV_VERSION|LUKE_VERSION')) "Public installer/runtime contract must not include private components."
 }
-Require ([regex]::Matches($setup, 'File\.WriteAllText\(Path\.Combine\(target,"VERSION"\),ReleaseVersion\)').Count -eq 2) "Fresh Setup and Repair must both write the candidate ReleaseVersion."
-Require (-not [regex]::IsMatch($setup, 'File\.WriteAllText\(Path\.Combine\(target,"VERSION"\),"\d+\.\d+\.\d+"\)')) "Setup/Repair must never hardcode a semantic VERSION string; use ReleaseVersion."
-Require ($setup.Contains("if(IsExistingInstallation(target))throw new InvalidOperationException")) "New install must reject an existing LAKIS installation."
-Require ($setup.Contains("if(HasDirectoryEntries(target))throw new InvalidOperationException")) "New install must reject every non-empty destination."
-Require ($setup.Contains("circlestone-labs/Anima/resolve/e26179e4b23bcb3a9e91b4ad2961a76ab9644d43/split_files/text_encoders/qwen_3_06b_base.safetensors")) "Qwen encoder must come from the pinned official Anima source."
-Require ($setup.Contains("circlestone-labs/Anima/resolve/457fbf842cb86e96af72c65bdd13e3f1c448de84/split_files/diffusion_models/anima-base-v1.0.safetensors")) "Anima base must come from the pinned official source."
-Require (-not $setup.Contains("Aitrepreneur/FLX")) "The unlicensed FLX mirror must not remain in the installer."
-Require (-not $setup.Contains("p101111/anima")) "The unlicensed Anima mirror must not remain in the installer."
+
+Test-RuntimeInstallerContract $ExpectedVersion
 
 $externalLauncher = Read-RepoFile "src\external_ui\launch_lakis.py"
 $externalServer = Read-RepoFile "src\external_ui\serve_ui.py"

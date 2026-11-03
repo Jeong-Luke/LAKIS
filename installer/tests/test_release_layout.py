@@ -74,7 +74,13 @@ class ReleaseLayoutTests(unittest.TestCase):
                 "ComfyUI/LAKIS/external_ui/app.js",
                 "ComfyUI/LAKIS/external_ui/serve_ui.py",
                 "ComfyUI/LAKIS/external_ui/workflow_bridge.py",
+                "ComfyUI/LAKIS/external_ui/runtime/native_workflow.py",
+                "ComfyUI/LAKIS/external_ui/workflows/LAKIS_custom_v8.0_editable.json",
+                "ComfyUI/LAKIS/external_ui/workflows/LAKIS_runtime_api_v8.0.json",
+                "ComfyUI/LAKIS/external_ui/workflows/LAKIS_runtime_visual_v8.0.json",
                 "ComfyUI/LAKIS/workflows/LAKIS_runtime_api_v7.4.json",
+                "ComfyUI/custom_nodes/ComfyUI-LAKIS-Detail/native_controls.py",
+                "ComfyUI/custom_nodes/ComfyUI-LAKIS-Detail/web/native_workflow.js",
                 "ComfyUI/custom_nodes/ComfyUI-LAKIS-Local-Inpaint/__init__.py",
             ):
                 self.assertIn(required, files)
@@ -87,6 +93,7 @@ class ReleaseLayoutTests(unittest.TestCase):
             )
             self.assertFalse(any(path.startswith(forbidden_prefixes) for path in files))
             self.assertNotIn("ComfyUI/LAKIS/workflows/LAKIS_custom_v7.4_editable.json", files)
+            self.assertNotIn("ComfyUI/LAKIS/workflows/LAKIS_custom_v8.0_editable.json", files)
             self.assertNotIn("ComfyUI/LAKIS/workflows/LAKIS_custom_v7.3_editable.json", payload["retired"])
             self.assertNotIn("ComfyUI/LAKIS/external_ui/release-integrity.json", files)
             self.assertIn(

@@ -82,8 +82,111 @@ function persistedGenerationState() {
   };
 }
 
+const isStateRecord = value => value !== null && typeof value === "object" && !Array.isArray(value);
+function recordStateEdits(previous, current, edits, path = []) {
+  if (isStateRecord(previous) && isStateRecord(current)) {
+    for (const key of new Set([...Object.keys(previous), ...Object.keys(current)])) {
+      const hadPrevious = Object.prototype.hasOwnProperty.call(previous, key);
+      const hasCurrent = Object.prototype.hasOwnProperty.call(current, key);
+      const nextPath = [...path, key];
+      if (!hasCurrent) edits.set(JSON.stringify(nextPath), { present: false });
+      else if (!hadPrevious) edits.set(JSON.stringify(nextPath), { present: true, value: structuredClone(current[key]) });
+      else recordStateEdits(previous[key], current[key], edits, nextPath);
+    }
+    return;
+  }
+  if (JSON.stringify(previous) !== JSON.stringify(current)) {
+    edits.set(JSON.stringify(path), { present: current !== undefined, value: structuredClone(current) });
+  }
+}
+
+function applyStateEdits(target, edits) {
+  for (const [encodedPath, edit] of edits) {
+    const path = JSON.parse(encodedPath);
+    let parent = target;
+    for (const key of path.slice(0, -1)) {
+      if (!isStateRecord(parent[key])) parent[key] = {};
+      parent = parent[key];
+    }
+    if (edit.present) parent[path.at(-1)] = structuredClone(edit.value);
+    else delete parent[path.at(-1)];
+  }
+}
+
+function applyPersistedGenerationState(saved) {
+  Object.assign(state.model, saved.model || {});
+  Object.assign(state.output, saved.output || {});
+  state.loras = Array.isArray(saved.loras) ? structuredClone(saved.loras) : [];
+  state.lora_enabled = saved.lora_enabled !== false;
+  state.node_overrides = isStateRecord(saved.node_overrides) ? structuredClone(saved.node_overrides) : {};
+  Object.assign(state.generation, saved.generation || {});
+  Object.assign(state.camera, saved.camera || {});
+  state.composition_enabled = saved.composition_enabled !== false;
+  state.wildcard_enabled = saved.wildcard_enabled === true;
+  state.wildcard_exclusions = isStateRecord(saved.wildcard_exclusions)
+    ? structuredClone(saved.wildcard_exclusions) : {};
+  Object.assign(state.continuous, saved.continuous || {});
+}
+
+function syncEditedGenerationControls(edits) {
+  const paths = [...edits.keys()].map(encoded => JSON.parse(encoded));
+  const roots = new Set(paths.map(path => path[0]));
+  if (roots.has("model")) {
+    const controls = {
+      checkpoint: "checkpointSelect", vae: "vaeSelect", clip: "clipSelect",
+      sampler: "samplerSelect", scheduler: "schedulerSelect", steps: "stepsInput", cfg: "cfgInput",
+    };
+    for (const key of new Set(paths.filter(path => path[0] === "model").map(path => path[1]))) {
+      const id = controls[key];
+      if (id) document.querySelector(`#${id}`).value = state.model[key];
+    }
+  }
+  if (roots.has("output")) {
+    const controls = { width: "imageWidth", height: "imageHeight", seed: "seedInput" };
+    for (const key of new Set(paths.filter(path => path[0] === "output").map(path => path[1]))) {
+      const id = controls[key];
+      if (id) document.querySelector(`#${id}`).value = state.output[key];
+    }
+    document.querySelector("#aspectRatioLock").checked = state.output.aspect_locked === true;
+    lockedAspectRatio = clampImageDimension(state.output.width) / clampImageDimension(state.output.height);
+    document.querySelectorAll("[data-seed-mode]").forEach(button => {
+      button.classList.toggle("active", button.dataset.seedMode === state.output.seed_mode);
+    });
+    document.querySelector("#seedInput").classList.toggle("seed-locked", state.output.seed_mode === "current");
+  }
+  if (roots.has("loras")) renderLoras();
+  if (roots.has("lora_enabled")) {
+    const toggle = document.querySelector("#allLorasToggle");
+    toggle.classList.toggle("on", state.lora_enabled);
+    toggle.setAttribute("aria-pressed", String(state.lora_enabled));
+    document.querySelector("#loraList").classList.toggle("all-disabled", !state.lora_enabled);
+  }
+  if (roots.has("composition_enabled")) renderCompositionAvailability();
+  if (roots.has("wildcard_enabled")) window.lakisApplyWildcardState?.(state.wildcard_enabled);
+  if (roots.has("wildcard_exclusions")) window.lakisApplyWildcardExclusions?.(state.wildcard_exclusions);
+  if (roots.has("continuous")) syncContinuousControls();
+}
+
+let generationStateObserved = structuredClone(persistedGenerationState());
+const pendingGenerationStateEdits = new Map();
+const pendingPromptStateEdits = new Map();
+let promptStateObserved = null;
+let applyingWorkflowConfiguration = false;
+let workflowConfigurationReady = Promise.resolve();
+
+function capturePendingGenerationStateEdits() {
+  if (generationStateHydrated || applyingWorkflowConfiguration) return;
+  const current = structuredClone(persistedGenerationState());
+  recordStateEdits(generationStateObserved, current, pendingGenerationStateEdits);
+  generationStateObserved = current;
+}
+
 function scheduleGenerationStateSave() {
-  if (!generationStateHydrated) return;
+  if (!generationStateHydrated) {
+    capturePendingGenerationStateEdits();
+    return;
+  }
+  if (applyingWorkflowConfiguration) return;
   clearTimeout(generationStateSaveTimer);
   generationStateSaveTimer = setTimeout(async () => {
     try {
@@ -1077,6 +1180,14 @@ const promptInputBindings = [
   ["negativeArtistPromptInput", "negative_artist"],
   ["negativePrompt", "negative"],
 ];
+const promptStateInputIds = {
+  general: "generalPromptInput", quality: "qualityPromptInput",
+  artist: "artistPromptInput", trigger: "triggerPromptInput",
+  fixed: "fixedPromptInput", negative: "negativePrompt",
+  negative_quality: "negativeQualityPromptInput",
+  negative_artist: "negativeArtistPromptInput",
+  negative_fixed: "negativeFixedPromptInput",
+};
 
 const promptTranslationToggle = document.querySelector("#promptTranslationToggle");
 try {
@@ -1197,6 +1308,44 @@ function promptPersistencePayload() {
   };
 }
 
+promptStateObserved = structuredClone(promptPersistencePayload());
+function capturePendingPromptStateEdits() {
+  if (promptStateHydrated || applyingWorkflowConfiguration) return;
+  const current = structuredClone(promptPersistencePayload());
+  recordStateEdits(promptStateObserved, current, pendingPromptStateEdits);
+  promptStateObserved = current;
+}
+
+for (const eventName of ["click", "input", "change", "pointermove", "wheel", "keydown", "dblclick"]) {
+  document.addEventListener(eventName, () => {
+    if (applyingWorkflowConfiguration || (generationStateHydrated && promptStateHydrated)) return;
+    queueMicrotask(() => {
+      capturePendingGenerationStateEdits();
+      capturePendingPromptStateEdits();
+    });
+  }, true);
+}
+
+function applyPromptStateSnapshot(snapshot) {
+  state.prompt = structuredClone(snapshot.prompt || {});
+  for (const [key, id] of Object.entries(promptStateInputIds)) {
+    const value = Object.prototype.hasOwnProperty.call(state.prompt, key) ? String(state.prompt[key] || "") : "";
+    state.prompt[key] = value;
+    document.querySelector(`#${id}`).value = value;
+  }
+  state.prompt_enabled = structuredClone(snapshot.prompt_enabled || {});
+  const inpaintPrompt = snapshot.inpaint_prompt || {};
+  state.inpaint.prompt = String(inpaintPrompt.prompt || "").slice(0, 4000);
+  state.inpaint.negative_prompt = String(inpaintPrompt.negative_prompt || "").slice(0, 4000);
+  inpaintPromptInput.value = state.inpaint.prompt;
+  inpaintNegativePromptInput.value = state.inpaint.negative_prompt;
+  inpaintPromptCount.textContent = `${state.inpaint.prompt.length} / 4000`;
+  inpaintNegativePromptCount.textContent = `${state.inpaint.negative_prompt.length} / 4000`;
+  state.translation_enabled = snapshot.translation_enabled !== false;
+  promptTranslationToggle.checked = state.translation_enabled;
+  restorePromptUiState(snapshot.prompt_ui || {});
+}
+
 function saveLocalPromptState(dirty = promptStateDirty) {
   try {
     localStorage.setItem(PROMPT_STORAGE_KEY, JSON.stringify({
@@ -1210,7 +1359,11 @@ function saveLocalPromptState(dirty = promptStateDirty) {
 
 let promptSaveTimer = null;
 function markPromptStateDirty() {
-  if (!promptStateHydrated) return;
+  if (applyingWorkflowConfiguration) return;
+  if (!promptStateHydrated) {
+    capturePendingPromptStateEdits();
+    return;
+  }
   promptStateDirty = true;
   saveLocalPromptState(true);
   schedulePromptStateSave();
@@ -1282,6 +1435,7 @@ async function refreshWorkflowConfiguration() {
     const response = await fetch("/api/workflow-config", { cache: "no-store" });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const config = await response.json();
+    applyingWorkflowConfiguration = true;
     if (loraManagerLink && Number(config.comfy_port)) {
       loraManagerLink.href = `http://127.0.0.1:${Number(config.comfy_port)}/loras`;
     }
@@ -1303,7 +1457,6 @@ async function refreshWorkflowConfiguration() {
     state.continuous.count = Math.max(1, Math.min(20, Number(state.continuous.count) || 1));
     syncContinuousControls();
     renderCamera();
-    generationStateHydrated = true;
     Object.assign(state.generation, savedGeneration.generation || {});
     Object.assign(state.model, savedGeneration.model || {});
     Object.assign(state.output, savedGeneration.output || {});
@@ -1336,14 +1489,14 @@ async function refreshWorkflowConfiguration() {
           strength: Number(item.strength ?? 1),
         }))
       : [];
+    const generationStateBase = structuredClone(persistedGenerationState());
+    lastSavedGenerationState = JSON.stringify(generationStateBase);
+    const mergedGenerationState = structuredClone(generationStateBase);
+    applyStateEdits(mergedGenerationState, pendingGenerationStateEdits);
+    applyPersistedGenerationState(mergedGenerationState);
+    syncEditedGenerationControls(pendingGenerationStateEdits);
     renderLoras();
     refreshLoraInventory();
-    const promptInputs = {
-      general: "generalPromptInput", quality: "qualityPromptInput",
-      artist: "artistPromptInput", trigger: "triggerPromptInput", fixed: "fixedPromptInput",
-      negative: "negativePrompt", negative_quality: "negativeQualityPromptInput",
-      negative_artist: "negativeArtistPromptInput", negative_fixed: "negativeFixedPromptInput",
-    };
     const localPrompt = loadLocalPromptState();
     const serverPromptState = config.prompt_state && typeof config.prompt_state === "object"
       ? config.prompt_state : {};
@@ -1354,7 +1507,7 @@ async function refreshWorkflowConfiguration() {
       && localPrompt.prompt && typeof localPrompt.prompt === "object"
       && Number(localPrompt.revision || 0) >= Number(serverPromptState.revision || 0);
     const selectedPrompt = recoverLocal ? localPrompt.prompt : (serverPromptState.prompt || config.prompt || {});
-    for (const [key, id] of Object.entries(promptInputs)) {
+    for (const [key, id] of Object.entries(promptStateInputIds)) {
       const source = Object.prototype.hasOwnProperty.call(selectedPrompt, key) ? selectedPrompt[key] : "";
       const value = String(source || "");
       state.prompt[key] = value;
@@ -1377,23 +1530,34 @@ async function refreshWorkflowConfiguration() {
       promptTranslationToggle.checked = translationSource;
     }
     restorePromptUiState((recoverLocal ? localPrompt.prompt_ui : serverPromptState.prompt_ui) || {});
+    const hydratedPromptState = structuredClone(promptPersistencePayload());
+    const hadPendingPromptEdits = pendingPromptStateEdits.size > 0;
+    applyStateEdits(hydratedPromptState, pendingPromptStateEdits);
+    applyPromptStateSnapshot(hydratedPromptState);
     promptStateRevision = Number(serverPromptState.revision || 0);
-    promptStateDirty = recoverLocal;
+    promptStateDirty = recoverLocal || hadPendingPromptEdits;
     promptStateHydrated = true;
     saveLocalPromptState(promptStateDirty);
-    if (recoverLocal) schedulePromptStateSave();
+    if (promptStateDirty) schedulePromptStateSave();
     window.dispatchEvent(new CustomEvent("lakis-prompt-state-loaded"));
     // The initial render happens before this asynchronous configuration is
     // available. Refresh engine-dependent labels once the saved DEV engine
     // has been restored (USDU for Ultimate, SCOPE for LAKIS_SCOPE).
     render();
-    // Closing an unchanged, older window must not overwrite another editor.
-    lastSavedGenerationState = JSON.stringify(persistedGenerationState());
+    generationStateObserved = structuredClone(persistedGenerationState());
+    promptStateObserved = structuredClone(promptPersistencePayload());
+    const hadPendingGenerationEdits = pendingGenerationStateEdits.size > 0;
+    pendingGenerationStateEdits.clear();
+    pendingPromptStateEdits.clear();
+    generationStateHydrated = true;
+    applyingWorkflowConfiguration = false;
+    if (hadPendingGenerationEdits) scheduleGenerationStateSave();
   } catch (error) {
+    applyingWorkflowConfiguration = false;
     console.error("Could not load ComfyUI workflow model configuration", error);
   }
 }
-refreshWorkflowConfiguration();
+workflowConfigurationReady = refreshWorkflowConfiguration();
 
 function syncOutputStateFromInputs() {
   for (const [id, key] of [["imageWidth", "width"], ["imageHeight", "height"]]) {
@@ -2532,6 +2696,7 @@ generateButton.addEventListener("click", async () => {
 
   generationPreparationPending = true;
   try {
+  await workflowConfigurationReady;
   if (continuousAdvance) {
     continuousAdvance = false;
     continuousRun.index += 1;

@@ -85,6 +85,7 @@ class NativeWriteBoundaryTests(unittest.TestCase):
         command=[str(CSC),'/nologo','/target:exe','/main:SecurityProbe','/out:'+str(cls.exe),
                  '/r:System.Windows.Forms.dll','/r:System.Drawing.dll','/r:System.Web.Extensions.dll',
                  '/r:System.IO.Compression.dll','/r:System.IO.Compression.FileSystem.dll',
+                 str(ROOT/'installer/UpdateProtocol.cs'),str(ROOT/'installer/RuntimeBundleInstaller.cs'),
                  str(ROOT/'installer/Setup_LAKIS_Safe.cs'),str(ROOT/'installer/LAKIS_Updater.cs'),
                  str(ROOT/'installer/SplashArtwork.cs'),str(probe)]
         result=subprocess.run(command,capture_output=True)

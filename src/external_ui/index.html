@@ -46,6 +46,7 @@
   <link rel="stylesheet" href="upscaler-license-migration.css?v=20260906-first-run">
   <link rel="stylesheet" href="system-info-dialog.css?v=20260906-licenses">
   <link rel="stylesheet" href="image-history.css?v=20261005-library-pagination">
+  <link rel="stylesheet" href="lakis-link-download.css?v=8.0.2">
   <link rel="stylesheet" href="lakis-link-mobile.css?v=20260913-link-1">
   <link rel="stylesheet" href="lakis-link-control.css?v=20260913-link-1">
   <link rel="stylesheet" href="lakis-link-sidebar.css?v=20260913-parity-1">
@@ -60,8 +61,8 @@
         <div class="workflow-launcher">
           <button id="workflowButton" class="nav-item" type="button" aria-label="ComfyUI 워크플로 선택" title="ComfyUI Workflow" aria-haspopup="menu" aria-expanded="false"><svg class="workflow-brand-icon" viewBox="0 0 204 192" aria-hidden="true"><rect width="204" height="192" rx="5" fill="#2037db"/><path fill="#efff2d" d="M105 32h45c10 0 15 7 12 17l-4 14c-2 8-8 13-17 13h-42l-12 42h37c10 0 15 7 12 17l-4 14c-2 8-8 13-17 13H75c-11 0-16-7-13-17l3-11H55c-10 0-15-7-12-17l12-43c2-9 8-14 17-14h15l5-17c2-9 7-14 13-15z"/></svg></button>
           <div id="workflowMenu" class="workflow-menu" role="menu" hidden>
-            <button type="button" role="menuitem" data-workflow-kind="runtime" data-tooltip="LAKIS 실행 워크플로" aria-label="LAKIS 실행 워크플로"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8m-4-4v4"/></svg></button>
-            <button type="button" role="menuitem" data-workflow-kind="editable" data-tooltip="사용자 편집 워크플로" aria-label="사용자 편집 워크플로"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4.5 21c.7-4.1 3.2-6 7.5-6s6.8 1.9 7.5 6"/></svg></button>
+            <button type="button" role="menuitem" data-workflow-kind="api" data-tooltip="API용 워크플로" aria-label="API용 워크플로"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8m-4-4v4"/></svg></button>
+            <button type="button" role="menuitem" data-workflow-kind="editable" data-tooltip="사용자 편집용 워크플로" aria-label="사용자 편집용 워크플로"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4.5 21c.7-4.1 3.2-6 7.5-6s6.8 1.9 7.5 6"/></svg></button>
           </div>
         </div>
         <a class="nav-item sidebar-danbooru-link" href="https://danbooru-tag.mephistopheles.moe/" target="_blank" rel="noopener noreferrer" aria-label="Danbooru 태그 툴" title="Danbooru 태그 툴"><svg class="danbooru-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h9.2L20 11.8 11.8 20 4 12.2z"/><circle cx="8.1" cy="9" r="1.4"/><path d="m11 12 4-4m-2 7 4-4"/></svg></a>
@@ -209,7 +210,7 @@
 
         <div class="preview-column">
           <article class="preview-panel">
-            <div class="preview-toolbar"><span class="section-title-accent">이미지</span><div class="preview-zoom-controls"><button id="previewZoomOut" type="button" aria-label="이미지 축소">−</button><span id="previewZoomValue">100%</span><button id="previewZoomIn" type="button" aria-label="이미지 확대">＋</button></div></div>
+            <div class="preview-toolbar"><span class="section-title-accent">이미지</span><a id="previewSaveImage" class="image-save-link" download hidden>이미지 저장</a><div class="preview-zoom-controls"><button id="previewZoomOut" type="button" aria-label="이미지 축소">−</button><span id="previewZoomValue">100%</span><button id="previewZoomIn" type="button" aria-label="이미지 확대">＋</button></div></div>
             <div class="preview-stage">
               <div id="previewEmptyState" class="preview-empty-state" aria-label="아직 생성된 이미지가 없습니다">LAKIS</div>
               <img id="previewImage" alt="" hidden>
@@ -365,6 +366,7 @@
       <aside id="imageHistoryInspector" class="image-history-inspector" hidden>
         <div class="image-history-inspector-bar"><span>이미지 상세</span><button id="imageHistoryInspectorClose" type="button" aria-label="라이브러리 목록으로 돌아가기" title="라이브러리 목록으로 돌아가기">×</button></div>
         <img id="imageHistoryLargeImage" alt="선택한 생성 이미지">
+        <a id="historySaveImage" class="image-save-link" download hidden>이미지 저장</a>
         <div class="image-history-inspector-actions"><button id="historyUseInpaint" type="button">인페인트로 보내기</button><button id="historyUseI2i" type="button">I2I로 보내기</button></div>
         <dl><div><dt>체크포인트</dt><dd id="historyCheckpoint"></dd></div><div><dt>LoRA</dt><dd id="historyLoras"></dd></div><div><dt>시드</dt><dd id="historySeed"></dd></div><div><dt>프롬프트</dt><dd id="historyPrompt"></dd></div><div><dt>네거티브 프롬프트</dt><dd id="historyNegative"></dd></div></dl>
       </aside>
@@ -429,7 +431,7 @@
     </section>
   </div>
   <div id="wildcardOverlay" class="wildcard-overlay" hidden><section class="wildcard-card" role="dialog" aria-modal="true" aria-labelledby="wildcardTitle"><header><div><span>LAKIS</span><h2 id="wildcardTitle">와일드카드</h2></div><button id="wildcardClose" type="button" aria-label="닫기">×</button></header><nav><button type="button" data-wildcard-source="BUILT_IN" class="active">기본 제공</button><button type="button" data-wildcard-source="USER">내 와일드카드</button></nav><input id="wildcardSearch" type="search" placeholder="와일드카드 검색"><div class="wildcard-browser"><div id="wildcardList" class="wildcard-list"></div><div class="wildcard-preview"><div class="wildcard-selection-head"><div><strong id="wildcardSelectionName">목록에서 선택하세요</strong><small id="wildcardSelectionMeta"></small><small id="wildcardUseCount"></small></div><div><button id="wildcardIncludeAll" type="button">전체 포함</button><button id="wildcardExcludeAll" type="button">전체 해제</button><button id="wildcardReset" type="button">초기화</button></div></div><div id="wildcardEntries" class="wildcard-entry-list"></div></div><aside><h3>사용 중인 와일드카드</h3><div id="activeWildcards" class="active-wildcard-list"><small>프롬프트에 삽입된 와일드카드가 없습니다.</small></div><code id="wildcardToken">__name__</code><button id="wildcardInsert" type="button" disabled>프롬프트에 삽입</button></aside></div><footer><button id="wildcardFolder" type="button">폴더 열기</button><button id="wildcardRefresh" type="button">새로고침</button><span id="wildcardStatus"></span></footer></section></div>
-  <link rel="stylesheet" href="scene-controls.css?v=8.0.1">
+  <link rel="stylesheet" href="scene-controls.css?v=8.0.2">
   <link rel="stylesheet" href="precision-prompts.css?v=8.0.0">
   <dialog id="toyxyzSceneEditor" class="toyxyz-scene-editor" aria-labelledby="toyxyzSceneTitle">
     <header class="scene-editor-heading">
@@ -446,8 +448,8 @@
   </dialog>
   <script src="diagnostic-packet.js?v=1"></script>
   <script src="generation-diagnostics.js?v=1"></script>
-  <script src="app.js?v=8.0.1-diagnostics"></script>
-  <script src="scene-controls.js?v=8.0.1"></script>
+  <script src="app.js?v=8.0.2"></script>
+  <script src="scene-controls.js?v=8.0.2"></script>
   <script src="wildcard-control.js?v=20261006-exclude-all"></script>
   <script src="advanced-node-settings.js?v=20260920-settings-gear"></script>
   <script type="module" src="prompt-highlighting.js?v=20260913-wildcard-experiment-1"></script>
@@ -457,6 +459,7 @@
   <script src="lakis-link-mobile.js?v=20260913-link-1"></script>
   <script src="lakis-link-sidebar.js?v=20260913-parity-1"></script>
   <script src="image-history-v2.js?v=20261005-library-pagination"></script>
+  <script src="lakis-link-download.js?v=8.0.2"></script>
   <script src="mobile-image-pinch.js?v=20260914-mobile-pinch-1"></script>
 </body>
 </html>

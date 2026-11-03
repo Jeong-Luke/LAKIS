@@ -1,0 +1,18 @@
+.image-save-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid #6c56db;
+  border-radius: 10px;
+  background: #241b46;
+  color: #eee8ff;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.image-save-link[hidden] { display: none; }
+.image-save-link:focus-visible { outline: 2px solid #c5b4ff; outline-offset: 2px; }
+#historySaveImage { margin-top: 10px; }

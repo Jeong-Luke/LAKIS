@@ -111,6 +111,8 @@ foreach ($package in $packageNames) {
 }
 Add-UpdateFile "ComfyUI/LAKIS/sync_runtime_workflow.py" (Join-Path $repo "src\runtime\sync_runtime_workflow.py") `
     "$rawBase/src/runtime/sync_runtime_workflow.py"
+Add-UpdateFile "ComfyUI/LAKIS/external_ui/runtime/native_workflow.py" (Join-Path $repo "src\runtime\native_workflow.py") `
+    "$rawBase/src/runtime/native_workflow.py"
 
 # Only release-owned runtime workflows are updated. Editable workflows may
 # contain user changes, including the packaged editable copy, so they are
@@ -121,6 +123,17 @@ foreach ($runtimeName in @(
 )) {
     Add-UpdateFile "ComfyUI/LAKIS/workflows/$runtimeName" `
         (Join-Path $repo "workflows\$runtimeName") "$rawBase/workflows/$runtimeName"
+}
+
+# New official v8 templates belong to the application resource bundle. Keep
+# legacy editable copies and all ComfyUI/user workflows outside replacement.
+foreach ($name in @(
+    "LAKIS_custom_v8.0_editable.json",
+    "LAKIS_runtime_visual_v8.0.json",
+    "LAKIS_runtime_api_v8.0.json"
+)) {
+    Add-UpdateFile "ComfyUI/LAKIS/external_ui/workflows/$name" `
+        (Join-Path $repo "workflows\$name") "$rawBase/workflows/$name"
 }
 
 $retiredFiles = @(

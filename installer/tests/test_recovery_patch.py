@@ -166,6 +166,29 @@ class IsolatedBridge(unittest.TestCase):
         self.image('owned.webp','R',webp=True)
         self.assertIn('owned.webp',self.output_url({}))
 
+    def test_large_3d_webp_metadata_preserves_request_identity(self):
+        self.bridge.status.update(started_at=time.time()-1,request_id='R')
+        graph = {
+            '775': {'_meta': {'lakis_request_id': 'R'}},
+            '3030': {'inputs': {'render_data': 'A' * (4 * 1024 * 1024 + 1)}},
+        }
+        metadata = Image.Exif()
+        metadata[272] = 'prompt:' + json.dumps(graph)
+        Image.new('RGB', (8, 8)).save(self.output/'large-scene.webp', exif=metadata)
+        self.assertIn('large-scene.webp', self.output_url({}))
+
+    def test_large_3d_metadata_does_not_accept_another_request(self):
+        self.bridge.status.update(started_at=time.time()-1,request_id='R')
+        graph = {
+            '775': {'_meta': {'lakis_request_id': 'Other'}},
+            '3030': {'inputs': {'render_data': 'A' * (4 * 1024 * 1024 + 1)}},
+        }
+        metadata = Image.Exif()
+        metadata[272] = 'prompt:' + json.dumps(graph)
+        Image.new('RGB', (8, 8)).save(self.output/'foreign-scene.webp', exif=metadata)
+        with self.assertRaises(m.FinalOutputNotFoundError):
+            self.output_url({})
+
     def test_corrupt_image_never_accepted_by_timestamp(self):
         self.bridge.status.update(started_at=time.time()-1,request_id='R')
         (self.output/'bad.png').write_bytes(b'not an image')

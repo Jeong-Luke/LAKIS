@@ -29,6 +29,13 @@ import uuid
 import aiohttp
 
 import scene_controls
+import sys
+
+# Installed helpers are managed external_ui resources; source checkouts use
+# src/runtime. Neither import path points into saved user workflows.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "runtime"))
+sys.path.insert(0, str(Path(__file__).resolve().parent / "runtime"))
+from native_workflow import alias_view as _native_alias_view, native_view as _native_view
 
 try:
     from PIL import Image
@@ -74,6 +81,14 @@ STOP_FILE = DEV_ROOT / "STOP_AUTOMATION"
 ALLOW_FILE = DEV_ROOT / "ALLOW_ONE_GENERATION"
 TEMPLATE = COMFY_ROOT / "LAKIS" / "workflows" / "LAKIS_runtime_api_v7.4.json"
 SAVED_WORKFLOW = COMFY_ROOT / "LAKIS" / "workflows" / "LAKIS_custom_v7.4_editable.json"
+for _workflow_root in (Path(__file__).resolve().parent / "workflows",
+                       RUNTIME_ROOT / "workflows", RUNTIME_ROOT.parent / "workflows",
+                       COMFY_ROOT / "LAKIS" / "workflows"):
+    _native_template = _workflow_root / "LAKIS_runtime_api_v8.0.json"
+    if _native_template.is_file():
+        TEMPLATE = _native_template
+        SAVED_WORKFLOW = _workflow_root / "LAKIS_custom_v8.0_editable.json"
+        break
 # Repair/updater installations made before v7.1 kept the validated workflow
 # contents under their v7.0.24 filenames. Continue to accept those files so a
 # UI-only update cannot leave the launcher without an executable workflow.
@@ -360,6 +375,7 @@ def _missing_runtime_node_types(prompt: dict[str, Any], object_info: dict[str, A
 
 def _validate_live_prompt_models(prompt: dict[str, Any], object_info: dict[str, Any]) -> None:
     """Reject stale UI selections before consuming allowance or calling /prompt."""
+    prompt = _native_alias_view(prompt)
     checks = (
         ("890:1365", "DiffusionModelLoaderKJ", "model_name", "Unknown diffusion model"),
         ("890:159", "VAELoader", "vae_name", "Unknown VAE"),
@@ -437,7 +453,7 @@ def _input_constraints(class_type: str, name: str,
 
 def advanced_node_configuration(template: dict[str, Any] | None = None) -> dict[str, Any]:
     """Return editable primitive/JSON inputs for the five LAKIS control groups."""
-    graph = template or json.loads(TEMPLATE.read_text(encoding="utf-8"))
+    graph = _native_alias_view(template or json.loads(TEMPLATE.read_text(encoding="utf-8")))
     object_info = _comfy_object_info()
     groups: dict[str, list[dict[str, Any]]] = {}
     for group, node_ids in ADVANCED_NODE_GROUPS.items():
@@ -1147,7 +1163,7 @@ def lora_inventory() -> dict[str, Any]:
 
 
 def workflow_configuration(object_info: dict[str, Any] | None = None) -> dict[str, Any]:
-    template = json.loads(TEMPLATE.read_text(encoding="utf-8"))
+    template = _native_alias_view(json.loads(TEMPLATE.read_text(encoding="utf-8")))
     object_info = object_info if object_info is not None else _comfy_object_info()
     prompt_defaults = dict(FIRST_RUN_PROMPT)
     prompt_defaults.update(load_external_prompt_state())
@@ -1357,7 +1373,9 @@ def _warmup_graph(prompt: dict[str, Any], full: bool) -> tuple[dict[str, Any], s
     decode_id = "lakis_startup_warmup_decode"
     target = "lakis_startup_warmup_preview"
     decode = deepcopy(template["1635"])
-    decode["inputs"]["samples"] = ["1634:1622", 0]
+    initial = next((key for key, node in prompt.items()
+                    if node.get("_meta", {}).get("lakis_source_id") == "1634:1622"), "1634:1622")
+    decode["inputs"]["samples"] = [initial, 0]
     prompt[decode_id] = decode
     prompt[target] = {
         "inputs": {"images": [decode_id, 0]},
@@ -1473,7 +1491,137 @@ def _replace_camera_field(prompt: dict[str, Any], text: str) -> None:
     studio["advanced_fields"] = json.dumps(fields, ensure_ascii=False, separators=(",", ":"))
 
 
+def _build_native_prompt(application_state: dict[str, Any], original: dict[str, Any]):
+    """Configure the same native graph that ComfyUI opens, without graph surgery."""
+    prompt = _native_alias_view(original)
+    info = _wait_for_comfy_object_info()
+    if not info:
+        raise RuntimeError("ComfyUI model inventory is not ready")
+    controls = prompt["3000"]["inputs"]
+    generation = application_state.get("generation", {})
+    modes = {"fast": "FAST", "detail": "DETAIL", "lakis_detail": "LAKIS DETAIL"}
+    mode = str(generation.get("mode", "fast"))
+    if mode not in modes:
+        raise ValueError("generation.mode must be fast, detail, or lakis_detail")
+    if mode == "detail" and _coerce_bool(generation.get("lakis_mode", False)):
+        mode = "lakis_detail"
+    inpaint = application_state.get("inpaint", {})
+    i2i = application_state.get("i2i", {})
+    scene = scene_controls.normalize_state(application_state.get("scene_controls", {}))
+    controls.update(
+        mode=modes[mode], composition=_coerce_bool(application_state.get("composition_enabled", True), True),
+        i2i=_coerce_bool(i2i.get("enabled", False)),
+        inpaint=_coerce_bool(inpaint.get("enabled", False)),
+        pose=scene["enabled"] and scene["toyxyz_enabled"],
+        i2i_denoise=_bounded_number(i2i.get("denoise", .5), .5, 0., 1.))
+    output = application_state.get("output", {})
+    canvas = prompt["3001"]["inputs"]
+    for name in ("width", "height"):
+        canvas[name] = round(_bounded_number(output.get(name, canvas[name]), canvas[name],
+                                             256, 4096, integer=True) / 16) * 16
+    seed = _coerce_number(output.get("seed", 0), -1, integer=True)
+    if not 0 <= seed <= COMFYUI_SEED_MAX:
+        raise ValueError(f"Seed must be between 0 and {COMFYUI_SEED_MAX}")
+    prompt["890:1864"]["inputs"]["seed"] = seed
+    model = application_state.get("model", {})
+    for source, node_id, field in (("checkpoint", "890:1365", "model_name"),
+                                    ("vae", "890:159", "vae_name"), ("clip", "890:164", "clip_name")):
+        if source in model:
+            prompt[node_id]["inputs"][field] = str(model[source])
+    _validate_live_prompt_models(prompt, info)
+    sampler = prompt["890:905"]["inputs"]
+    for source, target in (("steps", "steps_total"), ("cfg", "cfg"),
+                           ("sampler", "sampler_name"), ("scheduler", "scheduler")):
+        if source in model:
+            sampler[target] = model[source]
+    sampler["steps_total"] = _bounded_number(sampler["steps_total"], 30, 1, 10000, integer=True)
+    sampler["cfg"] = _bounded_number(sampler["cfg"], 5., 0., 100.)
+    for field, fallback in (("sampler_name", SAMPLER_OPTIONS), ("scheduler", SCHEDULER_OPTIONS)):
+        if sampler[field] not in _enum_options("KSampler", field, fallback, info):
+            raise ValueError(f"Unsupported {field}: {sampler[field]}")
+    if "prompt" in application_state:
+        _inject_prompts(prompt, application_state["prompt"])
+    lora_assertions = {}
+    if "loras" in application_state:
+        lora_assertions = _inject_loras(prompt, application_state["loras"])
+    prompt["3026"]["inputs"]["enabled"] = _coerce_bool(application_state.get("lora_enabled", True), True)
+    for state, node_id, enabled, prefix in (
+        (i2i, "1744", controls["i2i"] and not controls["inpaint"], "LAKIS_i2i_input"),
+        (inpaint, "3011", controls["inpaint"], "LAKIS_inpaint_input"),
+        (inpaint, "3012", controls["inpaint"], "LAKIS_inpaint_mask")):
+        if not enabled:
+            continue
+        field = "mask_name" if node_id == "3012" else "image_name"
+        name = Path(str(state.get(field, ""))).name
+        target = (COMFY_ROOT / "input" / name).resolve()
+        if not name.startswith(prefix) or target.parent != (COMFY_ROOT / "input").resolve() or not target.is_file():
+            raise ValueError("Select the source image and mask again")
+        prompt[node_id]["inputs"]["image"] = name
+    paint = prompt["3013"]["inputs"]
+    paint.update(operation=str(inpaint.get("operation", "regenerate")),
+                 positive=str(inpaint.get("prompt", "")), negative=str(inpaint.get("negative_prompt", "")),
+                 denoise=_bounded_number(inpaint.get("denoise", .65), .65, 0., 1.),
+                 grow_mask_by=_bounded_number(inpaint.get("grow_mask_by", 8), 8, 0, 64, integer=True))
+    if paint["operation"] not in {"regenerate", "remove"}:
+        raise ValueError("inpaint.operation must be remove or regenerate")
+    if len(paint["positive"]) > 4000 or len(paint["negative"]) > 4000:
+        raise ValueError("Inpaint prompts must be at most 4,000 characters")
+    prompt["3019"]["inputs"]["strength"] = _bounded_number(inpaint.get("strength", 1.), 1., 0., 2.)
+    camera = application_state.get("camera", {})
+    for source, target in (("x", "pos_x"), ("y", "pos_y"), ("z", "pos_z"),
+                           ("roll", "roll"), ("frame_y", "frame_y")):
+        inputs = prompt["2135"]["inputs"]
+        if source in camera or target in camera:
+            inputs[target] = _bounded_number(camera.get(source, camera.get(target)), inputs[target], -1., 1.)
+    if controls["pose"] and not (controls["i2i"] or controls["inpaint"]):
+        prompt["3030"]["inputs"].update(pose_data=scene["pose_data"], render_data=scene["toyxyz_render_data"])
+        prompt["3032"]["inputs"]["paint_data"] = scene["toyxyz_paint_data"]
+        prompt["3033"]["inputs"]["value"] = scene["pose_strength"]
+        prompt["3034"]["inputs"]["value"] = scene["region_strength"]
+        try:
+            capture = json.loads(scene["toyxyz_render_data"])
+            painting = json.loads(scene["toyxyz_paint_data"])
+            pose = json.loads(scene["pose_data"])
+        except (TypeError, ValueError) as error:
+            raise ValueError("Apply the 3D editor first") from error
+        expected_size = (canvas["width"], canvas["height"])
+        if (not all(isinstance(value, dict) and value.get("version") == 1 for value in (capture, painting, pose))
+                or tuple(capture.get("region_painter", {}).get(key) for key in ("width", "height")) != expected_size
+                or tuple(painting.get(key) for key in ("width", "height")) != expected_size):
+            raise ValueError("Image dimensions changed; apply the 3D editor again")
+    _apply_advanced_node_overrides(prompt, application_state.get("node_overrides"))
+    upscaler = _preferred_upscaler()
+    if upscaler:
+        prompt["1541:1536"]["inputs"]["model_name"] = upscaler
+    prompt["lakis:configured_output_path"] = {
+        "class_type": "StringConcatenate",
+        "inputs": {"string_a": str(configured_output_root() / "LAKIS"),
+                   "string_b": ["1784", 0], "delimiter": "\\"},
+        "_meta": {"title": "LAKIS configured output path"}}
+    prompt[FINAL_NODE]["inputs"]["path"] = ["lakis:configured_output_path", 0]
+    # The graph itself enforces exclusivity and mode semantics. These are
+    # diagnostics, not a second implementation of graph transformations.
+    return _native_view(prompt, original), {
+        "native_workflow": True, "final_only": True, "initial_spectrum": True,
+        "detail_enabled": mode != "fast", "inpaint_enabled": controls["inpaint"],
+        "i2i_enabled": controls["i2i"] and not controls["inpaint"],
+        "composition_enabled": controls["composition"] and not (
+            controls["i2i"] or controls["inpaint"] or controls["pose"]),
+        "scene_controls_enabled": controls["pose"] and not (controls["i2i"] or controls["inpaint"]),
+        "resolution": f"{canvas['width']}x{canvas['height']}", "node_count": len(prompt),
+        "inpaint_pipeline": "local_v2" if controls["inpaint"] else "off", **lora_assertions}
+
+
 def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+    if not TEMPLATE.is_file():
+        raise RuntimeError(f"Validated API prompt template is missing: {TEMPLATE}")
+    template = json.loads(TEMPLATE.read_text(encoding="utf-8"))
+    if template.get("3000", {}).get("class_type") == "LAKIS_GenerationControls":
+        return _build_native_prompt(application_state, template)
+    return _build_legacy_prompt(application_state)
+
+
+def _build_legacy_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
     if not TEMPLATE.is_file():
         raise RuntimeError(f"Validated API prompt template is missing: {TEMPLATE}")
     prompt = json.loads(TEMPLATE.read_text(encoding="utf-8"))
@@ -2561,7 +2709,10 @@ def _output_belongs_to_request(path: Path, request_id: str) -> bool:
         with Image.open(path) as image:
             raw_values = [image.info.get("prompt"), image.getexif().get(272)]
             for raw in raw_values:
-                if not isinstance(raw, str) or len(raw) > 4 * 1024 * 1024:
+                # Valid 3D requests embed captured render/paint data in the
+                # saved graph. Match the 45 MB generation request allowance;
+                # the previous 4 MiB cap rejected their own request identity.
+                if not isinstance(raw, str) or len(raw) > 45_000_000:
                     continue
                 # PNG stores a raw JSON graph; a prompt string inside that graph
                 # may itself contain the text "prompt:". Only strip the EXIF
@@ -3274,6 +3425,10 @@ class WorkflowBridge:
                 _audit("external_ui_generation_cancelled", prompt_id=prompt_id)
                 return
 
+            # A success event can precede ComfyUI's queue.task_done(). Do not
+            # advertise completion while the same prompt still owns its queue
+            # slot, otherwise a continuous run rejects its next authorized job.
+            await self._wait_for_prompt_release(session, prompt_id)
             output_url = await self._find_output(session, prompt_id)
             self.status.update(state="complete", percent=100.0, stage="완료",
                                output_url=output_url, finished_at=time.time())
@@ -3292,6 +3447,33 @@ class WorkflowBridge:
             return False
 
         return contains(queue.get("queue_running", [])) or contains(queue.get("queue_pending", []))
+
+    async def _wait_for_prompt_release(self, session: aiohttp.ClientSession,
+                                       prompt_id: str) -> None:
+        """Observe retirement of this accepted prompt; never enqueue or cancel."""
+        last_state = "unreachable"
+        for attempt in range(12):
+            try:
+                async with session.get(COMFY_SERVER + "/queue", timeout=3) as response:
+                    if response.status < 400:
+                        queue = await response.json()
+                        if (isinstance(queue, dict)
+                                and all(isinstance(queue.get(key), list)
+                                        for key in ("queue_running", "queue_pending"))):
+                            if not self._queue_contains_prompt(queue, prompt_id):
+                                return
+                            last_state = "running"
+                        else:
+                            last_state = "invalid_queue"
+                    else:
+                        last_state = "unreachable"
+            except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
+                last_state = "unreachable"
+            if attempt < 11:
+                await asyncio.sleep(1.0)
+        raise SubmissionOutcomeUnknownError(
+            f"Completion received but queue retirement is unconfirmed; prompt_id={prompt_id}; "
+            f"last_backend_state={last_state}; do not resubmit")
 
     async def _probe_prompt_state(self, session: aiohttp.ClientSession,
                                   prompt_id: str) -> str:

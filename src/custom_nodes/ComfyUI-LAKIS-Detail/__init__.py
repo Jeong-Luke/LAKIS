@@ -154,7 +154,12 @@ NODE_DISPLAY_NAME_MAPPINGS={"LAKIS_DETAIL":"LAKIS_DETAIL (Single Pass)",
                             "LAKIS_FACE_SCOPE":"LAKIS_DETAIL (Legacy Alias)",
                             "LAKIS_VRAM_GATE":"LAKIS VRAM Gate (Adaptive)"}
 
+from .native_controls import NODE_CLASS_MAPPINGS as _native_controls, bind_sampler_contract
+bind_sampler_contract(comfy.samplers.KSampler.SAMPLERS, comfy.samplers.KSampler.SCHEDULERS)
+NODE_CLASS_MAPPINGS.update(_native_controls)
+WEB_DIRECTORY = "./web"
+
 # LAKIS_SCOPE is registered by its own packaged provider. Never import a
 # developer-machine path from a public runtime.
 
-__all__=["NODE_CLASS_MAPPINGS","NODE_DISPLAY_NAME_MAPPINGS"]
+__all__=["NODE_CLASS_MAPPINGS","NODE_DISPLAY_NAME_MAPPINGS","WEB_DIRECTORY"]

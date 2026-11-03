@@ -79,12 +79,23 @@ try {
 
     Copy-ManagedFile "ComfyUI/LAKIS/STOP_AUTOMATION" (Join-Path $source "resources\STOP_AUTOMATION")
     Copy-ManagedFile "ComfyUI/LAKIS/sync_runtime_workflow.py" (Join-Path $source "src\runtime\sync_runtime_workflow.py")
+    Copy-ManagedFile "ComfyUI/LAKIS/external_ui/runtime/native_workflow.py" (Join-Path $source "src\runtime\native_workflow.py")
 
     foreach ($name in @(
         "LAKIS_runtime_api_v7.4.json",
         "LAKIS_runtime_visual_v7.4.json"
     )) {
         Copy-ManagedFile "ComfyUI/LAKIS/workflows/$name" (Join-Path $source "workflows\$name")
+    }
+
+    # Immutable official templates are separate from ComfyUI/user workflows
+    # and every legacy packaged editable copy.
+    foreach ($name in @(
+        "LAKIS_custom_v8.0_editable.json",
+        "LAKIS_runtime_visual_v8.0.json",
+        "LAKIS_runtime_api_v8.0.json"
+    )) {
+        Copy-ManagedFile "ComfyUI/LAKIS/external_ui/workflows/$name" (Join-Path $source "workflows\$name")
     }
 
     $packageNames = @(
@@ -114,7 +125,8 @@ try {
             if ($relative -match $protectedPattern) {
                 throw "User-owned path entered release layout: $relative"
             }
-            if ($relative -match '(?i)(^|/)LAKIS_custom_.*_editable\.json$') {
+            if ($relative -match '(?i)(^|/)LAKIS_custom_.*_editable\.json$' -and
+                $relative -cne "ComfyUI/LAKIS/external_ui/workflows/LAKIS_custom_v8.0_editable.json") {
                 throw "User-editable workflow entered release layout: $relative"
             }
             [ordered]@{

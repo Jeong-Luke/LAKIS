@@ -2,25 +2,19 @@ const { app } = window.comfyAPI.app;
 const { api } = window.comfyAPI.api;
 
 let _decoding = false;
-let _clearBitmapTimer = null;
 let _bitmap = null;
 let _nodeInfo = { id: null, title: null };
 
-const resetPreview = () => {
-    _nodeInfo = { id: null, title: null };
-    _decoding = false;
-
-    clearTimeout(_clearBitmapTimer);
-    _clearBitmapTimer = setTimeout(() => {
-        _bitmap?.close();
-        _bitmap = null;
-        app.graph.setDirtyCanvas(true, false);
-    }, 250);
+const finishPreview = (title) => {
+    _nodeInfo = { id: null, title };
+    // Completion is not a request to dispose the image. Keep the last valid
+    // preview until another preview replaces it, including after cancellation.
+    app.graph.setDirtyCanvas(true, false);
 };
 
-api.addEventListener("execution_success",     resetPreview);
-api.addEventListener("execution_error",       resetPreview);
-api.addEventListener("execution_interrupted", resetPreview);
+api.addEventListener("execution_success",     () => finishPreview("Complete"));
+api.addEventListener("execution_error",       () => finishPreview("Error · last preview"));
+api.addEventListener("execution_interrupted", () => finishPreview("Interrupted · last preview"));
 
 api.addEventListener("executing", ({ detail }) => {
     if (!detail) return;
@@ -32,12 +26,16 @@ api.addEventListener("executing", ({ detail }) => {
 api.addEventListener("b_preview", async ({ detail }) => {
     if (_decoding) return;
     _decoding = true;
-    const newBitmap = await createImageBitmap(detail);
-    clearTimeout(_clearBitmapTimer);
-    _bitmap?.close();
-    _bitmap = newBitmap;
-    _decoding = false;
-    app.graph.setDirtyCanvas(true, false);
+    try {
+        const newBitmap = await createImageBitmap(detail);
+        _bitmap?.close();
+        _bitmap = newBitmap;
+        app.graph.setDirtyCanvas(true, false);
+    } catch (error) {
+        console.warn("LAKIS preview could not be decoded", error);
+    } finally {
+        _decoding = false;
+    }
 });
 
 app.registerExtension({

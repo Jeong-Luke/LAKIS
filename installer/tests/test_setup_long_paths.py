@@ -115,7 +115,9 @@ class SetupLongPathTests(unittest.TestCase):
         result = subprocess.run([str(CSC), '/nologo', '/target:exe', '/main:LongPathProbe',
             '/out:' + str(cls.exe), '/reference:System.Windows.Forms.dll',
             '/reference:System.Drawing.dll', '/reference:System.IO.Compression.dll',
+            '/reference:System.Web.Extensions.dll',
             '/reference:System.IO.Compression.FileSystem.dll', str(ROOT/'installer/SplashArtwork.cs'),
+            str(ROOT/'installer/UpdateProtocol.cs'), str(ROOT/'installer/RuntimeBundleInstaller.cs'),
             str(ROOT/'installer/Setup_LAKIS_Safe.cs'), str(probe)]+resources, capture_output=True)
         if result.returncode:
             cls.temporary.cleanup()

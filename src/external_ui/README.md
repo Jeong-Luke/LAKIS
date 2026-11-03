@@ -15,8 +15,19 @@ contract without exposing ComfyUI node IDs.
   roll, double-click recenters, and numeric/range controls stay synchronized.
 
 The Generate button now submits the application state to the local bridge. The
-bridge derives an in-memory, Final-Saver-only API prompt from the validated
-v7.4 runtime conversion contract; it never edits the saved workflow or custom nodes.
+bridge configures the controls in the same standalone v8.0 graph that ComfyUI
+opens directly. Explicit legacy templates retain the earlier conversion path.
+Neither path edits saved workflows or custom-node source.
+
+The sidebar's ComfyUI workflow menu has two separate loaders:
+
+- `사용자 편집용 워크플로` opens the packaged
+  `LAKIS_custom_v8.0_editable.json` with ComfyUI's native graph loader.
+- `API용 워크플로` opens the packaged `LAKIS_runtime_api_v8.0.json` with
+  ComfyUI's API-prompt loader. The legacy `runtime` request kind is treated as
+  `api`; an API request never substitutes an editable or visual graph.
+- Existing personal v7.4 workflow files remain untouched and can still be
+  loaded through ComfyUI's existing legacy workflow-loading path.
 
 - Accepted S1R2 Initial Spectrum and validated Turbo HighRez are shared.
 - FAST keeps Face/Eye/USDU off; DETAIL turns all three on.

@@ -1,0 +1,3472 @@
+{
+  "215": {
+    "inputs": {
+      "value": 2
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "char num",
+      "lakis_source_id": "215"
+    }
+  },
+  "227": {
+    "inputs": {
+      "expression": "a * 2 ",
+      "values.a": [
+        "215",
+        0
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "People Count",
+      "lakis_source_id": "227"
+    }
+  },
+  "256": {
+    "inputs": {
+      "expression": "a",
+      "values.a": [
+        "215",
+        0
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "People Count",
+      "lakis_source_id": "256"
+    }
+  },
+  "775": {
+    "inputs": {
+      "filename": [
+        "1221",
+        0
+      ],
+      "path": [
+        "1560",
+        0
+      ],
+      "extension": "webp",
+      "steps": [
+        "919",
+        9
+      ],
+      "cfg": [
+        "919",
+        11
+      ],
+      "modelname": [
+        "4096",
+        0
+      ],
+      "sampler_name": [
+        "793",
+        1
+      ],
+      "scheduler_name": [
+        "935",
+        1
+      ],
+      "positive": [
+        "3080",
+        0
+      ],
+      "negative": [
+        "3081",
+        0
+      ],
+      "seed_value": [
+        "919",
+        8
+      ],
+      "width": [
+        "921",
+        0
+      ],
+      "height": [
+        "921",
+        1
+      ],
+      "lossless_webp": false,
+      "quality_jpeg_or_webp": 97,
+      "optimize_png": true,
+      "counter": 0,
+      "denoise": 1,
+      "clip_skip": 0,
+      "time_format": "%Y-%m-%d-%H%M%S",
+      "save_workflow_as_json": false,
+      "embed_workflow": true,
+      "additional_hashes": "",
+      "download_civitai_data": false,
+      "easy_remix": true,
+      "show_preview": true,
+      "custom": [
+        "3082",
+        0
+      ],
+      "images": [
+        "3003",
+        0
+      ]
+    },
+    "class_type": "Image Saver",
+    "_meta": {
+      "title": "Image Saver",
+      "lakis_source_id": "775"
+    }
+  },
+  "793": {
+    "inputs": {
+      "sampler_name": [
+        "919",
+        13
+      ]
+    },
+    "class_type": "Sampler Selector (Image Saver)",
+    "_meta": {
+      "title": "Sampler Selector (Image Saver)",
+      "lakis_source_id": "793"
+    }
+  },
+  "919": {
+    "inputs": {
+      "base_ctx": [
+        "4097",
+        0
+      ]
+    },
+    "class_type": "Context Big (rgthree)",
+    "_meta": {
+      "title": "Context Big (rgthree)",
+      "lakis_source_id": "919"
+    }
+  },
+  "921": {
+    "inputs": {
+      "image": [
+        "3003",
+        0
+      ]
+    },
+    "class_type": "GetImageSize",
+    "_meta": {
+      "title": "이미지 크기 가져오기",
+      "lakis_source_id": "921"
+    }
+  },
+  "935": {
+    "inputs": {
+      "scheduler": [
+        "919",
+        14
+      ]
+    },
+    "class_type": "Scheduler Selector (Image Saver)",
+    "_meta": {
+      "title": "Scheduler Selector (Image Saver)",
+      "lakis_source_id": "935"
+    }
+  },
+  "1221": {
+    "inputs": {
+      "string_a": "LAKIS_",
+      "string_b": "_%time",
+      "delimiter": [
+        "1784",
+        0
+      ]
+    },
+    "class_type": "StringConcatenate",
+    "_meta": {
+      "title": "접두사",
+      "lakis_source_id": "1221"
+    }
+  },
+  "1338": {
+    "inputs": {
+      "images": [
+        "3003",
+        0
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "최종 생성 이미지📌 · Clean→Shadow→HighRez",
+      "lakis_source_id": "1338"
+    }
+  },
+  "1560": {
+    "inputs": {
+      "string_a": "LAKIS",
+      "string_b": [
+        "1784",
+        0
+      ],
+      "delimiter": "\\"
+    },
+    "class_type": "StringConcatenate",
+    "_meta": {
+      "title": "폴더명",
+      "lakis_source_id": "1560"
+    }
+  },
+  "1744": {
+    "class_type": "LAKIS_OptionalImage",
+    "inputs": {
+      "enabled": [
+        "3000",
+        4
+      ],
+      "image": "",
+      "mask_channel": "alpha"
+    },
+    "_meta": {
+      "title": "I2I · upload source",
+      "lakis_source_id": "1744"
+    }
+  },
+  "1784": {
+    "inputs": {
+      "int_": [
+        "1925",
+        4
+      ]
+    },
+    "class_type": "Integer to String [RvTools]",
+    "_meta": {
+      "title": "Integer to String",
+      "lakis_source_id": "1784"
+    }
+  },
+  "1925": {
+    "inputs": {
+      "style_prompt": "",
+      "profile_index": 1,
+      "profile_count": "9",
+      "lora_name": "None",
+      "loras": "[]",
+      "profile_data": "{\"1\":{\"style_prompt\":\"\",\"loras\":[],\"saved_name\":\"basic\",\"saved_snapshot\":\"{\\\"style_prompt\\\":\\\"(@sushispin:0.7),\\\",\\\"loras\\\":[{\\\"name\\\":\\\"Anima_in_real_update_v2_epoch_20.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.5,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"rendering_detailer_base10-000400.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.25,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"anima-base-1-masterpiece-v51.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.5,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"anima-base-1-photo-background-v4.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.5,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"anima_context_detailer_base10.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.25,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"anima_ch9nb1n_v2.1-epoch36.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.2,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"gpt-image-2_anima-base1_v1-1.safetensors\\\",\\\"on\\\":false,\\\"strength\\\":1,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"AnimaB1-NP45iV2.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.6,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"Breasts_Size_SliderAnima6.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":-2,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"From_Below_FefaAIart.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.6,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"MatureFemaleSliderAnima.safetensors\\\",\\\"on\\\":false,\\\"strength\\\":1,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"Nipple Size Slider_alpha1.0_rank4_noxattn_last.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":-3,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"Perky-saggingBreastsAnima.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"mesugaki_anima_v1.safetensors\\\",\\\"on\\\":false,\\\"strength\\\":1,\\\"strengthTwo\\\":null}]}\"},\"2\":{\"style_prompt\":\"(@sushispin:0.74)\",\"loras\":[{\"name\":\"style\\\\MY_ANI\\\\rurudo\\\\anima_ru60d_v1.0-epoch24.safetensors\",\"on\":true,\"strength\":0.6,\"strengthTwo\":null},{\"name\":\"style\\\\MY_ANI\\\\fymrie\\\\anima_fr9t_v2.1-epoch20.safetensors\",\"on\":true,\"strength\":0.9,\"strengthTwo\":null},{\"name\":\"style\\\\MY_ANI\\\\myung_yi\\\\anima_my8t_v1.1-epoch24.safetensors\",\"on\":true,\"strength\":0.6,\"strengthTwo\":null},{\"name\":\"style\\\\MY_ANI\\\\kim_eb\\\\anima_k1m2b_v1.0-epoch24.safetensors\",\"on\":true,\"strength\":0.4,\"strengthTwo\":null},{\"name\":\"style\\\\MY_ANI\\\\misa_(misonyeo_s2)\\\\anima_m1s0nye0_v1.0-epoch80.safetensors\",\"on\":true,\"strength\":0.4,\"strengthTwo\":null},{\"name\":\"anima_qr4k_v2.0-epoch24.safetensors\",\"on\":true,\"strength\":0.3,\"strengthTwo\":null},{\"name\":\"style\\\\MY_ANI\\\\freng\\\\anima_fr8t_v2.0-epoch40.safetensors\",\"on\":true,\"strength\":0.7,\"strengthTwo\":null}],\"saved_name\":\"2\",\"saved_snapshot\":\"{\\\"style_prompt\\\":\\\"(@sushispin:0.74)\\\",\\\"loras\\\":[{\\\"name\\\":\\\"style\\\\\\\\MY_ANI\\\\\\\\rurudo\\\\\\\\anima_ru60d_v1.0-epoch24.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.6,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"style\\\\\\\\MY_ANI\\\\\\\\fymrie\\\\\\\\anima_fr9t_v2.1-epoch20.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.9,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"style\\\\\\\\MY_ANI\\\\\\\\myung_yi\\\\\\\\anima_my8t_v1.1-epoch24.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.6,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"style\\\\\\\\MY_ANI\\\\\\\\kim_eb\\\\\\\\anima_k1m2b_v1.0-epoch24.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.4,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"style\\\\\\\\MY_ANI\\\\\\\\misa_(misonyeo_s2)\\\\\\\\anima_m1s0nye0_v1.0-epoch80.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.4,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"style\\\\\\\\MY_ANI\\\\\\\\quasarcake\\\\\\\\anima_qr4k_v2.0-epoch24.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.3,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"style\\\\\\\\MY_ANI\\\\\\\\freng\\\\\\\\anima_fr8t_v2.0-epoch40.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.7,\\\"strengthTwo\\\":null}]}\"},\"3\":{\"style_prompt\":\"(@sushispin:0.74),\",\"loras\":[{\"name\":\"style\\\\MY_ANI\\\\parsley-f\\\\anima_p4t1s1y_v2.2-epoch36.safetensors\",\"on\":true,\"strength\":0.75,\"strengthTwo\":null},{\"name\":\"style\\\\MY_ANI\\\\kim_eb\\\\anima_k1m2b_v1.0-epoch24.safetensors\",\"on\":true,\"strength\":0.53,\"strengthTwo\":null},{\"name\":\"style\\\\MY_ANI\\\\misa_(misonyeo_s2)\\\\anima_m1s0nye0_v1.0-epoch80.safetensors\",\"on\":true,\"strength\":0.5,\"strengthTwo\":null},{\"name\":\"style\\\\MY_ANI\\\\pottsness\\\\anima_p0t7s_v1.1-epoch16.safetensors\",\"on\":true,\"strength\":0.38,\"strengthTwo\":null},{\"name\":\"style\\\\MY_ANI\\\\freng\\\\anima_fr8t_v2.0-epoch40.safetensors\",\"on\":true,\"strength\":0.75,\"strengthTwo\":null},{\"name\":\"style\\\\MY_ANI\\\\fymrie\\\\anima_fr9t_v2.1-epoch20.safetensors\",\"on\":true,\"strength\":0.85,\"strengthTwo\":null},{\"name\":\"anima_qr4k_v2.0-epoch24.safetensors\",\"on\":true,\"strength\":0.3,\"strengthTwo\":null}],\"saved_name\":\"3\",\"saved_snapshot\":\"{\\\"style_prompt\\\":\\\"(@sushispin:0.74),\\\",\\\"loras\\\":[{\\\"name\\\":\\\"style\\\\\\\\MY_ANI\\\\\\\\parsley-f\\\\\\\\anima_p4t1s1y_v2.2-epoch36.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.75,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"style\\\\\\\\MY_ANI\\\\\\\\kim_eb\\\\\\\\anima_k1m2b_v1.0-epoch24.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.53,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"style\\\\\\\\MY_ANI\\\\\\\\misa_(misonyeo_s2)\\\\\\\\anima_m1s0nye0_v1.0-epoch80.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.5,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"style\\\\\\\\MY_ANI\\\\\\\\pottsness\\\\\\\\anima_p0t7s_v1.1-epoch16.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.38,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"style\\\\\\\\MY_ANI\\\\\\\\freng\\\\\\\\anima_fr8t_v2.0-epoch40.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.75,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"style\\\\\\\\MY_ANI\\\\\\\\fymrie\\\\\\\\anima_fr9t_v2.1-epoch20.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.85,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"style\\\\\\\\MY_ANI\\\\\\\\quasarcake\\\\\\\\anima_qr4k_v2.0-epoch24.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.3,\\\"strengthTwo\\\":null}]}\"},\"4\":{\"style_prompt\":\"(@sushispin:0.45)\",\"loras\":[{\"name\":\"style\\\\MY_ANI\\\\ningen_mame\\\\anima_m4me_v2.1-epoch20.safetensors\",\"on\":true,\"strength\":1,\"strengthTwo\":null},{\"name\":\"style\\\\MY_ANI\\\\parsley-f\\\\anima_p4t1s1y_v2.2-epoch36.safetensors\",\"on\":true,\"strength\":0.7,\"strengthTwo\":null},{\"name\":\"style\\\\MY_ANI\\\\fymrie\\\\anima_fr9t_v2.1-epoch20.safetensors\",\"on\":true,\"strength\":0.75,\"strengthTwo\":null},{\"name\":\"anima_qr4k_v2.0-epoch24.safetensors\",\"on\":true,\"strength\":0.35,\"strengthTwo\":null},{\"name\":\"style\\\\MY_ANI\\\\rurudo\\\\anima_ru60d_v1.0-epoch24.safetensors\",\"on\":true,\"strength\":0.7,\"strengthTwo\":null},{\"name\":\"anima_ci10ranko_v2.0-epoch36.safetensors\",\"on\":true,\"strength\":0.6,\"strengthTwo\":null}],\"saved_name\":\"4\",\"saved_snapshot\":\"{\\\"style_prompt\\\":\\\"(@sushispin:0.45)\\\",\\\"loras\\\":[{\\\"name\\\":\\\"style\\\\\\\\MY_ANI\\\\\\\\ningen_mame\\\\\\\\anima_m4me_v2.1-epoch20.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":1,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"style\\\\\\\\MY_ANI\\\\\\\\parsley-f\\\\\\\\anima_p4t1s1y_v2.2-epoch36.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.7,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"style\\\\\\\\MY_ANI\\\\\\\\fymrie\\\\\\\\anima_fr9t_v2.1-epoch20.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.75,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"style\\\\\\\\MY_ANI\\\\\\\\quasarcake\\\\\\\\anima_qr4k_v2.0-epoch24.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.35,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"style\\\\\\\\MY_ANI\\\\\\\\rurudo\\\\\\\\anima_ru60d_v1.0-epoch24.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.7,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"style\\\\\\\\MY_ANI\\\\\\\\ciloranko\\\\\\\\anima_ci10ranko_v2.0-epoch36.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.6,\\\"strengthTwo\\\":null}]}\"},\"5\":{\"style_prompt\":\"(@sushispin:0.65)\",\"loras\":[{\"name\":\"style\\\\MY_ANI\\\\ningen_mame\\\\anima_m4me_v2.1-epoch20.safetensors\",\"on\":false,\"strength\":0.62,\"strengthTwo\":null},{\"name\":\"style\\\\MY_ANI\\\\pottsness\\\\anima_p0t7s_v1.1-epoch16.safetensors\",\"on\":false,\"strength\":0.39,\"strengthTwo\":null},{\"name\":\"style\\\\ANI\\\\B1\\\\yzsss_anima1.0_v0.2.safetensors\",\"on\":false,\"strength\":0.2,\"strengthTwo\":null},{\"name\":\"style\\\\MY_ANI\\\\jacknife\\\\anima_4rkj4ck_v1.0-epoch26.safetensors\",\"on\":false,\"strength\":0.45,\"strengthTwo\":null},{\"name\":\"style\\\\MY_ANI\\\\kedama_milk\\\\anima_mi1k_v1.3-epoch16.safetensors\",\"on\":false,\"strength\":0.32,\"strengthTwo\":null},{\"name\":\"style\\\\MY_ANI\\\\parsley-f\\\\anima_p4t1s1y_v2.2-epoch36.safetensors\",\"on\":false,\"strength\":0.38,\"strengthTwo\":null},{\"name\":\"style\\\\MY_ANI\\\\kim_eb\\\\anima_k1m2b_v1.0-epoch24.safetensors\",\"on\":false,\"strength\":0.33,\"strengthTwo\":null},{\"name\":\"style\\\\MY_ANI\\\\myung_yi\\\\anima_my8t_v1.1-epoch24.safetensors\",\"on\":false,\"strength\":0.5,\"strengthTwo\":null}],\"saved_name\":\"5\",\"saved_snapshot\":\"{\\\"style_prompt\\\":\\\"(@sushispin:0.65)\\\",\\\"loras\\\":[{\\\"name\\\":\\\"style\\\\\\\\MY_ANI\\\\\\\\ningen_mame\\\\\\\\anima_m4me_v2.1-epoch20.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.62,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"style\\\\\\\\MY_ANI\\\\\\\\pottsness\\\\\\\\anima_p0t7s_v1.1-epoch16.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.39,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"style\\\\\\\\ANI\\\\\\\\B1\\\\\\\\yzsss_anima1.0_v0.2.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.2,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"style\\\\\\\\MY_ANI\\\\\\\\jacknife\\\\\\\\anima_4rkj4ck_v1.0-epoch26.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.45,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"style\\\\\\\\MY_ANI\\\\\\\\kedama_milk\\\\\\\\anima_mi1k_v1.3-epoch16.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.32,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"style\\\\\\\\MY_ANI\\\\\\\\parsley-f\\\\\\\\anima_p4t1s1y_v2.2-epoch36.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.38,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"style\\\\\\\\MY_ANI\\\\\\\\kim_eb\\\\\\\\anima_k1m2b_v1.0-epoch24.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.33,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"style\\\\\\\\MY_ANI\\\\\\\\myung_yi\\\\\\\\anima_my8t_v1.1-epoch24.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.5,\\\"strengthTwo\\\":null}]}\"},\"6\":{\"style_prompt\":\"(@sushispin:0.75), \",\"loras\":[{\"name\":\"style\\\\MY_ANI\\\\ningen_mame\\\\anima_m4me_v2.1-epoch20.safetensors\",\"on\":true,\"strength\":0.85,\"strengthTwo\":null},{\"name\":\"style\\\\MY_ANI\\\\kerno\\\\anima_kn0r_v1.0-epoch26.safetensors\",\"on\":true,\"strength\":0.63,\"strengthTwo\":null},{\"name\":\"style\\\\ANI\\\\B1\\\\yzsss_anima1.0_v0.2.safetensors\",\"on\":true,\"strength\":0.35,\"strengthTwo\":null},{\"name\":\"anima_ci10ranko_v2.0-epoch36.safetensors\",\"on\":true,\"strength\":0.36,\"strengthTwo\":null},{\"name\":\"anima_ch9nb1n_v2.1-epoch36.safetensors\",\"on\":true,\"strength\":0.34,\"strengthTwo\":null},{\"name\":\"style\\\\MY_ANI\\\\pottsness\\\\anima_p0t7s_v1.1-epoch16.safetensors\",\"on\":true,\"strength\":0.36,\"strengthTwo\":null},{\"name\":\"style\\\\MY_ANI\\\\mika_pikazo\\\\anima_mik4p1_v1.0-epoch20.safetensors\",\"on\":true,\"strength\":0.28,\"strengthTwo\":null},{\"name\":\"style\\\\ANI\\\\B1\\\\ogipote-NL.safetensors\",\"on\":true,\"strength\":0.28,\"strengthTwo\":null}],\"saved_name\":\"6\",\"saved_snapshot\":\"{\\\"style_prompt\\\":\\\"(@sushispin:0.75), \\\",\\\"loras\\\":[{\\\"name\\\":\\\"style\\\\\\\\MY_ANI\\\\\\\\ningen_mame\\\\\\\\anima_m4me_v2.1-epoch20.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.85,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"style\\\\\\\\MY_ANI\\\\\\\\kerno\\\\\\\\anima_kn0r_v1.0-epoch26.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.63,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"style\\\\\\\\ANI\\\\\\\\B1\\\\\\\\yzsss_anima1.0_v0.2.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.35,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"style\\\\\\\\MY_ANI\\\\\\\\ciloranko\\\\\\\\anima_ci10ranko_v2.0-epoch36.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.36,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"style\\\\\\\\MY_ANI\\\\\\\\chen_bin\\\\\\\\anima_ch9nb1n_v2.1-epoch36.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.34,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"style\\\\\\\\MY_ANI\\\\\\\\pottsness\\\\\\\\anima_p0t7s_v1.1-epoch16.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.36,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"style\\\\\\\\MY_ANI\\\\\\\\mika_pikazo\\\\\\\\anima_mik4p1_v1.0-epoch20.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.28,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"style\\\\\\\\ANI\\\\\\\\B1\\\\\\\\ogipote-NL.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.28,\\\"strengthTwo\\\":null}]}\"},\"7\":{\"style_prompt\":\"(@sushispin:0.35),\",\"loras\":[{\"name\":\"style\\\\MY_ANI\\\\ningen_mame\\\\anima_m4me_v2.1-epoch20.safetensors\",\"on\":true,\"strength\":0.61,\"strengthTwo\":null},{\"name\":\"style\\\\MY_ANI\\\\kerno\\\\anima_kn0r_v1.0-epoch26.safetensors\",\"on\":true,\"strength\":0.6,\"strengthTwo\":null},{\"name\":\"style\\\\MY_ANI\\\\mika_pikazo\\\\anima_mik4p1_v1.0-epoch20.safetensors\",\"on\":true,\"strength\":0.36,\"strengthTwo\":null},{\"name\":\"style\\\\MY_ANI\\\\pottsness\\\\anima_p0t7s_v1.1-epoch16.safetensors\",\"on\":true,\"strength\":0.69,\"strengthTwo\":null},{\"name\":\"style\\\\ANI\\\\B1\\\\yzsss_anima1.0_v0.2.safetensors\",\"on\":true,\"strength\":0.29,\"strengthTwo\":null},{\"name\":\"style\\\\MY_ANI\\\\jacknife\\\\anima_4rkj4ck_v1.0-epoch26.safetensors\",\"on\":true,\"strength\":0.6,\"strengthTwo\":null},{\"name\":\"style\\\\ANI\\\\B1\\\\ogipote-NL.safetensors\",\"on\":true,\"strength\":0.4,\"strengthTwo\":null}],\"saved_name\":\"7\",\"saved_snapshot\":\"{\\\"style_prompt\\\":\\\"(@sushispin:0.35),\\\",\\\"loras\\\":[{\\\"name\\\":\\\"style\\\\\\\\MY_ANI\\\\\\\\ningen_mame\\\\\\\\anima_m4me_v2.1-epoch20.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.61,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"style\\\\\\\\MY_ANI\\\\\\\\kerno\\\\\\\\anima_kn0r_v1.0-epoch26.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.6,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"style\\\\\\\\MY_ANI\\\\\\\\mika_pikazo\\\\\\\\anima_mik4p1_v1.0-epoch20.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.36,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"style\\\\\\\\MY_ANI\\\\\\\\pottsness\\\\\\\\anima_p0t7s_v1.1-epoch16.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.69,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"style\\\\\\\\ANI\\\\\\\\B1\\\\\\\\yzsss_anima1.0_v0.2.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.29,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"style\\\\\\\\MY_ANI\\\\\\\\jacknife\\\\\\\\anima_4rkj4ck_v1.0-epoch26.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.6,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"style\\\\\\\\ANI\\\\\\\\B1\\\\\\\\ogipote-NL.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.4,\\\"strengthTwo\\\":null}]}\"},\"8\":{\"style_prompt\":\"(@akazawa kureha:0.35),\",\"loras\":[{\"name\":\"style\\\\MY_ANI\\\\ningen_mame\\\\anima_m4me_v2.1-epoch20.safetensors\",\"on\":true,\"strength\":0.82,\"strengthTwo\":null},{\"name\":\"style\\\\MY_ANI\\\\pottsness\\\\anima_p0t7s_v1.1-epoch16.safetensors\",\"on\":true,\"strength\":0.62,\"strengthTwo\":null},{\"name\":\"style\\\\ANI\\\\B1\\\\yzsss_anima1.0_v0.2.safetensors\",\"on\":true,\"strength\":0.3,\"strengthTwo\":null},{\"name\":\"style\\\\MY_ANI\\\\jacknife\\\\anima_4rkj4ck_v1.0-epoch26.safetensors\",\"on\":true,\"strength\":0.67,\"strengthTwo\":null},{\"name\":\"style\\\\MY_ANI\\\\kedama_milk\\\\anima_mi1k_v1.3-epoch16.safetensors\",\"on\":true,\"strength\":0.52,\"strengthTwo\":null},{\"name\":\"style\\\\MY_ANI\\\\parsley-f\\\\anima_p4t1s1y_v2.2-epoch36.safetensors\",\"on\":true,\"strength\":0.64,\"strengthTwo\":null},{\"name\":\"style\\\\MY_ANI\\\\kim_eb\\\\anima_k1m2b_v1.0-epoch24.safetensors\",\"on\":true,\"strength\":0.46,\"strengthTwo\":null}],\"saved_name\":\"8\",\"saved_snapshot\":\"{\\\"style_prompt\\\":\\\"(@akazawa kureha:0.35),\\\",\\\"loras\\\":[{\\\"name\\\":\\\"style\\\\\\\\MY_ANI\\\\\\\\ningen_mame\\\\\\\\anima_m4me_v2.1-epoch20.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.82,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"style\\\\\\\\MY_ANI\\\\\\\\pottsness\\\\\\\\anima_p0t7s_v1.1-epoch16.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.62,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"style\\\\\\\\ANI\\\\\\\\B1\\\\\\\\yzsss_anima1.0_v0.2.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.3,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"style\\\\\\\\MY_ANI\\\\\\\\jacknife\\\\\\\\anima_4rkj4ck_v1.0-epoch26.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.67,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"style\\\\\\\\MY_ANI\\\\\\\\kedama_milk\\\\\\\\anima_mi1k_v1.3-epoch16.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.52,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"style\\\\\\\\MY_ANI\\\\\\\\parsley-f\\\\\\\\anima_p4t1s1y_v2.2-epoch36.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.64,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"style\\\\\\\\MY_ANI\\\\\\\\kim_eb\\\\\\\\anima_k1m2b_v1.0-epoch24.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.46,\\\"strengthTwo\\\":null}]}\"},\"9\":{\"style_prompt\":\"(@sushispin:0.35),\",\"loras\":[{\"name\":\"anima_ch9nb1n_v2.1-epoch36.safetensors\",\"on\":true,\"strength\":0.65,\"strengthTwo\":null},{\"name\":\"anima_ci10ranko_v2.0-epoch36.safetensors\",\"on\":true,\"strength\":0.32,\"strengthTwo\":null},{\"name\":\"style\\\\MY_ANI\\\\freng\\\\anima_fr8t_v2.0-epoch40.safetensors\",\"on\":true,\"strength\":0.45,\"strengthTwo\":null},{\"name\":\"style\\\\MY_ANI\\\\fungi542\\\\anima_fun91_v1.0-epoch24.safetensors\",\"on\":true,\"strength\":0.55,\"strengthTwo\":null},{\"name\":\"style\\\\MY_ANI\\\\jacknife\\\\anima_4rkj4ck_v1.0-epoch26.safetensors\",\"on\":true,\"strength\":0.4,\"strengthTwo\":null},{\"name\":\"style\\\\MY_ANI\\\\kanzarin\\\\anima_k4nz4r1n_v1.3-epoch36.safetensors\",\"on\":true,\"strength\":0.4,\"strengthTwo\":null},{\"name\":\"style\\\\MY_ANI\\\\tuzhate\\\\anima_tu2h4te_v1.0-epoch40.safetensors\",\"on\":true,\"strength\":0.26,\"strengthTwo\":null},{\"name\":\"style\\\\MY_ANI\\\\machi_(machi0910)\\\\anima_m4ch1_v1.0-epoch16.safetensors\",\"on\":true,\"strength\":0.45,\"strengthTwo\":null},{\"name\":\"style\\\\MY_ANI\\\\pottsness\\\\anima_p0t7s_v1.1-epoch16.safetensors\",\"on\":true,\"strength\":0.35,\"strengthTwo\":null}],\"saved_name\":\"9\",\"saved_snapshot\":\"{\\\"style_prompt\\\":\\\"(@sushispin:0.35),\\\",\\\"loras\\\":[{\\\"name\\\":\\\"style\\\\\\\\MY_ANI\\\\\\\\chen_bin\\\\\\\\anima_ch9nb1n_v2.1-epoch36.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.65,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"style\\\\\\\\MY_ANI\\\\\\\\ciloranko\\\\\\\\anima_ci10ranko_v2.0-epoch36.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.32,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"style\\\\\\\\MY_ANI\\\\\\\\freng\\\\\\\\anima_fr8t_v2.0-epoch40.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.45,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"style\\\\\\\\MY_ANI\\\\\\\\fungi542\\\\\\\\anima_fun91_v1.0-epoch24.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.55,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"style\\\\\\\\MY_ANI\\\\\\\\jacknife\\\\\\\\anima_4rkj4ck_v1.0-epoch26.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.4,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"style\\\\\\\\MY_ANI\\\\\\\\kanzarin\\\\\\\\anima_k4nz4r1n_v1.3-epoch36.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.4,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"style\\\\\\\\MY_ANI\\\\\\\\tuzhate\\\\\\\\anima_tu2h4te_v1.0-epoch40.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.26,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"style\\\\\\\\MY_ANI\\\\\\\\machi_(machi0910)\\\\\\\\anima_m4ch1_v1.0-epoch16.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.45,\\\"strengthTwo\\\":null},{\\\"name\\\":\\\"style\\\\\\\\MY_ANI\\\\\\\\pottsness\\\\\\\\anima_p0t7s_v1.1-epoch16.safetensors\\\",\\\"on\\\":true,\\\"strength\\\":0.35,\\\"strengthTwo\\\":null}]}\"}}"
+    },
+    "class_type": "EasyUseAnimaLoraPreset",
+    "_meta": {
+      "title": "Anima LoRA 프리셋",
+      "lakis_source_id": "1925"
+    }
+  },
+  "2133": {
+    "inputs": {
+      "use_naia": false,
+      "consume_naia_on_queue": true,
+      "use_anima_mod_guidance": true,
+      "resolution_bucket": "Custom",
+      "resolution_size": "1024 * 1536 (custom)",
+      "resolution_custom_width": 1024,
+      "resolution_custom_height": 1536,
+      "pin_trigger_tags_to_front": true,
+      "advanced_fields": "[{\"id\":\"positive_trigger_mqktckx0\",\"pane\":\"positive\",\"type\":\"trigger\",\"label\":\"Trigger Words\",\"text\":\"@Ani3rel, masterpiece, very aesthetic, @ch9nb1n,\\n\",\"height\":83,\"heightMode\":\"manual\",\"enabled\":true,\"pin\":false},{\"id\":\"positive_artist_mtm1mn6a\",\"pane\":\"positive\",\"type\":\"artist\",\"label\":\"Artist Tags\",\"text\":\"artist:doremi (doremi4704), year 2021, artist:masha, year 2024\",\"height\":72,\"heightMode\":\"manual\",\"enabled\":true,\"pin\":false},{\"id\":\"positive_quality_mtk5jod8\",\"pane\":\"positive\",\"type\":\"quality\",\"label\":\"Quality Tags\",\"text\":\"masterpiece, best quality, very aesthetic, absurdres, detailed eyes, detailed hair, anime illustration, cinematic lighting, warm color palette\",\"height\":72,\"heightMode\":\"manual\",\"enabled\":true,\"pin\":false},{\"id\":\"positive_fixed_mtm1ngq9\",\"pane\":\"positive\",\"type\":\"fixed\",\"label\":\"Fixed Prompt\",\"text\":\"\",\"height\":72,\"heightMode\":\"manual\",\"enabled\":true,\"pin\":false},{\"id\":\"positive_general_mtif80th\",\"pane\":\"positive\",\"type\":\"general\",\"label\":\"General Tags\",\"text\":\"natsume iroha, iroha (swimsuit) (blue archive), 1girl, solo, halo, long dark red hair, blue eyes, red frilled bikini, bracelet, sandals, lying on side, reclining on beach, head resting on one arm, one hand touching hair, one knee raised, other leg extended, looking at viewer, relaxed expression, full body, diagonal composition, close perspective, tropical beach, ocean waves, wet sand, golden sunset sky, palm leaves framing the scene, warm backlight, soft shadows, summer atmosphere\",\"height\":160,\"heightMode\":\"manual\",\"enabled\":true,\"pin\":false},{\"id\":\"negative_artist_mtm1nsyn\",\"pane\":\"negative\",\"type\":\"artist\",\"label\":\"Artist Tags\",\"text\":\"\",\"height\":72,\"heightMode\":\"manual\",\"enabled\":true,\"pin\":false},{\"id\":\"negative_quality_mtk5k2gl\",\"pane\":\"negative\",\"type\":\"quality\",\"label\":\"Quality Tags\",\"text\":\"worst quality, low quality, normal quality, jpeg artifacts\",\"height\":72,\"heightMode\":\"manual\",\"enabled\":true,\"pin\":false},{\"id\":\"negative_fixed_mtm1nzk2\",\"pane\":\"negative\",\"type\":\"fixed\",\"label\":\"Fixed Prompt\",\"text\":\"\",\"height\":72,\"heightMode\":\"manual\",\"enabled\":true,\"pin\":false},{\"id\":\"negative_general_mtk5kjs5\",\"pane\":\"negative\",\"type\":\"general\",\"label\":\"General Tags\",\"text\":\"lowres, blurry, bad anatomy, bad hands, extra fingers, missing fingers, fused fingers, extra limbs, missing limbs, malformed legs, duplicate, multiple girls, cropped feet, out of frame, text, watermark, signature\",\"height\":160,\"heightMode\":\"manual\",\"enabled\":true,\"pin\":false}]",
+      "use_negative_anima_mod_guidance": true,
+      "wildcard_mode": "일반",
+      "wildcard_seed": 0,
+      "wildcard_seed_after_generate": "fixed"
+    },
+    "class_type": "EasyUseAnimaPromptStudioAdvanced",
+    "_meta": {
+      "title": "Anima 프롬프트 스튜디오 고급",
+      "lakis_source_id": "2133"
+    }
+  },
+  "2135": {
+    "inputs": {
+      "pos_x": 0,
+      "pos_y": 0,
+      "pos_z": -1,
+      "roll": 0,
+      "config": "{\"weight_min\":0.1,\"weight_max\":10,\"no_weight\":false,\"no_weight_threshold\":0.5,\"active_user_prompt\":\"\",\"camera_presets\":[{\"name\":\"정면\",\"pos_x\":0,\"pos_y\":0,\"pos_z\":0,\"roll\":0,\"frame_y\":0,\"user_prompt\":\"\"},{\"name\":\"왼쪽\",\"pos_x\":0.5,\"pos_y\":0,\"pos_z\":0,\"roll\":0,\"frame_y\":0,\"user_prompt\":\"\"},{\"name\":\"오른쪽\",\"pos_x\":-0.5,\"pos_y\":0,\"pos_z\":0,\"roll\":0,\"frame_y\":0,\"user_prompt\":\"\"},{\"name\":\"후면\",\"pos_x\":1,\"pos_y\":0,\"pos_z\":0,\"roll\":0,\"frame_y\":0,\"user_prompt\":\"\"}],\"azimuth\":{\"enabled\":true,\"weight\":5,\"deadzone_ratio\":0.2,\"directions\":{\"front\":{\"tag\":\"from front\",\"enabled\":true},\"back\":{\"tag\":\"from behind\",\"enabled\":true},\"left\":{\"tag\":\"from right\",\"enabled\":true},\"right\":{\"tag\":\"from left\",\"enabled\":true}}},\"elevation\":{\"enabled\":true,\"weight\":5,\"categories\":{\"bird\":{\"tag\":\"directly above, from above, aerial view\",\"enabled\":true},\"high\":{\"tag\":\"high angle, from above\",\"enabled\":true},\"eye\":{\"tag\":\"eye-level\",\"enabled\":true},\"low\":{\"tag\":\"low angle, from below\",\"enabled\":true},\"worm\":{\"tag\":\"directly below\",\"enabled\":true}}},\"distance\":{\"enabled\":true,\"weight\":5,\"categories\":{\"ecu\":{\"tag\":\"extreme close-up\",\"enabled\":true},\"cu\":{\"tag\":\"close-up\",\"enabled\":true},\"medium\":{\"tag\":\"medium shot\",\"enabled\":true},\"full\":{\"tag\":\"full body\",\"enabled\":true},\"wide\":{\"tag\":\"wide shot\",\"enabled\":true}}},\"tilt\":{\"enabled\":true,\"deadzone\":0.15,\"extra\":0,\"dutch_tag\":\"dutch angle\"},\"wheel_step\":0.0003,\"extras\":{\"lens\":{\"enabled\":false,\"value\":\"85mm lens\"},\"dof\":{\"enabled\":false,\"value\":\"shallow depth of field\",\"weight\":1.3},\"movement\":{\"enabled\":false,\"value\":\"handheld camera\"},\"composition\":{\"enabled\":false,\"value\":\"rule of thirds\"},\"style\":{\"enabled\":false,\"value\":\"cinematic\"}},\"vertical_framing\":{\"enabled\":true,\"weight\":5,\"deadzone\":0.05,\"up_tag\":\"subject positioned high in frame, ample visible foreground below subject\",\"down_tag\":\"subject positioned low in frame\"}}",
+      "frame_y": 0.8
+    },
+    "class_type": "KR_CameraControl",
+    "_meta": {
+      "title": "구도 설정",
+      "lakis_source_id": "2135"
+    }
+  },
+  "2136": {
+    "inputs": {
+      "base_ctx": [
+        "4097",
+        0
+      ],
+      "model": [
+        "4073",
+        0
+      ]
+    },
+    "class_type": "Context Big (rgthree)",
+    "_meta": {
+      "title": "Detailer Clean Context (No Mod Guidance)",
+      "lakis_source_id": "2136"
+    }
+  },
+  "2138": {
+    "inputs": {
+      "value": [
+        "3000",
+        0
+      ]
+    },
+    "class_type": "PrimitiveBoolean",
+    "_meta": {
+      "title": "얼굴 디테일러 스위치",
+      "lakis_source_id": "2138"
+    }
+  },
+  "2139": {
+    "inputs": {
+      "value": [
+        "3000",
+        0
+      ]
+    },
+    "class_type": "PrimitiveBoolean",
+    "_meta": {
+      "title": "눈 디테일러 스위치",
+      "lakis_source_id": "2139"
+    }
+  },
+  "4102": {
+    "inputs": {
+      "model": [
+        "4101",
+        0
+      ],
+      "clip": [
+        "4101",
+        1
+      ],
+      "vae": [
+        "4101",
+        2
+      ]
+    },
+    "class_type": "Context (rgthree)",
+    "_meta": {
+      "title": "ctx_SAM3",
+      "lakis_source_id": "893:892"
+    }
+  },
+  "4101": {
+    "inputs": {
+      "ckpt_name": "sam3.1_multiplex_fp16.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {
+      "title": "SAM3 로드",
+      "lakis_source_id": "893:891"
+    }
+  },
+  "4098": {
+    "inputs": {
+      "text": [
+        "4089",
+        0
+      ],
+      "clip": [
+        "4075",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "아니마 긍정 프롬프트",
+      "lakis_source_id": "890:903"
+    }
+  },
+  "4099": {
+    "inputs": {
+      "text": [
+        "4090",
+        0
+      ],
+      "clip": [
+        "4075",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "아니마 부정 프롬프트",
+      "lakis_source_id": "890:904"
+    }
+  },
+  "4077": {
+    "inputs": {
+      "vae_name": "qwen_image_vae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "VAE 로드",
+      "lakis_source_id": "890:159"
+    }
+  },
+  "4100": {
+    "inputs": {
+      "steps_total": 30,
+      "refiner_step": 12,
+      "cfg": 5,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal"
+    },
+    "class_type": "KSampler Config (rgthree)",
+    "_meta": {
+      "title": "KSampler Config (rgthree)",
+      "lakis_source_id": "890:905"
+    }
+  },
+  "4085": {
+    "inputs": {
+      "seed": 0
+    },
+    "class_type": "Seed (rgthree)",
+    "_meta": {
+      "title": "Seed (rgthree)",
+      "lakis_source_id": "890:1864"
+    }
+  },
+  "4074": {
+    "inputs": {
+      "shift": 3,
+      "model": [
+        "4075",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingAuraFlow",
+    "_meta": {
+      "title": "모델 샘플링 (AuraFlow)",
+      "lakis_source_id": "890:1280"
+    }
+  },
+  "4072": {
+    "inputs": {
+      "enable_fp16_accumulation": false,
+      "model": [
+        "4074",
+        0
+      ]
+    },
+    "class_type": "ModelPatchTorchSettings",
+    "_meta": {
+      "title": "Model Patch Torch Settings",
+      "lakis_source_id": "890:1278"
+    }
+  },
+  "4073": {
+    "inputs": {
+      "sage_attention": "disabled",
+      "allow_compile": false,
+      "model": [
+        "4072",
+        0
+      ]
+    },
+    "class_type": "PathchSageAttentionKJ",
+    "_meta": {
+      "title": "Patch Sage Attention KJ",
+      "lakis_source_id": "890:1279"
+    }
+  },
+  "4082": {
+    "inputs": {
+      "backend": "inductor",
+      "fullgraph": false,
+      "mode": "max-autotune-no-cudagraphs",
+      "dynamic": "false",
+      "compile_transformer_blocks_only": true,
+      "dynamo_cache_size_limit": 64,
+      "debug_compile_keys": false,
+      "disable_dynamic_vram": true,
+      "model": [
+        "4080",
+        0
+      ]
+    },
+    "class_type": "TorchCompileModelAdvanced",
+    "_meta": {
+      "title": "TorchCompileModelAdvanced",
+      "lakis_source_id": "890:1806"
+    }
+  },
+  "4075": {
+    "inputs": {
+      "lora_stack": [
+        "3026",
+        0
+      ],
+      "model": [
+        "4076",
+        0
+      ],
+      "optional_clip": [
+        "4078",
+        0
+      ]
+    },
+    "class_type": "easy loraStackApply",
+    "_meta": {
+      "title": "Easy Apply LoraStack",
+      "lakis_source_id": "890:1281"
+    }
+  },
+  "4097": {
+    "inputs": {
+      "model": [
+        "4088",
+        0
+      ],
+      "clip": [
+        "4075",
+        1
+      ],
+      "vae": [
+        "4077",
+        0
+      ],
+      "positive": [
+        "4098",
+        0
+      ],
+      "negative": [
+        "4099",
+        0
+      ],
+      "latent": [
+        "4052",
+        0
+      ],
+      "seed": [
+        "4085",
+        0
+      ],
+      "steps": [
+        "3004",
+        0
+      ],
+      "step_refiner": [
+        "4100",
+        1
+      ],
+      "cfg": [
+        "3004",
+        1
+      ],
+      "sampler": [
+        "3004",
+        2
+      ],
+      "scheduler": [
+        "3004",
+        3
+      ]
+    },
+    "class_type": "Context Big (rgthree)",
+    "_meta": {
+      "title": "ctx_ANIMA",
+      "lakis_source_id": "890:857"
+    }
+  },
+  "4078": {
+    "inputs": {
+      "clip_name": "qwen_3_06b_base.safetensors",
+      "type": "stable_diffusion",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "CLIP 로드",
+      "lakis_source_id": "890:164"
+    }
+  },
+  "4083": {
+    "inputs": {
+      "value": false
+    },
+    "class_type": "PrimitiveBoolean",
+    "_meta": {
+      "title": "Use TorchCompile",
+      "lakis_source_id": "890:1807"
+    }
+  },
+  "4087": {
+    "inputs": {
+      "value": false
+    },
+    "class_type": "PrimitiveBoolean",
+    "_meta": {
+      "title": "Use Anima DAVE",
+      "lakis_source_id": "890:2009"
+    }
+  },
+  "4088": {
+    "inputs": {
+      "switch": [
+        "4087",
+        0
+      ],
+      "on_false": [
+        "4084",
+        0
+      ],
+      "on_true": [
+        "4086",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "스위치",
+      "lakis_source_id": "890:2010"
+    }
+  },
+  "4084": {
+    "inputs": {
+      "switch": [
+        "4083",
+        0
+      ],
+      "on_false": [
+        "4080",
+        0
+      ],
+      "on_true": [
+        "4082",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "스위치",
+      "lakis_source_id": "890:1810"
+    }
+  },
+  "4086": {
+    "inputs": {
+      "mask": "dave_alpha.npz",
+      "strength": 0.19,
+      "tau": 0.07,
+      "model": [
+        "4084",
+        0
+      ]
+    },
+    "class_type": "AnimaDAVE",
+    "_meta": {
+      "title": "Anima DAVE (after compile)",
+      "lakis_source_id": "890:2006"
+    }
+  },
+  "4089": {
+    "inputs": {
+      "value": [
+        "3002",
+        0
+      ]
+    },
+    "class_type": "PrimitiveString",
+    "_meta": {
+      "title": "문자열",
+      "lakis_source_id": "890:2012"
+    }
+  },
+  "4090": {
+    "inputs": {
+      "value": [
+        "2133",
+        1
+      ]
+    },
+    "class_type": "PrimitiveString",
+    "_meta": {
+      "title": "문자열",
+      "lakis_source_id": "890:2013"
+    }
+  },
+  "4076": {
+    "inputs": {
+      "model_name": "anima_baseV10.safetensors",
+      "weight_dtype": "bf16",
+      "compute_dtype": "default",
+      "patch_cublaslinear": false,
+      "sage_attention": "disabled",
+      "enable_fp16_accumulation": false
+    },
+    "class_type": "LAKIS_DiffusionModelLoader",
+    "_meta": {
+      "title": "ANIMA Loader — BF16 native dtype fix",
+      "lakis_source_id": "890:1365"
+    }
+  },
+  "4081": {
+    "inputs": {
+      "value": [
+        "2133",
+        4
+      ]
+    },
+    "class_type": "PrimitiveBoolean",
+    "_meta": {
+      "title": "Use Anima Mod Guidance",
+      "lakis_source_id": "890:1745"
+    }
+  },
+  "4080": {
+    "inputs": {
+      "switch": [
+        "4081",
+        0
+      ],
+      "on_false": [
+        "4073",
+        0
+      ],
+      "on_true": [
+        "4079",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "스위치",
+      "lakis_source_id": "890:1727"
+    }
+  },
+  "4091": {
+    "inputs": {
+      "value": [
+        "2133",
+        5
+      ]
+    },
+    "class_type": "PrimitiveBoolean",
+    "_meta": {
+      "title": "Use Anima Mod Guidance (neg)",
+      "lakis_source_id": "890:2097"
+    }
+  },
+  "4093": {
+    "inputs": {
+      "value": [
+        "2133",
+        2
+      ]
+    },
+    "class_type": "PrimitiveString",
+    "_meta": {
+      "title": "문자열",
+      "lakis_source_id": "890:2099"
+    }
+  },
+  "4079": {
+    "inputs": {
+      "quality_tags": [
+        "4093",
+        0
+      ],
+      "quality_neg": [
+        "4092",
+        0
+      ],
+      "mod_w_profile": "step_i8_skip27",
+      "model": [
+        "4073",
+        0
+      ],
+      "clip": [
+        "4078",
+        0
+      ],
+      "positive": [
+        "4098",
+        0
+      ],
+      "negative": [
+        "4099",
+        0
+      ]
+    },
+    "class_type": "AnimaModGuidance",
+    "_meta": {
+      "title": "Anima Mod Guidance (모델 패치)",
+      "lakis_source_id": "890:1725"
+    }
+  },
+  "4094": {
+    "inputs": {
+      "value": [
+        "2133",
+        3
+      ]
+    },
+    "class_type": "PrimitiveString",
+    "_meta": {
+      "title": "문자열",
+      "lakis_source_id": "890:2100"
+    }
+  },
+  "4095": {
+    "inputs": {
+      "value": ""
+    },
+    "class_type": "PrimitiveString",
+    "_meta": {
+      "title": "문자열",
+      "lakis_source_id": "890:2101"
+    }
+  },
+  "4092": {
+    "inputs": {
+      "switch": [
+        "4091",
+        0
+      ],
+      "on_false": [
+        "4095",
+        0
+      ],
+      "on_true": [
+        "4094",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "스위치",
+      "lakis_source_id": "890:2098"
+    }
+  },
+  "4096": {
+    "inputs": {
+      "value": [
+        "4076",
+        1
+      ]
+    },
+    "class_type": "Any to String (Image Saver)",
+    "_meta": {
+      "title": "Any to String (Image Saver)",
+      "lakis_source_id": "890:2127"
+    }
+  },
+  "4050": {
+    "inputs": {
+      "pixels": [
+        "4051",
+        0
+      ],
+      "vae": [
+        "4077",
+        0
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "VAE 인코드",
+      "lakis_source_id": "1736:1740"
+    }
+  },
+  "4052": {
+    "inputs": {
+      "switch": [
+        "4049",
+        0
+      ],
+      "on_false": [
+        "4053",
+        0
+      ],
+      "on_true": [
+        "4050",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "스위치",
+      "lakis_source_id": "1736:1743"
+    }
+  },
+  "4049": {
+    "inputs": {
+      "value": [
+        "3000",
+        4
+      ]
+    },
+    "class_type": "PrimitiveBoolean",
+    "_meta": {
+      "title": "논리값",
+      "lakis_source_id": "1736:1737"
+    }
+  },
+  "4053": {
+    "inputs": {
+      "width": [
+        "3001",
+        0
+      ],
+      "height": [
+        "3001",
+        1
+      ],
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {
+      "title": "빈 잠재 이미지",
+      "lakis_source_id": "1736:1987"
+    }
+  },
+  "4051": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": [
+        "1744",
+        0
+      ],
+      "upscale_method": "lanczos",
+      "width": [
+        "3001",
+        0
+      ],
+      "height": [
+        "3001",
+        1
+      ],
+      "crop": "center"
+    },
+    "_meta": {
+      "title": "ImageScale",
+      "lakis_source_id": "1736:1741"
+    }
+  },
+  "4046": {
+    "inputs": {
+      "value": 1
+    },
+    "class_type": "PrimitiveFloat",
+    "_meta": {
+      "title": "실수",
+      "lakis_source_id": "1634:1759"
+    }
+  },
+  "4045": {
+    "inputs": {
+      "switch": [
+        "3000",
+        4
+      ],
+      "on_false": [
+        "4046",
+        0
+      ],
+      "on_true": [
+        "3000",
+        8
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "스위치",
+      "lakis_source_id": "1634:1758"
+    }
+  },
+  "4041": {
+    "inputs": {
+      "seed": [
+        "4042",
+        8
+      ],
+      "steps": [
+        "4042",
+        9
+      ],
+      "cfg": [
+        "4042",
+        11
+      ],
+      "sampler_name": [
+        "4042",
+        13
+      ],
+      "scheduler": [
+        "4042",
+        14
+      ],
+      "denoise": [
+        "4045",
+        0
+      ],
+      "model": [
+        "4044",
+        0
+      ],
+      "positive": [
+        "3064",
+        0
+      ],
+      "negative": [
+        "3065",
+        0
+      ],
+      "latent_image": [
+        "4042",
+        6
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler",
+      "lakis_source_id": "1634:1622"
+    }
+  },
+  "4044": {
+    "inputs": {
+      "steps": [
+        "4042",
+        9
+      ],
+      "window_size": 2,
+      "flex_window": 0.25,
+      "warmup_steps": 8,
+      "tail_actual_steps": 3,
+      "blend_w": 0.3,
+      "cheby_degree": 3,
+      "ridge_lambda": 0.1,
+      "history_size": 100,
+      "enabled": true,
+      "one_sampler_only": true,
+      "verbose": false,
+      "model": [
+        "3063",
+        0
+      ]
+    },
+    "class_type": "DiTSpectrumPatch",
+    "_meta": {
+      "title": "DiT Spectrum 패치",
+      "lakis_source_id": "1634:1721"
+    }
+  },
+  "4043": {
+    "inputs": {
+      "lambda_l": [
+        "4047",
+        0
+      ],
+      "lambda_h": [
+        "4048",
+        0
+      ],
+      "dcw_enabled": true,
+      "alpha_l": 0.01,
+      "alpha_h": 0.06,
+      "cwm_enabled": false,
+      "smc_preset": "Auto",
+      "smc_lambda": 6,
+      "smc_k": 0.15,
+      "rdc_tau": 0,
+      "rdc_alpha_ll": 0.03,
+      "rdc_alpha_hh": 0,
+      "model": [
+        "4042",
+        1
+      ]
+    },
+    "class_type": "DCWModelPatch",
+    "_meta": {
+      "title": "DCW(+a)",
+      "lakis_source_id": "1634:1626"
+    }
+  },
+  "4042": {
+    "inputs": {
+      "base_ctx": [
+        "4097",
+        0
+      ]
+    },
+    "class_type": "Context Big (rgthree)",
+    "_meta": {
+      "title": "Context Big (rgthree)",
+      "lakis_source_id": "1634:1624"
+    }
+  },
+  "4047": {
+    "inputs": {
+      "value": 0.1
+    },
+    "class_type": "easy float",
+    "_meta": {
+      "title": "Float",
+      "lakis_source_id": "1634:2044"
+    }
+  },
+  "4048": {
+    "inputs": {
+      "value": 0.04
+    },
+    "class_type": "easy float",
+    "_meta": {
+      "title": "Float",
+      "lakis_source_id": "1634:2045"
+    }
+  },
+  "4031": {
+    "inputs": {
+      "samples": [
+        "4033",
+        0
+      ],
+      "vae": [
+        "4077",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE 디코드",
+      "lakis_source_id": "1633:1611"
+    }
+  },
+  "4034": {
+    "inputs": {
+      "base_ctx": [
+        "4097",
+        0
+      ]
+    },
+    "class_type": "Context Big (rgthree)",
+    "_meta": {
+      "title": "Context Big (rgthree)",
+      "lakis_source_id": "1633:1618"
+    }
+  },
+  "4035": {
+    "inputs": {
+      "lambda_l": [
+        "4038",
+        0
+      ],
+      "lambda_h": [
+        "4039",
+        0
+      ],
+      "dcw_enabled": true,
+      "alpha_l": 0.01,
+      "alpha_h": 0.06,
+      "cwm_enabled": false,
+      "smc_preset": "Auto",
+      "smc_lambda": 6,
+      "smc_k": 0.15000000000000002,
+      "rdc_tau": 0,
+      "rdc_alpha_ll": 0.03,
+      "rdc_alpha_hh": 0,
+      "model": [
+        "4034",
+        1
+      ]
+    },
+    "class_type": "DCWModelPatch",
+    "_meta": {
+      "title": "DCW(+a)",
+      "lakis_source_id": "1633:1619"
+    }
+  },
+  "4038": {
+    "inputs": {
+      "value": 0.07
+    },
+    "class_type": "easy float",
+    "_meta": {
+      "title": "Float",
+      "lakis_source_id": "1633:2042"
+    }
+  },
+  "4039": {
+    "inputs": {
+      "value": 0.03
+    },
+    "class_type": "easy float",
+    "_meta": {
+      "title": "Float",
+      "lakis_source_id": "1633:2043"
+    }
+  },
+  "4033": {
+    "inputs": {
+      "switch": true,
+      "on_false": [
+        "4041",
+        0
+      ],
+      "on_true": [
+        "4032",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "Use HighRez",
+      "lakis_source_id": "1633:1616"
+    }
+  },
+  "4032": {
+    "inputs": {
+      "seed": [
+        "4034",
+        8
+      ],
+      "steps": [
+        "3000",
+        9
+      ],
+      "cfg": [
+        "3000",
+        10
+      ],
+      "sampler_name": [
+        "3000",
+        11
+      ],
+      "scheduler": "simple",
+      "denoise": [
+        "3000",
+        12
+      ],
+      "model": [
+        "3073",
+        0
+      ],
+      "positive": [
+        "3074",
+        0
+      ],
+      "negative": [
+        "3075",
+        0
+      ],
+      "latent_image": [
+        "4037",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler",
+      "lakis_source_id": "1633:1612"
+    }
+  },
+  "4036": {
+    "inputs": {
+      "samples": [
+        "4041",
+        0
+      ],
+      "vae": [
+        "4077",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE 디코드",
+      "lakis_source_id": "1633:1790"
+    }
+  },
+  "4037": {
+    "inputs": {
+      "pixels": [
+        "4040",
+        0
+      ],
+      "vae": [
+        "4077",
+        0
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "VAE 인코드",
+      "lakis_source_id": "1633:1794"
+    }
+  },
+  "4040": {
+    "inputs": {
+      "scale_by": 1.25,
+      "upscale_method": "bicubic",
+      "multiple": "32",
+      "max_long_edge": 2560,
+      "image": [
+        "4036",
+        0
+      ]
+    },
+    "class_type": "EasyUseAnimaImageScaleByMultiple",
+    "_meta": {
+      "title": "Anima 이미지 유효 배율 확대",
+      "lakis_source_id": "1633:2124"
+    }
+  },
+  "4000": {
+    "inputs": {
+      "int_": [
+        "4002",
+        0
+      ]
+    },
+    "class_type": "Integer to String [RvTools]",
+    "_meta": {
+      "title": "Integer to String",
+      "lakis_source_id": "1530:1818"
+    }
+  },
+  "4001": {
+    "inputs": {
+      "string_a": [
+        "4016",
+        0
+      ],
+      "string_b": [
+        "4000",
+        0
+      ],
+      "delimiter": ":"
+    },
+    "class_type": "StringConcatenate",
+    "_meta": {
+      "title": "부위 입력",
+      "lakis_source_id": "1530:1819"
+    }
+  },
+  "4002": {
+    "inputs": {
+      "value": [
+        "256",
+        1
+      ]
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "정수",
+      "lakis_source_id": "1530:1820"
+    }
+  },
+  "4003": {
+    "inputs": {
+      "base_ctx": [
+        "4102",
+        0
+      ]
+    },
+    "class_type": "Context (rgthree)",
+    "_meta": {
+      "title": "ctx_SAM3",
+      "lakis_source_id": "1530:1821"
+    }
+  },
+  "4004": {
+    "inputs": {
+      "text": [
+        "4001",
+        0
+      ],
+      "clip": [
+        "4003",
+        2
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "SAM3 DETECT 부위",
+      "lakis_source_id": "1530:1822"
+    }
+  },
+  "4005": {
+    "inputs": {
+      "masks": [
+        "4006",
+        0
+      ]
+    },
+    "class_type": "LAKIS_SafeMasksCombineBatch",
+    "_meta": {
+      "title": "Masks Combine Batch",
+      "lakis_source_id": "1530:1823"
+    }
+  },
+  "4006": {
+    "inputs": {
+      "threshold": 0.52,
+      "refine_iterations": 1,
+      "individual_masks": true,
+      "model": [
+        "4003",
+        1
+      ],
+      "image": [
+        "4031",
+        0
+      ],
+      "conditioning": [
+        "4004",
+        0
+      ]
+    },
+    "class_type": "SAM3_Detect",
+    "_meta": {
+      "title": "SAM3 Detect",
+      "lakis_source_id": "1530:1824"
+    }
+  },
+  "4009": {
+    "inputs": {
+      "switch": [
+        "2138",
+        0
+      ],
+      "on_false": [
+        "4010",
+        0
+      ],
+      "on_true": [
+        "4008",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "Use Detailer",
+      "lakis_source_id": "1530:1828"
+    }
+  },
+  "4010": {
+    "inputs": {},
+    "class_type": "EmptySegs",
+    "_meta": {
+      "title": "EmptySegs",
+      "lakis_source_id": "1530:1829"
+    }
+  },
+  "4011": {
+    "inputs": {
+      "switch": [
+        "2138",
+        0
+      ],
+      "on_false": [
+        "4103",
+        0
+      ],
+      "on_true": [
+        "4007",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "Use Detailer",
+      "lakis_source_id": "1530:1830"
+    }
+  },
+  "4012": {
+    "inputs": {
+      "switch": false,
+      "on_false": [
+        "4014",
+        0
+      ],
+      "on_true": [
+        "4015",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "Use DCW",
+      "lakis_source_id": "1530:1832"
+    }
+  },
+  "4013": {
+    "inputs": {
+      "base_ctx": [
+        "2136",
+        0
+      ]
+    },
+    "class_type": "Context Big (rgthree)",
+    "_meta": {
+      "title": "ctx_ANIMA",
+      "lakis_source_id": "1530:1833"
+    }
+  },
+  "4016": {
+    "inputs": {
+      "value": "face"
+    },
+    "class_type": "PrimitiveString",
+    "_meta": {
+      "title": "문자열",
+      "lakis_source_id": "1530:2051"
+    }
+  },
+  "4015": {
+    "inputs": {
+      "lambda_l": 0.07,
+      "lambda_h": 0.013,
+      "dcw_enabled": true,
+      "alpha_l": 0,
+      "alpha_h": 0.03,
+      "cwm_enabled": false,
+      "smc_preset": "Off",
+      "smc_lambda": 6,
+      "smc_k": 0.1,
+      "rdc_tau": 0,
+      "rdc_alpha_ll": 0.03,
+      "rdc_alpha_hh": 0,
+      "model": [
+        "4014",
+        0
+      ]
+    },
+    "class_type": "DCWModelPatch",
+    "_meta": {
+      "title": "DCW(+a)",
+      "lakis_source_id": "1530:1835"
+    }
+  },
+  "4014": {
+    "inputs": {
+      "steps": [
+        "4013",
+        10
+      ],
+      "window_size": 2,
+      "flex_window": 0.15,
+      "warmup_steps": 6,
+      "tail_actual_steps": 3,
+      "blend_w": 0.3,
+      "cheby_degree": 3,
+      "ridge_lambda": 0.1,
+      "history_size": 100,
+      "enabled": false,
+      "one_sampler_only": false,
+      "verbose": false,
+      "model": [
+        "4013",
+        1
+      ]
+    },
+    "class_type": "DiTSpectrumPatch",
+    "_meta": {
+      "title": "DiT Spectrum 패치",
+      "lakis_source_id": "1530:1834"
+    }
+  },
+  "4017": {
+    "inputs": {
+      "alignment": "32"
+    },
+    "class_type": "EasyUseAnimaDetailerAlignHook",
+    "_meta": {
+      "title": "Anima 디테일러 정렬 Hook",
+      "lakis_source_id": "1530:2060"
+    }
+  },
+  "4008": {
+    "inputs": {
+      "combined": false,
+      "crop_factor": 4.5,
+      "bbox_fill": false,
+      "drop_size": 100,
+      "contour_fill": true,
+      "mask": [
+        "4005",
+        0
+      ]
+    },
+    "class_type": "MaskToSEGS",
+    "_meta": {
+      "title": "MASK to SEGS",
+      "lakis_source_id": "1530:1827"
+    }
+  },
+  "4007": {
+    "inputs": {
+      "guide_size": 768,
+      "guide_size_for": false,
+      "max_size": 1280,
+      "seed": [
+        "4013",
+        8
+      ],
+      "steps": [
+        "4013",
+        10
+      ],
+      "cfg": [
+        "4013",
+        11
+      ],
+      "sampler_name": [
+        "4013",
+        13
+      ],
+      "scheduler": [
+        "3041",
+        0
+      ],
+      "denoise": 0.3,
+      "feather": 5,
+      "noise_mask": true,
+      "force_inpaint": true,
+      "wildcard": "",
+      "cycle": 1,
+      "inpaint_model": false,
+      "noise_mask_feather": 10,
+      "tiled_encode": false,
+      "tiled_decode": false,
+      "image": [
+        "4103",
+        0
+      ],
+      "segs": [
+        "4009",
+        0
+      ],
+      "model": [
+        "4012",
+        0
+      ],
+      "clip": [
+        "4013",
+        2
+      ],
+      "vae": [
+        "4013",
+        3
+      ],
+      "positive": [
+        "4013",
+        4
+      ],
+      "negative": [
+        "4013",
+        5
+      ],
+      "detailer_hook": [
+        "4017",
+        0
+      ]
+    },
+    "class_type": "DetailerForEach",
+    "_meta": {
+      "title": "얼굴 디테일러 (SEGS)",
+      "lakis_source_id": "1530:1826"
+    }
+  },
+  "4054": {
+    "inputs": {
+      "int_": [
+        "4056",
+        0
+      ]
+    },
+    "class_type": "Integer to String [RvTools]",
+    "_meta": {
+      "title": "Integer to String",
+      "lakis_source_id": "1836:2061"
+    }
+  },
+  "4055": {
+    "inputs": {
+      "string_a": [
+        "4067",
+        0
+      ],
+      "string_b": [
+        "4054",
+        0
+      ],
+      "delimiter": ":"
+    },
+    "class_type": "StringConcatenate",
+    "_meta": {
+      "title": "부위 입력",
+      "lakis_source_id": "1836:2062"
+    }
+  },
+  "4056": {
+    "inputs": {
+      "value": [
+        "227",
+        1
+      ]
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "정수",
+      "lakis_source_id": "1836:2063"
+    }
+  },
+  "4057": {
+    "inputs": {
+      "base_ctx": [
+        "4102",
+        0
+      ]
+    },
+    "class_type": "Context (rgthree)",
+    "_meta": {
+      "title": "ctx_SAM3",
+      "lakis_source_id": "1836:2064"
+    }
+  },
+  "4058": {
+    "inputs": {
+      "text": [
+        "4055",
+        0
+      ],
+      "clip": [
+        "4057",
+        2
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "SAM3 DETECT 부위",
+      "lakis_source_id": "1836:2065"
+    }
+  },
+  "4059": {
+    "inputs": {
+      "masks": [
+        "4060",
+        0
+      ]
+    },
+    "class_type": "LAKIS_SafeMasksCombineBatch",
+    "_meta": {
+      "title": "Masks Combine Batch",
+      "lakis_source_id": "1836:2066"
+    }
+  },
+  "4060": {
+    "inputs": {
+      "threshold": 0.5,
+      "refine_iterations": 2,
+      "individual_masks": true,
+      "model": [
+        "4057",
+        1
+      ],
+      "image": [
+        "4104",
+        0
+      ],
+      "conditioning": [
+        "4058",
+        0
+      ]
+    },
+    "class_type": "SAM3_Detect",
+    "_meta": {
+      "title": "SAM3 Detect",
+      "lakis_source_id": "1836:2067"
+    }
+  },
+  "4062": {
+    "inputs": {
+      "switch": [
+        "2139",
+        0
+      ],
+      "on_false": [
+        "4063",
+        0
+      ],
+      "on_true": [
+        "4068",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "Use Detailer",
+      "lakis_source_id": "1836:2070"
+    }
+  },
+  "4063": {
+    "inputs": {},
+    "class_type": "EmptySegs",
+    "_meta": {
+      "title": "EmptySegs",
+      "lakis_source_id": "1836:2071"
+    }
+  },
+  "4064": {
+    "inputs": {
+      "switch": [
+        "2139",
+        0
+      ],
+      "on_false": [
+        "4104",
+        0
+      ],
+      "on_true": [
+        "4061",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "Use Detailer",
+      "lakis_source_id": "1836:2072"
+    }
+  },
+  "4065": {
+    "inputs": {
+      "switch": true,
+      "on_false": [
+        "4070",
+        0
+      ],
+      "on_true": [
+        "4069",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "Use DCW",
+      "lakis_source_id": "1836:2074"
+    }
+  },
+  "4066": {
+    "inputs": {
+      "base_ctx": [
+        "2136",
+        0
+      ]
+    },
+    "class_type": "Context Big (rgthree)",
+    "_meta": {
+      "title": "ctx_ANIMA",
+      "lakis_source_id": "1836:2075"
+    }
+  },
+  "4067": {
+    "inputs": {
+      "value": "eyes"
+    },
+    "class_type": "PrimitiveString",
+    "_meta": {
+      "title": "문자열",
+      "lakis_source_id": "1836:2076"
+    }
+  },
+  "4068": {
+    "inputs": {
+      "combined": true,
+      "crop_factor": 2.0,
+      "bbox_fill": false,
+      "drop_size": 40,
+      "contour_fill": true,
+      "mask": [
+        "4059",
+        0
+      ]
+    },
+    "class_type": "MaskToSEGS",
+    "_meta": {
+      "title": "MASK to SEGS",
+      "lakis_source_id": "1836:2077"
+    }
+  },
+  "4069": {
+    "inputs": {
+      "lambda_l": 0.07,
+      "lambda_h": 0.013,
+      "dcw_enabled": true,
+      "alpha_l": 0,
+      "alpha_h": 0.03,
+      "cwm_enabled": false,
+      "smc_preset": "Off",
+      "smc_lambda": 6,
+      "smc_k": 0.1,
+      "rdc_tau": 0,
+      "rdc_alpha_ll": 0.03,
+      "rdc_alpha_hh": 0,
+      "model": [
+        "4070",
+        0
+      ]
+    },
+    "class_type": "DCWModelPatch",
+    "_meta": {
+      "title": "DCW(+a)",
+      "lakis_source_id": "1836:2078"
+    }
+  },
+  "4070": {
+    "inputs": {
+      "steps": [
+        "4066",
+        10
+      ],
+      "window_size": 2,
+      "flex_window": 0.15,
+      "warmup_steps": 6,
+      "tail_actual_steps": 3,
+      "blend_w": 0.3,
+      "cheby_degree": 3,
+      "ridge_lambda": 0.1,
+      "history_size": 100,
+      "enabled": false,
+      "one_sampler_only": false,
+      "verbose": false,
+      "model": [
+        "4066",
+        1
+      ]
+    },
+    "class_type": "DiTSpectrumPatch",
+    "_meta": {
+      "title": "DiT Spectrum 패치",
+      "lakis_source_id": "1836:2079"
+    }
+  },
+  "4071": {
+    "inputs": {
+      "alignment": "32"
+    },
+    "class_type": "EasyUseAnimaDetailerAlignHook",
+    "_meta": {
+      "title": "Anima 디테일러 정렬 Hook",
+      "lakis_source_id": "1836:2080"
+    }
+  },
+  "4061": {
+    "inputs": {
+      "guide_size": 768,
+      "guide_size_for": false,
+      "max_size": 1280,
+      "seed": [
+        "4066",
+        8
+      ],
+      "steps": [
+        "4066",
+        10
+      ],
+      "cfg": [
+        "4066",
+        11
+      ],
+      "sampler_name": [
+        "4066",
+        13
+      ],
+      "scheduler": [
+        "3042",
+        0
+      ],
+      "denoise": 0.29,
+      "feather": 6,
+      "noise_mask": true,
+      "force_inpaint": true,
+      "wildcard": "",
+      "cycle": 1,
+      "inpaint_model": false,
+      "noise_mask_feather": 20,
+      "tiled_encode": false,
+      "tiled_decode": false,
+      "image": [
+        "4104",
+        0
+      ],
+      "segs": [
+        "4062",
+        0
+      ],
+      "model": [
+        "4065",
+        0
+      ],
+      "clip": [
+        "4066",
+        2
+      ],
+      "vae": [
+        "4066",
+        3
+      ],
+      "positive": [
+        "4066",
+        4
+      ],
+      "negative": [
+        "4066",
+        5
+      ],
+      "detailer_hook": [
+        "4071",
+        0
+      ]
+    },
+    "class_type": "DetailerForEach",
+    "_meta": {
+      "title": "얼굴 디테일러 (SEGS)",
+      "lakis_source_id": "1836:2069"
+    }
+  },
+  "4020": {
+    "inputs": {
+      "expression": "a * b / c",
+      "values.a": [
+        "4018",
+        0
+      ],
+      "values.b": [
+        "4022",
+        0
+      ],
+      "values.c": [
+        "4021",
+        0
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "W 타일크기",
+      "lakis_source_id": "1541:1533"
+    }
+  },
+  "4023": {
+    "inputs": {
+      "model_name": "RealESRGAN_x4plus_anime_6B.pth"
+    },
+    "class_type": "UpscaleModelLoader",
+    "_meta": {
+      "title": "업스케일 모델 로드",
+      "lakis_source_id": "1541:1536"
+    }
+  },
+  "4028": {
+    "class_type": "ComfySwitchNode",
+    "inputs": {
+      "switch": [
+        "3000",
+        1
+      ],
+      "on_false": [
+        "4031",
+        0
+      ],
+      "on_true": [
+        "3052",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "FAST / detail result",
+      "lakis_source_id": "1541:1545"
+    }
+  },
+  "4025": {
+    "inputs": {
+      "base_ctx": [
+        "4097",
+        0
+      ]
+    },
+    "class_type": "Context Big (rgthree)",
+    "_meta": {
+      "title": "Context Big (rgthree)",
+      "lakis_source_id": "1541:1539"
+    }
+  },
+  "4019": {
+    "inputs": {
+      "expression": "a * b / c",
+      "values.a": [
+        "4018",
+        1
+      ],
+      "values.b": [
+        "4022",
+        0
+      ],
+      "values.c": [
+        "4021",
+        0
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "H 타일크기",
+      "lakis_source_id": "1541:1532"
+    }
+  },
+  "4018": {
+    "inputs": {
+      "image": [
+        "3050",
+        0
+      ]
+    },
+    "class_type": "GetImageSize",
+    "_meta": {
+      "title": "이미지 크기 가져오기",
+      "lakis_source_id": "1541:1531"
+    }
+  },
+  "4022": {
+    "inputs": {
+      "value": 1.5
+    },
+    "class_type": "PrimitiveFloat",
+    "_meta": {
+      "title": "배율 설정",
+      "lakis_source_id": "1541:1535"
+    }
+  },
+  "4021": {
+    "inputs": {
+      "value": 2
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "한 변당 나눌 갯수",
+      "lakis_source_id": "1541:1534"
+    }
+  },
+  "4024": {
+    "inputs": {
+      "upscale_by": [
+        "4022",
+        0
+      ],
+      "seed": [
+        "4025",
+        8
+      ],
+      "steps": [
+        "4030",
+        0
+      ],
+      "cfg": [
+        "4025",
+        11
+      ],
+      "sampler_name": [
+        "4025",
+        13
+      ],
+      "scheduler": [
+        "4025",
+        14
+      ],
+      "denoise": 0.07,
+      "mode_type": "Chess",
+      "tile_width": [
+        "4020",
+        1
+      ],
+      "tile_height": [
+        "4019",
+        1
+      ],
+      "mask_blur": 16,
+      "tile_padding": 96,
+      "seam_fix_mode": "None",
+      "seam_fix_denoise": 1,
+      "seam_fix_width": 64,
+      "seam_fix_mask_blur": 8,
+      "seam_fix_padding": 16,
+      "force_uniform_tiles": true,
+      "tiled_decode": false,
+      "batch_size": 1,
+      "image": [
+        "3050",
+        0
+      ],
+      "model": [
+        "4029",
+        0
+      ],
+      "positive": [
+        "4025",
+        4
+      ],
+      "negative": [
+        "4025",
+        5
+      ],
+      "vae": [
+        "4025",
+        3
+      ],
+      "upscale_model": [
+        "4023",
+        0
+      ]
+    },
+    "class_type": "UltimateSDUpscale",
+    "_meta": {
+      "title": "Ultimate SD Upscale",
+      "lakis_source_id": "1541:1538"
+    }
+  },
+  "4026": {
+    "inputs": {
+      "lambda_l": 0.065,
+      "lambda_h": 0.013,
+      "dcw_enabled": true,
+      "alpha_l": 0,
+      "alpha_h": 0,
+      "cwm_enabled": false,
+      "smc_preset": "Off",
+      "smc_lambda": 6,
+      "smc_k": 0.1,
+      "rdc_tau": 0,
+      "rdc_alpha_ll": 0.03,
+      "rdc_alpha_hh": 0,
+      "model": [
+        "4025",
+        1
+      ]
+    },
+    "class_type": "DCWModelPatch",
+    "_meta": {
+      "title": "DCW(+a)",
+      "lakis_source_id": "1541:1540"
+    }
+  },
+  "4027": {
+    "inputs": {
+      "switch": false,
+      "on_false": [
+        "4025",
+        1
+      ],
+      "on_true": [
+        "4026",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "Use DCW",
+      "lakis_source_id": "1541:1542"
+    }
+  },
+  "4029": {
+    "inputs": {
+      "steps": [
+        "4025",
+        10
+      ],
+      "window_size": 2,
+      "flex_window": 0.25,
+      "warmup_steps": 6,
+      "tail_actual_steps": 3,
+      "blend_w": 0.3,
+      "cheby_degree": 3,
+      "ridge_lambda": 0.1,
+      "history_size": 100,
+      "enabled": false,
+      "one_sampler_only": false,
+      "verbose": false,
+      "model": [
+        "4027",
+        0
+      ]
+    },
+    "class_type": "DiTSpectrumPatch",
+    "_meta": {
+      "title": "DiT Spectrum 패치",
+      "lakis_source_id": "1541:1837"
+    }
+  },
+  "4030": {
+    "inputs": {
+      "value": 2
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "USDU Steps (Local 10)",
+      "lakis_source_id": "1541:1838"
+    }
+  },
+  "4103": {
+    "class_type": "LAKIS_VRAM_GATE",
+    "inputs": {
+      "image": [
+        "4031",
+        0
+      ],
+      "min_free_gb": 1.5,
+      "empty_cache": false
+    },
+    "_meta": {
+      "title": "LAKIS_VRAM_GATE",
+      "lakis_source_id": "lakis:vram:base_to_face"
+    }
+  },
+  "4104": {
+    "class_type": "LAKIS_VRAM_GATE",
+    "inputs": {
+      "image": [
+        "4011",
+        0
+      ],
+      "min_free_gb": 1.5,
+      "empty_cache": false
+    },
+    "_meta": {
+      "title": "LAKIS_VRAM_GATE",
+      "lakis_source_id": "lakis:vram:face_to_eye"
+    }
+  },
+  "3000": {
+    "class_type": "LAKIS_GenerationControls",
+    "inputs": {
+      "mode": "FAST",
+      "composition": true,
+      "i2i": false,
+      "inpaint": false,
+      "pose": false,
+      "i2i_denoise": 0.5
+    },
+    "_meta": {
+      "title": "01 · Generation mode / exclusive inputs",
+      "lakis_source_id": "3000"
+    }
+  },
+  "3001": {
+    "class_type": "LAKIS_Canvas",
+    "inputs": {
+      "width": 1024,
+      "height": 1536
+    },
+    "_meta": {
+      "title": "02 · Output canvas",
+      "lakis_source_id": "3001"
+    }
+  },
+  "3002": {
+    "class_type": "LAKIS_CompositionPrompt",
+    "inputs": {
+      "positive": [
+        "2133",
+        0
+      ],
+      "enabled": [
+        "3000",
+        3
+      ],
+      "camera": [
+        "2135",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "LAKIS_CompositionPrompt",
+      "lakis_source_id": "3002"
+    }
+  },
+  "3004": {
+    "class_type": "LAKIS_SourceSampler",
+    "inputs": {
+      "source": [
+        "3000",
+        4
+      ],
+      "steps": [
+        "4100",
+        0
+      ],
+      "cfg": [
+        "4100",
+        2
+      ],
+      "sampler": [
+        "4100",
+        3
+      ],
+      "scheduler": [
+        "4100",
+        4
+      ]
+    },
+    "_meta": {
+      "title": "LAKIS_SourceSampler",
+      "lakis_source_id": "3004"
+    }
+  },
+  "3005": {
+    "class_type": "LoraLoaderModelOnly",
+    "inputs": {
+      "model": [
+        "4035",
+        0
+      ],
+      "lora_name": "anima-turbo-lora-v0.2.safetensors",
+      "strength_model": 1.0
+    },
+    "_meta": {
+      "title": "Turbo · HighRez only",
+      "lakis_source_id": "3005"
+    }
+  },
+  "3006": {
+    "class_type": "ComfySwitchNode",
+    "inputs": {
+      "switch": [
+        "3000",
+        4
+      ],
+      "on_false": [
+        "3005",
+        0
+      ],
+      "on_true": [
+        "4035",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "ComfySwitchNode",
+      "lakis_source_id": "3006"
+    }
+  },
+  "3040": {
+    "class_type": "LAKIS_DETAIL",
+    "inputs": {
+      "image": [
+        "4103",
+        0
+      ],
+      "face_segs": [
+        "4008",
+        0
+      ],
+      "model": [
+        "4012",
+        0
+      ],
+      "clip": [
+        "4013",
+        2
+      ],
+      "vae": [
+        "4077",
+        0
+      ],
+      "positive": [
+        "4013",
+        4
+      ],
+      "negative": [
+        "4013",
+        5
+      ],
+      "seed": [
+        "4013",
+        8
+      ],
+      "steps": 8,
+      "cfg": [
+        "4013",
+        11
+      ],
+      "sampler_name": [
+        "4013",
+        13
+      ],
+      "scheduler": [
+        "4013",
+        14
+      ],
+      "face_guide_size": 768,
+      "face_max_size": 1280,
+      "face_denoise": 0.24,
+      "face_feather": 8,
+      "eye_refine": true,
+      "eye_strength": 0.22,
+      "eye_y": 0.42,
+      "eye_spacing": 0.34,
+      "eye_width": 0.24,
+      "eye_height": 0.14,
+      "eye_radius": 2,
+      "eye_color_preservation": 0.85,
+      "unload_after": false,
+      "detailer_hook": [
+        "4017",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "LAKIS DETAIL · face + eye frequency refinement",
+      "lakis_source_id": "3040"
+    }
+  },
+  "3050": {
+    "class_type": "ComfySwitchNode",
+    "inputs": {
+      "switch": [
+        "3000",
+        2
+      ],
+      "on_false": [
+        "4064",
+        0
+      ],
+      "on_true": [
+        "3040",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "ComfySwitchNode",
+      "lakis_source_id": "3050"
+    }
+  },
+  "3051": {
+    "class_type": "LAKIS_SCOPE",
+    "inputs": {
+      "image": [
+        "3050",
+        0
+      ],
+      "model": [
+        "4029",
+        0
+      ],
+      "positive": [
+        "4025",
+        4
+      ],
+      "negative": [
+        "4025",
+        5
+      ],
+      "vae": [
+        "4025",
+        3
+      ],
+      "upscale_model": [
+        "4023",
+        0
+      ],
+      "upscale_by": [
+        "4022",
+        0
+      ],
+      "seed": [
+        "4025",
+        8
+      ],
+      "steps": [
+        "4030",
+        0
+      ],
+      "cfg": [
+        "4025",
+        11
+      ],
+      "sampler_name": [
+        "4025",
+        13
+      ],
+      "scheduler": [
+        "4025",
+        14
+      ],
+      "denoise": 0.07,
+      "tile_size": [
+        "4020",
+        1
+      ],
+      "overlap": 96,
+      "tile_batch_size": 2,
+      "quality_mode": true
+    },
+    "_meta": {
+      "title": "LAKIS DETAIL · SCOPE upscale",
+      "lakis_source_id": "3051"
+    }
+  },
+  "3052": {
+    "class_type": "ComfySwitchNode",
+    "inputs": {
+      "switch": [
+        "3000",
+        2
+      ],
+      "on_false": [
+        "4024",
+        0
+      ],
+      "on_true": [
+        "3051",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "ComfySwitchNode",
+      "lakis_source_id": "3052"
+    }
+  },
+  "3011": {
+    "class_type": "LAKIS_OptionalImage",
+    "inputs": {
+      "enabled": [
+        "3000",
+        5
+      ],
+      "image": "",
+      "mask_channel": "alpha"
+    },
+    "_meta": {
+      "title": "Inpaint · source image",
+      "lakis_source_id": "3011"
+    }
+  },
+  "3012": {
+    "class_type": "LAKIS_OptionalImage",
+    "inputs": {
+      "enabled": [
+        "3000",
+        5
+      ],
+      "image": "",
+      "mask_channel": "red"
+    },
+    "_meta": {
+      "title": "Inpaint · mask (white = edit)",
+      "lakis_source_id": "3012"
+    }
+  },
+  "3013": {
+    "class_type": "LAKIS_InpaintPrompt",
+    "inputs": {
+      "operation": "regenerate",
+      "positive": "",
+      "negative": "",
+      "denoise": 0.65,
+      "grow_mask_by": 8
+    },
+    "_meta": {
+      "title": "Inpaint · independent prompts / BETA",
+      "lakis_source_id": "3013"
+    }
+  },
+  "3014": {
+    "class_type": "GrowMask",
+    "inputs": {
+      "mask": [
+        "3012",
+        1
+      ],
+      "expand": [
+        "3013",
+        6
+      ],
+      "tapered_corners": true
+    },
+    "_meta": {
+      "title": "GrowMask",
+      "lakis_source_id": "3014"
+    }
+  },
+  "3015": {
+    "class_type": "LAKIS_LocalInpaintPrepare",
+    "inputs": {
+      "image": [
+        "3011",
+        0
+      ],
+      "mask": [
+        "3014",
+        0
+      ],
+      "minimum_padding": 96,
+      "padding_ratio": 0.6,
+      "maximum_crop_ratio": 0.7,
+      "alignment": 16,
+      "minimum_work_edge": 768,
+      "maximum_work_edge": 1280,
+      "large_edit_ratio": 0.35
+    },
+    "_meta": {
+      "title": "LAKIS_LocalInpaintPrepare",
+      "lakis_source_id": "3015"
+    }
+  },
+  "3016": {
+    "class_type": "VAEEncode",
+    "inputs": {
+      "pixels": [
+        "3015",
+        0
+      ],
+      "vae": [
+        "4077",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "VAEEncode",
+      "lakis_source_id": "3016"
+    }
+  },
+  "3017": {
+    "class_type": "SetLatentNoiseMask",
+    "inputs": {
+      "samples": [
+        "3016",
+        0
+      ],
+      "mask": [
+        "3015",
+        1
+      ]
+    },
+    "_meta": {
+      "title": "SetLatentNoiseMask",
+      "lakis_source_id": "3017"
+    }
+  },
+  "3018": {
+    "class_type": "DCWModelPatch",
+    "inputs": {
+      "lambda_l": [
+        "4047",
+        0
+      ],
+      "lambda_h": [
+        "4048",
+        0
+      ],
+      "dcw_enabled": true,
+      "alpha_l": 0.01,
+      "alpha_h": 0.06,
+      "cwm_enabled": false,
+      "smc_preset": "Auto",
+      "smc_lambda": 6,
+      "smc_k": 0.15,
+      "rdc_tau": 0,
+      "rdc_alpha_ll": 0.03,
+      "rdc_alpha_hh": 0,
+      "model": [
+        "4073",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "DCWModelPatch",
+      "lakis_source_id": "3018"
+    }
+  },
+  "3019": {
+    "class_type": "LAKIS_NativeLLLiteApply",
+    "inputs": {
+      "model": [
+        "3018",
+        0
+      ],
+      "lllite_name": "anima-lllite-inpainting-v2.safetensors",
+      "image": [
+        "3015",
+        0
+      ],
+      "mask": [
+        "3015",
+        1
+      ],
+      "strength": 1.0,
+      "start_percent": 0.0,
+      "end_percent": 1.0,
+      "preserve_wrapper": true
+    },
+    "_meta": {
+      "title": "LAKIS_NativeLLLiteApply",
+      "lakis_source_id": "3019"
+    }
+  },
+  "3020": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": [
+        "3013",
+        0
+      ],
+      "clip": [
+        "4075",
+        1
+      ]
+    },
+    "_meta": {
+      "title": "CLIPTextEncode",
+      "lakis_source_id": "3020"
+    }
+  },
+  "3021": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": [
+        "3013",
+        1
+      ],
+      "clip": [
+        "4075",
+        1
+      ]
+    },
+    "_meta": {
+      "title": "CLIPTextEncode",
+      "lakis_source_id": "3021"
+    }
+  },
+  "3022": {
+    "class_type": "DiTSpectrumPatch",
+    "inputs": {
+      "steps": 20,
+      "window_size": 2,
+      "flex_window": 0.25,
+      "warmup_steps": 8,
+      "tail_actual_steps": 3,
+      "blend_w": 0.3,
+      "cheby_degree": 3,
+      "ridge_lambda": 0.1,
+      "history_size": 100,
+      "enabled": true,
+      "one_sampler_only": true,
+      "verbose": false,
+      "model": [
+        "3019",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "DiTSpectrumPatch",
+      "lakis_source_id": "3022"
+    }
+  },
+  "3023": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": [
+        "3022",
+        0
+      ],
+      "positive": [
+        "3020",
+        0
+      ],
+      "negative": [
+        "3021",
+        0
+      ],
+      "latent_image": [
+        "3017",
+        0
+      ],
+      "seed": [
+        "4085",
+        0
+      ],
+      "steps": 20,
+      "cfg": 8.0,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": [
+        "3013",
+        2
+      ]
+    },
+    "_meta": {
+      "title": "KSampler",
+      "lakis_source_id": "3023"
+    }
+  },
+  "3024": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": [
+        "3023",
+        0
+      ],
+      "vae": [
+        "4077",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "VAEDecode",
+      "lakis_source_id": "3024"
+    }
+  },
+  "3025": {
+    "class_type": "LAKIS_LocalInpaintComposite",
+    "inputs": {
+      "original": [
+        "3011",
+        0
+      ],
+      "edited_crop": [
+        "3024",
+        0
+      ],
+      "crop_mask": [
+        "3015",
+        1
+      ],
+      "x": [
+        "3015",
+        2
+      ],
+      "y": [
+        "3015",
+        3
+      ],
+      "crop_width": [
+        "3015",
+        4
+      ],
+      "crop_height": [
+        "3015",
+        5
+      ],
+      "feather": [
+        "3013",
+        3
+      ],
+      "color_match_strength": [
+        "3013",
+        4
+      ]
+    },
+    "_meta": {
+      "title": "LAKIS_LocalInpaintComposite",
+      "lakis_source_id": "3025"
+    }
+  },
+  "3026": {
+    "class_type": "LAKIS_LoraGate",
+    "inputs": {
+      "stack": [
+        "1925",
+        1
+      ],
+      "enabled": true,
+      "inpaint": [
+        "3000",
+        5
+      ],
+      "paint_loras": [
+        "3013",
+        5
+      ]
+    },
+    "_meta": {
+      "title": "LAKIS_LoraGate",
+      "lakis_source_id": "3026"
+    }
+  },
+  "3030": {
+    "class_type": "ToyxyzPose3DEditor",
+    "inputs": {
+      "width": [
+        "3001",
+        0
+      ],
+      "height": [
+        "3001",
+        1
+      ],
+      "pose_data": "{}",
+      "render_data": ""
+    },
+    "_meta": {
+      "title": "ToyxyzPose3DEditor",
+      "lakis_source_id": "3030"
+    }
+  },
+  "3031": {
+    "class_type": "ComfyCoupleBasePrompt",
+    "inputs": {
+      "base_prompt_text": [
+        "4089",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "ComfyCoupleBasePrompt",
+      "lakis_source_id": "3031"
+    }
+  },
+  "3032": {
+    "class_type": "ComfyCoupleRegionPainter",
+    "inputs": {
+      "clip": [
+        "4075",
+        1
+      ],
+      "width": [
+        "3001",
+        0
+      ],
+      "height": [
+        "3001",
+        1
+      ],
+      "paint_data": "",
+      "region_painter": [
+        "3030",
+        5
+      ],
+      "region": [
+        "3031",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "ComfyCoupleRegionPainter",
+      "lakis_source_id": "3032"
+    }
+  },
+  "3033": {
+    "class_type": "PrimitiveFloat",
+    "inputs": {
+      "value": 1.0
+    },
+    "_meta": {
+      "title": "Pose · strength",
+      "lakis_source_id": "3033"
+    }
+  },
+  "3034": {
+    "class_type": "PrimitiveFloat",
+    "inputs": {
+      "value": 1.0
+    },
+    "_meta": {
+      "title": "Region · strength",
+      "lakis_source_id": "3034"
+    }
+  },
+  "3060": {
+    "class_type": "LAKIS_NativeLLLiteApply",
+    "inputs": {
+      "model": [
+        "4043",
+        0
+      ],
+      "lllite_name": "anima_3dpose_6200.safetensors",
+      "image": [
+        "3030",
+        0
+      ],
+      "strength": [
+        "3033",
+        0
+      ],
+      "start_percent": 0.0,
+      "end_percent": 1.0,
+      "preserve_wrapper": true
+    },
+    "_meta": {
+      "title": "LAKIS_NativeLLLiteApply",
+      "lakis_source_id": "3060"
+    }
+  },
+  "3061": {
+    "class_type": "LAKIS_NativeLLLiteApply",
+    "inputs": {
+      "model": [
+        "3060",
+        0
+      ],
+      "lllite_name": "anima_regional_4335.safetensors",
+      "image": [
+        "3032",
+        0
+      ],
+      "strength": [
+        "3034",
+        0
+      ],
+      "start_percent": 0.0,
+      "end_percent": 0.3,
+      "preserve_wrapper": true
+    },
+    "_meta": {
+      "title": "LAKIS_NativeLLLiteApply",
+      "lakis_source_id": "3061"
+    }
+  },
+  "3062": {
+    "class_type": "ComfyCoupleMask",
+    "inputs": {
+      "model": [
+        "3061",
+        0
+      ],
+      "region": [
+        "3032",
+        1
+      ],
+      "negative": [
+        "4042",
+        5
+      ],
+      "cross_region_attention": 0.0,
+      "cross_region_mode": "self_exclusion",
+      "feather_mask": 0,
+      "model_type": "anima",
+      "skip_positive_conditioning": true
+    },
+    "_meta": {
+      "title": "ComfyCoupleMask",
+      "lakis_source_id": "3062"
+    }
+  },
+  "3063": {
+    "class_type": "ComfySwitchNode",
+    "inputs": {
+      "switch": [
+        "3000",
+        6
+      ],
+      "on_false": [
+        "4043",
+        0
+      ],
+      "on_true": [
+        "3062",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "ComfySwitchNode",
+      "lakis_source_id": "3063"
+    }
+  },
+  "3064": {
+    "class_type": "ComfySwitchNode",
+    "inputs": {
+      "switch": [
+        "3000",
+        6
+      ],
+      "on_false": [
+        "4042",
+        4
+      ],
+      "on_true": [
+        "3062",
+        1
+      ]
+    },
+    "_meta": {
+      "title": "ComfySwitchNode",
+      "lakis_source_id": "3064"
+    }
+  },
+  "3065": {
+    "class_type": "ComfySwitchNode",
+    "inputs": {
+      "switch": [
+        "3000",
+        6
+      ],
+      "on_false": [
+        "4042",
+        5
+      ],
+      "on_true": [
+        "3062",
+        2
+      ]
+    },
+    "_meta": {
+      "title": "ComfySwitchNode",
+      "lakis_source_id": "3065"
+    }
+  },
+  "3070": {
+    "class_type": "LAKIS_NativeLLLiteApply",
+    "inputs": {
+      "model": [
+        "3006",
+        0
+      ],
+      "lllite_name": "anima_3dpose_6200.safetensors",
+      "image": [
+        "3030",
+        0
+      ],
+      "strength": [
+        "3033",
+        0
+      ],
+      "start_percent": 0.0,
+      "end_percent": 1.0,
+      "preserve_wrapper": true
+    },
+    "_meta": {
+      "title": "LAKIS_NativeLLLiteApply",
+      "lakis_source_id": "3070"
+    }
+  },
+  "3071": {
+    "class_type": "LAKIS_NativeLLLiteApply",
+    "inputs": {
+      "model": [
+        "3070",
+        0
+      ],
+      "lllite_name": "anima_regional_4335.safetensors",
+      "image": [
+        "3032",
+        0
+      ],
+      "strength": [
+        "3034",
+        0
+      ],
+      "start_percent": 0.0,
+      "end_percent": 0.3,
+      "preserve_wrapper": true
+    },
+    "_meta": {
+      "title": "LAKIS_NativeLLLiteApply",
+      "lakis_source_id": "3071"
+    }
+  },
+  "3072": {
+    "class_type": "ComfyCoupleMask",
+    "inputs": {
+      "model": [
+        "3071",
+        0
+      ],
+      "region": [
+        "3032",
+        1
+      ],
+      "negative": [
+        "4034",
+        5
+      ],
+      "cross_region_attention": 0.0,
+      "cross_region_mode": "self_exclusion",
+      "feather_mask": 0,
+      "model_type": "anima",
+      "skip_positive_conditioning": true
+    },
+    "_meta": {
+      "title": "ComfyCoupleMask",
+      "lakis_source_id": "3072"
+    }
+  },
+  "3073": {
+    "class_type": "ComfySwitchNode",
+    "inputs": {
+      "switch": [
+        "3000",
+        6
+      ],
+      "on_false": [
+        "3006",
+        0
+      ],
+      "on_true": [
+        "3072",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "ComfySwitchNode",
+      "lakis_source_id": "3073"
+    }
+  },
+  "3074": {
+    "class_type": "ComfySwitchNode",
+    "inputs": {
+      "switch": [
+        "3000",
+        6
+      ],
+      "on_false": [
+        "4034",
+        4
+      ],
+      "on_true": [
+        "3072",
+        1
+      ]
+    },
+    "_meta": {
+      "title": "ComfySwitchNode",
+      "lakis_source_id": "3074"
+    }
+  },
+  "3075": {
+    "class_type": "ComfySwitchNode",
+    "inputs": {
+      "switch": [
+        "3000",
+        6
+      ],
+      "on_false": [
+        "4034",
+        5
+      ],
+      "on_true": [
+        "3072",
+        2
+      ]
+    },
+    "_meta": {
+      "title": "ComfySwitchNode",
+      "lakis_source_id": "3075"
+    }
+  },
+  "3003": {
+    "class_type": "ComfySwitchNode",
+    "inputs": {
+      "switch": [
+        "3000",
+        5
+      ],
+      "on_false": [
+        "4028",
+        0
+      ],
+      "on_true": [
+        "3025",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Terminal image · save + display",
+      "lakis_source_id": "3003"
+    }
+  },
+  "3080": {
+    "class_type": "ComfySwitchNode",
+    "inputs": {
+      "switch": [
+        "3000",
+        5
+      ],
+      "on_false": [
+        "2133",
+        6
+      ],
+      "on_true": [
+        "3013",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "ComfySwitchNode",
+      "lakis_source_id": "3080"
+    }
+  },
+  "3081": {
+    "class_type": "ComfySwitchNode",
+    "inputs": {
+      "switch": [
+        "3000",
+        5
+      ],
+      "on_false": [
+        "2133",
+        7
+      ],
+      "on_true": [
+        "3013",
+        1
+      ]
+    },
+    "_meta": {
+      "title": "ComfySwitchNode",
+      "lakis_source_id": "3081"
+    }
+  },
+  "3083": {
+    "class_type": "PrimitiveString",
+    "inputs": {
+      "value": ""
+    },
+    "_meta": {
+      "title": "Empty generation metadata",
+      "lakis_source_id": "3083"
+    }
+  },
+  "3082": {
+    "class_type": "ComfySwitchNode",
+    "inputs": {
+      "switch": [
+        "3000",
+        5
+      ],
+      "on_false": [
+        "3083",
+        0
+      ],
+      "on_true": [
+        "3015",
+        10
+      ]
+    },
+    "_meta": {
+      "title": "ComfySwitchNode",
+      "lakis_source_id": "3082"
+    }
+  },
+  "3041": {
+    "class_type": "ImpactSchedulerAdapter",
+    "inputs": {
+      "scheduler": [
+        "4013",
+        14
+      ],
+      "extra_scheduler": "None"
+    },
+    "_meta": {
+      "title": "ImpactSchedulerAdapter",
+      "lakis_source_id": "3041"
+    }
+  },
+  "3042": {
+    "class_type": "ImpactSchedulerAdapter",
+    "inputs": {
+      "scheduler": [
+        "4066",
+        14
+      ],
+      "extra_scheduler": "None"
+    },
+    "_meta": {
+      "title": "ImpactSchedulerAdapter",
+      "lakis_source_id": "3042"
+    }
+  }
+}
