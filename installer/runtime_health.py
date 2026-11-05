@@ -29,6 +29,8 @@ MAX_LOG_BYTES = 256 * 1024
 POLL_INTERVAL_SECONDS = 0.5
 REQUEST_TIMEOUT_SECONDS = 2.0
 PROCESS_STOP_TIMEOUT_SECONDS = 5.0
+PREPARATION_TIMEOUT_SECONDS = 180.0
+DEFAULT_STARTUP_TIMEOUT_SECONDS = 600.0
 
 
 class _BoundedLog:
@@ -251,12 +253,13 @@ def _isolated_entrypoint(comfy_root: Path, profile: Path) -> list[str]:
     ]
 
 
-def check_runtime(root: Path, timeout: float = 180) -> dict:
-    """Check an isolated runtime candidate without submitting a prompt."""
+def check_runtime(root: Path, timeout: float = DEFAULT_STARTUP_TIMEOUT_SECONDS) -> dict:
+    """Check an isolated candidate; timeout starts after ComfyUI is spawned."""
     if not isinstance(timeout, (int, float)) or not math.isfinite(timeout) or timeout <= 0:
         raise ValueError("timeout must be a finite positive number of seconds")
 
-    deadline = time.monotonic() + float(timeout)
+    preparation_started = time.monotonic()
+    deadline = preparation_started + PREPARATION_TIMEOUT_SECONDS
     root = Path(root).expanduser().resolve()
     if not root.is_dir():
         raise RuntimeError(f"runtime candidate root is not a directory: {root}")
@@ -297,6 +300,10 @@ def check_runtime(root: Path, timeout: float = 180) -> dict:
     os.close(log_fd)
     log_path = Path(log_name)
     log = _BoundedLog()
+    log.append(
+        f"Preparation limit: {PREPARATION_TIMEOUT_SECONDS:g}s; "
+        f"ComfyUI startup limit: {timeout:g}s\n"
+    )
 
     child = None
     reader = None
@@ -338,7 +345,12 @@ def check_runtime(root: Path, timeout: float = 180) -> dict:
         if not pip_check.stdout:
             log.append("\n--- pip check ---\npassed\n")
 
+        log.append(f"\npip check finished after {time.monotonic() - preparation_started:.1f}s\n")
+        isolation_started = time.monotonic()
         entrypoint_args = _isolated_entrypoint(comfy_root, profile)
+        log.append(
+            f"Isolated file preparation took {time.monotonic() - isolation_started:.1f}s\n"
+        )
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             raise RuntimeError("runtime health check timed out before ComfyUI startup")
@@ -370,6 +382,19 @@ def check_runtime(root: Path, timeout: float = 180) -> dict:
             stderr=subprocess.STDOUT,
             bufsize=0,
             env=child_env,
+        )
+        startup_started = time.monotonic()
+        preparation_seconds = startup_started - preparation_started
+        # File isolation and pip check must not consume the startup allowance.
+        deadline = startup_started + float(timeout)
+        log.append(
+            f"ComfyUI spawned after {preparation_seconds:.1f}s of preparation; "
+            f"startup allowance: {timeout:g}s\n"
+        )
+        print(
+            f"[실행 확인] 사전 준비 {preparation_seconds:.1f}초 완료. "
+            f"ComfyUI 시작을 최대 {timeout:g}초 기다립니다.",
+            flush=True,
         )
         reader = _start_log_reader(child, log)
 
@@ -460,6 +485,8 @@ def check_runtime(root: Path, timeout: float = 180) -> dict:
                     "comfyui_version": version,
                     "required_node_count": len(required_nodes),
                     "log_path": str(log_path),
+                    "preparation_seconds": preparation_seconds,
+                    "startup_seconds": time.monotonic() - startup_started,
                 }
                 break
 
@@ -470,6 +497,8 @@ def check_runtime(root: Path, timeout: float = 180) -> dict:
         if result is None:
             raise RuntimeError(
                 f"timed out waiting for ComfyUI readiness at 127.0.0.1:{port}; "
+                f"startup elapsed: {time.monotonic() - startup_started:.1f}s "
+                f"(limit {timeout:g}s); preparation: {preparation_seconds:.1f}s; "
                 f"last system_stats: {last_system_error}; "
                 f"last object_info: {last_object_info_error}"
             )

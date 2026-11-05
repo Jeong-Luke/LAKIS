@@ -219,6 +219,7 @@ async function animateGenerationEngineSwitch(next, prepare) {
   const layer = document.querySelector("#generationEngineTransition");
   const wasInert = shell.inert;
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  layer.dataset.easterEgg = String(Math.random() < 0.05);
   const fade = reduced ? 80 : 220;
   shell.inert = true;
   shell.classList.add("engine-transition-shell");
@@ -241,6 +242,7 @@ async function animateGenerationEngineSwitch(next, prepare) {
     shell.classList.remove("is-engine-leaving");
     await waitForEngineTransition(fade);
     layer.hidden = true;
+    delete layer.dataset.easterEgg;
     layer.classList.remove("is-exiting");
     shell.classList.remove("engine-transition-shell");
     shell.inert = wasInert;

@@ -158,6 +158,22 @@ body.moss-mode .control-column { overflow-y: auto !important; }
   --engine-flare-mid: #8fdeb2;
   --engine-flare-edge: #6fce99;
 }
+.engine-transition[data-easter-egg="true"] {
+  --engine-mark-light: #ffe0ef;
+  --engine-mark-soft: #ffa6cf;
+  --engine-mark-main: #f36ca7;
+  --engine-mark-deep: #cc3f80;
+  --engine-sheen: #fff1f8;
+  --engine-flare-core: #fff1f8;
+  --engine-flare-mid: #ffa7cf;
+  --engine-flare-edge: #f36ca7;
+}
+.engine-transition .logo-character {
+  display: none;
+  image-rendering: pixelated;
+}
+.engine-transition[data-easter-egg="true"] .logo-star { display: none; }
+.engine-transition[data-easter-egg="true"] .logo-character { display: block; }
 .engine-transition-status {
   position: absolute;
   width: 1px;
@@ -228,6 +244,9 @@ body.moss-mode .control-column { overflow-y: auto !important; }
 .engine-transition.is-active .logo-star {
   animation: engine-logo-draw .45s ease .55s both, engine-logo-star-fill .5s ease .6s both;
 }
+.engine-transition[data-easter-egg="true"].is-active .logo-character {
+  animation: engine-logo-character-reveal .28s ease .55s both;
+}
 .engine-transition.is-active .logo-flare {
   animation: engine-logo-flare .9s ease-out .9s both;
 }
@@ -254,6 +273,10 @@ body.moss-mode .control-column { overflow-y: auto !important; }
 @keyframes engine-logo-star-fill {
   from { fill-opacity: 0; }
   to { fill-opacity: 1; }
+}
+@keyframes engine-logo-character-reveal {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 @keyframes engine-logo-star-pop {
   0% { transform: scale(.5) rotate(-26deg); }
@@ -307,7 +330,7 @@ body.moss-mode .control-column { overflow-y: auto !important; }
 @media (prefers-reduced-motion: reduce) {
   .engine-transition-shell, .engine-transition { transition-duration: .08s; }
   .engine-transition .logo-stage { transition: none; }
-  .engine-transition .logo-stroke, .engine-transition .logo-star,
+  .engine-transition .logo-stroke, .engine-transition .logo-star, .engine-transition .logo-character,
   .engine-transition .logo-star-group, .engine-transition .logo-flare,
   .engine-transition .logo-sheen { animation: none !important; }
   .engine-transition .logo-stroke, .engine-transition .logo-star { stroke-dashoffset: 0 !important; }
