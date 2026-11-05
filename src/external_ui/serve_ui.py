@@ -401,7 +401,7 @@ def _prompt_graph_metadata(graph: object) -> dict:
         # LAKIS generates from the canonical diffusion-model loader. Auxiliary
         # CheckpointLoaderSimple nodes load SAM segmentation weights and must
         # never be presented as the image-generation checkpoint.
-        if kind == "DiffusionModelLoaderKJ" and inputs.get("model_name"):
+        if kind in {"DiffusionModelLoaderKJ", "LAKIS_DiffusionModelLoader"} and inputs.get("model_name"):
             result["checkpoint"] = str(inputs["model_name"])
 
         # Node 1925 is the submission-time snapshot of the user LoRA stack.
@@ -440,11 +440,14 @@ def _image_prompt_metadata(path: Path) -> dict:
         return result
     try:
         with Image.open(path) as image:
-            raw = str(image.getexif().get(272, ""))
-        marker = raw.find("prompt:")
-        if marker < 0:
-            return result
-        graph, _ = json.JSONDecoder().raw_decode(raw[marker + 7:])
+            if image.format == "PNG" and "prompt" in image.info:
+                graph = json.loads(image.info["prompt"])
+            else:
+                raw = str(image.getexif().get(272, ""))
+                marker = raw.find("prompt:")
+                if marker < 0:
+                    return result
+                graph, _ = json.JSONDecoder().raw_decode(raw[marker + 7:])
         result = _prompt_graph_metadata(graph)
     except (OSError, ValueError, TypeError, json.JSONDecodeError):
         pass
