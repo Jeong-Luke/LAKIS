@@ -271,6 +271,85 @@ print(json.dumps({"api":str(api),"editable":str(editable),
         default_result = self.handler()._prepare_lakis_workflow()
         self.assertEqual(default_result["workflow_kind"], "api")
 
+    def test_moss_templates_and_metadata_are_separate_from_anima_and_personal_files(self) -> None:
+        self.write_templates()
+        before_anima = (self.api_path.read_bytes(), self.editable_path.read_bytes())
+        for kind, name in (
+            ("api", serve_ui.moss_workflows.API_NAME),
+            ("editable", serve_ui.moss_workflows.EDITABLE_NAME),
+        ):
+            source = CANONICAL_WORKFLOW_ROOT / name
+            packaged = self.package_root / name
+            shutil.copyfile(source, packaged)
+            personal = self.personal_root / name
+            personal.write_bytes(b"owner's edited workflow")
+            before = packaged.read_bytes()
+            with patch.object(serve_ui, "upscaler_choice_status") as anima_settings:
+                result = self.handler()._prepare_lakis_workflow(kind, "moss")
+            anima_settings.assert_not_called()
+            marker = json.loads(self.marker_path.read_bytes())
+            self.assertEqual(marker["workflow"], json.loads(before))
+            self.assertEqual(result["workflow_name"], name)
+            self.assertEqual(result["generation_engine"], "moss")
+            self.assertIn("engine=moss", result["download_url"])
+            self.assertEqual(packaged.read_bytes(), before)
+            self.assertEqual(personal.read_bytes(), b"owner's edited workflow")
+        self.assertEqual((self.api_path.read_bytes(), self.editable_path.read_bytes()), before_anima)
+
+    def test_moss_history_reads_shared_controls_instead_of_link_identifiers(self) -> None:
+        graph = serve_ui.moss_mode.base_graph(
+            seed=872, positive="a ceramic cup", negative="blur")
+        metadata = serve_ui._prompt_graph_metadata(graph)
+        self.assertEqual(metadata["engine"], "moss")
+        self.assertEqual(metadata["checkpoint"], "moss_image_sft_int8_convrot.safetensors")
+        self.assertEqual(metadata["seed"], 872)
+        self.assertEqual(metadata["prompt"], "a ceramic cup")
+        self.assertEqual(metadata["negative_prompt"], "blur")
+
+    def test_actual_http_download_and_open_route_keep_engine_and_format(self) -> None:
+        import threading
+        from urllib.request import Request, urlopen
+        from urllib.error import HTTPError
+
+        self.write_templates()
+        for name in (serve_ui.moss_workflows.API_NAME, serve_ui.moss_workflows.EDITABLE_NAME):
+            shutil.copyfile(CANONICAL_WORKFLOW_ROOT / name, self.package_root / name)
+        server = serve_ui.ThreadingHTTPServer(("127.0.0.1", 0), serve_ui.Handler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        base = f"http://127.0.0.1:{server.server_port}"
+        try:
+            for engine in ("anima", "moss"):
+                for kind in ("api", "editable"):
+                    expected_path, expected = serve_ui.resolve_lakis_workflow(kind, engine)
+                    with urlopen(base + f"/api/workflow-download?engine={engine}&kind={kind}", timeout=5) as response:
+                        self.assertEqual(response.status, 200)
+                        self.assertIn(expected_path.name, response.headers["Content-Disposition"])
+                        self.assertEqual(json.load(response), expected)
+                    request = Request(base + "/api/open-workflow",
+                        data=json.dumps({"engine": engine, "kind": kind}).encode(),
+                        headers={"Content-Type": "application/json"})
+                    with patch.object(serve_ui.scene_controls, "handle_post", return_value=False), \
+                            urlopen(request, timeout=5) as response:
+                        opened = json.load(response)
+                    self.assertEqual(opened["workflow_name"], expected_path.name)
+                    self.assertEqual(opened["generation_engine"], engine)
+                    self.assertEqual(json.loads(self.marker_path.read_bytes())["workflow"], expected)
+            before = self.marker_path.read_bytes()
+            (self.package_root / serve_ui.moss_workflows.API_NAME).unlink()
+            with self.assertRaises(HTTPError) as raised:
+                urlopen(base + "/api/workflow-download?engine=moss&kind=api", timeout=5)
+            self.assertEqual(raised.exception.code, 500)
+            self.assertEqual(json.load(raised.exception)["code"], "LKS-MOSS-1010")
+            with self.assertRaises(HTTPError) as raised:
+                urlopen(base + "/api/workflow-download?engine=../anima&kind=api", timeout=5)
+            self.assertEqual(raised.exception.code, 400)
+            self.assertEqual(self.marker_path.read_bytes(), before)
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(5)
+
     def test_missing_or_invalid_api_never_falls_back_and_preserves_marker(self) -> None:
         self.editable_path.write_text(json.dumps(editable_fixture()), encoding="utf-8")
         (self.package_root / "LAKIS_runtime_visual_v8.0.json").write_text(
@@ -332,7 +411,7 @@ print(json.dumps({"api":str(api),"editable":str(editable),
                     "path": "/api/open-workflow",
                     "_authorize_api_request": lambda self: True,
                     "_read_json": lambda self: incoming,
-                    "_prepare_lakis_workflow": lambda self, kind: handler._prepare_lakis_workflow(kind),
+                    "_prepare_lakis_workflow": lambda self, kind, engine: handler._prepare_lakis_workflow(kind, engine),
                     "_send_json": lambda self, status, body: responses.append((status, body)),
                 },
             )()

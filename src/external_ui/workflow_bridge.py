@@ -29,6 +29,10 @@ import uuid
 import aiohttp
 
 import scene_controls
+import moss_mode
+import moss_sampling
+import moss_errors
+import copy
 import sys
 
 # Installed helpers are managed external_ui resources; source checkouts use
@@ -375,6 +379,9 @@ def _missing_runtime_node_types(prompt: dict[str, Any], object_info: dict[str, A
 
 def _validate_live_prompt_models(prompt: dict[str, Any], object_info: dict[str, Any]) -> None:
     """Reject stale UI selections before consuming allowance or calling /prompt."""
+    if prompt.get(FINAL_NODE, {}).get("_meta", {}).get("generation_engine") == "moss":
+        moss_mode.validate_models(prompt, object_info)
+        return
     prompt = _native_alias_view(prompt)
     checks = (
         ("890:1365", "DiffusionModelLoaderKJ", "model_name", "Unknown diffusion model"),
@@ -898,6 +905,10 @@ def load_external_generation_state() -> dict[str, Any]:
             for key in OUTPUT_STATE_KEYS if isinstance(output, dict) and key in output
         },
         "generation": {
+            "engine": generation.get("engine", "anima")
+            if isinstance(generation, dict) and generation.get("engine", "anima") in {"anima", "moss"} else "anima",
+            "profiles": generation.get("profiles", {}) if isinstance(generation, dict) else {},
+            "mode": generation.get("mode", "detail") if isinstance(generation, dict) else "detail",
             "lakis_mode": saved_lakis_mode,
             "upscale_engine": saved_engine
             if saved_engine in ((DEV_UPSCALE_ENGINES if DEVELOPMENT else RELEASE_UPSCALE_ENGINES) | {"lakis_fast"})
@@ -916,15 +927,13 @@ def load_external_generation_state() -> dict[str, Any]:
         "composition_enabled": _coerce_bool(payload.get("composition_enabled", True), True),
         "wildcard_enabled": _coerce_bool(payload.get("wildcard_enabled", False), False),
         "node_overrides": node_overrides,
+        **{key: copy.deepcopy(payload[key]) for key in (
+            "moss_regions", "moss_detail", "moss_node_overrides", "i2i", "continuous", "wildcard_exclusions"
+        ) if isinstance(payload.get(key), dict)},
     }
 
 
-@_state_transaction
-def save_external_generation_state(
-    model: Any, output: Any, loras: Any = None, lora_enabled: Any = True,
-    node_overrides: Any = None, generation: Any = None,
-    camera: Any = None, composition_enabled: Any = True, wildcard_enabled: Any = False,
-) -> dict[str, Any]:
+def _clean_generation_model_output(model: Any, output: Any):
     if not isinstance(model, dict) or not isinstance(output, dict):
         raise ValueError("model and output state must be objects")
     clean_model = {key: model[key] for key in MODEL_STATE_KEYS if key in model}
@@ -942,6 +951,44 @@ def save_external_generation_state(
     )
     clean_output["aspect_locked"] = _coerce_bool(clean_output.get("aspect_locked", False))
     clean_output["seed_mode"] = _normalize_seed_mode(clean_output.get("seed_mode"))
+    return clean_model, clean_output
+
+
+@_state_transaction
+def save_external_generation_state(
+    model: Any, output: Any, loras: Any = None, lora_enabled: Any = True,
+    node_overrides: Any = None, generation: Any = None,
+    camera: Any = None, composition_enabled: Any = True, wildcard_enabled: Any = False,
+    moss_regions: Any = None, moss_detail: Any = None, moss_node_overrides: Any = None,
+    i2i: Any = None, continuous: Any = None, wildcard_exclusions: Any = None,
+) -> dict[str, Any]:
+    clean_model, clean_output = _clean_generation_model_output(model, output)
+    generation = generation if isinstance(generation, dict) else {}
+    payload = _load_external_ui_payload()
+    previous_generation = payload.get("generation", {})
+    if not isinstance(previous_generation, dict):
+        previous_generation = {}
+    selected_engine = moss_mode.engine(generation.get("engine"))
+    profiles = copy.deepcopy(previous_generation.get("profiles", {}))
+    if not isinstance(profiles, dict):
+        profiles = {}
+    raw_profiles = generation.get("profiles", {})
+    if not isinstance(raw_profiles, dict):
+        raise ValueError("generation.profiles must be an object")
+    for name in ("anima", "moss"):
+        profile = raw_profiles.get(name)
+        if profile is not None:
+            if not isinstance(profile, dict):
+                raise ValueError("generation profile must be an object")
+            profile_model, profile_output = _clean_generation_model_output(
+                profile.get("model"), profile.get("output"))
+            profiles[name] = {**profile, "model": profile_model, "output": profile_output}
+    profiles[selected_engine] = {
+        **profiles.get(selected_engine, {}), "model": clean_model, "output": clean_output,
+    }
+    quality_mode = generation.get("mode", "detail")
+    if quality_mode not in {"fast", "detail", "lakis_detail"}:
+        raise ValueError("Unsupported saved ANIMA quality mode")
     if not isinstance(loras, list):
         loras = []
     if len(loras) > 64:
@@ -967,7 +1014,15 @@ def save_external_generation_state(
     allowed_engines = DEV_UPSCALE_ENGINES if DEVELOPMENT else RELEASE_UPSCALE_ENGINES
     if upscale_engine not in allowed_engines:
         raise ValueError("Unsupported upscale engine")
-    payload = _load_external_ui_payload()
+    for key, value in (
+        ("moss_regions", moss_regions), ("moss_detail", moss_detail),
+        ("moss_node_overrides", moss_node_overrides), ("i2i", i2i),
+        ("continuous", continuous), ("wildcard_exclusions", wildcard_exclusions),
+    ):
+        if value is not None:
+            if not isinstance(value, dict):
+                raise ValueError(f"{key} state must be an object")
+            payload[key] = copy.deepcopy(value)
     payload.update({
         "version": GENERATION_STATE_VERSION,
         "model": clean_model,
@@ -975,6 +1030,9 @@ def save_external_generation_state(
         "lora": {"current": clean_loras, "enabled": _coerce_bool(lora_enabled, True)},
         "node_overrides": clean_overrides,
         "generation": {
+            **previous_generation,
+            **generation,
+            "engine": selected_engine, "profiles": profiles, "mode": quality_mode,
             "lakis_mode": _coerce_bool(generation.get("lakis_mode", False)) if isinstance(generation, dict) else False,
             "upscale_engine": upscale_engine,
         },
@@ -1058,7 +1116,11 @@ def _live_model_inventories(object_info: dict[str, Any] | None = None) -> dict[s
     info = object_info if object_info is not None else _comfy_object_info()
     checkpoints = _live_loader_inventory("DiffusionModelLoaderKJ", "model_name", info)
     return {
-        "checkpoint": [name for name in checkpoints if _is_user_selectable_checkpoint(name)],
+        "checkpoint": [
+            name for name in checkpoints
+            if _is_user_selectable_checkpoint(name)
+            and name != moss_mode.MODEL["checkpoint"] and not moss_mode.is_moss_path(name)
+        ],
         "vae": _live_loader_inventory("VAELoader", "vae_name", info),
         "clip": _live_loader_inventory("CLIPLoader", "clip_name", info),
     }
@@ -1066,7 +1128,8 @@ def _live_model_inventories(object_info: dict[str, Any] | None = None) -> dict[s
 
 def _live_lora_inventory(object_info: dict[str, Any] | None = None) -> list[str]:
     info = object_info if object_info is not None else _comfy_object_info()
-    return _live_loader_inventory("LoraLoader", "lora_name", info)
+    return [name for name in _live_loader_inventory("LoraLoader", "lora_name", info)
+            if not moss_mode.is_moss_path(name)]
 
 
 def _select_live_model(saved: Any, canonical: Any, options: list[str]) -> str:
@@ -1143,7 +1206,9 @@ def _is_anima_checkpoint(checkpoint: str) -> bool:
 
 def model_inventory() -> dict[str, Any]:
     """Return live model lists without modifying the user's saved selections."""
-    inventories = _live_model_inventories()
+    info = _comfy_object_info()
+    inventories = _live_model_inventories(info)
+    moss = moss_mode.configuration(info, composition_available=CAMERA_SOURCE.is_file())
     signature_source = "\n".join(
         f"{kind}:{value}"
         for kind, values in inventories.items()
@@ -1151,13 +1216,14 @@ def model_inventory() -> dict[str, Any]:
     )
     return {
         **inventories,
-        "signature": hashlib.sha256(signature_source.encode("utf-8")).hexdigest(),
+        "moss": moss,
+        "signature": hashlib.sha256((signature_source + json.dumps(moss, sort_keys=True)).encode("utf-8")).hexdigest(),
     }
 
 
-def lora_inventory() -> dict[str, Any]:
+def lora_inventory(engine: str = "anima") -> dict[str, Any]:
     """Return the live LoRA inventory without touching persisted UI state."""
-    options = _live_lora_inventory()
+    options = moss_mode.lora_names(_comfy_object_info()) if moss_mode.engine(engine) == "moss" else _live_lora_inventory()
     signature = hashlib.sha256("\n".join(options).encode("utf-8")).hexdigest()
     return {"options": options, "signature": signature, "count": len(options)}
 
@@ -1172,24 +1238,35 @@ def workflow_configuration(object_info: dict[str, Any] | None = None) -> dict[st
     saved = load_external_generation_state()
     saved_model = saved["model"]
     saved_output = saved["output"]
-    checkpoint_default = DEFAULT_CHECKPOINT if DEFAULT_CHECKPOINT in checkpoint_options else template["890:1365"]["inputs"]["model_name"]
+    moss = moss_mode.configuration(object_info, composition_available=CAMERA_SOURCE.is_file())
+    selected_engine = moss_mode.engine(saved["generation"].get("engine"))
+    model_defaults = moss_mode.MODEL if selected_engine == "moss" else {
+        "sampler": "euler_ancestral", "scheduler": "normal", "steps": 30, "cfg": 5.0,
+    }
+    output_defaults = moss_mode.OUTPUT if selected_engine == "moss" else {"width": 1536, "height": 1024}
+    if selected_engine == "moss":
+        inventories = moss["inventory"]
+        checkpoint_options = inventories["checkpoint"]
+    checkpoint_default = moss_mode.MODEL["checkpoint"] if selected_engine == "moss" else (
+        DEFAULT_CHECKPOINT if DEFAULT_CHECKPOINT in checkpoint_options else template["890:1365"]["inputs"]["model_name"])
     checkpoint = _select_live_model(saved_model.get("checkpoint"), checkpoint_default, checkpoint_options)
     vae_options = inventories["vae"]
-    vae_default = template["890:159"]["inputs"]["vae_name"]
+    vae_default = moss_mode.MODEL["vae"] if selected_engine == "moss" else template["890:159"]["inputs"]["vae_name"]
     vae = _select_live_model(saved_model.get("vae"), vae_default, vae_options)
     clip_options = inventories["clip"]
-    clip_default = template["890:164"]["inputs"]["clip_name"]
+    clip_default = moss_mode.MODEL["clip"] if selected_engine == "moss" else template["890:164"]["inputs"]["clip_name"]
     clip = _select_live_model(saved_model.get("clip"), clip_default, clip_options)
     sampler_options = _enum_options("KSampler", "sampler_name", SAMPLER_OPTIONS, object_info)
     scheduler_options = _enum_options("KSampler", "scheduler", SCHEDULER_OPTIONS, object_info)
-    sampler = str(saved_model.get("sampler", "euler_ancestral"))
+    sampler = str(saved_model.get("sampler", model_defaults["sampler"]))
     if sampler not in sampler_options:
-        sampler = "euler_ancestral"
-    scheduler = str(saved_model.get("scheduler", "normal"))
+        sampler = model_defaults["sampler"]
+    scheduler = str(saved_model.get("scheduler", model_defaults["scheduler"]))
     if scheduler not in scheduler_options:
-        scheduler = "normal"
+        scheduler = model_defaults["scheduler"]
     return {
         "development": DEVELOPMENT,
+        "engine_configuration": {"moss": moss},
         "comfy_port": COMFY_PORT,
         "checkpoint": {
             "current": checkpoint,
@@ -1208,35 +1285,52 @@ def workflow_configuration(object_info: dict[str, Any] | None = None) -> dict[st
         },
         "sampler": {"current": sampler, "options": sampler_options, "loader_class": "KSampler"},
         "scheduler": {"current": scheduler, "options": scheduler_options, "loader_class": "KSampler"},
-        "lora": _saved_lora_configuration(),
+        "lora": _saved_lora_configuration(selected_engine),
         "prompt": prompt_defaults,
         "prompt_enabled": load_external_prompt_enabled(),
         "prompt_state": load_external_prompt_bundle(),
         "advanced_nodes": advanced_node_configuration(template),
+        "advanced_nodes_by_engine": {
+            "anima": advanced_node_configuration(template),
+            "moss": moss_sampling.configuration(object_info, moss_mode.base_graph()),
+        },
         "generation_state": {
             "generation": saved.get("generation", {"upscale_engine": DEFAULT_UPSCALE_ENGINE}),
             "camera": saved.get("camera", {}),
             "composition_enabled": saved.get("composition_enabled", True),
             "wildcard_enabled": saved.get("wildcard_enabled", False),
             "model": {
+                "checkpoint": checkpoint, "vae": vae, "clip": clip,
                 "sampler": sampler,
                 "scheduler": scheduler,
-                "steps": _bounded_number(saved_model.get("steps", 30), 30, 1, 10_000, integer=True),
-                "cfg": _bounded_number(saved_model.get("cfg", 5.0), 5.0, 0.0, 100.0),
+                "steps": _bounded_number(saved_model.get("steps", model_defaults["steps"]), model_defaults["steps"], 1, 10_000, integer=True),
+                "cfg": _bounded_number(saved_model.get("cfg", model_defaults["cfg"]), model_defaults["cfg"], 0.0, 100.0),
             },
             "output": {
-                "width": _bounded_number(saved_output.get("width", 1536), 1536, 256, 4096, integer=True),
-                "height": _bounded_number(saved_output.get("height", 1024), 1024, 256, 4096, integer=True),
+                "width": _bounded_number(saved_output.get("width", output_defaults["width"]), output_defaults["width"], 256, 4096, integer=True),
+                "height": _bounded_number(saved_output.get("height", output_defaults["height"]), output_defaults["height"], 256, 4096, integer=True),
                 "seed": _bounded_number(saved_output.get("seed", 579441119814924), 579441119814924, 0, COMFYUI_SEED_MAX, integer=True),
                 "seed_mode": str(saved_output.get("seed_mode", "random")),
                 "aspect_locked": _coerce_bool(saved_output.get("aspect_locked", False)),
             },
             "node_overrides": saved.get("node_overrides", {}),
+            **{key: copy.deepcopy(saved[key]) for key in (
+                "moss_regions", "moss_detail", "moss_node_overrides", "i2i", "continuous", "wildcard_exclusions"
+            ) if key in saved},
         },
     }
 
 
-def _saved_lora_configuration() -> dict[str, Any]:
+def _saved_lora_configuration(engine: str = "anima") -> dict[str, Any]:
+    if engine == "moss":
+        saved_lora = _load_external_ui_payload().get("lora", {})
+        saved_lora = saved_lora if isinstance(saved_lora, dict) else {}
+        return {
+            "current": copy.deepcopy(saved_lora.get("current", [])),
+            "options": moss_mode.lora_names(_comfy_object_info()),
+            "enabled": _coerce_bool(saved_lora.get("enabled", True), True),
+            "profile_index": 0, "node_class": "LoraLoaderModelOnly",
+        }
     workflow = json.loads(SAVED_WORKFLOW.read_text(encoding="utf-8"))
     preset = next(node for node in workflow.get("nodes", []) if str(node.get("id")) == "1925")
     widgets = preset["widgets_values"]
@@ -1613,9 +1707,15 @@ def _build_native_prompt(application_state: dict[str, Any], original: dict[str, 
 
 
 def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+    if moss_mode.engine(application_state.get("generation", {}).get("engine")) == "moss":
+        return moss_mode.build_prompt(
+            application_state, _wait_for_comfy_object_info(),
+            configured_output_root(), COMFYUI_SEED_MAX, camera_prompt_builder=_camera_prompt)
     if not TEMPLATE.is_file():
         raise RuntimeError(f"Validated API prompt template is missing: {TEMPLATE}")
     template = json.loads(TEMPLATE.read_text(encoding="utf-8"))
+    if application_state.get("model", {}).get("checkpoint") == moss_mode.MODEL["checkpoint"]:
+        raise ValueError("MOSS 모델은 MOSS 모드로 전환한 뒤 사용해 주세요.")
     if template.get("3000", {}).get("class_type") == "LAKIS_GenerationControls":
         return _build_native_prompt(application_state, template)
     return _build_legacy_prompt(application_state)
@@ -3096,6 +3196,8 @@ class WorkflowBridge:
                 and _coerce_bool(generation.get("lakis_mode", False))
                 else generation.get("mode", "fast")
             )
+            if preflight.get("engine") == "moss":
+                effective_mode = "moss"
             seed = int(application_state["output"]["seed"])
             self._clear_preview()
             token = {"request_id": uuid.uuid4().hex, "created_at": time.time(),
@@ -3136,7 +3238,7 @@ class WorkflowBridge:
                 cleaned = self._cleanup_request_files(token["request_id"]) if allowance_created else True
                 if cleaned:
                     self._active_request_id = None
-                code, message = self._public_error(error)
+                code, message = self._public_error(error, engine=preflight.get("engine"))
                 self.status.update(state="error", stage="오류", error=message, error_code=code,
                                    error_detail=str(error)[:4000], error_exception_type=type(error).__name__,
                                    error_stage="생성 준비", finished_at=time.time())
@@ -3165,7 +3267,7 @@ class WorkflowBridge:
         inpaint = application_state.get("inpaint", {})
         loras = application_state.get("loras", [])
         return {
-            "generation": {key: generation.get(key) for key in ("mode", "lakis_mode", "upscale_engine")},
+            "generation": {key: generation.get(key) for key in ("engine", "mode", "lakis_mode", "upscale_engine")},
             "model": {key: model.get(key) for key in (
                 "checkpoint", "vae", "clip", "sampler", "scheduler", "steps", "cfg"
             )},
@@ -3207,7 +3309,7 @@ class WorkflowBridge:
             asyncio.run(self._run(prompt, preflight, token))
         except Exception as error:
             unresolved = bool(getattr(error, "submission_outcome_unknown", False))
-            error_code, public_message = self._public_error(error)
+            error_code, public_message = self._public_error(error, engine=preflight.get("engine"))
             node_id = getattr(error, "node_id", None)
             node_type = getattr(error, "node_type", None)
             exception_type = getattr(error, "exception_type", type(error).__name__)
@@ -3248,7 +3350,9 @@ class WorkflowBridge:
                         _audit("external_ui_cleanup_blocked", request_id=token["request_id"])
 
     @staticmethod
-    def _public_error(error: Exception) -> tuple[str, str]:
+    def _public_error(error: Exception, *, engine: str | None = None) -> tuple[str, str]:
+        if isinstance(error, moss_errors.MossValidationError):
+            return moss_errors.public_error(error.code)
         detail = str(error)
         lowered = detail.lower()
         node_id = getattr(error, "node_id", None)
@@ -3261,6 +3365,8 @@ class WorkflowBridge:
         if isinstance(error, SubmissionOutcomeUnknownError):
             return "LKS-GEN-1011", "생성 요청의 최종 상태를 확인하지 못했어요. 중복 생성을 막기 위해 재요청을 차단했어요."
         if isinstance(error, PromptRejectedError):
+            if engine == "moss":
+                return moss_errors.public_error("LKS-MOSS-1011")
             return "LKS-CFG-1104", "ComfyUI가 생성 요청 입력을 거부했어요. 오류 정보에서 노드와 입력값을 확인해 주세요."
         if isinstance(error, SettingsValidationError):
             return "LKS-CFG-1103", "세부 설정값이 해당 ComfyUI 노드의 입력 규격과 맞지 않아요."
@@ -3302,6 +3408,8 @@ class WorkflowBridge:
                 return "LKS-CFG-1003", "생성 요청 데이터가 허용 크기를 초과했어요."
             return "LKS-CFG-1001", "생성 요청 데이터가 올바르지 않아 읽지 못했어요."
         if isinstance(error, MissingRuntimeNodesError):
+            if engine == "moss":
+                return moss_errors.public_error("LKS-MOSS-1001")
             missing = set(error.node_types)
             if "AnimaLLLiteApply_sdscripts" in missing:
                 return "LKS-NODE-1202", "인페인트 실행 노드가 설치되지 않았거나 로드되지 않았어요."
@@ -3313,6 +3421,8 @@ class WorkflowBridge:
                 return "LKS-NODE-1205", "인페인트 색상 정합 노드가 설치되지 않았거나 로드되지 않았어요."
             return "LKS-NODE-1201", "생성에 필요한 ComfyUI 사용자 노드가 설치되지 않았거나 로드되지 않았어요."
         if isinstance(error, FinalOutputNotFoundError):
+            if engine == "moss":
+                return moss_errors.public_error("LKS-MOSS-1208")
             return "LKS-GEN-1702", "저장 완료 응답에서 생성된 이미지 파일을 찾지 못했어요."
         if ("permission denied" in lowered or "access is denied" in lowered) and node_id == FINAL_NODE:
             return "LKS-GEN-1703", "이미지 파일을 저장할 권한이 없거나 같은 파일을 다른 프로그램이 사용 중이에요."
@@ -3330,6 +3440,9 @@ class WorkflowBridge:
             return "LKS-CFG-1102", "지원하지 않는 스케줄러가 선택됐어요."
         if "advanced node settings" in lowered or "node settings" in lowered:
             return "LKS-CFG-1103", "세부 설정값이 올바르지 않아요."
+        if engine == "moss":
+            code = moss_errors.NODE_CODES.get(getattr(error, "node_type", None), "LKS-MOSS-1901")
+            return moss_errors.public_error(code)
         if node_id in NODE_ERROR_CODES:
             return NODE_ERROR_CODES[node_id]
         return "LKS-GEN-1001", "생성 중 오류가 발생했어요. 자세한 내용은 LAKIS 로그에 저장했어요."

@@ -13,7 +13,7 @@ class RcOverrideContractTests(unittest.TestCase):
 
     def test_public_defaults_are_unchanged(self):
         protocol = (ROOT / "installer" / "UpdateProtocol.cs").read_text(encoding="utf-8")
-        public_defaults = protocol.split("#else", 1)[1].split("#endif", 1)[0]
+        public_defaults = protocol.split("ManifestUrls =", 1)[1].split("#else", 1)[1].split("#endif", 1)[0]
         self.assertIn("https://raw.githubusercontent.com/Jeong-Luke/LAKIS/main/manifests/update-v3-latest.json", public_defaults)
         self.assertIn("https://cdn.jsdelivr.net/gh/Jeong-Luke/LAKIS@main/manifests/update-v3-latest.json", public_defaults)
         for source in (self.launcher, self.updater):

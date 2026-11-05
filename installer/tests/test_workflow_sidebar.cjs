@@ -54,6 +54,7 @@ async function clickChoice(kind, options = {}) {
   };
   const context = vm.createContext({
     workflowMenu,
+    currentGenerationEngine: () => options.engine || 'anima',
     workflowButton: { setAttribute() {} },
     closeWorkflowMenu() { workflowMenu.hidden = true; },
     window,
@@ -105,7 +106,7 @@ test('real HTML choices route their kind to the open-workflow handler', async ()
     assert.equal(result.requests.length, 1);
     assert.equal(result.requests[0].url, '/api/open-workflow');
     assert.equal(result.requests[0].init.method, 'POST');
-    assert.deepEqual(JSON.parse(result.requests[0].init.body), { kind });
+    assert.deepEqual(JSON.parse(result.requests[0].init.body), { kind, engine: 'anima' });
     assert.deepEqual(result.openCalls[0], ['about:blank', '_blank']);
     assert.equal(result.replacedUrl, 'http://127.0.0.1:8189/');
   }
@@ -118,6 +119,14 @@ test('popup-blocked path opens the prepared ComfyUI URL as fallback', async () =
     ['http://127.0.0.1:8189/', '_blank', 'noopener'],
   ]);
   assert.equal(result.errors.length, 0);
+});
+
+test('MOSS choices use the selected engine instead of ANIMA templates', async () => {
+  for (const { kind } of choices) {
+    const result = await clickChoice(kind, { engine: 'moss' });
+    assert.deepEqual(JSON.parse(result.requests[0].init.body), { kind, engine: 'moss' });
+    assert.equal(result.errors.length, 0);
+  }
 });
 
 test('failed preparation closes the reserved popup and reports an error', async () => {

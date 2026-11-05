@@ -344,6 +344,8 @@ def _download_locked(
                         block = response.read(1024 * 1024)
                         if not block:
                             break
+                        if expected_bytes and received + len(block) > expected_bytes:
+                            raise RuntimeError(f"CACHE_SIZE_FAILED: response exceeds expected bytes: {label}")
                         output.write(block)
                         received += len(block)
                         percent = int(received * 100 / total) if total else -1

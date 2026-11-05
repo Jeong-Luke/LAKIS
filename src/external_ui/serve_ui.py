@@ -35,6 +35,9 @@ if str(UI_ROOT) not in sys.path:
     sys.path.insert(0, str(UI_ROOT))
 
 import scene_controls
+import moss_mode
+import moss_workflows
+from moss_errors import MossValidationError
 
 from workflow_bridge import (
     InvalidGenerationRequestError,
@@ -108,17 +111,7 @@ I2I_DATA_PATTERN = re.compile(r"^data:image/(png|jpeg|webp);base64,([A-Za-z0-9+/
 AUTOCOMPLETE_CSV = UI_ROOT / "data" / "autocomplete.csv"
 BUILTIN_WILDCARD_ROOT = (UI_ROOT / "data" / "built_in_wildcards").resolve()
 USER_WILDCARD_ROOT = (USER_STATE_ROOT / "wildcards").resolve()
-WILDCARD_TOKEN_PATTERN = re.compile(r"__([A-Za-z0-9_][A-Za-z0-9_\-/]{0,199})__")
-ANY_WILDCARD_TOKEN_PATTERN = re.compile(r"__([^\r\n]{1,240}?)__")
-BUILTIN_WILDCARD_LABELS = {
-    "background": "배경",
-    "composition": "구도",
-    "expression": "표정",
-    "hair_style_female": "여성 헤어스타일",
-    "outfit": "의상",
-    "pose": "포즈",
-    "prop": "소품",
-}
+import wildcard_service
 INSTALLATION_ID = hashlib.sha256(
     os.path.normcase(str(INSTALL_ROOT.resolve())).encode("utf-8")
 ).hexdigest()
@@ -270,109 +263,12 @@ def _open_folder_foreground(folder: Path) -> None:
             user32.AttachThreadInput(current_thread, foreground_thread, False)
 
 
-def _wildcard_file(root: Path, relative_name: str) -> Path:
-    if not isinstance(relative_name, str) or not re.fullmatch(r"[A-Za-z0-9_][A-Za-z0-9_\-/]{0,199}", relative_name):
-        raise ValueError("잘못된 와일드카드 이름입니다.")
-    if ".." in relative_name.split("/"):
-        raise ValueError("잘못된 와일드카드 경로입니다.")
-    candidate = (root / (relative_name + ".txt")).resolve()
-    if candidate.parent != root and root not in candidate.parents:
-        raise ValueError("와일드카드 폴더 밖의 파일은 사용할 수 없습니다.")
-    if candidate.is_symlink():
-        raise ValueError("심볼릭 링크 와일드카드는 사용할 수 없습니다.")
-    return candidate
-
-
-def _read_wildcard(path: Path) -> tuple[list[str], str]:
-    payload = path.read_bytes()
-    if len(payload) > 1024 * 1024:
-        raise ValueError("와일드카드 파일은 1MB 이하여야 합니다.")
-    text = payload.decode("utf-8-sig")
-    entries = [line.strip() for line in text.splitlines() if line.strip() and not line.lstrip().startswith("#")]
-    if not entries:
-        raise ValueError(f"와일드카드 '{path.stem}'에 선택할 항목이 없습니다.")
-    return entries, hashlib.sha256(payload).hexdigest().upper()
-
-
 def wildcard_inventory() -> dict:
-    USER_WILDCARD_ROOT.mkdir(parents=True, exist_ok=True)
-    items = []
-    for source, root in (("BUILT_IN", BUILTIN_WILDCARD_ROOT), ("USER", USER_WILDCARD_ROOT)):
-        if not root.is_dir():
-            continue
-        for path in sorted(root.rglob("*.txt"), key=lambda item: item.as_posix().lower()):
-            try:
-                relative = path.relative_to(root).with_suffix("").as_posix()
-                safe_path = _wildcard_file(root, relative)
-                if safe_path != path.resolve():
-                    continue
-                entries, digest = _read_wildcard(safe_path)
-            except (OSError, UnicodeError, ValueError):
-                continue
-            english_name = relative.replace("_", " ")
-            korean_name = BUILTIN_WILDCARD_LABELS.get(relative) if source == "BUILT_IN" else None
-            items.append({
-                "name": relative, "display_name": f"{korean_name} | {english_name}" if korean_name else english_name,
-                "source": source, "relative_path": relative + ".txt",
-                "entry_count": len(entries), "entries": entries, "sha256": digest,
-            })
-    return {"ok": True, "items": items, "user_root": str(USER_WILDCARD_ROOT)}
+    return wildcard_service.inventory(BUILTIN_WILDCARD_ROOT, USER_WILDCARD_ROOT)
 
 
 def resolve_wildcard_payload(incoming: dict) -> dict:
-    prompt = incoming.get("prompt")
-    if not isinstance(prompt, dict):
-        raise ValueError("프롬프트 형식이 올바르지 않습니다.")
-    inpaint = incoming.get("inpaint") if isinstance(incoming.get("inpaint"), dict) else {}
-    texts = {str(key): str(value or "") for key, value in prompt.items()}
-    if str(inpaint.get("operation", "regenerate")) != "remove":
-        texts["__inpaint_positive"] = str(inpaint.get("prompt") or "")
-        texts["__inpaint_negative"] = str(inpaint.get("negative_prompt") or "")
-    names = []
-    for value in texts.values():
-        for match in ANY_WILDCARD_TOKEN_PATTERN.finditer(value):
-            name = match.group(1)
-            if not re.fullmatch(r"[A-Za-z0-9_][A-Za-z0-9_\-/]{0,199}", name) or ".." in name.split("/"):
-                raise ValueError(f"잘못된 와일드카드 경로입니다: '{name}'")
-            if name not in names:
-                names.append(name)
-    if names and not bool(incoming.get("enabled")):
-        raise ValueError("프롬프트에 와일드카드가 있지만 랜덤 선택 기능이 꺼져 있습니다.")
-    inventory = wildcard_inventory()["items"]
-    lookup = {}
-    for item in inventory:
-        if item["source"] == "BUILT_IN":
-            lookup.setdefault(item["name"], item)
-    for item in inventory:
-        if item["source"] == "USER":
-            lookup[item["name"]] = item
-    seed = int(incoming.get("seed", 0))
-    excluded = incoming.get("excluded") if isinstance(incoming.get("excluded"), dict) else {}
-    selections = []
-    selected = {}
-    for name in names:
-        item = lookup.get(name)
-        if not item:
-            raise ValueError(f"와일드카드 '{name}'을 찾을 수 없습니다.")
-        blocked = {str(value) for value in excluded.get(name, []) if isinstance(value, str)} if isinstance(excluded.get(name, []), list) else set()
-        entries = [value for value in item["entries"] if value not in blocked]
-        if not entries:
-            raise ValueError(f"와일드카드 '{name}'에 사용할 후보가 없습니다.")
-        digest = hashlib.sha256(f"{seed}\0{name}\0{item['sha256']}".encode("utf-8")).digest()
-        value = entries[int.from_bytes(digest[:8], "big") % len(entries)]
-        if WILDCARD_TOKEN_PATTERN.search(value):
-            raise ValueError(f"와일드카드 '{name}'에 지원하지 않는 중첩 토큰이 있습니다.")
-        selected[name] = value
-        selections.append({
-            "name": name, "value": value, "source": item["source"],
-            "relative_file": item["relative_path"], "file_sha256": item["sha256"],
-        })
-    resolved = {key: WILDCARD_TOKEN_PATTERN.sub(lambda match: selected[match.group(1)], value) for key, value in texts.items()}
-    resolved_inpaint = dict(inpaint)
-    if "__inpaint_positive" in resolved:
-        resolved_inpaint["prompt"] = resolved.pop("__inpaint_positive")
-        resolved_inpaint["negative_prompt"] = resolved.pop("__inpaint_negative")
-    return {"ok": True, "prompt": resolved, "inpaint": resolved_inpaint, "selections": selections}
+    return wildcard_service.resolve(incoming, wildcard_inventory()["items"])
 
 LINK_SERVER = None
 LINK_THREAD = None
@@ -473,6 +369,26 @@ def configured_output_root() -> Path:
 def _prompt_graph_metadata(graph: object) -> dict:
     result = {"checkpoint": "확인할 수 없음", "loras": [], "seed": None, "prompt": "", "negative_prompt": ""}
     if not isinstance(graph, dict):
+        return result
+    final = graph.get("775", {})
+    final_engine = final.get("_meta", {}).get("generation_engine") if isinstance(final, dict) else None
+    if isinstance(final, dict) and final_engine is None:
+        custom = final.get("inputs", {}).get("custom")
+        if isinstance(custom, str):
+            try:
+                metadata = json.loads(custom)
+                if isinstance(metadata, dict):
+                    final_engine = metadata.get("generation_engine")
+            except ValueError:
+                pass
+    if final_engine == "moss":
+        values = {name: moss_workflows.get_input(graph, "775", name)
+                  for name in final.get("inputs", {})}
+        result.update(
+            engine="moss", checkpoint=str(values.get("modelname", "")),
+            seed=values.get("seed_value"), prompt=str(values.get("positive", "")),
+            negative_prompt=str(values.get("negative", "")),
+        )
         return result
     for node in graph.values():
         if not isinstance(node, dict):
@@ -1204,10 +1120,14 @@ def _normalize_lakis_workflow_kind(kind: str) -> str:
     return kind
 
 
-def resolve_lakis_workflow(kind: str = "api") -> tuple[Path, dict]:
+def resolve_lakis_workflow(kind: str = "api", engine: str = "anima") -> tuple[Path, dict]:
     """Return the packaged workflow selected by the sidebar."""
     kind = _normalize_lakis_workflow_kind(kind)
-    if kind == "editable":
+    engine = moss_mode.engine(engine)
+    if engine == "moss":
+        name = moss_workflows.EDITABLE_NAME if kind == "editable" else moss_workflows.API_NAME
+        candidates = [PACKAGED_WORKFLOW_ROOT / name]
+    elif kind == "editable":
         candidates = [EDITABLE_LAKIS_WORKFLOW, WORKFLOW_ROOT / "LAKIS_custom_v7.1_fullsync_review.json"]
     else:
         # The API loader must never fall back to an editable or visual graph.
@@ -1239,6 +1159,8 @@ def resolve_lakis_workflow(kind: str = "api") -> tuple[Path, dict]:
         except (OSError, ValueError, json.JSONDecodeError) as error:
             errors.append(f"{candidate.name}: {error}")
     detail = "; ".join(errors) if errors else "no candidate workflow files found"
+    if engine == "moss":
+        raise MossValidationError("LKS-MOSS-1010", f"No valid MOSS {kind} workflow: {detail}")
     search_root = PACKAGED_WORKFLOW_ROOT if kind == "api" else WORKFLOW_ROOT
     raise FileNotFoundError(f"No valid LAKIS {kind} workflow in {search_root}: {detail}")
 
@@ -1288,11 +1210,12 @@ class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(UI_ROOT), **kwargs)
 
-    def _prepare_lakis_workflow(self, kind: str = "api") -> dict:
+    def _prepare_lakis_workflow(self, kind: str = "api", engine: str = "anima") -> dict:
         kind = _normalize_lakis_workflow_kind(kind)
-        workflow_path, workflow = resolve_lakis_workflow(kind)
+        engine = moss_mode.engine(engine)
+        workflow_path, workflow = resolve_lakis_workflow(kind, engine)
         display_name = workflow_path.name
-        saved_choice = upscaler_choice_status().get("choice")
+        saved_choice = upscaler_choice_status().get("choice") if engine == "anima" else None
         selected = REALESRGAN_MODEL if saved_choice == "realesrgan" else ANIMESHARP_MODEL if saved_choice == "animesharp" else None
         if selected:
             workflow = _replace_upscaler(workflow, selected)
@@ -1320,6 +1243,8 @@ class Handler(SimpleHTTPRequestHandler):
             "ok": True,
             "comfy_url": COMFY_SERVER + "/",
             "workflow_kind": kind,
+            "generation_engine": engine,
+            "download_url": "/api/workflow-download?" + urlencode({"engine": engine, "kind": kind}),
             "workflow_name": display_name,
             "node_count": node_count,
         }
@@ -1375,6 +1300,25 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802
         if not self._authorize_api_request():
+            return
+        if urlparse(self.path).path == "/api/workflow-download":
+            query = parse_qs(urlparse(self.path).query)
+            try:
+                path, workflow = resolve_lakis_workflow(
+                    query.get("kind", ["api"])[0], query.get("engine", ["anima"])[0])
+                payload = (json.dumps(workflow, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header("Content-Disposition", "attachment; filename*=UTF-8''" + quote(path.name, safe=""))
+                self.send_header("Content-Length", str(len(payload)))
+                self.end_headers()
+                self.wfile.write(payload)
+            except MossValidationError as error:
+                self._send_json(500, {"ok": False, "code": error.code, "error": error.public_message})
+            except ValueError:
+                self._send_json(400, {"ok": False, "error": "워크플로 종류와 엔진을 확인해 주세요."})
+            except OSError:
+                self._send_json(500, {"ok": False, "error": "LAKIS 워크플로를 읽지 못했어요."})
             return
         if scene_controls.handle_get(self, UI_STATE_PATH.parent, COMFY_ROOT):
             return
@@ -1513,8 +1457,12 @@ class Handler(SimpleHTTPRequestHandler):
         if self.path == "/api/wildcards":
             self._send_json(200, wildcard_inventory())
             return
-        if self.path == "/api/lora-options":
-            self._send_json(200, lora_inventory())
+        if urlparse(self.path).path == "/api/lora-options":
+            try:
+                engine = parse_qs(urlparse(self.path).query).get("engine", ["anima"])[0]
+                self._send_json(200, lora_inventory(engine))
+            except ValueError as error:
+                self._send_json(400, {"ok": False, "error": str(error)})
             return
         if self.path == "/api/model-options":
             self._send_json(200, model_inventory())
@@ -1683,7 +1631,11 @@ class Handler(SimpleHTTPRequestHandler):
         if self.path == "/api/open-workflow":
             try:
                 incoming = self._read_json()
-                self._send_json(200, self._prepare_lakis_workflow(str(incoming.get("kind") or "api")))
+                self._send_json(200, self._prepare_lakis_workflow(
+                    incoming.get("kind") or "api", incoming.get("engine") or "anima"))
+            except MossValidationError as error:
+                audit({"event": "external_ui_workflow_open_failed", "error": repr(error)})
+                self._send_json(500, {"ok": False, "code": error.code, "error": error.public_message})
             except Exception as error:
                 audit({"event": "external_ui_workflow_open_failed", "error": repr(error)})
                 self._send_json(500, {"ok": False, "error": "LAKIS 워크플로를 준비하지 못했어요."})
@@ -1786,6 +1738,11 @@ class Handler(SimpleHTTPRequestHandler):
                     incoming.get("camera"),
                     incoming.get("composition_enabled", True),
                     incoming.get("wildcard_enabled", False),
+                    moss_regions=incoming.get("moss_regions"),
+                    moss_detail=incoming.get("moss_detail"),
+                    moss_node_overrides=incoming.get("moss_node_overrides"),
+                    i2i=incoming.get("i2i"), continuous=incoming.get("continuous"),
+                    wildcard_exclusions=incoming.get("wildcard_exclusions"),
                 )
                 self._send_json(200, {"ok": True, **saved})
             except Exception as error:
@@ -1853,7 +1810,8 @@ class Handler(SimpleHTTPRequestHandler):
                 diagnostic["acceptance"] = "rejected"
                 audit({"event": "external_ui_generate_rejected", "error": repr(error),
                        "request_diagnostic": dict(diagnostic)})
-                error_code, public_message = GENERATION_BRIDGE._public_error(error)
+                engine = incoming.get("generation", {}).get("engine") if isinstance(incoming.get("generation"), dict) else None
+                error_code, public_message = GENERATION_BRIDGE._public_error(error, engine=engine)
                 self._send_generation_json(409, {
                     "ok": False, "error": public_message, "error_code": error_code,
                     "error_detail": str(error)[:1000],

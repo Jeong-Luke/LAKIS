@@ -145,10 +145,10 @@ def validate_state(target, state):
             raise ValueError("invalid component operation")
         if operation.get("model") is True:
             path = operation.get("path")
-            if path not in runtime_contract.POSE_MODELS or operation.get("old") is not None:
-                raise ValueError("invalid additive pose model operation")
+            if path not in runtime_contract.required_model_specs(state["version"]) or operation.get("old") is not None:
+                raise ValueError("invalid additive required model operation")
             if operation.get("new", {}).get("kind") != stat.S_IFREG:
-                raise ValueError("pose model operation must contain a file")
+                raise ValueError("required model operation must contain a file")
         else:
             path = _managed_scope(operation.get("path"))
         key = path.casefold()
@@ -385,13 +385,14 @@ def activate(candidate, target, manifest_sha256, version, *, model_files=None):
                 "path": MANIFEST_NAME, "sha256": manifest_sha256,
                 "size": (payload / MANIFEST_NAME).stat().st_size,
             }]})
-            model_rows = runtime_contract.pose_model_rows(model_files, target)
+            model_rows = runtime_contract.model_dependency_rows(model_files, target, version)
+            required = (sum(row["size"] for row in model_rows)
+                        + sum((target / path).stat().st_size for path in DATABASE_PATHS if (target / path).exists()))
+            if shutil.disk_usage(target.parent).free < required:
+                raise RuntimeError("not enough space for model staging and the database snapshot")
             for row in model_rows:
                 _copy_verified(row["source"], payload / row["path"], row["sha256"], row["size"])
                 groups.append({"path": row["path"], "rows": [row], "model": True})
-            required = sum((target / path).stat().st_size for path in DATABASE_PATHS if (target / path).exists())
-            if shutil.disk_usage(target.parent).free < required:
-                raise RuntimeError("not enough space for the database snapshot")
             operations = []
             total = sum(len(group["rows"]) for group in groups)
             preparation_started = time.monotonic()
@@ -406,7 +407,7 @@ def activate(candidate, target, manifest_sha256, version, *, model_files=None):
                     operation = {"path": scope, "old": old, "new": _identity(prepared)}
                     if group.get("model") is True:
                         if old is not None:
-                            raise RuntimeError("pose model destination appeared during preparation")
+                            raise RuntimeError("required model destination appeared during preparation")
                         operation["model"] = True
                     operations.append(operation)
                 state["operations"] = operations
@@ -446,7 +447,7 @@ def activate(candidate, target, manifest_sha256, version, *, model_files=None):
             for row in model_rows:
                 destination = reject_reparse_path(target / row["path"])
                 if destination.stat().st_size != row["size"] or sha256(destination) != row["sha256"]:
-                    raise ValueError("installed pose model failed verification")
+                    raise ValueError("installed required model failed verification")
             timings["verify_installed_seconds"] = time.monotonic() - verification_started
             state["phase"] = "complete"
             _write_journal(target, state)
@@ -463,7 +464,9 @@ def activate(candidate, target, manifest_sha256, version, *, model_files=None):
         result["timings"] = timings
         result["component_count"] = len(operations)
         result["program_file_count"] = total - len(model_rows)
-        result["added_pose_models"] = [row["path"] for row in model_rows]
+        result["added_models"] = [row["path"] for row in model_rows]
+        result["added_pose_models"] = [row["path"] for row in model_rows
+                                      if row["path"] in runtime_contract.POSE_MODELS]
         return result
 
 

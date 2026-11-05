@@ -1,0 +1,342 @@
+{
+  "1": {
+    "inputs": {
+      "unet_name": "moss_image_sft_int8_convrot.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNet loader with Name (Image Saver)",
+    "_meta": {
+      "title": "MOSS · Diffusion loader",
+      "lakis_source_id": "1"
+    }
+  },
+  "2": {
+    "inputs": {
+      "model": [
+        "1",
+        0
+      ],
+      "shift": 5.0
+    },
+    "class_type": "ModelSamplingAuraFlow",
+    "_meta": {
+      "title": "MOSS · Sampling Shift",
+      "lakis_source_id": "2"
+    }
+  },
+  "3": {
+    "inputs": {
+      "model": [
+        "2",
+        0
+      ],
+      "double_layers": "",
+      "single_layers": "22",
+      "start_percent": 0.0,
+      "end_percent": 0.5
+    },
+    "class_type": "SkipLayerGuidanceDiTSimple",
+    "_meta": {
+      "title": "MOSS · Layer guidance",
+      "lakis_source_id": "3"
+    }
+  },
+  "4": {
+    "inputs": {
+      "clip_name": "qwen3.5_9b_int8_convrot.safetensors",
+      "type": "moss_image",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "MOSS · Text encoder loader",
+      "lakis_source_id": "4"
+    }
+  },
+  "5": {
+    "inputs": {
+      "clip": [
+        "4",
+        0
+      ],
+      "text": [
+        "12",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "MOSS · Positive prompt JSON",
+      "lakis_source_id": "5"
+    }
+  },
+  "6": {
+    "inputs": {
+      "clip": [
+        "4",
+        0
+      ],
+      "text": [
+        "13",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "MOSS · Negative prompt JSON",
+      "lakis_source_id": "6"
+    }
+  },
+  "7": {
+    "inputs": {
+      "width": [
+        "17",
+        0
+      ],
+      "height": [
+        "18",
+        0
+      ],
+      "batch_size": 1
+    },
+    "class_type": "EmptyFlux2LatentImage",
+    "_meta": {
+      "title": "MOSS · Resolution",
+      "lakis_source_id": "7"
+    }
+  },
+  "8": {
+    "inputs": {
+      "model": [
+        "3",
+        0
+      ],
+      "positive": [
+        "5",
+        0
+      ],
+      "negative": [
+        "6",
+        0
+      ],
+      "latent_image": [
+        "7",
+        0
+      ],
+      "seed": [
+        "14",
+        0
+      ],
+      "control_after_generate": "fixed",
+      "steps": [
+        "15",
+        0
+      ],
+      "cfg": [
+        "16",
+        0
+      ],
+      "sampler_name": [
+        "19",
+        0
+      ],
+      "scheduler": [
+        "20",
+        0
+      ],
+      "denoise": 1.0
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "MOSS · Sampler",
+      "lakis_source_id": "8"
+    }
+  },
+  "9": {
+    "inputs": {
+      "samples": [
+        "8",
+        0
+      ],
+      "vae": [
+        "10",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "MOSS · Decode",
+      "lakis_source_id": "9"
+    }
+  },
+  "10": {
+    "inputs": {
+      "vae_name": "flux2-vae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "MOSS · VAE loader",
+      "lakis_source_id": "10"
+    }
+  },
+  "775": {
+    "inputs": {
+      "images": [
+        "9",
+        0
+      ],
+      "filename": "LAKIS_MOSS_%time_%basemodelname_%seed",
+      "path": "",
+      "extension": "png",
+      "steps": [
+        "15",
+        0
+      ],
+      "cfg": [
+        "16",
+        0
+      ],
+      "modelname": [
+        "1",
+        1
+      ],
+      "sampler_name": [
+        "19",
+        1
+      ],
+      "scheduler_name": [
+        "20",
+        1
+      ],
+      "positive": [
+        "12",
+        0
+      ],
+      "negative": [
+        "13",
+        0
+      ],
+      "seed_value": [
+        "14",
+        0
+      ],
+      "width": [
+        "17",
+        0
+      ],
+      "height": [
+        "18",
+        0
+      ],
+      "lossless_webp": true,
+      "quality_jpeg_or_webp": 97,
+      "optimize_png": true,
+      "counter": 0,
+      "denoise": 1.0,
+      "clip_skip": 0,
+      "time_format": "%Y-%m-%d-%H%M%S",
+      "save_workflow_as_json": false,
+      "embed_workflow": true,
+      "additional_hashes": "",
+      "download_civitai_data": false,
+      "easy_remix": true,
+      "show_preview": true,
+      "custom": "{\"generation_engine\":\"moss\"}"
+    },
+    "class_type": "Image Saver",
+    "_meta": {
+      "title": "LAKIS Final Saver · MOSS",
+      "lakis_source_id": "775"
+    }
+  },
+  "12": {
+    "inputs": {
+      "value": "{\n  \"summary\": {\n    \"caption\": \"\"\n  },\n  \"items\": [\n    {\n      \"label\": \"character\",\n      \"caption\": \"\",\n      \"bbox\": [-410, -410, 410, 410]\n    }\n  ],\n  \"bbox_coord_space\": \"abs_centralized\",\n  \"bbox_format\": \"yxyx\"\n}"
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "MOSS · Positive prompt JSON",
+      "lakis_source_id": "12"
+    }
+  },
+  "13": {
+    "inputs": {
+      "value": "{\n  \"summary\": {\n    \"caption\": \"\"\n  },\n  \"items\": [\n    {\n      \"label\": \"character\",\n      \"caption\": \"\",\n      \"bbox\": [-410, -410, 410, 410]\n    }\n  ],\n  \"bbox_coord_space\": \"abs_centralized\",\n  \"bbox_format\": \"yxyx\"\n}"
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "MOSS · Negative prompt JSON",
+      "lakis_source_id": "13"
+    }
+  },
+  "14": {
+    "inputs": {
+      "value": 0
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "MOSS · Seed",
+      "lakis_source_id": "14"
+    }
+  },
+  "15": {
+    "inputs": {
+      "value": 50
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "MOSS · Steps",
+      "lakis_source_id": "15"
+    }
+  },
+  "16": {
+    "inputs": {
+      "value": 3.0
+    },
+    "class_type": "PrimitiveFloat",
+    "_meta": {
+      "title": "MOSS · CFG",
+      "lakis_source_id": "16"
+    }
+  },
+  "17": {
+    "inputs": {
+      "value": 1024
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "MOSS · Width",
+      "lakis_source_id": "17"
+    }
+  },
+  "18": {
+    "inputs": {
+      "value": 1024
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "MOSS · Height",
+      "lakis_source_id": "18"
+    }
+  },
+  "19": {
+    "inputs": {
+      "sampler_name": "euler"
+    },
+    "class_type": "Sampler Selector (Image Saver)",
+    "_meta": {
+      "title": "MOSS · Sampler",
+      "lakis_source_id": "19"
+    }
+  },
+  "20": {
+    "inputs": {
+      "scheduler": "sgm_uniform"
+    },
+    "class_type": "Scheduler Selector (Image Saver)",
+    "_meta": {
+      "title": "MOSS · Scheduler",
+      "lakis_source_id": "20"
+    }
+  }
+}

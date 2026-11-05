@@ -9,12 +9,12 @@ import sys
 if __name__ == "__main__":
     sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from runtime_install import prepare_bundle, prepare_pose_models, validate_bundle
+from runtime_install import prepare_bundle, prepare_required_models, validate_bundle
 from runtime_patch import activate
 from runtime_transition import _assert_original, _load_journal, _target_path, recover
 from runtime_transition import _version as version_tuple
 
-ENGINE_VERSION = (8, 0, 0)
+ENGINE_VERSION = (8, 1, 0)
 BRIDGE_VERSION = (7, 5, 4)
 
 
@@ -29,6 +29,9 @@ def validate_update(manifest):
             or minimum < BRIDGE_VERSION + (0,)
             or minimum > version_tuple(manifest.get("version"))):
         raise ValueError("runtime update requires a different updater or bridge")
+    if (version_tuple(manifest["version"]) >= (8, 1, 0, 0)
+            and version_tuple(manifest["minimum_updater_version"]) < (8, 1, 0, 0)):
+        raise ValueError("MOSS runtime updates require updater 8.1.0 or newer")
     return validate_bundle(manifest.get("runtime_bundle"), manifest["version"])
 
 
@@ -48,11 +51,11 @@ def run(manifest, target, cache, *, prepared_root=None, prepare_only=False, roll
         raise ValueError("install the required updater bridge first")
     if prepare_only:
         candidate = prepare_bundle(bundle, manifest["version"], cache)
-        prepare_pose_models(cache, target)
+        prepare_required_models(cache, target, manifest["version"])
         return {"status": "prepared", "candidate": str(candidate)}
     if prepared_root is None:
         raise ValueError("runtime update requires a verified prepared candidate")
-    model_files = prepare_pose_models(cache, target)
+    model_files = prepare_required_models(cache, target, manifest["version"])
     return activate(prepared_root, target, bundle["manifest_sha256"], manifest["version"],
                     model_files=model_files)
 

@@ -117,7 +117,7 @@
     selected = item; deleteButton.disabled = false;
     document.querySelectorAll('.image-history-card.selected').forEach(el => el.classList.remove('selected')); card.classList.add('selected');
     document.querySelector('#imageHistoryLargeImage').src = apiUrl(item.url);
-    document.querySelector('#historyCheckpoint').textContent = item.checkpoint || '확인할 수 없음';
+    document.querySelector('#historyCheckpoint').textContent = (item.engine === 'moss' ? 'MOSS · ' : '') + (item.checkpoint || '확인할 수 없음');
     document.querySelector('#historyLoras').textContent = (item.loras || []).map(value => typeof value === 'string' ? value : `${value.name || ''} · ${value.strength ?? 1}`).join('\n') || '사용하지 않음';
     document.querySelector('#historySeed').textContent = item.seed ?? '확인할 수 없음';
     document.querySelector('#historyPrompt').textContent = item.prompt || '이미지 메타데이터에 없음';

@@ -14,6 +14,7 @@ import zipfile
 
 
 ROOT = Path(__file__).resolve().parents[2]
+CURRENT_VERSION = (ROOT / "VERSION").read_text(encoding="utf-8-sig").strip()
 SCRIPT = ROOT / "installer" / "lakis_cmd_installer.py"
 MANIFEST = ROOT / "installer" / "cmd-installer-manifest.json"
 CMD = ROOT / "installer" / "LAKIS_CMD_Install.cmd"
@@ -37,14 +38,19 @@ class CmdInstallerTests(unittest.TestCase):
     def test_manifest_is_pinned_and_matches_cmd_bootstrap(self):
         data = json.loads(MANIFEST.read_text(encoding="utf-8"))
         cmd = CMD.read_text(encoding="cp949")
-        self.assertEqual(data["version"], (ROOT / "VERSION").read_text(encoding="utf-8-sig").strip())
-        self.assertEqual(data["version"], "8.0.2")
-        self.assertEqual(data["release_base"], "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.2")
+        self.assertEqual(data["version"], CURRENT_VERSION)
+        self.assertEqual(data["release_base"], f"https://github.com/Jeong-Luke/LAKIS/releases/download/v{CURRENT_VERSION}")
         self.assertEqual(data["base"]["sha256"], "7C380D4309BBDA395366C49564EDF8996181FD45E61B6F353EA417F32BC3B970")
         self.assertIn(data["base"]["url"], cmd)
         self.assertIn(data["base"]["sha256"], cmd)
         self.assertEqual(len(data["nodes"]), 14)
-        self.assertEqual(len(data["models"]), 7)
+        self.assertCountEqual([row[0] for row in data["models"]], [
+            "anima_baseV10.safetensors", "qwen_3_06b_base.safetensors",
+            "qwen_image_vae.safetensors", "anima-turbo-lora-v0.2.safetensors",
+            "sam3.1_multiplex_fp16.safetensors", "RealESRGAN_x4plus_anime_6B.pth",
+            "pooled_text_proj-0611.safetensors", "moss_image_sft_int8_convrot.safetensors",
+            "qwen3.5_9b_int8_convrot.safetensors", "flux2-vae.safetensors",
+        ])
         self.assertEqual(data["source"]["sha256"], "D6D8BC920C7A74BE4728C0F7703744469E62E80502F297E582EE1A1406FA052D")
 
     def test_runtime_unpack_preserves_files_beyond_legacy_windows_limit(self):
@@ -506,10 +512,11 @@ class CmdInstallerTests(unittest.TestCase):
                 module.install(manifest_path, portable, target, root / "cache", False)
                 webview.assert_called_once()
                 defaults.assert_called_once_with(candidate, manifest, root / "cache", "cmd", False)
-            self.assertEqual((target / "VERSION").read_text(encoding="utf-8"), "8.0.2")
+            self.assertEqual((target / "VERSION").read_text(encoding="utf-8"), CURRENT_VERSION)
             for relative in runtime_contract.REQUIRED_FILES:
                 self.assertEqual((target / relative).read_bytes(), (candidate / relative).read_bytes())
-            runtime_contract.verify_runtime(target, manifest["runtime_bundle"]["manifest_sha256"], "8.0.2", allow_user_data=True)
+            runtime_contract.verify_runtime(
+                target, manifest["runtime_bundle"]["manifest_sha256"], CURRENT_VERSION, allow_user_data=True)
             self.assertEqual((target / ".lakis" / "install-method.txt").read_text(encoding="ascii"), "cmd\n")
             self.assertEqual(sibling.read_bytes(), b"must survive promotion")
 
@@ -532,14 +539,14 @@ class CmdInstallerTests(unittest.TestCase):
             with mock.patch.object(runtime_install, "prepare_bundle", return_value=candidate), \
                  mock.patch.object(runtime_install, "prepare_default_data") as defaults, \
                  mock.patch.object(runtime_install, "ensure_webview2_runtime") as webview, \
-                 mock.patch.object(runtime_install, "prepare_pose_models", return_value=None), \
+                 mock.patch.object(runtime_install, "prepare_required_models", return_value=None), \
                  mock.patch.object(runtime_transition, "check_runtime"), \
                  mock.patch.object(runtime_transition, "assert_idle"):
                 result = runtime_install.install(manifest, target, root / "cache", "repair", "gui")
                 defaults.assert_not_called()
                 webview.assert_not_called()
             self.assertEqual(result["status"], "complete")
-            self.assertEqual((target / "VERSION").read_text(encoding="utf-8"), "8.0.2")
+            self.assertEqual((target / "VERSION").read_text(encoding="utf-8"), CURRENT_VERSION)
             self.assertEqual({relative: (target / relative).read_bytes() for relative in protected}, before)
             self.assertEqual((target / "LAKIS_Model_Importer.exe").read_bytes(),
                              (candidate / "LAKIS_Model_Importer.exe").read_bytes())
@@ -553,7 +560,7 @@ class CmdInstallerTests(unittest.TestCase):
                 target.mkdir()
                 (target / "user-owned.bin").write_bytes(b"never overwrite")
                 if existing_installation:
-                    (target / "VERSION").write_text("8.0.2", encoding="ascii")
+                    (target / "VERSION").write_text(CURRENT_VERSION, encoding="ascii")
                     marker = target / "ComfyUI/LAKIS/STOP_AUTOMATION"
                     marker.parent.mkdir(parents=True)
                     marker.write_bytes(b"stop")
@@ -562,7 +569,7 @@ class CmdInstallerTests(unittest.TestCase):
                      mock.patch.object(runtime_transition, "assert_idle"), \
                      self.assertRaisesRegex(ValueError, "fresh target is not empty"):
                     runtime_transition.activate(candidate, target,
-                        manifest["runtime_bundle"]["manifest_sha256"], "8.0.2", "fresh")
+                        manifest["runtime_bundle"]["manifest_sha256"], CURRENT_VERSION, "fresh")
                 self.assertEqual({str(p.relative_to(target)): p.read_bytes() for p in target.rglob("*") if p.is_file()}, before)
 
     def test_runtime_inventory_rejects_every_missing_required_app_file(self):

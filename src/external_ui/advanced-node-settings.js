@@ -8,6 +8,9 @@
     ["generation", ".compact-mode-panel", "생성 모드", true],
   ];
   let configuration = {};
+  let configurationByEngine = null;
+  const mossDetailControls = document.querySelector("#mossDetailControls");
+  const mossDetailHome = document.querySelector("#mossDetailSettings");
   const generationModeSwitches = new Set(["2138", "2139", "2140"]);
   const tooltip = document.createElement("div");
   tooltip.className = "advanced-settings-tooltip";
@@ -25,21 +28,25 @@
     if (generationModeSwitches.has(nodeId) && field.name === "value") {
       return state.generation.mode === "detail";
     }
-    if (Object.prototype.hasOwnProperty.call(state.node_overrides[nodeId] || {}, field.name)) {
-      return state.node_overrides[nodeId][field.name];
+    const overrides = state.generation.engine === "moss" ? state.moss_node_overrides : state.node_overrides;
+    if (Object.prototype.hasOwnProperty.call(overrides[nodeId] || {}, field.name)) {
+      return overrides[nodeId][field.name];
     }
     return cloneValue(field.value);
   }
 
   function syncGenerationModeSwitches() {
     const enabled = state.generation.mode === "detail";
-    for (const nodeId of generationModeSwitches) saveValue(nodeId, "value", enabled);
+    if (state.generation.engine !== "moss") {
+      for (const nodeId of generationModeSwitches) saveValue(nodeId, "value", enabled);
+    }
     const body = document.querySelector(".generation-advanced-overlay:not([hidden]) .advanced-settings-body");
     if (body) render("generation", body);
   }
 
   function saveValue(nodeId, name, value) {
-    (state.node_overrides[nodeId] ||= {})[name] = value;
+    const overrides = state.generation.engine === "moss" ? state.moss_node_overrides : state.node_overrides;
+    (overrides[nodeId] ||= {})[name] = value;
     scheduleGenerationStateSave();
   }
 
@@ -47,7 +54,7 @@
     const row = document.createElement("label");
     row.className = "advanced-field";
     const name = document.createElement("span");
-    name.textContent = field.name;
+    name.textContent = field.label || field.name;
     name.title = field.name;
     row.append(name);
     const value = currentValue(nodeId, field);
@@ -118,7 +125,22 @@
   }
 
   function render(group, body) {
+    if (mossDetailControls && body.contains(mossDetailControls)) {
+      mossDetailHome.append(mossDetailControls);
+    }
     body.replaceChildren();
+    if (group === "generation") {
+      const moss = state.generation.engine === "moss";
+      const overlay = body.closest(".advanced-settings-overlay");
+      overlay.dataset.engine = state.generation.engine;
+      overlay.querySelector("h3").textContent = moss ? "MOSS · 생성 모드 설정" : "생성 모드 · 노드 설정";
+      overlay.querySelector(".advanced-settings-header span").textContent = moss
+        ? "DETAIL 보강 옵션" : "연결된 ComfyUI 노드의 전체 입력 설정";
+      if (moss) {
+        body.append(mossDetailControls);
+        return;
+      }
+    }
     if (group === "generation") {
       const card = document.createElement("section");
       card.className = "advanced-node-card advanced-node-card-upscaler";
@@ -155,7 +177,8 @@
       card.append(row);
       body.append(card);
     }
-    const nodes = [...(configuration[group] || [])];
+    const engineNodes = configurationByEngine?.[state.generation.engine] || configuration;
+    const nodes = [...(engineNodes[group] || [])];
     if (group === "generation") {
       nodes.sort((left, right) => {
         const order = new Map([["1541:1536", 0], ["2140", 1], ["2138", 2], ["2139", 3]]);
@@ -185,6 +208,14 @@
   }
 
   function placeGenerationOverlay(overlay) {
+    if (state.generation.engine === "moss" && window.innerWidth <= 760) {
+      Object.assign(overlay.style, {
+        left: "12px", top: "12px",
+        width: `${window.innerWidth - 24}px`,
+        height: `${window.innerHeight - 24}px`,
+      });
+      return;
+    }
     const preview = document.querySelector(".preview-panel")?.getBoundingClientRect();
     const row = document.querySelector(".generation-action-row")?.getBoundingClientRect();
     if (!row) return;
@@ -203,14 +234,31 @@
     button?.setAttribute("aria-expanded", "false");
   }
 
+  window.LAKISAdvancedSettings = {
+    syncGenerationEngine() {
+      const moss = state.generation.engine === "moss";
+      const engineNodes = configurationByEngine?.[state.generation.engine] || configuration;
+      for (const button of document.querySelectorAll(".advanced-settings-button")) {
+        const group = button.dataset.advancedGroup;
+        button.disabled = moss && (group === "generation" || !(engineNodes[group]?.length));
+        const overlay = document.querySelector(`.advanced-settings-overlay[data-advanced-group="${group}"]`);
+        if (overlay && !overlay.hidden && (button.disabled || overlay.dataset.engine !== state.generation.engine)) {
+          closeOverlay(overlay, button);
+        }
+      }
+    },
+  };
+
   function toggleOverlay(button) {
     const group = button.dataset.advancedGroup;
+    if (group === "generation" && state.generation.engine === "moss") return;
     const overlay = document.querySelector(`.advanced-settings-overlay[data-advanced-group="${group}"]`);
     if (!group || !overlay) return;
     const opening = overlay.hidden;
     document.querySelectorAll(".advanced-settings-overlay:not([hidden])").forEach(item => { item.hidden = true; });
     document.querySelectorAll(".advanced-settings-button[aria-expanded='true']").forEach(item => item.setAttribute("aria-expanded", "false"));
     if (opening) {
+      overlay.dataset.engine = state.generation.engine;
       render(group, overlay.querySelector(".advanced-settings-body"));
       if (overlay.classList.contains("generation-advanced-overlay")) placeGenerationOverlay(overlay);
       overlay.hidden = false;
@@ -226,6 +274,7 @@
     button.type = "button";
     button.className = "advanced-settings-button";
     button.dataset.advancedGroup = group;
+    button.disabled = group === "generation" && state.generation.engine === "moss";
     button.setAttribute("aria-label", `${title} 세부설정`);
     button.setAttribute("aria-expanded", "false");
     button.innerHTML = icon;
@@ -267,6 +316,8 @@
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const payload = await response.json();
       configuration = payload.advanced_nodes || {};
+      configurationByEngine = payload.advanced_nodes_by_engine || null;
+      window.LAKISAdvancedSettings.syncGenerationEngine();
       const hasSchemaOptions = Object.values(configuration).some(nodes =>
         nodes.some(node => node.fields.some(field => Array.isArray(field.options) && field.options.length))
       );

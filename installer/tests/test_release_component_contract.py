@@ -151,6 +151,7 @@ class RuntimeInstallerGateTests(unittest.TestCase):
 
     def run_gate(self, root):
         quote=lambda path: str(path).replace("'", "''")
+        version=(ROOT/'VERSION').read_text(encoding='utf-8-sig').strip()
         command = """
 $ErrorActionPreference = 'Stop'
 $tokens = $null; $errors = $null
@@ -161,8 +162,8 @@ foreach ($name in @('Require', 'Read-RepoFile', 'Test-RuntimeInstallerContract')
     . ([scriptblock]::Create($node.Extent.Text))
 }
 $repo = '%s'
-Test-RuntimeInstallerContract '8.0.2'
-""" % (quote(ROOT/'installer/Test-ReleaseRegression.ps1'), quote(root))
+Test-RuntimeInstallerContract '%s'
+""" % (quote(ROOT/'installer/Test-ReleaseRegression.ps1'), quote(root), version)
         encoded=base64.b64encode(command.encode('utf-16-le')).decode('ascii')
         powershell=Path(os.environ['WINDIR'])/'System32/WindowsPowerShell/v1.0/powershell.exe'
         return subprocess.run([str(powershell),'-NoProfile','-EncodedCommand',encoded],

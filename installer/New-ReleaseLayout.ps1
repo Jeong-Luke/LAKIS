@@ -93,7 +93,9 @@ try {
     foreach ($name in @(
         "LAKIS_custom_v8.0_editable.json",
         "LAKIS_runtime_visual_v8.0.json",
-        "LAKIS_runtime_api_v8.0.json"
+        "LAKIS_runtime_api_v8.0.json",
+        "LAKIS_MOSS_runtime_api_v8.1.json",
+        "LAKIS_MOSS_custom_v8.1_editable.json"
     )) {
         Copy-ManagedFile "ComfyUI/LAKIS/external_ui/workflows/$name" (Join-Path $source "workflows\$name")
     }

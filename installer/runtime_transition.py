@@ -30,7 +30,7 @@ from lakis_cmd_installer import (
 from runtime_health import check_runtime
 from runtime_manifest import (
     MANIFEST_NAME, PROTECTED_DIRECTORIES, PROTECTED_FILES, normalized_path,
-    pose_model_rows, verify_runtime,
+    model_dependency_rows, verify_runtime,
 )
 
 
@@ -306,12 +306,13 @@ def activate(candidate: Path, target: Path, manifest_sha256: str, version: str,
         python = candidate / "python_embeded/python.exe"
         assert_idle(target, python)
         original_data = _data_snapshot(target) if had_original else {}
-        model_rows = pose_model_rows(model_files, target)
+        model_rows = model_dependency_rows(model_files, target, version)
         data_source = initial_data if mode == "fresh" else target
         expected_data = _data_snapshot(data_source) if data_source is not None else {}
         required = (sum(row["size"] for row in manifest["files"])
                     + (candidate / MANIFEST_NAME).stat().st_size
-                    + sum(row[0] for row in expected_data.values() if row is not None))
+                    + sum(row[0] for row in expected_data.values() if row is not None)
+                    + sum(row["size"] for row in model_rows))
         if shutil.disk_usage(target.parent).free < required:
             raise RuntimeError("not enough space for the candidate and a separate user-data copy")
         # Native CUDA DLL loaders can reject paths that Python can copy.
@@ -340,10 +341,10 @@ def activate(candidate: Path, target: Path, manifest_sha256: str, version: str,
             for row in model_rows:
                 destination = reject_reparse_path(stage / row["path"])
                 if destination.exists():
-                    raise RuntimeError("pose model destination appeared during staging")
+                    raise RuntimeError("required model destination appeared during staging")
                 copy_file(row["source"], destination)
                 if destination.stat().st_size != row["size"] or sha256(destination) != row["sha256"]:
-                    raise ValueError("pose model changed during staging")
+                    raise ValueError("required model changed during staging")
             # This is the copy of the database. The old database is never
             # opened by the new ComfyUI until a successful promotion.
             check_runtime(stage)

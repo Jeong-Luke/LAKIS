@@ -33,3 +33,19 @@ mapping, and Apache LLLite node code are separate components with separate terms
 ## Translation network disclosure
 
 한국어 번역 기능을 사용하면 번역할 프롬프트 텍스트가 외부 Google 번역 서비스로 전송될 수 있습니다.
+
+## MOSS preview model boundary
+
+The 8.1.0 preview's MOSS diffusion model, Qwen3.5 encoder and FLUX.2
+autoencoder are pinned publisher downloads, not bundled runtime files.
+Their filenames, hashes, licence sources and attributions are listed in
+`THIRD_PARTY_NOTICES.md`. Existing ANIMA model restrictions still apply to
+ANIMA; adding MOSS does not replace those terms.
+
+The exact upstream revision and conversion provenance of the Qwen INT8
+repack remain unverified. The publisher's Apache-2.0 declaration and the
+official Qwen licence are recorded separately from that unresolved lineage.
+This candidate is not licence-audit-passed.
+
+MOSS i2i is disabled. The experimental Moss-Image-Edit node and adapter are
+excluded from the preview dependency set.

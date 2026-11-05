@@ -11,11 +11,15 @@
   border-radius: 10px;
   background: rgba(10, 13, 21, .82);
   color: #eef0f7;
-  font-family: "Segoe MDL2 Assets", sans-serif;
-  font-size: 16px;
   cursor: pointer;
   backdrop-filter: blur(8px);
   transition: border-color .15s ease, background .15s ease, color .15s ease;
+}
+
+.preview-prompt-button svg {
+  display: block;
+  width: 16px;
+  height: 16px;
 }
 
 .preview-prompt-button:hover,

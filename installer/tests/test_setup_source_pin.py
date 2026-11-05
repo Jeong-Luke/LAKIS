@@ -292,7 +292,8 @@ class SetupSourcePinTests(unittest.TestCase):
             (('runtime_bundle', 'parts'), [part] * 1000),
             (('runtime_bundle', 'parts'), list(reversed(manifest['runtime_bundle']['parts']))),
             (('runtime_bundle', 'parts', 0, 'name'), 'LAKIS_RuntimeBundle.zip.part002'),
-            (('runtime_bundle', 'parts', 0, 'url'), part['url'].replace('/v8.0.2/', '/v8.0.0/')),
+            (('runtime_bundle', 'parts', 0, 'url'), part['url'].replace(
+                f'/v{manifest["version"]}/', '/v8.0.0/')),
             (('runtime_bundle', 'parts', 0, 'url'), part['url'].replace('https://', 'http://')),
             (('runtime_bundle', 'parts', 0, 'url'), part['url'].replace('/Jeong-Luke/LAKIS/', '/Jeong-Luke/LAKIS_DEV/')),
             (('runtime_bundle', 'parts', 0, 'url'), part['url'] + '?download=1'),

@@ -209,10 +209,15 @@ def prepare_bundle(bundle: dict, version: str, cache: Path) -> Path:
     return candidate
 
 
-def prepare_pose_models(cache: Path, target: Path) -> dict:
-    """Use the shared verified/resumable downloader, or retain an exact local file."""
+def prepare_required_models(cache: Path, target: Path, version: str) -> dict:
+    """Validate all destinations before downloading, retaining exact local files."""
+    cache = reject_reparse_path(cache)
+    cache.mkdir(parents=True, exist_ok=True)
     files = {}
-    for relative, spec in runtime_contract.POSE_MODELS.items():
+    pending = []
+    cache_bytes = 0
+    stage_bytes = 0
+    for relative, spec in runtime_contract.required_model_specs(version).items():
         destination = reject_reparse_path(target / relative)
         if destination.exists():
             if (not destination.is_file() or destination.stat().st_size != spec["size"]
@@ -220,10 +225,31 @@ def prepare_pose_models(cache: Path, target: Path) -> dict:
                 raise ValueError(f"기존 모델을 보존했습니다. 이름 충돌을 확인해 주세요: {destination}")
             files[relative] = destination
         else:
-            files[relative] = download(
-                spec["url"], cache_path(cache, spec["name"], spec["sha256"]),
-                spec["sha256"], spec["size"], display_name=spec["name"],
-            )
+            cached = cache_path(cache, spec["name"], spec["sha256"])
+            partial = cached.with_suffix(cached.suffix + ".part")
+            allocated = 0
+            for path in (cached, partial):
+                reject_reparse_path(path)
+                if path.exists():
+                    if not path.is_file():
+                        raise ValueError(f"model cache entry is not a file: {path}")
+                    allocated += path.stat().st_size
+            cache_bytes += max(0, spec["size"] - allocated)
+            stage_bytes += spec["size"]
+            pending.append((relative, spec, cached))
+    # Cache and model staging can share a volume. Checking each separately
+    # would overcommit that disk when the 15.5 GB MOSS set is not cached.
+    same_volume = cache.stat().st_dev == target.parent.stat().st_dev
+    cache_required = cache_bytes + (stage_bytes if same_volume else 0)
+    if shutil.disk_usage(cache).free < cache_required:
+        raise RuntimeError(f"모델 다운로드·준비 공간이 부족합니다. 캐시 볼륨에 {cache_required:,} bytes가 필요합니다.")
+    if not same_volume and shutil.disk_usage(target.parent).free < stage_bytes:
+        raise RuntimeError(f"모델 설치 준비 공간이 부족합니다. 설치 볼륨에 {stage_bytes:,} bytes가 필요합니다.")
+    for index, (relative, spec, cached) in enumerate(pending, 1):
+        print(f"[모델 준비 {index}/{len(pending)}] {spec['name']} · {spec['size']:,} bytes", flush=True)
+        files[relative] = download(
+            spec["url"], cached, spec["sha256"], spec["size"], display_name=spec["name"],
+        )
     return files
 
 
@@ -252,6 +278,11 @@ def prepare_default_data(candidate: Path, manifest: dict, cache: Path, method: s
         candidate / "ComfyUI/LAKIS/workflows/LAKIS_custom_v7.4_editable.json",
         seed / "ComfyUI/user/default/workflows/LAKIS_custom_v7.4.json",
     )
+    if tuple(map(int, manifest["version"].split("."))) >= (8, 1, 0):
+        copy_file(
+            candidate / "ComfyUI/LAKIS/external_ui/workflows/LAKIS_MOSS_custom_v8.1_editable.json",
+            seed / "ComfyUI/user/default/workflows/LAKIS_MOSS_custom_v8.1.json",
+        )
     settings = seed / ".lakis"
     settings.mkdir()
     (settings / "optional-models.txt").write_text(
@@ -289,7 +320,7 @@ def install(manifest: dict, target: Path, cache: Path, mode: str, method: str,
         initial_data = prepare_default_data(candidate, manifest, cache, method, include_animesharp)
         ensure_webview2_runtime(manifest, cache)
     else:
-        model_files = prepare_pose_models(cache, target)
+        model_files = prepare_required_models(cache, target, version)
     return activate(candidate, target, bundle["manifest_sha256"], version, mode,
                     initial_data, model_files=model_files)
 

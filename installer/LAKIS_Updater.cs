@@ -30,6 +30,7 @@ internal sealed class UpdaterForm : Form
     private readonly bool recoverRuntime;
     private readonly bool continueRuntime;
     private bool runtimeBusy;
+    private System.Threading.CancellationTokenSource preparationCancellation;
     private string pendingSelfUpdate;
     private bool started;
     private readonly CenterCropPictureBox artwork = new CenterCropPictureBox();
@@ -97,6 +98,12 @@ internal sealed class UpdaterForm : Form
         update.BackColor = Color.FromArgb(111, 82, 225); update.ForeColor = Color.White;
         update.Font = new Font("Segoe UI", 10F, FontStyle.Bold); update.Cursor = Cursors.Hand;
         update.Visible = false;
+        update.Click += (_, __) => {
+            if (preparationCancellation == null) return;
+            update.Enabled = false;
+            status.Text = "다운로드 준비를 취소하고 있습니다…";
+            preparationCancellation.Cancel();
+        };
         ConfigureCloseButton();
         Controls.AddRange(new Control[] { artwork, logo, status, progress, update, copyright, closeButton });
         closeButton.BringToFront();
@@ -188,7 +195,22 @@ internal sealed class UpdaterForm : Form
                     await Task.Run(() => RuntimeBundleInstaller.Apply(runtimeHandoff, ReportRuntimeProgress));
                 else
                 {
-                    var prepared = await Task.Run(() => PrepareRuntimeUpdate(manifest));
+                    RuntimeHandoff prepared;
+                    using (var cancellation = new System.Threading.CancellationTokenSource())
+                    {
+                        preparationCancellation = cancellation;
+                        update.Text = "취소"; update.Visible = true; update.Enabled = true;
+                        try
+                        {
+                            prepared = await Task.Run(() => PrepareRuntimeUpdate(manifest, cancellation.Token));
+                            cancellation.Token.ThrowIfCancellationRequested();
+                        }
+                        finally
+                        {
+                            preparationCancellation = null;
+                            update.Visible = false; update.Enabled = false;
+                        }
+                    }
                     string helper = Path.Combine(prepared.workspace, "LAKIS_Updater.exe");
                     CopyVerifiedFile(Application.ExecutablePath, helper,
                         RuntimeBundleInstaller.HashFile(Application.ExecutablePath));
@@ -234,6 +256,11 @@ internal sealed class UpdaterForm : Form
                 Close();
             }
         }
+        catch (OperationCanceledException)
+        {
+            status.Text = "업데이트 준비 취소 · 이어받기 가능";
+            progress.Value = 0;
+        }
         catch (Exception error)
         {
             status.Text = "업데이트 실패";
@@ -242,7 +269,8 @@ internal sealed class UpdaterForm : Form
         finally { runtimeBusy = false; progress.Style = ProgressBarStyle.Continuous; update.Enabled = true; }
     }
 
-    private RuntimeHandoff PrepareRuntimeUpdate(UpdateManifest manifest)
+    private RuntimeHandoff PrepareRuntimeUpdate(UpdateManifest manifest,
+        System.Threading.CancellationToken cancellation)
     {
         UpdateProtocol.EnsureNoPendingRuntimeTransition(targetRoot);
         UpdateProtocol.ValidateForInstallation(manifest, ReadCurrentVersion());
@@ -250,12 +278,19 @@ internal sealed class UpdaterForm : Form
         string cache = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "LAKIS", "installer-cache");
         return RuntimeBundleInstaller.Prepare(Path.Combine(targetRoot, "python_embeded", "python.exe"),
-            new JavaScriptSerializer().Serialize(manifest), targetRoot, cache, ReportRuntimeProgress);
+            new JavaScriptSerializer().Serialize(manifest), targetRoot, cache, ReportRuntimeProgress, cancellation);
     }
 
     private void ReportRuntimeProgress(string line)
     {
         if (String.IsNullOrWhiteSpace(line) || line.StartsWith("{")) return;
+        var percentage = Regex.Match(line, @"(?:^|\s)(\d{1,3})\s*%");
+        int percent;
+        if (percentage.Success && Int32.TryParse(percentage.Groups[1].Value, out percent))
+        {
+            SetStatus(line.Trim(), Math.Min(100, percent), 100);
+            return;
+        }
         var count = Regex.Match(line, @"(\d[\d,]*)/(\d[\d,]*)\s*$");
         long current, total;
         if (count.Success && Int64.TryParse(count.Groups[1].Value.Replace(",", ""), out current) &&

@@ -39,6 +39,26 @@ POSE_MODELS = {
         "size": 51133584,
     },
 }
+MOSS_MODELS = {
+    "ComfyUI/models/diffusion_models/moss_image_sft_int8_convrot.safetensors": {
+        "name": "moss_image_sft_int8_convrot.safetensors",
+        "url": "https://huggingface.co/Comfy-Org/MOSS-Image/resolve/7c5a8777422f0aa8a24ea549dffeaf8ee6e1fc41/diffusion_models/moss_image_sft_int8_convrot.safetensors",
+        "sha256": "B4D1475BC7EEFFD7B809E82EA13A1FBA1FB85C4E18365AF3813722FAA5C0FE4F",
+        "size": 5413698958,
+    },
+    "ComfyUI/models/text_encoders/qwen3.5_9b_int8_convrot.safetensors": {
+        "name": "qwen3.5_9b_int8_convrot.safetensors",
+        "url": "https://huggingface.co/Comfy-Org/MOSS-Image/resolve/7c5a8777422f0aa8a24ea549dffeaf8ee6e1fc41/text_encoders/qwen3.5_9b_int8_convrot.safetensors",
+        "sha256": "32E3787472F708FA5F83624ACBF5EF23F7FC89C439E05065EA57CFE5A97F025A",
+        "size": 9748121532,
+    },
+    "ComfyUI/models/vae/flux2-vae.safetensors": {
+        "name": "flux2-vae.safetensors",
+        "url": "https://huggingface.co/Comfy-Org/MOSS-Image/resolve/7c5a8777422f0aa8a24ea549dffeaf8ee6e1fc41/vae/flux2-vae.safetensors",
+        "sha256": "868FE7B343CC8F3A19DBCFCAFBC3D5F888802BE3F89BD81B65B3621A066CE8F3",
+        "size": 336211292,
+    },
+}
 PROTECTED_DIRECTORIES = (
     ".lakis", "ComfyUI/models", "ComfyUI/input", "ComfyUI/output",
     "ComfyUI/user", "ComfyUI/temp",
@@ -75,18 +95,26 @@ REQUIRED_FILES = (
 )
 
 
-def pose_model_rows(model_files, target: Path) -> list[dict]:
+def required_model_specs(version: str) -> dict:
+    """Keep legacy runtime recovery separate from the 8.1 MOSS dependency set."""
+    if not isinstance(version, str) or not re.fullmatch(r"\d+\.\d+\.\d+", version):
+        raise ValueError("invalid model dependency version")
+    return {**POSE_MODELS, **(MOSS_MODELS if tuple(map(int, version.split("."))) >= (8, 1, 0) else {})}
+
+
+def model_dependency_rows(model_files, target: Path, version: str) -> list[dict]:
     """Allow only missing, pinned defaults; never replace an existing model."""
     if model_files is None:
         return []
-    if not isinstance(model_files, dict) or set(model_files) != set(POSE_MODELS):
-        raise ValueError("unexpected pose model download set")
+    specs = required_model_specs(version)
+    if not isinstance(model_files, dict) or set(model_files) != set(specs):
+        raise ValueError("unexpected required model download set")
     rows = []
-    for relative, spec in POSE_MODELS.items():
+    for relative, spec in specs.items():
         source = reject_reparse_path(Path(model_files[relative]))
         if (not source.is_file() or source.stat().st_size != spec["size"]
                 or sha256(source) != spec["sha256"]):
-            raise ValueError(f"pose model download failed verification: {spec['name']}")
+            raise ValueError(f"required model download failed verification: {spec['name']}")
         destination = reject_reparse_path(target / relative)
         if destination.exists():
             if (not destination.is_file() or destination.stat().st_size != spec["size"]

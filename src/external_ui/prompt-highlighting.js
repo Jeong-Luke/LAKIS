@@ -3,7 +3,8 @@ const TARGET_IDS = [
   "fixedPromptInput", "generalPromptInput", "qualityPromptInput",
   "artistPromptInput", "triggerPromptInput", "negativePrompt",
   "negativeFixedPromptInput", "negativeQualityPromptInput", "negativeArtistPromptInput",
-  "inpaintPromptInput", "inpaintNegativePromptInput"
+  "inpaintPromptInput", "inpaintNegativePromptInput",
+  "mossRegionCaptionInput", "mossRegionNegativeInput"
 ];
 const COMMON_TAGS = [
   ["girl", "소녀"], ["1girl", "한 명의 소녀"], ["boy", "소년"], ["1boy", "한 명의 소년"],
@@ -306,7 +307,9 @@ function install(textarea) {
   textarea.addEventListener("scroll", syncScroll, { passive: true });
   let resizeStartY = 0;
   let resizeStartHeight = 0;
+  let resizeMinHeight = 80;
   let resizeMaxHeight = 0;
+  let resizeRegion = false;
   let resizePanel = null;
   let resizePanelChrome = 0;
   resizeHandle.addEventListener("pointerdown", event => {
@@ -316,20 +319,28 @@ function install(textarea) {
     const hostRect = host.getBoundingClientRect();
     const categoryRect = categoryPanel?.getBoundingClientRect();
     const fieldRect = promptField?.getBoundingClientRect();
-    const bottomPadding = Number.parseFloat(getComputedStyle(categoryPanel).paddingBottom) || 12;
+    const bottomPadding = categoryPanel ? Number.parseFloat(getComputedStyle(categoryPanel).paddingBottom) || 12 : 0;
+    resizeRegion = Boolean(host.closest(".moss-region-field"));
+    resizeMinHeight = resizeRegion ? 120 : 80;
     resizeStartY = event.clientY;
     resizeStartHeight = hostRect.height;
     resizePanel = categoryPanel;
     resizePanelChrome = Math.max(0, (hostRect.top - (categoryRect?.top ?? hostRect.top)) + bottomPadding);
-    resizeMaxHeight = Math.max(80, Math.floor((fieldRect?.bottom ?? hostRect.bottom) - hostRect.top - bottomPadding));
+    resizeMaxHeight = resizeRegion
+      ? Math.max(resizeMinHeight, host.closest(".moss-region-dialog").clientHeight)
+      : Math.max(resizeMinHeight, Math.floor((fieldRect?.bottom ?? hostRect.bottom) - hostRect.top - bottomPadding));
     resizeHandle.setPointerCapture?.(event.pointerId);
     document.body.classList.add("prompt-resizing");
   });
   resizeHandle.addEventListener("pointermove", event => {
     if (!resizeHandle.hasPointerCapture?.(event.pointerId)) return;
-    const height = Math.max(80, Math.min(resizeMaxHeight, Math.round(resizeStartHeight + event.clientY - resizeStartY)));
-    host.style.flex = "0 0 auto";
-    host.style.height = `${height}px`;
+    const height = Math.max(resizeMinHeight, Math.min(resizeMaxHeight, Math.round(resizeStartHeight + event.clientY - resizeStartY)));
+    if (resizeRegion) {
+      host.style.setProperty("--moss-region-prompt-height", `${height}px`);
+    } else {
+      host.style.flex = "0 0 auto";
+      host.style.height = `${height}px`;
+    }
     if (resizePanel) {
       resizePanel.style.flex = "0 0 auto";
       resizePanel.style.height = `${Math.round(height + resizePanelChrome)}px`;

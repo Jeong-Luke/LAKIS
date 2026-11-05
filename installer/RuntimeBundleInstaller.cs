@@ -5,6 +5,7 @@ using System.IO;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
 using System.Web.Script.Serialization;
 
 internal sealed class RuntimeHandoff
@@ -18,6 +19,23 @@ internal sealed class RuntimeHandoff
     public string previous_executable { get; set; }
     public string manifest_sha256 { get; set; }
     public bool launch { get; set; }
+}
+
+public sealed class RuntimeCandidateInspector : MarshalByRefObject
+{
+    public void Verify(string path)
+    {
+        // Reflection-only loading never executes candidate code. The caller
+        // discards this domain after each inspection, including on failure.
+        var assembly = Assembly.ReflectionOnlyLoad(File.ReadAllBytes(path));
+        var protocol = assembly.GetType("UpdateProtocol", true);
+        var flags = BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public;
+        string engine = (string)protocol.GetField("EngineVersion", flags).GetRawConstantValue();
+        int schema = (int)protocol.GetField("Schema", flags).GetRawConstantValue();
+        if (schema != UpdateProtocol.Schema ||
+            UpdateProtocol.CompareVersions(engine, UpdateProtocol.EngineVersion) < 0)
+            throw new InvalidDataException("Candidate updater capability regressed.");
+    }
 }
 
 internal static class RuntimeBundleInstaller
@@ -99,8 +117,10 @@ internal static class RuntimeBundleInstaller
     }
 
     internal static Dictionary<string, object> RunPython(
-        string python, string workspace, IEnumerable<string> arguments, Action<string> report)
+        string python, string workspace, IEnumerable<string> arguments, Action<string> report,
+        CancellationToken cancellation = default(CancellationToken))
     {
+        cancellation.ThrowIfCancellationRequested();
         var quoted = new List<string>();
         foreach (string argument in arguments) quoted.Add(Quote(argument));
         var info = new ProcessStartInfo(python, String.Join(" ", quoted.ToArray())) {
@@ -113,13 +133,32 @@ internal static class RuntimeBundleInstaller
         using (var process = Process.Start(info))
         {
             var errors = process.StandardError.ReadToEndAsync();
-            string line;
-            while ((line = process.StandardOutput.ReadLine()) != null)
+            try
             {
-                if (!String.IsNullOrWhiteSpace(line)) last = line;
-                report(line);
+                while (true)
+                {
+                    cancellation.ThrowIfCancellationRequested();
+                    var pendingLine = process.StandardOutput.ReadLineAsync();
+                    while (!pendingLine.Wait(100)) cancellation.ThrowIfCancellationRequested();
+                    string line = pendingLine.GetAwaiter().GetResult();
+                    if (line == null) break;
+                    if (!String.IsNullOrWhiteSpace(line)) last = line;
+                    report(line);
+                }
+                while (!process.WaitForExit(100)) cancellation.ThrowIfCancellationRequested();
+                cancellation.ThrowIfCancellationRequested();
             }
-            process.WaitForExit();
+            catch (OperationCanceledException)
+            {
+                // Only Prepare receives a cancellation token. Apply/rollback
+                // must finish their atomic promotion or recovery instead.
+                try { if (!process.HasExited) process.Kill(); }
+                catch (InvalidOperationException) { if (!process.HasExited) throw; }
+                if (!process.WaitForExit(10000))
+                    throw new InvalidOperationException("취소한 준비 프로세스의 종료를 확인하지 못했습니다. " + workspace);
+                errors.GetAwaiter().GetResult();
+                throw;
+            }
             string error = errors.GetAwaiter().GetResult();
             if (process.ExitCode != 0)
                 throw new InvalidOperationException("Runtime transition failed (exit " + process.ExitCode +
@@ -130,7 +169,8 @@ internal static class RuntimeBundleInstaller
     }
 
     internal static RuntimeHandoff Prepare(
-        string python, string manifestJson, string target, string cache, Action<string> report)
+        string python, string manifestJson, string target, string cache, Action<string> report,
+        CancellationToken cancellation = default(CancellationToken))
     {
         var update = UpdateProtocol.Read(manifestJson);
         if (update.kind != "runtime-update")
@@ -143,7 +183,7 @@ internal static class RuntimeBundleInstaller
             "-s", Path.Combine(workspace, "runtime_update.py"), "--manifest", manifest,
             "--target", target, "--cache", cache,
             "--prepare-only"
-        }, report);
+        }, report, cancellation);
         if (!result.ContainsKey("status") || (string)result["status"] != "prepared")
             throw new InvalidDataException("Runtime preparation did not finish.");
         handoff.candidate = Path.GetFullPath((string)result["candidate"]);
@@ -162,28 +202,26 @@ internal static class RuntimeBundleInstaller
         RejectReparse(patcher);
         if (HashFile(updater) != HashFile(patcher))
             throw new InvalidDataException("런타임의 두 업데이터 실행 파일이 일치하지 않습니다.");
-        // Both updater aliases are the same assembly. Loading that identity
-        // twice into the reflection-only context is rejected by .NET Framework.
-        foreach (string name in new[] { "LAKIS.exe", "LAKIS_Updater.exe" })
+        // A fresh metadata-only domain permits prepare/apply checks in the
+        // same Setup process without reusing stale assembly identities.
+        var domain = AppDomain.CreateDomain("LAKIS-candidate-" + Guid.NewGuid().ToString("N"));
+        try
         {
-            string path = Path.Combine(candidate, name);
-            RejectReparse(path);
-            try
+            var inspector = (RuntimeCandidateInspector)domain.CreateInstanceFromAndUnwrap(
+                Assembly.GetExecutingAssembly().Location, typeof(RuntimeCandidateInspector).FullName);
+            // Both updater aliases are identical; inspect their identity once.
+            foreach (string name in new[] { "LAKIS.exe", "LAKIS_Updater.exe" })
             {
-                var assembly = Assembly.ReflectionOnlyLoad(File.ReadAllBytes(path));
-                var protocol = assembly.GetType("UpdateProtocol", true);
-                var flags = BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public;
-                string engine = (string)protocol.GetField("EngineVersion", flags).GetRawConstantValue();
-                int schema = (int)protocol.GetField("Schema", flags).GetRawConstantValue();
-                if (schema != UpdateProtocol.Schema ||
-                    UpdateProtocol.CompareVersions(engine, UpdateProtocol.EngineVersion) < 0)
-                    throw new InvalidDataException("Candidate updater capability regressed.");
-            }
-            catch (Exception error)
-            {
-                throw new InvalidDataException("새 런타임에 호환되는 런처/업데이터가 없습니다: " + name, error);
+                string path = Path.Combine(candidate, name);
+                RejectReparse(path);
+                try { inspector.Verify(path); }
+                catch (Exception error)
+                {
+                    throw new InvalidDataException("새 런타임에 호환되는 런처/업데이터가 없습니다: " + name, error);
+                }
             }
         }
+        finally { AppDomain.Unload(domain); }
     }
 
     private static RuntimeHandoff CreateInstallContext(string manifestJson, string target, string cache)
@@ -203,8 +241,19 @@ internal static class RuntimeBundleInstaller
     internal static Dictionary<string, object> Install(string python, string manifestJson,
         string target, string cache, string mode, bool includeAnimeSharp, Action<string> report)
     {
-        if ((mode != "fresh" && mode != "repair") || (mode != "fresh" && includeAnimeSharp))
+        if ((mode != "fresh" && mode != "repair" && mode != "update") || (mode != "fresh" && includeAnimeSharp))
             throw new ArgumentException("Invalid GUI runtime installation mode.");
+        if (mode == "update")
+        {
+            // Setup runs outside the installation, so it does not need the
+            // installed updater's self-replacement handoff. Never relax that
+            // handoff for an executable that is itself inside the target.
+            string root = Path.GetFullPath(target).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            if (Path.GetFullPath(Assembly.GetExecutingAssembly().Location).StartsWith(root, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("업데이트 설치기를 LAKIS 설치 폴더 밖에서 실행해 주세요.");
+            var prepared = Prepare(python, CreateUpdateManifest(manifestJson), target, cache, report);
+            return ApplyPrepared(prepared, report, false);
+        }
         var context = CreateInstallContext(manifestJson, target, cache);
         var arguments = new List<string> {
             "-s", Path.Combine(context.workspace, "runtime_install.py"),
@@ -217,6 +266,28 @@ internal static class RuntimeBundleInstaller
         if (!result.ContainsKey("status") || (string)result["status"] != "complete")
             throw new InvalidDataException("Runtime was not activated and verified.");
         return result;
+    }
+
+    internal static string CreateUpdateManifest(string installerJson)
+    {
+        var serializer = new JavaScriptSerializer();
+        var installer = serializer.Deserialize<Dictionary<string, object>>(installerJson);
+        object schema, version, bundle;
+        if (installer == null || !installer.TryGetValue("schema", out schema) || !Equals(schema, 1) ||
+            !installer.TryGetValue("version", out version) || !(version is string) ||
+            UpdateProtocol.CompareVersions((string)version, "8.1.0") < 0 ||
+            !installer.TryGetValue("runtime_bundle", out bundle) || !(bundle is Dictionary<string, object>))
+            throw new InvalidDataException("업데이트용 설치 명세가 올바르지 않습니다.");
+        var update = new UpdateManifest {
+            schema = UpdateProtocol.Schema, kind = "runtime-update", version = (string)version,
+            minimum_version = "8.0.0", minimum_updater_version = UpdateProtocol.EngineVersion,
+            release_notes = "설치기에 고정된 런타임으로 업데이트합니다. 사용자 파일은 보존됩니다.",
+            files = new List<UpdateFile>(), delete = new List<string>(),
+            runtime_bundle = (Dictionary<string, object>)bundle
+        };
+        string json = serializer.Serialize(update);
+        UpdateProtocol.Read(json);
+        return json;
     }
 
     internal static string WriteHandoff(RuntimeHandoff handoff, bool launch)
@@ -276,6 +347,11 @@ internal static class RuntimeBundleInstaller
     internal static void Apply(RuntimeHandoff handoff, Action<string> report, bool rollback = false)
     {
         WaitForParent(handoff);
+        ApplyPrepared(handoff, report, rollback);
+    }
+
+    private static Dictionary<string, object> ApplyPrepared(RuntimeHandoff handoff, Action<string> report, bool rollback)
+    {
         VerifyHelpers(handoff.workspace);
         VerifyManifest(handoff);
         var manifest = UpdateProtocol.Read(File.ReadAllText(Path.Combine(handoff.workspace, "manifest.json")));
@@ -293,6 +369,7 @@ internal static class RuntimeBundleInstaller
             handoff.workspace, arguments, report);
         if (!result.ContainsKey("status") || (string)result["status"] != (rollback ? "rolled-back" : "complete"))
             throw new InvalidDataException("Runtime was not activated and verified.");
+        return result;
     }
 
     private static void VerifyManifest(RuntimeHandoff handoff)

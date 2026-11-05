@@ -18,6 +18,7 @@
 | `I2I` | 입력 이미지·Image to Image |
 | `INP` | Local Inpaint 입력·처리·합성 |
 | `LGT` | 광원·깊이 추정·재조명 |
+| `MOSS` | MOSS 전용 모델·워크플로·설정·생성 단계 |
 
 ## 현재 확정 코드
 
@@ -100,6 +101,41 @@
 로그의 `error_detail`에만 남긴다.
 
 ## 생성 오류 기록 필드
+
+### MOSS 8.1 프리뷰 코드
+
+ANIMA의 기존 코드는 유지한다. MOSS도 메모리 부족·연결 끊김·응답 시간
+초과·접수 여부 미확인·저장 권한/공간 부족은 기존 공통 코드를 우선한다.
+모델 이름, 파일 경로와 내부 예외 전문은 사용자 안내에 직접 삽입하지 않는다.
+
+| 코드 | 의미 | 사용자 조치 |
+| --- | --- | --- |
+| `LKS-MOSS-1001` | MOSS 필수 노드 또는 런타임 기능 누락 | 업데이트·복구 후 재실행 |
+| `LKS-MOSS-1002` | MOSS 모델·VAE·CLIP 누락 또는 잘못된 선택 | 모델 설치 완료 여부와 선택 확인 |
+| `LKS-MOSS-1003` | MOSS LoRA 목록·경로·강도 오류 | MOSS 전용 LoRA를 다시 선택하거나 해제 |
+| `LKS-MOSS-1004` | 지원하지 않는 MOSS 샘플러 | 지원 목록에서 다시 선택 |
+| `LKS-MOSS-1005` | 지원하지 않는 MOSS 스케줄러 | 지원 목록에서 다시 선택 |
+| `LKS-MOSS-1006` | MOSS 세부 설정 오류 | Shift·가이던스·로딩 설정 확인 |
+| `LKS-MOSS-1007` | 영역 프롬프트·좌표·텍스트 오류 | 영역의 범위·개수·문구 확인 |
+| `LKS-MOSS-1008` | 잠긴 MOSS 기능 요청 | i2i·포즈·인페인트·디테일 기능 해제 |
+| `LKS-MOSS-1009` | MOSS 요청·해상도·시드·프롬프트 설정 오류 | 입력값과 프롬프트 확인 |
+| `LKS-MOSS-1010` | MOSS 공식 워크플로 누락·손상 | 업데이트·복구 후 재실행 |
+| `LKS-MOSS-1011` | ComfyUI가 MOSS 그래프 입력을 거부함 | 오류 정보의 노드·입력값 확인 |
+| `LKS-MOSS-1101` | MOSS 생성 모델 로딩 실패 | 모델 파일·GPU 메모리 확인 |
+| `LKS-MOSS-1102` | MOSS 텍스트 인코더 로딩 실패 | Qwen3.5 인코더 설치 확인 |
+| `LKS-MOSS-1103` | MOSS VAE 로딩 실패 | FLUX.2 VAE 설치 확인 |
+| `LKS-MOSS-1201` | MOSS 프롬프트 인코딩 실패 | 프롬프트·영역·인코더 확인 |
+| `LKS-MOSS-1202` | MOSS 샘플링 실패 | 샘플러·스케줄러·CFG 확인 |
+| `LKS-MOSS-1203` | MOSS 이미지 디코딩 실패 | VAE·해상도 확인 |
+| `LKS-MOSS-1204` | MOSS 최종 이미지 저장 실패 | 저장 경로·권한·공간 확인 |
+| `LKS-MOSS-1205` | MOSS LoRA 적용 실패 | LoRA 호환성·강도 확인 |
+| `LKS-MOSS-1206` | MOSS Shift·레이어 가이던스 적용 실패 | 세부 설정 초기화 |
+| `LKS-MOSS-1207` | MOSS 초기 잠재 이미지 구성 실패 | 해상도 확인 |
+| `LKS-MOSS-1208` | MOSS 저장 완료 후 결과 파일 탐색 실패 | 오류 정보와 추적 ID 전달 |
+| `LKS-MOSS-1901` | 분류되지 않은 MOSS 생성 실패 | 오류 정보 복사 후 전달 |
+
+진단의 `generation.engine`으로 엔진을 구분한다. MOSS 노드 번호를
+ANIMA 노드 오류 표에 대입하지 않는다.
 
 생성 실패 시 `/api/generation-status`와 `external_ui_bridge_audit.jsonl`에
 `error_code`, `request_id`, `prompt_id`, `error_stage`, `error_node_id`,

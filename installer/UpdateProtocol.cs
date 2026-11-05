@@ -27,7 +27,11 @@ internal sealed class UpdateManifest
 internal static class UpdateProtocol
 {
     // This is the executing engine's capability, not the installation's VERSION.
+#if LAKIS_RUNTIME_BRIDGE
     internal const string EngineVersion = "8.0.0";
+#else
+    internal const string EngineVersion = "8.1.0";
+#endif
     internal const string BridgeVersion = "7.5.4";
     internal const string RuntimeBridgeVersion = "7.5.4.1";
     internal const int Schema = 2;
@@ -104,6 +108,9 @@ internal static class UpdateProtocol
             throw new InvalidDataException("업데이트 파일 목록이 없습니다.");
         if (manifest.kind == "runtime-update")
         {
+            if (CompareVersions(manifest.version, "8.1.0") >= 0 &&
+                CompareVersions(manifest.minimum_updater_version, "8.1.0") < 0)
+                throw new InvalidDataException("MOSS 모델 설치에는 8.1.0 이상의 업데이터가 필요합니다.");
             if (manifest.runtime_bundle == null || manifest.files.Count != 0 || manifest.delete.Count != 0)
                 throw new InvalidDataException("런타임 교체와 개별 파일 변경을 함께 적용할 수 없습니다.");
             object product, version, schema, digest;
@@ -131,6 +138,9 @@ internal static class UpdateProtocol
             throw new InvalidDataException("먼저 LAKIS " + manifest.minimum_version + " 중간 업데이트를 설치해 주세요.");
         if (CompareVersions(manifest.version, current) < 0)
             throw new InvalidDataException("현재 설치보다 이전 버전으로 업데이트할 수 없습니다.");
+        if (CompareVersions(current, "8.1.0") < 0 && CompareVersions(manifest.version, "8.1.0") >= 0 &&
+            manifest.kind != "runtime-update")
+            throw new InvalidDataException("8.1 업데이트는 MOSS 모델이 포함된 런타임 업데이트로 설치해야 합니다.");
         if (manifest.kind == "file-patch" && CompareVersions(manifest.version, current) > 0 &&
             manifest.files.Count == 0 && manifest.delete.Count == 0)
             throw new InvalidDataException("파일 변경이 없는 명세로 설치 버전을 올릴 수 없습니다.");
@@ -140,8 +150,8 @@ internal static class UpdateProtocol
     {
         if (CompareVersions(current, RuntimeBridgeVersion) != 0 ||
             manifest.kind != "runtime-update" ||
-            CompareVersions(manifest.version, EngineVersion) < 0 ||
-            CompareVersions(manifest.minimum_updater_version, EngineVersion) < 0)
+            CompareVersions(manifest.version, "8.0.0") < 0 ||
+            CompareVersions(manifest.minimum_updater_version, "8.0.0") < 0)
             throw new InvalidDataException("중간 업데이터 다음 단계에는 검증된 8.0 런타임 업데이트가 필요합니다.");
     }
 
