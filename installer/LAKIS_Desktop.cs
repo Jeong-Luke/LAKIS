@@ -28,12 +28,6 @@ internal sealed class LakisDesktopForm : Form
     private const string WindowStateFolder = ".lakis";
 #endif
     private readonly WebView2 webView = new WebView2();
-    private readonly Panel titleBar = new Panel();
-    private readonly Label titleLabel = new Label();
-    private readonly PictureBox titleIcon = new PictureBox();
-    private readonly Button minimizeButton = new Button();
-    private readonly Button maximizeButton = new Button();
-    private readonly Button closeButton = new Button();
     private readonly NotifyIcon trayIcon = new NotifyIcon();
     private readonly string targetUrl;
     private readonly string statePath;
@@ -51,12 +45,11 @@ internal sealed class LakisDesktopForm : Form
         ResizeRedraw = true;
         statePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, WindowStateFolder, "desktop-window.txt");
         RestoreWindowState();
-        BuildTitleBar();
         BuildTrayIcon();
         webView.Dock = DockStyle.Fill;
         Controls.Add(webView);
-        Controls.Add(titleBar);
         webView.Resize += (_, __) => ApplyResponsiveZoom();
+        Resize += (_, __) => PublishWindowState();
         Shown += async (_, __) => await InitializeAsync();
         FormClosing += (_, __) => { SaveWindowState(); trayIcon.Visible = false; trayIcon.Dispose(); };
     }
@@ -92,84 +85,40 @@ internal sealed class LakisDesktopForm : Form
         BringToFront();
     }
 
-    private void BuildTitleBar()
-    {
-        titleBar.Dock = DockStyle.Top;
-        titleBar.Height = 46;
-        titleBar.BackColor = Color.FromArgb(10, 13, 20);
-        titleBar.Padding = new Padding(14, 0, 0, 0);
-        titleBar.MouseDown += TitleBarMouseDown;
-        titleBar.DoubleClick += (_, __) => ToggleMaximize();
-
-        titleIcon.Image = Icon.ToBitmap();
-        titleIcon.SizeMode = PictureBoxSizeMode.Zoom;
-        titleIcon.Size = new Size(22, 22);
-        titleIcon.Location = new Point(14, 12);
-        titleIcon.MouseDown += TitleBarMouseDown;
-
-        titleLabel.Text = ProductTitle;
-        titleLabel.ForeColor = Color.FromArgb(210, 215, 228);
-        titleLabel.Font = new Font("Segoe UI", 10F, FontStyle.Regular, GraphicsUnit.Point);
-        titleLabel.AutoSize = true;
-        titleLabel.Location = new Point(44, 13);
-        titleLabel.MouseDown += TitleBarMouseDown;
-        titleLabel.DoubleClick += (_, __) => ToggleMaximize();
-
-        ConfigureCaptionButton(minimizeButton, "\uE921", (_, __) => WindowState = FormWindowState.Minimized);
-        ConfigureCaptionButton(maximizeButton, "\uE922", (_, __) => ToggleMaximize());
-        ConfigureCaptionButton(closeButton, "\uE8BB", (_, __) => Close());
-        closeButton.FlatAppearance.MouseOverBackColor = Color.FromArgb(196, 43, 28);
-
-        titleBar.Controls.Add(titleIcon);
-        titleBar.Controls.Add(titleLabel);
-        titleBar.Controls.Add(minimizeButton);
-        titleBar.Controls.Add(maximizeButton);
-        titleBar.Controls.Add(closeButton);
-        titleBar.Resize += (_, __) => LayoutCaptionButtons();
-        Resize += (_, __) => UpdateMaximizeGlyph();
-        LayoutCaptionButtons();
-    }
-
-    private void ConfigureCaptionButton(Button button, string glyph, EventHandler click)
-    {
-        button.Text = glyph;
-        button.Font = new Font("Segoe MDL2 Assets", 9F, FontStyle.Regular, GraphicsUnit.Point);
-        button.ForeColor = Color.FromArgb(202, 208, 222);
-        button.BackColor = Color.Transparent;
-        button.FlatStyle = FlatStyle.Flat;
-        button.FlatAppearance.BorderSize = 0;
-        button.FlatAppearance.MouseOverBackColor = Color.FromArgb(37, 42, 54);
-        button.FlatAppearance.MouseDownBackColor = Color.FromArgb(51, 57, 72);
-        button.Size = new Size(48, 46);
-        button.TabStop = false;
-        button.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-        button.Click += click;
-    }
-
-    private void LayoutCaptionButtons()
-    {
-        closeButton.Location = new Point(titleBar.ClientSize.Width - 48, 0);
-        maximizeButton.Location = new Point(titleBar.ClientSize.Width - 96, 0);
-        minimizeButton.Location = new Point(titleBar.ClientSize.Width - 144, 0);
-    }
-
     private void ToggleMaximize()
     {
         WindowState = WindowState == FormWindowState.Maximized
             ? FormWindowState.Normal : FormWindowState.Maximized;
-        UpdateMaximizeGlyph();
+        PublishWindowState();
     }
 
-    private void UpdateMaximizeGlyph()
+    private void PublishWindowState()
     {
-        maximizeButton.Text = WindowState == FormWindowState.Maximized ? "\uE923" : "\uE922";
+        if (webView.IsDisposed || webView.CoreWebView2 == null) return;
+        webView.CoreWebView2.PostWebMessageAsJson("{\"type\":\"lakis-window-state\",\"maximized\":" +
+            (WindowState == FormWindowState.Maximized ? "true" : "false") + "}");
     }
 
-    private void TitleBarMouseDown(object sender, MouseEventArgs eventArgs)
+    internal void HandleDesktopMessage(string source, string command)
     {
-        if (eventArgs.Button != MouseButtons.Left) return;
-        ReleaseCapture();
-        SendMessage(Handle, WM_NCLBUTTONDOWN, HTCAPTION, 0);
+        Uri sender, expected;
+        if (!Uri.TryCreate(source, UriKind.Absolute, out sender) ||
+            !Uri.TryCreate(targetUrl, UriKind.Absolute, out expected) ||
+            !String.Equals(sender.GetLeftPart(UriPartial.Authority), expected.GetLeftPart(UriPartial.Authority), StringComparison.OrdinalIgnoreCase) ||
+            !String.Equals(sender.AbsolutePath, expected.AbsolutePath, StringComparison.Ordinal) ||
+            !String.IsNullOrEmpty(sender.UserInfo)) return;
+        switch (command)
+        {
+            case "lakis-window-minimize": WindowState = FormWindowState.Minimized; break;
+            case "lakis-window-maximize": ToggleMaximize(); break;
+            case "lakis-window-close": Close(); break;
+            case "lakis-window-ready": PublishWindowState(); break;
+            case "lakis-window-drag":
+                ReleaseCapture();
+                SendMessage(Handle, WM_NCLBUTTONDOWN, HTCAPTION, 0);
+                break;
+            case "lakis-background": SendToTray(); break;
+        }
     }
 
     protected override void WndProc(ref Message message)
@@ -213,8 +162,9 @@ internal sealed class LakisDesktopForm : Form
             {
                 try
                 {
-                    if (String.Equals(eventArgs.TryGetWebMessageAsString(), "lakis-background", StringComparison.Ordinal))
-                        BeginInvoke(new Action(SendToTray));
+                    string source = eventArgs.Source;
+                    string command = eventArgs.TryGetWebMessageAsString();
+                    BeginInvoke(new Action(() => HandleDesktopMessage(source, command)));
                 }
                 catch { }
             };

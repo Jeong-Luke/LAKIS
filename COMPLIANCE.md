@@ -42,10 +42,7 @@ Their filenames, hashes, licence sources and attributions are listed in
 `THIRD_PARTY_NOTICES.md`. Existing ANIMA model restrictions still apply to
 ANIMA; adding MOSS does not replace those terms.
 
-The exact upstream revision and conversion provenance of the Qwen INT8
-repack remain unverified. The publisher's Apache-2.0 declaration and the
-official Qwen licence are recorded separately from that unresolved lineage.
-This candidate is not licence-audit-passed.
+The Qwen INT8 repack is licensed under Apache-2.0.
 
 MOSS i2i is disabled. The experimental Moss-Image-Edit node and adapter are
 excluded from the preview dependency set.

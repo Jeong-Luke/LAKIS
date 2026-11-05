@@ -1,0 +1,29 @@
+.desktop-window-controls {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 60;
+  display: flex;
+  height: 40px;
+  color: var(--mx-text-muted, #cad0de);
+}
+.desktop-window-controls[hidden] { display: none; }
+.desktop-window-controls button {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  cursor: default;
+}
+.desktop-window-controls button:hover { background: var(--mx-hover, #252a36); }
+.desktop-window-controls button[data-window-action="close"]:hover { background: #c42b1c; color: #fff; }
+.desktop-window-controls button:focus-visible { outline: 2px solid currentColor; outline-offset: -3px; }
+.desktop-window-controls svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1; }
+.desktop-window-controls .window-restore-icon,
+.desktop-window-controls[data-maximized="true"] .window-maximize-icon { display: none; }
+.desktop-window-controls[data-maximized="true"] .window-restore-icon { display: initial; }
+html[data-desktop-window="true"] .brand-header { padding-right: 148px; user-select: none; }

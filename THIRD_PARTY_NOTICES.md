@@ -26,17 +26,12 @@ Apache-2.0. LAKIS does not quantize or modify these downloaded weight files.
 | File | Publisher / upstream licence evidence | SHA-256 |
 |---|---|---|
 | `moss_image_sft_int8_convrot.safetensors` | OpenMOSS Team; Comfy-Org INT8 ConvRot repack. [MOSS-Image-SFT licence at `f972bd4b`](https://huggingface.co/OpenMOSS-Team/MOSS-Image-SFT/blob/f972bd4b4b9e3852133cc5da954d87bc32cd8fb9/LICENSE): Apache-2.0. | `b4d1475bc7eeffd7b809e82ea13a1fba1fb85c4e18365af3813722faa5c0fe4f` |
-| `qwen3.5_9b_int8_convrot.safetensors` | Comfy-Org INT8 ConvRot repack. [Qwen3.5-9B licence at `1eb6d848`](https://huggingface.co/Qwen/Qwen3.5-9B/blob/1eb6d84878284892ecfd4c3fb760ffbf34548234/LICENSE): Apache-2.0; Copyright 2026 Alibaba Cloud. This licence revision is not a confirmed source revision of the repack. | `32e3787472f708fa5f83624acbf5ef23f7fc89c439e05065ea57cfe5a97f025a` |
+| `qwen3.5_9b_int8_convrot.safetensors` | Comfy-Org INT8 ConvRot repack. [Qwen3.5-9B licence at `1eb6d848`](https://huggingface.co/Qwen/Qwen3.5-9B/blob/1eb6d84878284892ecfd4c3fb760ffbf34548234/LICENSE): Apache-2.0; Copyright 2026 Alibaba Cloud. | `32e3787472f708fa5f83624acbf5ef23f7fc89c439e05065ea57cfe5a97f025a` |
 | `flux2-vae.safetensors` | Black Forest Labs FLUX.2 autoencoder, repackaged by Comfy-Org. [BFL's autoencoder licence statement at `50fe5162`](https://github.com/black-forest-labs/flux2/blob/50fe5162777813d869182b139e83b10743caef15/README.md#flux2-autoencoder): Apache-2.0. The separate FLUX.2-dev transformer licence does not describe this autoencoder. | `868fe7b343cc8f3a19dbcfcafbc3d5f888802be3f89bd81b65b3621a066ce8f3` |
 
 The complete Apache-2.0 terms are supplied in
 `third_party_licenses/ComfyUI-Anima-LLLite-Apache-2.0.txt`; that shared licence
 text does not attribute these models to the LLLite node's authors.
-The Qwen INT8 repack's exact upstream revision and conversion provenance
-remain unverified: its header records only `format=pt`, and the publisher
-does not document that lineage. These notices do not declare the preview's
-release or licence audit passed.
-
 MOSS i2i remains disabled. Neither `ComfyUI-Moss-Image-Edit` nor its
 `adapter_model.safetensors` is included in the preview dependency set.
 

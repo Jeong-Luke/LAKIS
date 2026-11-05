@@ -50,10 +50,11 @@
   <link rel="stylesheet" href="moss-mode.css?v=moss-i2i-compact-2">
   <link rel="stylesheet" href="moss-regions.css?v=region-prompts-3">
   <link rel="stylesheet" href="lakis-link-download.css?v=8.0.2">
+  <link rel="stylesheet" href="desktop-window.css?v=8.1.0">
   <link rel="stylesheet" href="lakis-link-mobile.css?v=20260913-link-1">
   <link rel="stylesheet" href="lakis-link-control.css?v=20260913-link-1">
   <link rel="stylesheet" href="lakis-link-sidebar.css?v=20260913-parity-1">
-  <link rel="stylesheet" href="synapse-theme.css?v=moss-progress-glow-2">
+  <link rel="stylesheet" href="synapse-theme.css?v=workspace-footer-1">
 </head>
 <body>
   <div id="generationEngineTransition" class="engine-transition" role="status" aria-live="polite" hidden>
@@ -133,6 +134,11 @@
             <span id="generationEngineName">ANIMA</span>
             <svg class="engine-swap" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M4 6h7l-2.2-2.2M12 10H5l2.2 2.2"></path></svg>
           </button>
+        </div>
+        <div id="desktopWindowControls" class="desktop-window-controls" role="group" aria-label="창 제어" hidden>
+          <button type="button" data-window-action="minimize" aria-label="최소화" title="최소화"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10"/></svg></button>
+          <button id="desktopWindowMaximize" type="button" data-window-action="maximize" aria-label="최대화" title="최대화"><svg viewBox="0 0 16 16" aria-hidden="true"><path class="window-maximize-icon" d="M3.5 3.5h9v9h-9z"/><path class="window-restore-icon" d="M5.5 5.5h7v7h-7zM3.5 10.5v-7h7"/></svg></button>
+          <button type="button" data-window-action="close" aria-label="닫기" title="닫기"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3.5 3.5 9 9m0-9-9 9"/></svg></button>
         </div>
       </header>
 
@@ -279,7 +285,7 @@
 
         <div class="preview-column">
           <article class="preview-panel">
-            <div class="preview-toolbar"><span class="section-title-accent">이미지</span><a id="previewSaveImage" class="image-save-link" download hidden>이미지 저장</a><div class="preview-zoom-controls"><button id="previewZoomOut" type="button" aria-label="이미지 축소">−</button><span id="previewZoomValue">100%</span><button id="previewZoomIn" type="button" aria-label="이미지 확대">＋</button></div></div>
+            <div class="preview-toolbar"><span class="section-title-accent">이미지</span><div class="preview-zoom-controls"><button id="previewZoomOut" type="button" aria-label="이미지 축소">−</button><span id="previewZoomValue">100%</span><button id="previewZoomIn" type="button" aria-label="이미지 확대">＋</button></div></div>
             <div class="preview-stage">
               <div id="previewEmptyState" class="preview-empty-state" aria-label="아직 생성된 이미지가 없습니다">LAKIS</div>
               <img id="previewImage" alt="" hidden>
@@ -529,7 +535,8 @@
   <script src="lakis-link-mobile.js?v=20260913-link-1"></script>
   <script src="lakis-link-sidebar.js?v=20260913-parity-1"></script>
   <script src="image-history-v2.js?v=20261005-library-pagination"></script>
-  <script src="lakis-link-download.js?v=8.0.2"></script>
+  <script src="lakis-link-download.js?v=library-only-1"></script>
+  <script src="desktop-window.js?v=8.1.0"></script>
   <script src="mobile-image-pinch.js?v=20260914-mobile-pinch-1"></script>
 </body>
 </html>

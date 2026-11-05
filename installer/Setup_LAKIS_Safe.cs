@@ -545,7 +545,18 @@ internal static class SafeInstaller
         bool complete=false;
         try
         {
-            string python=PrepareBootstrapPython(cache,status,out workspace);
+            string python;
+            if(mode=="update")
+            {
+                // Preparation may use the installed interpreter. ApplyPrepared
+                // switches to the verified candidate before replacing any files.
+                python=Path.Combine(target,"python_embeded","python.exe");
+                RejectReparsePath(python);
+                if(!File.Exists(python))
+                    throw new FileNotFoundException("기존 Python이 없습니다. 현재 설치 버전을 먼저 복구한 뒤 업데이트해 주세요.",python);
+                status("기존 Python으로 업데이트를 준비합니다. 교체는 검증된 새 Python으로 진행합니다.");
+            }
+            else python=PrepareBootstrapPython(cache,status,out workspace);
             RuntimeBundleInstaller.Install(python,manifest,target,cache,mode,includeAnimeSharp,status);
             complete=true;
         }

@@ -13,6 +13,7 @@ CSC = Path(os.environ.get("WINDIR", "C:/Windows")) / "Microsoft.NET/Framework64/
 PROBE = r'''
 using System;
 using System.IO;
+using System.Net;
 using System.Reflection;
 internal static class PreviewUpgradeProbe {
     private static int Main(string[] args) {
@@ -38,6 +39,19 @@ internal static class PreviewUpgradeProbe {
                 foreach(string name in new[]{"LAKIS.exe","LAKIS_Updater.exe","LAKIS_Patcher.exe"})
                     File.Copy(Path.Combine(args[1],"older",name),Path.Combine(args[1],name),true);
                 RuntimeBundleInstaller.VerifyCandidateEngine(args[1]);
+            } else if(args[0]=="update-entry") {
+                WebRequest.DefaultWebProxy=new WebProxy("http://127.0.0.1:1");
+                var run=typeof(SafeInstaller).GetMethod("RunRuntimeInstaller",BindingFlags.NonPublic|BindingFlags.Static);
+                try {
+                    run.Invoke(null,new object[]{"{}",args[1],Path.Combine(args[1],"cache"),"update",false,(Action<string>)(_=>{})});
+                    return 23;
+                } catch(TargetInvocationException error) {
+                    if(error.InnerException is InvalidDataException) {
+                        Console.WriteLine("INSTALLED_PYTHON_READY_FOR_MANIFEST");
+                        return 0;
+                    }
+                    throw;
+                }
             } else return 22;
             return 0;
         } catch(Exception error) {
@@ -116,6 +130,29 @@ class PreviewUpgradeTests(unittest.TestCase):
             root = Path(folder)
             self.assertNotEqual(self.run_probe("mode", root).returncode, 0)
             self.assertEqual(list(root.iterdir()), [])
+
+    def test_update_uses_installed_python_without_downloading_bootstrap(self):
+        with tempfile.TemporaryDirectory(dir=self.root) as folder:
+            root = Path(folder)
+            self.installation(root, "8.0.0")
+            python = root / "python_embeded/python.exe"
+            python.parent.mkdir()
+            python.write_bytes(b"not executed: manifest validation must happen first")
+            result = self.run_probe("update-entry", root)
+            self.assertEqual(result.returncode, 0, result.stderr.decode(errors="replace"))
+            self.assertIn(b"INSTALLED_PYTHON_READY_FOR_MANIFEST", result.stdout)
+            self.assertFalse((root / "cache").exists())
+            self.assertEqual((root / "VERSION").read_text(), "8.0.0")
+
+    def test_missing_installed_python_requires_repair_without_network_or_writes(self):
+        with tempfile.TemporaryDirectory(dir=self.root) as folder:
+            root = Path(folder)
+            self.installation(root, "8.0.0")
+            before = {p.relative_to(root): p.read_bytes() for p in root.rglob("*") if p.is_file()}
+            result = self.run_probe("update-entry", root)
+            self.assertEqual(result.returncode, 1)
+            self.assertIn(b"FileNotFoundException", result.stderr)
+            self.assertEqual({p.relative_to(root): p.read_bytes() for p in root.rglob("*") if p.is_file()}, before)
 
     def test_same_version_update_rejected_before_manifest_or_network_access(self):
         with tempfile.TemporaryDirectory(dir=self.root) as folder:

@@ -1,8 +1,7 @@
 (() => {
-  const pairs = [
-    [document.querySelector("#previewImage"), document.querySelector("#previewSaveImage")],
-    [document.querySelector("#imageHistoryLargeImage"), document.querySelector("#historySaveImage")],
-  ];
+  const image = document.querySelector("#imageHistoryLargeImage");
+  const link = document.querySelector("#historySaveImage");
+  if (!image || !link) return;
 
   function update(image, link) {
     link.hidden = true;
@@ -32,11 +31,8 @@
     }
   }
 
-  for (const [image, link] of pairs) {
-    if (!image || !link) continue;
-    new MutationObserver(() => update(image, link)).observe(image, {
-      attributes: true, attributeFilter: ["src", "hidden"],
-    });
-    update(image, link);
-  }
+  new MutationObserver(() => update(image, link)).observe(image, {
+    attributes: true, attributeFilter: ["src", "hidden"],
+  });
+  update(image, link);
 })();

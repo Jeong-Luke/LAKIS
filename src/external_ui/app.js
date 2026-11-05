@@ -140,7 +140,7 @@ function syncGenerationEngineUI() {
         : `MOSS 준비 필요 · ${(status?.missing || ["ComfyUI 연결을 확인해 주세요."]).join(" / ")}`
       : unavailable
         ? `ANIMA 준비 필요 · ${(status.missing || [status.message || "이 실행 환경에서는 ANIMA 생성 경로를 제공하지 않습니다."]).join(" / ")}`
-        : "ANIMA · 기존 FAST / DETAIL 생성");
+        : "");
   notice.dataset.ready = String(!unavailable && (!moss || status?.ready === true));
   notice.hidden = !notice.textContent;
   const generate = document.querySelector("#generateButton");
@@ -1317,12 +1317,12 @@ workflowMenu.addEventListener("click", async event => {
       body: JSON.stringify({ kind, engine: currentGenerationEngine() }),
     });
     const result = await response.json();
-    if (!response.ok || !result.ok) throw new Error(result.error || `HTTP ${response.status}`);
+    if (!response.ok || !result.ok) throw Object.assign(new Error(result.error || `HTTP ${response.status}`), { code: result.code || "" });
     if (workflowWindow) workflowWindow.location.replace(result.comfy_url || "http://127.0.0.1:8189/");
     else window.open(result.comfy_url || "http://127.0.0.1:8189/", "_blank", "noopener");
   } catch (error) {
     workflowWindow?.close();
-    showGenerationError(error.message || "LAKIS 워크플로를 열지 못했어요.");
+    showGenerationError(error.message || "LAKIS 워크플로를 열지 못했어요.", error.code || "");
   }
 });
 
