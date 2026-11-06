@@ -35,6 +35,7 @@ if str(UI_ROOT) not in sys.path:
     sys.path.insert(0, str(UI_ROOT))
 
 import scene_controls
+import lora_manager
 import moss_mode
 import moss_workflows
 from moss_errors import MossValidationError
@@ -44,6 +45,7 @@ from workflow_bridge import (
     LOCAL_INPAINT_V2,
     WorkflowBridge,
     lora_inventory,
+    lora_manager_url,
     model_inventory,
     remove_persisted_upscaler_override,
     save_external_generation_state,
@@ -1304,6 +1306,21 @@ class Handler(SimpleHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802
         if not self._authorize_api_request():
             return
+        if urlparse(self.path).path == "/api/lora-manager":
+            engines = parse_qs(urlparse(self.path).query).get("engine", [])
+            if len(engines) != 1 or engines[0] not in lora_manager.ENGINES:
+                self._send_json(400, {"ok": False, "error": "LoRA 모드를 명시해 주세요: anima 또는 moss"})
+                return
+            try:
+                target = lora_manager_url(engines[0])
+            except (OSError, ValueError, RuntimeError) as error:
+                self._send_json(503, {"ok": False, "error": str(error)})
+                return
+            self.send_response(302)
+            self.send_header("Location", target)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         if urlparse(self.path).path == "/api/workflow-download":
             query = parse_qs(urlparse(self.path).query)
             try:
@@ -1466,6 +1483,8 @@ class Handler(SimpleHTTPRequestHandler):
                 self._send_json(200, lora_inventory(engine))
             except ValueError as error:
                 self._send_json(400, {"ok": False, "error": str(error)})
+            except (OSError, RuntimeError) as error:
+                self._send_json(503, {"ok": False, "error": str(error)})
             return
         if self.path == "/api/model-options":
             self._send_json(200, model_inventory())
@@ -1922,6 +1941,7 @@ def run_server(port: int, session_token: str, ready_file: Path | None = None) ->
     try:
         server.serve_forever()
     finally:
+        lora_manager.stop_managers()
         if LINK_SERVER is not None:
             stop_link_server()
         server.server_close()

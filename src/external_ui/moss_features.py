@@ -67,7 +67,7 @@ def _validate_text(value, field, *, required=False):
 
 def _validate_moss_lora_name(name, field, inventory):
     normalized_name = name.replace("\\", "/")
-    if not normalized_name.startswith("moss/"):
+    if not normalized_name.casefold().startswith("moss/"):
         raise MossValidationError("LKS-MOSS-1003", f"활성 LoRA는 moss/ 계열이어야 해: {name}")
     components = normalized_name.split("/")
     if (

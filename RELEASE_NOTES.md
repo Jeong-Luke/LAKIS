@@ -1,31 +1,13 @@
-# LAKIS 8.1.0 — ANIMA/MOSS 통합 정식 릴리즈
+# LAKIS 8.1.1 — LoRA·프롬프트·화면 배치 수정
 
-## 주요 변경
-- 기존 ANIMA 기능·설정을 유지하고 MOSS 엔진의 모델·설정을 분리했습니다.
-- MOSS 와일드카드, 영역 프롬프트 자동완성·번역·크기 조절을 추가했습니다.
-- 라이브러리의 MOSS/ANIMA 메타데이터와 모바일 화면·입력 설정을 개선했습니다.
-- MOSS i2i는 잠금을 유지합니다. 인페인트 평가 모델은 포함하지 않습니다.
+## 주요 수정
+- ANIMA와 MOSS의 LoRA Manager·다운로드 폴더를 분리하고, 다운로드 후 LoRA 목록을 바로 갱신합니다.
+- ANIMA의 3D 포즈를 켠 상태에서 MOSS로 전환해도 정밀 프롬프트가 적용되지 않도록 수정했습니다.
+- MOSS 영역 프롬프트에 내용이 있으면 메인 프롬프트가 비어 있어도 생성 요청을 진행할 수 있습니다.
+- 1920×1080 화면의 배율 설정에 따라 연속생성 버튼이 화면 밖으로 밀려나던 배치를 수정했습니다.
 
-## 기존 8.0.x 업데이트
-1. 평소처럼 LAKIS를 실행합니다.
-2. 업데이트 안내에서 진행하면 기존 업데이터가 필요한 업데이터 정비를 먼저 적용합니다.
-3. 같은 업데이터가 자동으로 8.1.0 업데이트·무결성 확인을 이어갑니다.
-4. 완료되면 설치된 `LAKIS.exe`가 실행됩니다.
-
-- 없는 MOSS 모델 약 15.5GB는 공식 배포처에서 이어받기·SHA-256 검증 후 별도로 추가합니다.
-- 기존 사용자가 별도 설치기나 RC용 CMD·ZIP을 실행할 필요가 없습니다.
-- 기존 모델·LoRA·워크플로·설정·입력·생성 이미지와 복원용 백업은 보존합니다. 실패한 작업의 준비 폴더·백업을 삭제하지 마세요.
-
-## 신규 설치
-- [LAKIS_Setup.exe](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.0/LAKIS_Setup.exe)를 사용하세요. Windows·NVIDIA GPU 환경용입니다.
-- ComfyUI 0.42.0 기반을 유지합니다.
-- 런타임 파일별 지문은 `RUNTIME_SHA256SUMS.json`에 기록돼 있습니다.
+ComfyUI·Python·PyTorch·CUDA와 기존 모델 실행환경은 교체하지 않습니다.
 
 ## 검증·복구 파일
-- 앱의 무결성 확인·자동 복구에 필요한 `release-layout.json`과 `LAKIS_RepairPack.zip`을 함께 제공합니다.
-- `RUNTIME_SHA256SUMS.json`, `SHA256SUMS.txt`, `artifact-manifest.json`에서 런타임 파일과 배포물의 크기·SHA-256 및 기준 소스를 확인할 수 있습니다.
-
-## 출시 확인 범위
-- 이번 출시 조건은 기존 앱 업데이터의 업데이트 정상 완료·업데이트된 설치본의 정상 실행·파일 무결성 확인입니다.
-- 전체 생성 감사·WebView2 미설치 Windows 검증과 독립 최종 감사의 전체 통과를 의미하지 않습니다.
-- 생성 등 추가 버그는 제보를 받아 8.1.1처럼 마지막 자리만 올린 패치로 수정합니다.
+- `release-layout.json` · `LAKIS_RepairPack.zip`
+- `RUNTIME_SHA256SUMS.json` · `SHA256SUMS.txt` · `artifact-manifest.json`

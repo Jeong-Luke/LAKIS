@@ -29,6 +29,7 @@ import uuid
 import aiohttp
 
 import scene_controls
+import lora_manager
 import moss_mode
 import moss_sampling
 import moss_errors
@@ -340,10 +341,10 @@ def _preferred_upscaler() -> str | None:
     return status.get("model") if status.get("required") is False else None
 
 
-def _comfy_object_info(request_timeout: float = 3) -> dict[str, Any]:
+def _comfy_object_info(request_timeout: float = 3, *, force_refresh: bool = False) -> dict[str, Any]:
     """Return live ComfyUI input schemas, retaining the last successful snapshot."""
     global _OBJECT_INFO_CACHE, _OBJECT_INFO_CACHE_AT
-    if _OBJECT_INFO_CACHE and time.time() - _OBJECT_INFO_CACHE_AT < 300:
+    if not force_refresh and _OBJECT_INFO_CACHE and time.time() - _OBJECT_INFO_CACHE_AT < 300:
         return _OBJECT_INFO_CACHE
     try:
         with urlopen(COMFY_SERVER + "/object_info", timeout=request_timeout) as response:
@@ -351,8 +352,11 @@ def _comfy_object_info(request_timeout: float = 3) -> dict[str, Any]:
         if isinstance(payload, dict) and payload:
             _OBJECT_INFO_CACHE = payload
             _OBJECT_INFO_CACHE_AT = time.time()
+        elif force_refresh:
+            raise RuntimeError("현재 ComfyUI의 LoRA 목록을 확인하지 못했습니다.")
     except Exception:
-        pass
+        if force_refresh:
+            raise
     return _OBJECT_INFO_CACHE
 
 
@@ -1223,9 +1227,15 @@ def model_inventory() -> dict[str, Any]:
 
 def lora_inventory(engine: str = "anima") -> dict[str, Any]:
     """Return the live LoRA inventory without touching persisted UI state."""
-    options = moss_mode.lora_names(_comfy_object_info()) if moss_mode.engine(engine) == "moss" else _live_lora_inventory()
+    engine = moss_mode.engine(engine)
+    info = _comfy_object_info(force_refresh=True)
+    options = moss_mode.lora_names(info) if engine == "moss" else _live_lora_inventory(info)
     signature = hashlib.sha256("\n".join(options).encode("utf-8")).hexdigest()
     return {"options": options, "signature": signature, "count": len(options)}
+
+
+def lora_manager_url(engine: str) -> str:
+    return lora_manager.manager_url(COMFY_ROOT, engine, _model_roots("loras"))
 
 
 def workflow_configuration(object_info: dict[str, Any] | None = None) -> dict[str, Any]:

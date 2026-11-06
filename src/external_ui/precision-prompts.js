@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import { installPromptEditor } from "./prompt-highlighting.js?v=20260913-wildcard-experiment-1";
 
-export const precisionEnabled = config => config.enabled && config.toyxyz_enabled;
+export const precisionEnabled = (config, engine = "anima") =>
+  engine === "anima" && config.enabled && config.toyxyz_enabled;
 const readPainting = config => JSON.parse(config.toyxyz_paint_data || "null");
 
 export function commonPromptValues(config, prompt) {
@@ -15,16 +16,16 @@ export function commonPromptValues(config, prompt) {
   };
 }
 
-export function generationPrompt(config, prompt) {
-  if (!precisionEnabled(config)) return structuredClone(prompt);
+export function generationPrompt(config, prompt, engine = "anima") {
+  if (!precisionEnabled(config, engine)) return structuredClone(prompt);
   const common = commonPromptValues(config, prompt);
   return { ...prompt, trigger: common.trigger, quality: common.quality,
     general: common.global, fixed: "", artist: "" };
 }
 
-export function editorPainting(config, prompt) {
+export function editorPainting(config, prompt, engine = "anima") {
   const painting = readPainting(config);
-  if (!painting || !precisionEnabled(config)) return config.toyxyz_paint_data;
+  if (!painting || !precisionEnabled(config, engine)) return config.toyxyz_paint_data;
   painting.base.prompt = "";
   painting.background.prompt = commonPromptValues(config, prompt).background;
   return JSON.stringify(painting);
@@ -38,8 +39,8 @@ export function updateLayerPrompt(config, id, text) {
 }
 
 export class PrecisionPrompts {
-  constructor({ getConfig, getPrompt, onChange }) {
-    Object.assign(this, { getConfig, getPrompt, onChange });
+  constructor({ getConfig, getPrompt, getEngine, onChange }) {
+    Object.assign(this, { getConfig, getPrompt, getEngine, onChange });
     this.cards = new Map();
     this.activeKey = "global";
     this.normal = document.querySelector(".prompt-column > .prompt-panel:not(.negative-prompt-panel)");
@@ -58,11 +59,12 @@ export class PrecisionPrompts {
     this.translationAnchor = document.createComment("normal prompt translation control");
     this.translation.before(this.translationAnchor);
     window.addEventListener("lakis-prompt-state-loaded", () => this.refresh());
+    window.addEventListener("lakis-generation-engine-changed", () => this.refresh());
     this.refresh();
   }
 
   refresh() {
-    const config = this.getConfig(), enabled = precisionEnabled(config);
+    const config = this.getConfig(), enabled = precisionEnabled(config, this.getEngine());
     if (enabled && this.normal.classList.contains("prompt-panel-maximized")) {
       document.querySelector("#positivePromptMaximizeButton").click();
     }
@@ -135,14 +137,14 @@ export class PrecisionPrompts {
     }
   }
 
-  forGeneration(prompt) { return generationPrompt(this.getConfig(), prompt); }
+  forGeneration(prompt) { return generationPrompt(this.getConfig(), prompt, this.getEngine()); }
 
   paintDataForEditor() {
     const config = this.getConfig();
-    if (precisionEnabled(config)) {
+    if (precisionEnabled(config, this.getEngine())) {
       config.precision_prompts ??= commonPromptValues(config, this.getPrompt());
     }
-    return editorPainting(config, this.getPrompt());
+    return editorPainting(config, this.getPrompt(), this.getEngine());
   }
 
   focusLayer(id) {

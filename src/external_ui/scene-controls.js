@@ -65,7 +65,8 @@
     state.scene_controls = config;
     const { PrecisionPrompts } = await import("./precision-prompts.js");
     precisionPrompts = new PrecisionPrompts({
-      getConfig: () => config, getPrompt: () => state.prompt, onChange: changed,
+      getConfig: () => config, getPrompt: () => state.prompt,
+      getEngine: currentGenerationEngine, onChange: changed,
     });
     for (const input of strengthSettings.querySelectorAll("[data-field]")) {
       input.value = config[input.dataset.field];

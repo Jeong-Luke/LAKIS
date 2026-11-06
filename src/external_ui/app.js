@@ -43,6 +43,13 @@ function currentGenerationEngine() {
   return state.generation.engine === "moss" ? "moss" : "anima";
 }
 
+function syncLoraManagerLink() {
+  const engine = currentGenerationEngine();
+  const manager = document.querySelector('a[aria-label="LoRA Manager"]');
+  manager.href = `/api/lora-manager?engine=${engine}`;
+  manager.title = `${engine.toUpperCase()} 전용 LoRA Manager`;
+}
+
 function enforceMossGenerationMode() {
   if (currentGenerationEngine() !== "moss") return;
   state.generation.mode = "fast";
@@ -179,11 +186,8 @@ function syncGenerationEngineUI() {
   window.LAKISAdvancedSettings?.syncGenerationEngine();
   modeButtons.forEach(button => { button.disabled = moss; });
   lakisModeButton.disabled = moss;
-  const manager = document.querySelector('a[aria-label="LoRA Manager"]');
-  if (status?.lora_manager_url) {
-    manager.href = status.lora_manager_url;
-    manager.title = `${name} 전용 LoRA Manager`;
-  }
+  syncLoraManagerLink();
+  window.dispatchEvent(new CustomEvent("lakis-generation-engine-changed"));
 }
 
 function applyGenerationEngineProfile(engine, profile) {
@@ -314,7 +318,6 @@ setInterval(pollLakisDevRevision, 1500);
 
 // The packaged application owns a dedicated ComfyUI port so it never opens a
 // different portable installation that happens to be running on port 8188.
-const loraManagerLink = document.querySelector('a[aria-label="LoRA Manager"]');
 
 const COMFYUI_SEED_MAX = 1125899906842624;
 const PROMPT_STORAGE_KEY = "lakis.promptState.v3";
@@ -1769,9 +1772,7 @@ async function refreshWorkflowConfiguration() {
     engineConfiguration = config.engine_configuration || null;
     runtimeCapabilities = config.capabilities || {};
     applyingWorkflowConfiguration = true;
-    if (loraManagerLink && Number(config.comfy_port)) {
-      loraManagerLink.href = `http://127.0.0.1:${Number(config.comfy_port)}/loras`;
-    }
+    syncLoraManagerLink();
     populateWorkflowSelect("checkpointSelect", "checkpoint", config.checkpoint);
     populateWorkflowSelect("vaeSelect", "vae", config.vae);
     populateWorkflowSelect("clipSelect", "clip", config.clip);

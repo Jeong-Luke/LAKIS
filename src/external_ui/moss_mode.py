@@ -57,7 +57,7 @@ def _options(info, node, field):
 
 
 def is_moss_path(name):
-    return isinstance(name, str) and name.replace("\\", "/").startswith("moss/")
+    return isinstance(name, str) and name.replace("\\", "/").casefold().startswith("moss/")
 
 
 def lora_names(info):
@@ -188,8 +188,8 @@ def build_prompt(state, info, output_root, seed_max, *, camera_prompt_builder=No
         camera_prompt = camera_prompt_builder(composition_inputs(state)).strip().rstrip(",")
         if camera_prompt:
             positive = f"{positive}, {camera_prompt}" if positive else camera_prompt
-    if not positive or len(positive) > 16000 or len(negative) > 16000:
-        raise MossValidationError("LKS-MOSS-1009", "MOSS 프롬프트는 비어 있지 않아야 하며 긍정·부정 각각 16,000자 이하여야 합니다.")
+    if len(positive) > 16000 or len(negative) > 16000:
+        raise MossValidationError("LKS-MOSS-1009", "MOSS 긍정·부정 프롬프트는 각각 16,000자 이하여야 합니다.")
     if re.search(r"__[^\r\n]+?__", positive + "\n" + negative):
         raise MossValidationError("LKS-MOSS-1009", "생성 전에 와일드카드를 치환해 주세요.")
     prompt = base_graph(model, width, height, seed, steps, cfg, positive, negative)
@@ -215,6 +215,14 @@ def build_prompt(state, info, output_root, seed_max, *, camera_prompt_builder=No
         "detail": state.get("moss_detail", {"enabled": False}),
     }, checkpoints=inventory["checkpoint"], loras=lora_names(info),
         width=width, height=height, available_nodes=info)
+    regions = options["regions"]
+    region_prompt = regions["enabled"] and any(
+        region["caption"].strip()
+        or (region["label"] == "text" and region.get("text", "").strip())
+        for region in regions["regions"]
+    )
+    if not positive and not region_prompt:
+        raise MossValidationError("LKS-MOSS-1009", "MOSS 메인 프롬프트 또는 활성 영역 프롬프트에 내용을 입력해 주세요.")
     prompt = moss_features.augment_workflow(prompt, {
         "prompt": positive, "negative_prompt": negative, "width": width, "height": height,
     }, options)

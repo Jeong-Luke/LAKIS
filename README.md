@@ -6,6 +6,10 @@ Copyright © 2026 Luke Jeong. All rights reserved. LAKIS의 독자적인 자료�
 
 LAKIS 애플리케이션, 사용자 인터페이스, 설치기, 업데이터, 워크플로, 브랜드 및 문서 자료는 허가 없이 복사·수정·재배포할 수 없습니다. 별도로 표시된 LAKIS 커스텀 노드는 각자의 오픈 소스 라이선스로 공개됩니다. 독자적인 유틸리티 노드는 MIT 라이선스를 사용하며, AGPL 소프트웨어에서 파생된 구성 요소는 AGPL-3.0-or-later를 유지합니다.
 
+**[최신 정식 버전: LAKIS Studio v8.1.1](https://github.com/Jeong-Luke/LAKIS/releases/tag/v8.1.1)**
+
+기존 사용자는 LAKIS의 업데이트 안내에서 진행하세요. 신규 사용자는 아래 8.1.0 기본 설치기로 설치한 뒤 앱에서 8.1.1로 업데이트할 수 있습니다.
+
 **[Windows용 설치기 (v8.1.0)](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.0/LAKIS_Setup.exe)**
 
 **[Windows용 CMD 기본 설치기 (v8.0.0)](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.0/LAKIS_CMD_Installer_8.0.0.zip)**
@@ -16,13 +20,21 @@ LAKIS 애플리케이션, 사용자 인터페이스, 설치기, 업데이터, �
 
 ### 검증·복구 파일
 
-- [release-layout.json](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.0/release-layout.json) · [LAKIS_RepairPack.zip](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.0/LAKIS_RepairPack.zip): 앱의 무결성 확인·자동 복구에 사용합니다.
-- [RUNTIME_SHA256SUMS.json](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.0/RUNTIME_SHA256SUMS.json): 런타임 파일별 크기·SHA-256입니다.
-- [SHA256SUMS.txt](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.0/SHA256SUMS.txt) · [artifact-manifest.json](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.0/artifact-manifest.json): 배포물 해시와 기준 소스입니다.
+- [release-layout.json](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.1/release-layout.json) · [LAKIS_RepairPack.zip](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.1/LAKIS_RepairPack.zip): 앱의 무결성 확인·자동 복구에 사용합니다.
+- [RUNTIME_SHA256SUMS.json](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.1/RUNTIME_SHA256SUMS.json): 런타임 파일별 크기·SHA-256입니다.
+- [SHA256SUMS.txt](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.1/SHA256SUMS.txt) · [artifact-manifest.json](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.1/artifact-manifest.json): 배포물 해시와 기준 소스입니다.
 
 ## 안정 버전
 
-이 저장소는 LAKIS의 안정 배포 버전을 관리합니다. 현재 안정 버전은 **`v8.1.0`**입니다. 이전 정식 릴리즈는 보존하며, 개발 패키지와 개발용 워크플로는 별도로 관리합니다.
+이 저장소는 LAKIS의 안정 배포 버전을 관리합니다. 현재 안정 버전은 **`v8.1.1`**입니다. 이전 정식 릴리즈는 보존하며, 개발 패키지와 개발용 워크플로는 별도로 관리합니다.
+
+## v8.1.1 — LoRA·프롬프트·화면 배치 수정
+
+- ANIMA·MOSS LoRA Manager와 다운로드 폴더를 분리하고 새 LoRA 목록을 즉시 갱신합니다.
+- ANIMA 3D 포즈의 정밀 프롬프트가 MOSS 화면·요청에 적용되지 않도록 수정합니다.
+- MOSS 영역 프롬프트만으로 생성 요청을 진행할 수 있습니다.
+- 화면 배율에 따라 연속생성 버튼이 화면 밖으로 밀려나는 문제를 수정합니다.
+- 기존 실행환경과 사용자 모델·설정·이미지는 교체하지 않는 프로그램 파일 패치입니다.
 
 ## v8.1.0 — ANIMA/MOSS 통합
 
@@ -38,7 +50,7 @@ LAKIS 애플리케이션, 사용자 인터페이스, 설치기, 업데이터, �
 - 얼굴·눈 감지에는 SAM3 전용 모델과 텍스트 인코더를 사용하고, 이미지 생성에는 기존 Anima 모델·LoRA 설정을 유지합니다.
 - FAST 경로와 기존 노드 ID는 유지하며, 공식 워크플로 3종과 워크플로 생성 도구에 같은 수정을 적용했습니다.
 
-8.0.3은 프로그램 파일 패치였으며 실행환경과 사용자 모델·설정·개인 워크플로·이미지를 교체하지 않았습니다. 현재 업데이트 대상은 위의 8.1.0입니다.
+8.0.3은 프로그램 파일 패치였으며 실행환경과 사용자 모델·설정·개인 워크플로·이미지를 교체하지 않았습니다. 현재 업데이트 대상은 위의 8.1.1입니다.
 
 ## v8.0.2 — 독립 워크플로와 Link 모바일 개선
 
@@ -72,9 +84,9 @@ Local Inpaint V2에 필요한 `anima-lllite-inpainting-v2.safetensors`는 LAKIS�
 
 설치된 LAKIS에는 명시적으로 공개된 안정 릴리즈에서 변경된 파일만 전달합니다. 사용자 워크플로, 설정, 프롬프트와 생성 이미지는 유지합니다. 업데이트 파일은 교체 전에 별도로 준비하고 검증하며, 실패하면 기존 상태로 복구합니다.
 
-7.5.4 사용자의 기존 중간 경로 **7.5.4 → 7.5.4.1 → 8.0.0**은 유지합니다. 8.0.x에서는 **8.0.3.1(업데이터 정비) → 8.1.0**으로 이어집니다. 중간 버전은 최종 버전이 아니며, 각 단계가 완료된 뒤 앱의 업데이트 안내를 따르세요.
+7.5.4 사용자의 기존 중간 경로 **7.5.4 → 7.5.4.1 → 8.0.0**은 유지합니다. 8.0.x에서는 **8.0.3.1(업데이터 정비) → 8.1.0 → 8.1.1**로 이어집니다. 중간 버전은 최종 버전이 아니며, 각 단계가 완료된 뒤 앱의 업데이트 안내를 따르세요.
 
-8.1.0 런타임 다운로드는 약 **3.1GB**이며, MOSS 모델 약 **15.5GB**는 별도입니다. 이미 검증된 모델이 있으면 재사용하며 최종 버전은 **8.1.0**으로 표시됩니다.
+8.1.0 런타임 다운로드는 약 **3.1GB**이며, MOSS 모델 약 **15.5GB**는 별도입니다. 이미 검증된 모델이 있으면 재사용합니다. 8.1.1은 프로그램 파일 패치이며 최종 버전은 **8.1.1**로 표시됩니다.
 
 ## 제3자 소프트웨어
 
@@ -98,17 +110,29 @@ from AGPL software remain AGPL-3.0-or-later.
 
 ### Download
 
+**[Latest stable release: LAKIS Studio v8.1.1](https://github.com/Jeong-Luke/LAKIS/releases/tag/v8.1.1)**
+
+New users can install the 8.1.0 baseline below, then accept the app's update prompt for 8.1.1.
+
 **[Download LAKIS Studio v8.1.0 for Windows](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.0/LAKIS_Setup.exe)**
 
 **[Download LAKIS Studio v8.0.0 CMD Version](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.0/LAKIS_CMD_Installer_8.0.0.zip)**
 
 Use `LAKIS_Setup.exe` for normal installation and repair. The retained 8.0.0 CMD installer is an alternative for new installations only; run the installed app afterward to update. Neither installer requires administrator access or a Defender exclusion.
 
-Existing 8.0.x users should launch LAKIS and accept its update prompt. The existing updater refreshes its engine and continues to 8.1.0 automatically; no separate Setup, CMD, or manual ZIP is required. See the [v8.1.0 release](https://github.com/Jeong-Luke/LAKIS/releases/tag/v8.1.0). This distribution supports **Windows with an NVIDIA GPU**.
+Existing users should launch LAKIS and accept its update prompt. The existing updater preserves the required intermediate runtime update for older installations and continues to 8.1.1. No separate Setup, CMD, or manual ZIP is required. This distribution supports **Windows with an NVIDIA GPU**.
 
 ### Stable baseline
 
-This repository contains the stable LAKIS distribution line. The current stable release is **`v8.1.0`**. Previous stable releases are preserved; development packages and workflows are maintained separately.
+This repository contains the stable LAKIS distribution line. The current stable release is **`v8.1.1`**. Previous stable releases are preserved; development packages and workflows are maintained separately.
+
+### v8.1.1 — LoRA, prompt and layout fixes
+
+- Separates ANIMA/MOSS LoRA Manager profiles and download folders, and refreshes newly downloaded LoRAs immediately.
+- Keeps ANIMA 3D-pose precision prompts out of MOSS.
+- Accepts MOSS region-only positive prompts with an empty main prompt.
+- Keeps continuous-generation controls inside their column at scaled desktop resolutions.
+- Patches application files without replacing the runtime or user models, settings or images.
 
 ### v8.1.0 — ANIMA/MOSS integration
 
@@ -125,7 +149,7 @@ This repository contains the stable LAKIS distribution line. The current stable 
 - Restores the dedicated SAM3 model and text encoder for detection, while preserving Anima/LoRA generation settings, FAST, and existing node IDs.
 - Updates all three official workflow templates and the workflow generator. Existing models, settings, personal workflows, and images are preserved.
 
-The historical 8.0.3 release patched application files without replacing the runtime. The current update target is 8.1.0 as described above.
+The historical 8.0.3 release patched application files without replacing the runtime. The current update target is 8.1.1 as described above.
 
 Focused graph checks and Python syntax checks passed during implementation. Final image generation, mobile-device, Update/Repair validation, and an independent final audit have not been completed.
 
@@ -200,9 +224,9 @@ The `anima-lllite-inpainting-v2.safetensors` weight required by Local Inpaint V2
 
 Installed clients receive only files changed by an explicitly published stable release. User workflows, settings, prompts, and generated images are preserved. Updates are staged and verified before replacement, with rollback on failure.
 
-The retained legacy path is **7.5.4 → 7.5.4.1 → 8.0.0**. From 8.0.x, the existing updater continues through **8.0.3.1 (updater refresh) → 8.1.0**. Intermediate labels are not the final version; follow the app's update prompts after each stage.
+The retained legacy path is **7.5.4 → 7.5.4.1 → 8.0.0**. From 8.0.x, the existing updater continues through **8.0.3.1 (updater refresh) → 8.1.0 → 8.1.1**. Intermediate labels are not the final version; follow the app's update prompts after each stage.
 
-The 8.1.0 runtime download is approximately **3.1GB**, plus approximately **15.5GB** of MOSS weights. Already verified models are reused. The final installed version is **8.1.0**.
+The 8.1.0 runtime download is approximately **3.1GB**, plus approximately **15.5GB** of MOSS weights. Already verified models are reused. 8.1.1 is an application-file patch; the final installed version is **8.1.1**.
 
 ### Third-party software
 

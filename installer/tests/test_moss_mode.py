@@ -153,6 +153,67 @@ class MossGraphTests(unittest.TestCase):
                 moss_mode.build_prompt(state(), schema(), Path("fixture-output"), 2**53 - 1)
         self.assertEqual(raised.exception.code, "LKS-MOSS-1010")
 
+    def test_active_region_prompt_can_generate_without_a_main_prompt(self):
+        for label, caption, text in (
+            ("character", "a girl beside a tank", None),
+            ("text", "", "정확한 문구"),
+        ):
+            with self.subTest(label=label):
+                value = state()
+                value["prompt"] = {"general": "", "negative": ""}
+                region = {
+                    "id": "region-only", "label": label, "caption": caption,
+                    "bbox": [100, 200, 800, 900],
+                }
+                if text is not None:
+                    region["text"] = text
+                value["moss_regions"] = {"enabled": True, "regions": [region]}
+                original = copy.deepcopy(value)
+                graph, _ = self.build(value)
+                positive = json.loads(moss_workflows.get_input(graph, "5", "text"))
+                self.assertEqual(positive["summary"]["caption"], "")
+                self.assertEqual(positive["items"][0]["caption"], caption)
+                if text is not None:
+                    self.assertEqual(positive["items"][0]["text"], text)
+                self.assertEqual(moss_workflows.get_input(graph, "775", "positive"),
+                                 moss_workflows.get_input(graph, "5", "text"))
+                self.assertEqual(value, original)
+                moss_mode.validate_models(graph, schema())
+
+    def test_empty_main_requires_an_active_nonempty_positive_region(self):
+        blank = {"id": "blank", "label": "object", "caption": "  ",
+                 "negative_prompt": "blurry", "bbox": [0, 0, 1000, 1000]}
+        for regions in (
+            {"enabled": False, "regions": [{**blank, "caption": "a tank"}]},
+            {"enabled": True, "regions": []},
+            {"enabled": True, "regions": [blank]},
+        ):
+            with self.subTest(regions=regions):
+                value = state()
+                value["prompt"] = {"general": " ", "negative": "blurry"}
+                value["moss_regions"] = regions
+                with self.assertRaises(moss_mode.MossValidationError) as raised:
+                    self.build(value)
+                self.assertEqual(raised.exception.code, "LKS-MOSS-1009")
+
+    def test_region_only_mode_keeps_main_prompt_length_and_region_validation(self):
+        value = state()
+        value["moss_regions"] = {"enabled": True, "regions": [{
+            "id": "region", "label": "object", "caption": "a tank",
+            "bbox": [0, 0, 1000, 1000],
+        }]}
+        for prompt in ({"general": "x" * 16001}, {"general": "", "negative": "x" * 16001}):
+            with self.subTest(prompt_length=max(map(len, prompt.values()))):
+                value["prompt"] = prompt
+                with self.assertRaises(moss_mode.MossValidationError) as raised:
+                    self.build(value)
+                self.assertEqual(raised.exception.code, "LKS-MOSS-1009")
+        value["prompt"] = {"general": ""}
+        value["moss_regions"]["regions"][0]["bbox"] = [800, 0, 100, 1000]
+        with self.assertRaises(moss_mode.MossValidationError) as raised:
+            self.build(value)
+        self.assertEqual(raised.exception.code, "LKS-MOSS-1007")
+
     def test_moss_bridge_does_not_read_anima_template(self):
         with patch.object(bridge, "TEMPLATE", Path("missing-anima.json")), \
                 patch.object(bridge, "_wait_for_comfy_object_info", return_value=schema()), \
