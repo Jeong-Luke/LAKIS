@@ -335,13 +335,6 @@ Require ($LASTEXITCODE -eq 0) "Public LAKIS / DEKIS/LUKIS product-boundary regre
 Require ($LASTEXITCODE -eq 0) "Release layout / RepairPack regression failed."
 & $python (Join-Path $repo "installer\tests\test_rc_overrides.py")
 Require ($LASTEXITCODE -eq 0) "Private RC override contract regression failed."
-Push-Location (Join-Path $repo "tools\rc_patcher")
-try {
-    & $python ".\test_rc_patcher.py"
-    Require ($LASTEXITCODE -eq 0) "Tester-only RC patcher regression failed."
-} finally { Pop-Location }
-& $python (Join-Path $repo "tools\rc_patcher\test_private_rc_server.py")
-Require ($LASTEXITCODE -eq 0) "Tester-only Private RC server regression failed."
 & $python (Join-Path $repo "installer\tests\test_error_codes.py")
 Require ($LASTEXITCODE -eq 0) "Error-code and model-compatibility regression failed."
 & $python (Join-Path $repo "installer\tests\test_release_gates.py")
@@ -392,9 +385,7 @@ foreach ($required in @(
     "installer\tests\test_public_product_boundary.py",
     "installer\tests\test_release_layout.py",
     "installer\tests\test_rc_overrides.py",
-    "installer\tests\test_release_gates.py",
-    "tools\rc_patcher\serve_private_rc.py",
-    "tools\rc_patcher\test_private_rc_server.py"
+    "installer\tests\test_release_gates.py"
 )) {
     Require (Test-Path -LiteralPath (Join-Path $repo $required) -PathType Leaf) "Missing release component: $required"
 }

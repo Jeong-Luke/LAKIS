@@ -13,7 +13,7 @@ $includeFiles = @(
     "THIRD_PARTY_NOTICES.md",
     "ERROR_CODES.md"
 )
-$includeRoots = @("installer","resources","src","workflows","third_party_licenses","tools\rc_patcher")
+$includeRoots = @("installer","resources","src","workflows","third_party_licenses")
 $script:records = @()
 
 function Get-CanonicalHash([string]$Path) {

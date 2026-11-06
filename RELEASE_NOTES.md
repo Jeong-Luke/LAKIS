@@ -21,6 +21,10 @@
 - ComfyUI 0.42.0 기반을 유지합니다.
 - 런타임 파일별 지문은 `RUNTIME_SHA256SUMS.json`에 기록돼 있습니다.
 
+## 검증·복구 파일
+- 앱의 무결성 확인·자동 복구에 필요한 `release-layout.json`과 `LAKIS_RepairPack.zip`을 함께 제공합니다.
+- `RUNTIME_SHA256SUMS.json`, `SHA256SUMS.txt`, `artifact-manifest.json`에서 런타임 파일과 배포물의 크기·SHA-256 및 기준 소스를 확인할 수 있습니다.
+
 ## 출시 확인 범위
 - 이번 출시 조건은 기존 앱 업데이터의 업데이트 정상 완료·업데이트된 설치본의 정상 실행·파일 무결성 확인입니다.
 - 전체 생성 감사·WebView2 미설치 Windows 검증과 독립 최종 감사의 전체 통과를 의미하지 않습니다.
