@@ -1,41 +1,71 @@
 {
   "schema": 2,
-  "kind": "runtime-update",
-  "version": "8.1.0",
-  "minimum_version": "8.0.0",
+  "kind": "file-patch",
+  "version": "8.1.1",
+  "minimum_version": "8.1.0",
   "minimum_updater_version": "8.1.0",
-  "release_notes": "LAKIS 8.1.0 정식 업데이트\n\n기존 ANIMA에 더해 MOSS 이미지 생성 엔진이 추가됩니다.\n\n공식 배포처에서 약 15.5GB를 자동 다운로드합니다. 인터넷 속도에 따라 시간이 걸릴 수 있습니다.\n\n다운로드한 파일은 무결성 확인 후 설치됩니다.",
-  "files": [],
-  "delete": [],
-  "runtime_bundle": {
-    "schema": 2,
-    "product": "LAKIS",
-    "version": "8.1.0",
-    "comfyui_version": "0.42.0",
-    "name": "LAKIS_Runtime_8.1.0.zip",
-    "bytes": 3134575473,
-    "files": 63020,
-    "sha256": "FC1DD0722182BDD006221AF0BDE024ADF0D6FA148C9CBA8D822F0715B494510F",
-    "manifest_sha256": "CEF1DFEF98385D94CEBA42FC1E8314951B97CFAE3414208CA66122EDF64BBB23",
-    "parts": [
-      {
-        "name": "LAKIS_Runtime_8.1.0.zip.part001",
-        "bytes": 1073741824,
-        "sha256": "5EF6ED15D008412C11B06909237E592DE1113D378A92E93786DB1811C0C09C5E",
-        "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.0/LAKIS_Runtime_8.1.0.zip.part001"
-      },
-      {
-        "name": "LAKIS_Runtime_8.1.0.zip.part002",
-        "bytes": 1073741824,
-        "sha256": "F8FF59092F119AC685D8D342E0B43C2FB303DB4092DA6A5C8F39DA10A3C8FA9E",
-        "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.0/LAKIS_Runtime_8.1.0.zip.part002"
-      },
-      {
-        "name": "LAKIS_Runtime_8.1.0.zip.part003",
-        "bytes": 987091825,
-        "sha256": "0D37D740911EC1961FC44A1845F1AF52C6F8AAC67ADFC9264326B39070F7E1A8",
-        "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.0/LAKIS_Runtime_8.1.0.zip.part003"
-      }
-    ]
-  }
+  "release_notes": "LAKIS 8.1.1 정식 업데이트\n\n• ANIMA·MOSS LoRA Manager와 다운로드 폴더 분리\n• ANIMA 3D 포즈의 정밀 프롬프트가 MOSS에 적용되던 문제 수정\n• MOSS 영역 프롬프트만으로 생성 요청 가능\n• 화면 배율에 따른 연속생성 버튼 잘림 수정",
+  "files": [
+    {
+      "path": "ComfyUI/LAKIS/external_ui/app.js",
+      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/7f46ffa21e87caccdd373709f92c743d38e88654/src/external_ui/app.js",
+      "sha256": "79AA92E8582D0EFFE372BD4FD7B100D4A02B3CAFE3870B446C2B914243F33071"
+    },
+    {
+      "path": "ComfyUI/LAKIS/external_ui/continuous-generation-polish.css",
+      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/7f46ffa21e87caccdd373709f92c743d38e88654/src/external_ui/continuous-generation-polish.css",
+      "sha256": "3E35987D9FD22A33AC2E5BC0AEF725436872773B74CEBC28E66A5C238E96D9F9"
+    },
+    {
+      "path": "ComfyUI/LAKIS/external_ui/index.html",
+      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/7f46ffa21e87caccdd373709f92c743d38e88654/src/external_ui/index.html",
+      "sha256": "D1F409E5DAABAD59828C3BA4E0D5CAFC43E2A5323F76BEB2FD55A5908F119D4F"
+    },
+    {
+      "path": "ComfyUI/LAKIS/external_ui/lora_manager.py",
+      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/7f46ffa21e87caccdd373709f92c743d38e88654/src/external_ui/lora_manager.py",
+      "sha256": "E899659FF41529393F8AA0706F66C526C80344A452468B16474B973E1495CD91"
+    },
+    {
+      "path": "ComfyUI/LAKIS/external_ui/moss_features.py",
+      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/7f46ffa21e87caccdd373709f92c743d38e88654/src/external_ui/moss_features.py",
+      "sha256": "75664E7738EE00F7AB322366E2E1F32B1B274D4A8C5CE2EDB07B952B09D2CD3B"
+    },
+    {
+      "path": "ComfyUI/LAKIS/external_ui/moss_mode.py",
+      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/7f46ffa21e87caccdd373709f92c743d38e88654/src/external_ui/moss_mode.py",
+      "sha256": "2B20447C29CE7608E674CEF8344CE297A55A8C28F83C3E34AB8312E91FBC6517"
+    },
+    {
+      "path": "ComfyUI/LAKIS/external_ui/precision-prompts.js",
+      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/7f46ffa21e87caccdd373709f92c743d38e88654/src/external_ui/precision-prompts.js",
+      "sha256": "7A32221BAF6F26B6B6F2A9D3D4D0C00C207A4775D0DA95091493D5073032066A"
+    },
+    {
+      "path": "ComfyUI/LAKIS/external_ui/scene-controls.js",
+      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/7f46ffa21e87caccdd373709f92c743d38e88654/src/external_ui/scene-controls.js",
+      "sha256": "AAD8D41CE2BA61C463D8069F15E6C494BE43C34F4B09DC75107AD7C9EDDFEEFA"
+    },
+    {
+      "path": "ComfyUI/LAKIS/external_ui/serve_ui.py",
+      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/7f46ffa21e87caccdd373709f92c743d38e88654/src/external_ui/serve_ui.py",
+      "sha256": "0E1633E1CFAB8FA9784949C29727B4AB85C5D352BF33B0D3519E653408944A5D"
+    },
+    {
+      "path": "ComfyUI/LAKIS/external_ui/workflow_bridge.py",
+      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/7f46ffa21e87caccdd373709f92c743d38e88654/src/external_ui/workflow_bridge.py",
+      "sha256": "9375F63D09D063904C3DFE8E94D5801328F4179BA182ABFAF5636317E0597F97"
+    },
+    {
+      "path": "LAKIS_Patcher.exe",
+      "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.1/LAKIS_Patcher.exe",
+      "sha256": "A34C7EEB62DCE4C57CE0F89D1CCC0A77B8431A2D96B84413B31E77307FD05EA5"
+    },
+    {
+      "path": "LAKIS_Updater.exe",
+      "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.1/LAKIS_Updater.exe",
+      "sha256": "A34C7EEB62DCE4C57CE0F89D1CCC0A77B8431A2D96B84413B31E77307FD05EA5"
+    }
+  ],
+  "delete": []
 }
