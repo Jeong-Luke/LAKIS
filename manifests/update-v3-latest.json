@@ -13,13 +13,13 @@
     },
     {
       "path": "LAKIS_Updater.exe",
-      "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.0/LAKIS_Updater.exe",
-      "sha256": "F0B66393527FDFBEAC8B6868D0CA82D746098D5D820525185D23B6CC911C3EAD"
+      "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.1/LAKIS_Updater.exe",
+      "sha256": "A34C7EEB62DCE4C57CE0F89D1CCC0A77B8431A2D96B84413B31E77307FD05EA5"
     },
     {
       "path": "LAKIS_Patcher.exe",
-      "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.0/LAKIS_Patcher.exe",
-      "sha256": "F0B66393527FDFBEAC8B6868D0CA82D746098D5D820525185D23B6CC911C3EAD"
+      "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.1/LAKIS_Patcher.exe",
+      "sha256": "A34C7EEB62DCE4C57CE0F89D1CCC0A77B8431A2D96B84413B31E77307FD05EA5"
     }
   ],
   "delete": []
