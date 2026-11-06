@@ -47,6 +47,15 @@ internal static class UpdateProtocol
 #endif
     };
 
+    internal static IEnumerable<string> ManifestUrlsForInstalledVersion(string current)
+    {
+        if (String.Equals(current, EngineBridgeVersion, StringComparison.Ordinal))
+            return new[] {
+                "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.0/update-v4-latest.json"
+            };
+        return ManifestUrls;
+    }
+
     internal static Version ParseVersion(string value)
     {
         Version version;

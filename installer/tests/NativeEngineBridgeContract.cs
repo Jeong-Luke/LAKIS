@@ -32,8 +32,35 @@ internal static class NativeEngineBridgeContract
         throw new Exception("Expected an incompatible continuation to be rejected.");
     }
 
+    private static void CheckManifestRouting()
+    {
+#if LAKIS_RUNTIME_BRIDGE
+        string[] active = {
+            "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.0/update-v3-latest.json"
+        };
+#else
+        string[] active = {
+            "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/main/manifests/update-v4-latest.json",
+            "https://cdn.jsdelivr.net/gh/Jeong-Luke/LAKIS@main/manifests/update-v4-latest.json"
+        };
+#endif
+        Require(UpdateProtocol.ManifestUrls.SequenceEqual(active), "The active manifest channel changed.");
+        Require(UpdateProtocol.ManifestUrlsForInstalledVersion("8.0.3.1").SequenceEqual(new[] {
+            "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.0/update-v4-latest.json"
+        }), "The 8.0.3.1 engine bridge did not get the pinned runtime continuation.");
+        Require(UpdateProtocol.ManifestUrlsForInstalledVersion("8.1.0").SequenceEqual(active),
+            "A normal 8.1.0 installation did not retain the active manifest channel.");
+        Require(UpdateProtocol.ManifestUrlsForInstalledVersion("8.0.3").SequenceEqual(active),
+            "An unrelated installed version did not retain the active manifest channel.");
+    }
+
     private static int Main(string[] args)
     {
+        CheckManifestRouting();
+#if LAKIS_RUNTIME_BRIDGE
+        Console.WriteLine("PASS: manifest version routing (LAKIS_RUNTIME_BRIDGE).");
+        return 0;
+#else
         Require(UpdateProtocol.IsRuntimeBridgeVersion("8.0.3.1"), "8.1 engine bridge missing.");
         Require(UpdateProtocol.IsRuntimeBridgeVersion("7.5.4.1"), "Legacy bridge lost.");
         Require(!UpdateProtocol.IsRuntimeBridgeVersion("8.0.3"), "Ordinary install is not a bridge.");
@@ -66,7 +93,8 @@ internal static class NativeEngineBridgeContract
             "http://127.0.0.1:18301/runtime.json", "RC continuation reused the bootstrap manifest.");
         Environment.SetEnvironmentVariable("LAKIS_RC_RUNTIME_MANIFEST_URL", null);
         Reject(() => UpdaterForm.CreateRuntimeContinuation(args[0], true));
-        Console.WriteLine("PASS: native bridge versions, channel separation, continuation and fail-closed routing.");
+        Console.WriteLine("PASS: manifest version routing, native bridge continuation and fail-closed routing.");
         return 0;
+#endif
     }
 }

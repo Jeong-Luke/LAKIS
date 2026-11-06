@@ -16,7 +16,6 @@ using System.Windows.Forms;
 
 internal sealed class UpdaterForm : Form
 {
-    private static readonly string[] ManifestUrls = UpdateProtocol.ManifestUrls;
     private const string RcReleaseBaseVariable = "LAKIS_RC_RELEASE_BASE_URL";
     private const string RcManifestVariable = "LAKIS_RC_MANIFEST_URL";
     private const string RcRuntimeManifestVariable = "LAKIS_RC_RUNTIME_MANIFEST_URL";
@@ -347,10 +346,10 @@ internal sealed class UpdaterForm : Form
         return uri.AbsoluteUri.TrimEnd('/');
     }
 
-    private static IEnumerable<string> EffectiveManifestUrls()
+    private IEnumerable<string> EffectiveManifestUrls()
     {
         string overrideUrl = Environment.GetEnvironmentVariable(RcManifestVariable);
-        if (String.IsNullOrWhiteSpace(overrideUrl)) return ManifestUrls;
+        if (String.IsNullOrWhiteSpace(overrideUrl)) return UpdateProtocol.ManifestUrlsForInstalledVersion(ReadCurrentVersion());
         return new[] { ValidateRcLoopbackUrl(overrideUrl, RcManifestVariable) };
     }
 

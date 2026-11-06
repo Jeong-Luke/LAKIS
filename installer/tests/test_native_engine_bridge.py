@@ -21,16 +21,21 @@ class NativeEngineBridgeTests(unittest.TestCase):
             native.compile_native(
                 root / "LAKIS_Updater.exe", [ROOT / "installer/LAKIS_Updater.cs"])
             shutil.copyfile(root / "LAKIS_Updater.exe", root / "LAKIS_Patcher.exe")
-            harness = root / "NativeEngineBridgeContract.exe"
-            native.compile_native(
-                harness,
-                [ROOT / "installer/LAKIS_Updater.cs",
-                 ROOT / "installer/tests/NativeEngineBridgeContract.cs"],
-                main="NativeEngineBridgeContract",
-            )
-            result = subprocess.run(
-                [str(harness), str(root)], check=True, capture_output=True, text=True)
-            self.assertIn("PASS: native bridge versions", result.stdout)
+            for name, defines in (
+                ("NativeEngineBridgeContract.exe", ()),
+                ("NativeEngineBridgeRuntimeContract.exe", ("LAKIS_RUNTIME_BRIDGE",)),
+            ):
+                harness = root / name
+                native.compile_native(
+                    harness,
+                    [ROOT / "installer/LAKIS_Updater.cs",
+                     ROOT / "installer/tests/NativeEngineBridgeContract.cs"],
+                    main="NativeEngineBridgeContract",
+                    defines=defines,
+                )
+                result = subprocess.run(
+                    [str(harness), str(root)], check=True, capture_output=True, text=True)
+                self.assertIn("PASS: manifest version routing", result.stdout)
 
 
 if __name__ == "__main__":
