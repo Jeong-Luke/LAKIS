@@ -120,7 +120,11 @@ class PublicProductBoundaryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             ext = Path(temp) / "ComfyUI" / runtime_name / "external_ui"
             ext.mkdir(parents=True)
-            for name in ("launch_lakis.py", "workflow_bridge.py", "serve_ui.py", "scene_controls.py"):
+            for name in (
+                "launch_lakis.py", "workflow_bridge.py", "serve_ui.py", "scene_controls.py",
+                "moss_mode.py", "moss_sampling.py", "moss_errors.py", "moss_features.py",
+                "moss_workflows.py", "wildcard_service.py",
+            ):
                 shutil.copy2(EXTERNAL / name, ext / name)
             helpers = ext / "runtime"
             helpers.mkdir()

@@ -244,6 +244,7 @@
   .workspace .panel > .panel-heading .composition-heading-actions,
   .workspace .panel > .panel-heading .inpaint-heading-actions,
   .workspace .panel > .panel-heading .lora-heading-actions,
+  .workspace .panel > .panel-heading .moss-region-enable,
   .workspace .wildcard-panel > .panel-heading .wildcard-heading-actions,
   .workspace .panel > .panel-heading > .lora-switch {
     margin-left: auto !important;
@@ -261,6 +262,7 @@
   .model-column > .model-panel { margin-bottom: 2px !important; }
   .model-column > .model-panel + .lora-panel { margin-top: 8px !important; }
   .generation-action-row > .compact-mode-panel + .generate-button { margin-top: 8px !important; }
+  .generation-control-stack { grid-template-columns: minmax(0, 1fr); }
 
   .prompt-column > .prompt-panel .prompt-highlight-host {
     flex: 0 0 360px !important;

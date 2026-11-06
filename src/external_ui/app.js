@@ -1160,7 +1160,8 @@ function syncPoseModeAvailability() {
 }
 
 function setCompositionEnabled(enabled) {
-  state.composition_enabled = Boolean(enabled) && !isToyxyzEnabled();
+  state.composition_enabled = Boolean(enabled) && !state.i2i.enabled
+    && !state.inpaint.enabled && !isToyxyzEnabled();
   renderCompositionAvailability();
 }
 
@@ -2213,6 +2214,7 @@ function setInpaintEnabled(enabled, enforceExclusive = true) {
   state.inpaint.enabled = Boolean(enabled) && !isToyxyzEnabled();
   if (state.inpaint.enabled) {
     if (state.i2i.enabled) setI2iEnabled(false, false);
+    setCompositionEnabled(false);
   }
   inpaintToggle.classList.toggle("on", state.inpaint.enabled);
   inpaintToggle.setAttribute("aria-pressed", String(state.inpaint.enabled));
@@ -2388,7 +2390,7 @@ function setI2iEnabled(enabled, enforceExclusive = true) {
   state.i2i.enabled = Boolean(enabled) && available && !isToyxyzEnabled();
   if (state.i2i.enabled && enforceExclusive && state.inpaint.enabled && currentGenerationEngine() !== "moss") setInpaintEnabled(false, false);
   if (state.i2i.enabled) {
-    if (currentGenerationEngine() === "moss" && enforceExclusive) setCompositionEnabled(false);
+    setCompositionEnabled(false);
     if (!wasEnabled) showI2iCompositionNotice();
   }
   i2iToggle.classList.toggle("on", state.i2i.enabled);
