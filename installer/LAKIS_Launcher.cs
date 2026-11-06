@@ -296,6 +296,7 @@ internal static class LakisLauncher
             Version version;
             return File.Exists(versionPath) &&
                 Version.TryParse(File.ReadAllText(versionPath).Trim(), out version) &&
+                version != UpdateProtocol.ParseVersion(UpdateProtocol.EngineBridgeVersion) &&
                 version >= new Version(7, 5, 0);
         }
 

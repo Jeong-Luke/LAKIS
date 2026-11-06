@@ -819,7 +819,7 @@ internal sealed class UpdaterForm : Form
                 catch (Exception error) { last = error; System.Threading.Thread.Sleep(500); }
             }
             if (last != null) throw last;
-            ProcessStartInfo continuation = version == UpdateProtocol.RuntimeBridgeVersion
+            ProcessStartInfo continuation = UpdateProtocol.IsRuntimeBridgeVersion(version)
                 ? CreateRuntimeContinuation(root, launch) : null;
             File.WriteAllText(Path.Combine(root, "VERSION"), version);
             CreateOrRepairDesktopShortcut(root);

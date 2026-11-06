@@ -34,6 +34,7 @@ internal static class UpdateProtocol
 #endif
     internal const string BridgeVersion = "7.5.4";
     internal const string RuntimeBridgeVersion = "7.5.4.1";
+    internal const string EngineBridgeVersion = "8.0.3.1";
     internal const int Schema = 2;
     internal static readonly string[] ManifestUrls = {
 #if LAKIS_RUNTIME_BRIDGE
@@ -41,8 +42,8 @@ internal static class UpdateProtocol
         // even after the normal channel advances to application-only patches.
         "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.0/update-v3-latest.json"
 #else
-        "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/main/manifests/update-v3-latest.json",
-        "https://cdn.jsdelivr.net/gh/Jeong-Luke/LAKIS@main/manifests/update-v3-latest.json"
+        "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/main/manifests/update-v4-latest.json",
+        "https://cdn.jsdelivr.net/gh/Jeong-Luke/LAKIS@main/manifests/update-v4-latest.json"
 #endif
     };
 
@@ -146,12 +147,19 @@ internal static class UpdateProtocol
             throw new InvalidDataException("파일 변경이 없는 명세로 설치 버전을 올릴 수 없습니다.");
     }
 
+    internal static bool IsRuntimeBridgeVersion(string version)
+    {
+        return CompareVersions(version, RuntimeBridgeVersion) == 0 ||
+            CompareVersions(version, EngineBridgeVersion) == 0;
+    }
+
     internal static void ValidateRuntimeContinuation(UpdateManifest manifest, string current)
     {
-        if (CompareVersions(current, RuntimeBridgeVersion) != 0 ||
+        string required = CompareVersions(current, EngineBridgeVersion) == 0 ? "8.1.0" : "8.0.0";
+        if (!IsRuntimeBridgeVersion(current) ||
             manifest.kind != "runtime-update" ||
-            CompareVersions(manifest.version, "8.0.0") < 0 ||
-            CompareVersions(manifest.minimum_updater_version, "8.0.0") < 0)
+            CompareVersions(manifest.version, required) < 0 ||
+            CompareVersions(manifest.minimum_updater_version, required) < 0)
             throw new InvalidDataException("중간 업데이터 다음 단계에는 검증된 8.0 런타임 업데이트가 필요합니다.");
     }
 

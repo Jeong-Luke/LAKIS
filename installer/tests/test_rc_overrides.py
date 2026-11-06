@@ -11,11 +11,11 @@ class RcOverrideContractTests(unittest.TestCase):
         cls.launcher = (ROOT / "installer" / "LAKIS_Launcher.cs").read_text(encoding="utf-8")
         cls.updater = (ROOT / "installer" / "LAKIS_Updater.cs").read_text(encoding="utf-8")
 
-    def test_public_defaults_are_unchanged(self):
+    def test_public_defaults_use_the_native_81_channel(self):
         protocol = (ROOT / "installer" / "UpdateProtocol.cs").read_text(encoding="utf-8")
         public_defaults = protocol.split("ManifestUrls =", 1)[1].split("#else", 1)[1].split("#endif", 1)[0]
-        self.assertIn("https://raw.githubusercontent.com/Jeong-Luke/LAKIS/main/manifests/update-v3-latest.json", public_defaults)
-        self.assertIn("https://cdn.jsdelivr.net/gh/Jeong-Luke/LAKIS@main/manifests/update-v3-latest.json", public_defaults)
+        self.assertIn("https://raw.githubusercontent.com/Jeong-Luke/LAKIS/main/manifests/update-v4-latest.json", public_defaults)
+        self.assertIn("https://cdn.jsdelivr.net/gh/Jeong-Luke/LAKIS@main/manifests/update-v4-latest.json", public_defaults)
         for source in (self.launcher, self.updater):
             self.assertIn("private static readonly string[] ManifestUrls = UpdateProtocol.ManifestUrls;", source)
             self.assertIn("String.IsNullOrWhiteSpace(overrideUrl)", source)

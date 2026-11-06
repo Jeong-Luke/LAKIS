@@ -2,29 +2,43 @@
 
 LAKIS Studio는 ComfyUI를 더 쉽게 사용할 수 있도록 제작된 외부 사용자 인터페이스이자, 검증된 워크플로 환경입니다.
 
-Copyright © 2026 Luke Jeong. All rights reserved. LAKIS의 독자적인 자료와 제3자 구성 요소에는 각각 별도의 라이선스가 적용됩니다. 자세한 내용은 [LICENSE.md](https://github.com/Jeong-Luke/LAKIS/blob/v8.0.0/LICENSE.md)와 [THIRD_PARTY_NOTICES.md](https://github.com/Jeong-Luke/LAKIS/blob/v8.0.0/THIRD_PARTY_NOTICES.md)를 확인해 주세요.
+Copyright © 2026 Luke Jeong. All rights reserved. LAKIS의 독자적인 자료와 제3자 구성 요소에는 각각 별도의 라이선스가 적용됩니다. 자세한 내용은 [LICENSE.md](https://github.com/Jeong-Luke/LAKIS/blob/v8.1.0/LICENSE.md)와 [THIRD_PARTY_NOTICES.md](https://github.com/Jeong-Luke/LAKIS/blob/v8.1.0/THIRD_PARTY_NOTICES.md)를 확인해 주세요.
 
 LAKIS 애플리케이션, 사용자 인터페이스, 설치기, 업데이터, 워크플로, 브랜드 및 문서 자료는 허가 없이 복사·수정·재배포할 수 없습니다. 별도로 표시된 LAKIS 커스텀 노드는 각자의 오픈 소스 라이선스로 공개됩니다. 독자적인 유틸리티 노드는 MIT 라이선스를 사용하며, AGPL 소프트웨어에서 파생된 구성 요소는 AGPL-3.0-or-later를 유지합니다.
 
 ## 다운로드
 
-**[최신 버전: LAKIS Studio v8.0.3 릴리즈](https://github.com/Jeong-Luke/LAKIS/releases/tag/v8.0.3)**
+**[최신 정식 버전: LAKIS Studio v8.1.0 릴리즈](https://github.com/Jeong-Luke/LAKIS/releases/tag/v8.1.0)**
+
+### 기존 8.0.x 업데이트
+
+평소처럼 LAKIS를 실행하고 업데이트 안내에서 진행하세요. 기존 업데이터가 필요한 업데이터 정비를 먼저 적용한 뒤 자동으로 8.1.0 업데이트를 이어갑니다. 별도 설치기나 CMD·ZIP을 실행할 필요가 없습니다.
+
+없는 MOSS 모델 약 15.5GB는 공식 배포처에서 이어받기·SHA-256 검증 후 추가합니다. 기존 모델·LoRA·워크플로·설정·입력·생성 이미지는 보존합니다.
 
 ### 신규 설치
 
-신규 사용자는 아래 **8.0.0 기본 설치기**로 설치한 뒤 8.0.3 업데이트를 적용하시면 됩니다 :)
+신규 사용자는 아래 **8.1.0 설치기**를 사용하세요.
 
-**[Windows용 기본 설치기 (v8.0.0)](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.0/LAKIS_Setup.exe)**
+**[Windows용 설치기 (v8.1.0)](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.0/LAKIS_Setup.exe)**
 
 **[Windows용 CMD 기본 설치기 (v8.0.0)](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.0/LAKIS_CMD_Installer_8.0.0.zip)**
 
-일반적으로 `LAKIS_Setup.exe`를 사용하세요. Windows Defender가 Setup을 차단하거나 설치 파일을 실행할 수 없다면 CMD Version ZIP의 압축을 완전히 푼 뒤 `LAKIS_CMD_Install.cmd`를 실행하세요. CMD Version은 관리자 권한이나 Defender 예외 설정을 요구하지 않는 공식 대체 설치 방법입니다.
+일반적으로 `LAKIS_Setup.exe`를 사용하세요. Setup을 실행할 수 없다면 기존 8.0.0 CMD 기본 설치기의 압축을 완전히 푼 뒤 `LAKIS_CMD_Install.cmd`로 설치하고, LAKIS를 실행해 앱의 업데이트를 진행하세요. 관리자 권한이나 Defender 예외 설정을 요구하지 않습니다.
 
 이번 배포는 **Windows·NVIDIA GPU 환경용**입니다.
 
 ## 안정 버전
 
-이 저장소는 LAKIS의 안정 배포 버전을 관리합니다. 현재 안정 버전은 **`v8.0.3`**입니다. 이전 정식 릴리즈는 보존하며, 개발 패키지와 개발용 워크플로는 별도로 관리합니다.
+이 저장소는 LAKIS의 안정 배포 버전을 관리합니다. 현재 안정 버전은 **`v8.1.0`**입니다. 이전 정식 릴리즈는 보존하며, 개발 패키지와 개발용 워크플로는 별도로 관리합니다.
+
+## v8.1.0 — ANIMA/MOSS 통합
+
+- ANIMA를 유지하면서 MOSS 엔진과 독립된 모델·생성 설정을 추가했습니다.
+- MOSS 와일드카드와 영역 프롬프트의 자동완성·번역·크기 조절을 지원합니다.
+- MOSS/ANIMA 라이브러리 메타데이터와 화면·입력 설정을 개선했습니다.
+- MOSS i2i는 잠금 상태를 유지하며, 인페인트 평가 모델은 배포하지 않습니다.
+- ComfyUI 0.42.0 기반을 유지합니다. 이번 출시 기준은 업데이트 정상 완료·정상 실행·무결성 확인이며, 생성 관련 추가 버그는 제보 후 8.1.1 형식의 패치로 수정합니다. 전체 생성 감사·WebView2 미설치 환경 검증을 완료했다고 주장하지 않습니다.
 
 ## v8.0.3 — DETAIL 생성 중단 수정
 
