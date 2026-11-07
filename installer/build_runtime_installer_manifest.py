@@ -10,12 +10,11 @@ from runtime_install import validate_bundle
 
 
 def build(repo: Path, bundle_path: Path, webview_path: Path, output: Path) -> dict:
-    version = (repo / "VERSION").read_text(encoding="utf-8-sig").strip()
     template = json.loads(
         (repo / "installer/cmd-installer-manifest.json").read_text(encoding="utf-8")
     )
-    if template["version"] != version:
-        raise ValueError("installer template version mismatch")
+    # File-only app patches do not replace the pinned installer runtime.
+    version = template["version"]
     bundle = validate_bundle(
         json.loads(bundle_path.read_text(encoding="utf-8-sig")), version
     )

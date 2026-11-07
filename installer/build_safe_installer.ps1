@@ -128,6 +128,7 @@ if ($LASTEXITCODE) { throw "Safe installer compilation failed" }
 [ordered]@{
     schema=1
     version=(Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repo "VERSION")).Trim()
+    runtime_version=(Get-Content -Raw -Encoding UTF8 -LiteralPath $runtimeInstallManifest | ConvertFrom-Json).version
     manifest_sha256=(Get-FileHash -LiteralPath $runtimeInstallManifest -Algorithm SHA256).Hash
     setup_sha256=(Get-FileHash -LiteralPath $output -Algorithm SHA256).Hash
 } | ConvertTo-Json | Set-Content -Encoding UTF8 (Join-Path $stage "runtime-installer-contract.json")

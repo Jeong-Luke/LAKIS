@@ -13,6 +13,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "installer"))
 import runtime_manifest
+import build_runtime_installer_manifest
 CSC = Path(os.environ.get("WINDIR", "C:/Windows")) / "Microsoft.NET/Framework64/v4.0.30319/csc.exe"
 PROBE = r'''
 using System;
@@ -378,6 +379,54 @@ class PreviewUpgradeTests(unittest.TestCase):
                 with self.subTest(value=value):
                     manifest.write_text(json.dumps(value))
                     self.assertNotEqual(self.run_probe("manifest", manifest).returncode, 0)
+
+
+class InstallerManifestBuildTests(unittest.TestCase):
+    def build_inputs(self, root):
+        repo = root / "repo"
+        (repo / "installer").mkdir(parents=True)
+        (repo / "VERSION").write_text("8.1.1\n", encoding="ascii")
+        template = json.loads((ROOT / "installer/cmd-installer-manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(template["version"], "8.1.0")
+        (repo / "installer/cmd-installer-manifest.json").write_text(json.dumps(template), encoding="utf-8")
+        name = "LAKIS_Runtime_8.1.0.zip"
+        bundle = {
+            "schema": 2, "product": "LAKIS", "version": "8.1.0",
+            "comfyui_version": runtime_manifest.COMFY_VERSION, "name": name,
+            "sha256": "A" * 64, "manifest_sha256": "B" * 64, "bytes": 1, "files": 1,
+            "parts": [{"name": name + ".part001", "bytes": 1, "sha256": "C" * 64,
+                       "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.0/" + name + ".part001"}],
+        }
+        bundle_path = root / "bundle.json"
+        bundle_path.write_text(json.dumps(bundle), encoding="utf-8")
+        bootstrapper = root / "MicrosoftEdgeWebview2Setup.exe"
+        bootstrapper.write_bytes(b"pinned bootstrapper fixture")
+        webview = root / "webview2.json"
+        webview.write_text(json.dumps({
+            "name": bootstrapper.name, "url": "https://example.com/bootstrapper.exe",
+            "sha256": hashlib.sha256(bootstrapper.read_bytes()).hexdigest().upper(),
+            "bytes": bootstrapper.stat().st_size,
+        }), encoding="utf-8")
+        return repo, bundle_path, webview, root / "output.json"
+
+    def test_newer_app_patch_keeps_the_pinned_installer_runtime(self):
+        with tempfile.TemporaryDirectory() as folder:
+            args = self.build_inputs(Path(folder))
+            result = build_runtime_installer_manifest.build(*args)
+            manifest = json.loads(args[3].read_bytes())
+            self.assertEqual(result["version"], "8.1.0")
+            self.assertEqual(manifest["runtime_bundle"]["version"], "8.1.0")
+            self.assertEqual((args[0] / "VERSION").read_text().strip(), "8.1.1")
+
+    def test_bundle_must_match_the_baseline_even_if_it_matches_the_app_version(self):
+        with tempfile.TemporaryDirectory() as folder:
+            args = self.build_inputs(Path(folder))
+            bundle = json.loads(args[1].read_bytes())
+            bundle["version"] = "8.1.1"
+            args[1].write_text(json.dumps(bundle), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "runtime bundle identity mismatch"):
+                build_runtime_installer_manifest.build(*args)
+            self.assertFalse(args[3].exists())
 
 
 if __name__ == "__main__":
