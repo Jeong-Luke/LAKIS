@@ -10,11 +10,9 @@ LAKIS 애플리케이션, 사용자 인터페이스, 설치기, 업데이터, �
 
 기존 사용자는 LAKIS의 업데이트 안내에서 진행하세요. 신규 사용자는 아래 설치기로 8.1.0 기본 런타임을 설치한 뒤 앱에서 8.1.1로 업데이트할 수 있습니다.
 
-**[Windows용 설치기 — 업데이트 중단 복구 지원](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.1/LAKIS_Setup.exe)**
+**[Windows용 설치기](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.1/LAKIS_Setup.exe)**
 
-업데이트 오류 후 실행이 차단되면 위 설치기를 다시 받아 **기존 설치 폴더를 입력하고 ‘기존 설치 복구’**를 누르세요. 중단된 업데이트 이전 상태로 복원한 뒤 LAKIS에서 업데이트를 다시 진행할 수 있습니다. 기존 설치 폴더와 복원용 백업은 삭제하지 마세요.
-
-**[Windows용 CMD 기본 설치기 (v8.0.0)](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.0/LAKIS_CMD_Installer_8.0.0.zip)**
+**[Windows용 CMD 설치기](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.0/LAKIS_CMD_Installer_8.0.0.zip)**
 
 일반적으로 `LAKIS_Setup.exe`를 사용하세요. Setup을 실행할 수 없다면 기존 8.0.0 CMD 기본 설치기의 압축을 완전히 푼 뒤 `LAKIS_CMD_Install.cmd`로 설치하고, LAKIS를 실행해 앱의 업데이트를 진행하세요. 관리자 권한이나 Defender 예외 설정을 요구하지 않습니다.
 
