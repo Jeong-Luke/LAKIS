@@ -6,9 +6,8 @@ Copyright © 2026 Luke Jeong. All rights reserved. LAKIS의 독자적인 자료�
 
 LAKIS 애플리케이션, 사용자 인터페이스, 설치기, 업데이터, 워크플로, 브랜드 및 문서 자료는 허가 없이 복사·수정·재배포할 수 없습니다. 별도로 표시된 LAKIS 커스텀 노드는 각자의 오픈 소스 라이선스로 공개됩니다. 독자적인 유틸리티 노드는 MIT 라이선스를 사용하며, AGPL 소프트웨어에서 파생된 구성 요소는 AGPL-3.0-or-later를 유지합니다.
 
-**[최신 정식 버전: LAKIS Studio v8.1.1](https://github.com/Jeong-Luke/LAKIS/releases/tag/v8.1.1)**
 
-기존 사용자는 LAKIS의 업데이트 안내에서 진행하세요. 신규 사용자는 아래 설치기로 8.1.0 기본 런타임을 설치한 뒤 앱에서 8.1.1로 업데이트할 수 있습니다.
+
 
 **[Windows용 설치기](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.1/LAKIS_Setup.exe)**
 
