@@ -8,9 +8,11 @@ LAKIS 애플리케이션, 사용자 인터페이스, 설치기, 업데이터, �
 
 **[최신 정식 버전: LAKIS Studio v8.1.1](https://github.com/Jeong-Luke/LAKIS/releases/tag/v8.1.1)**
 
-기존 사용자는 LAKIS의 업데이트 안내에서 진행하세요. 신규 사용자는 아래 8.1.0 기본 설치기로 설치한 뒤 앱에서 8.1.1로 업데이트할 수 있습니다.
+기존 사용자는 LAKIS의 업데이트 안내에서 진행하세요. 신규 사용자는 아래 설치기로 8.1.0 기본 런타임을 설치한 뒤 앱에서 8.1.1로 업데이트할 수 있습니다.
 
-**[Windows용 설치기 (v8.1.0)](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.0/LAKIS_Setup.exe)**
+**[Windows용 설치기 — 업데이트 중단 복구 지원](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.1/LAKIS_Setup.exe)**
+
+업데이트 오류 후 실행이 차단되면 위 설치기를 다시 받아 **기존 설치 폴더를 입력하고 ‘기존 설치 복구’**를 누르세요. 중단된 업데이트 이전 상태로 복원한 뒤 LAKIS에서 업데이트를 다시 진행할 수 있습니다. 기존 설치 폴더와 복원용 백업은 삭제하지 마세요.
 
 **[Windows용 CMD 기본 설치기 (v8.0.0)](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.0/LAKIS_CMD_Installer_8.0.0.zip)**
 
@@ -20,6 +22,7 @@ LAKIS 애플리케이션, 사용자 인터페이스, 설치기, 업데이터, �
 
 ### 검증·복구 파일
 
+- [LAKIS_Setup_SHA256SUMS.txt](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.1/LAKIS_Setup_SHA256SUMS.txt) · [LAKIS_Setup_manifest.json](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.1/LAKIS_Setup_manifest.json): 복구 지원 설치기의 해시와 기준 소스·기본 런타임입니다.
 - [release-layout.json](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.1/release-layout.json) · [LAKIS_RepairPack.zip](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.1/LAKIS_RepairPack.zip): 앱의 무결성 확인·자동 복구에 사용합니다.
 - [RUNTIME_SHA256SUMS.json](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.1/RUNTIME_SHA256SUMS.json): 런타임 파일별 크기·SHA-256입니다.
 - [SHA256SUMS.txt](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.1/SHA256SUMS.txt) · [artifact-manifest.json](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.1/artifact-manifest.json): 배포물 해시와 기준 소스입니다.
@@ -112,13 +115,15 @@ from AGPL software remain AGPL-3.0-or-later.
 
 **[Latest stable release: LAKIS Studio v8.1.1](https://github.com/Jeong-Luke/LAKIS/releases/tag/v8.1.1)**
 
-New users can install the 8.1.0 baseline below, then accept the app's update prompt for 8.1.1.
+New users can install the pinned 8.1.0 runtime baseline with the installer below, then accept the app's update prompt for 8.1.1.
 
-**[Download LAKIS Studio v8.1.0 for Windows](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.0/LAKIS_Setup.exe)**
+**[Windows installer — interrupted-update recovery supported](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.1/LAKIS_Setup.exe)**
+
+If an interrupted update prevents LAKIS from starting, download this installer, enter the existing installation folder, and choose **기존 설치 복구 (Repair existing installation)**. This restores the previous installation so you can retry the update from LAKIS. Keep the installation folder and recovery backups.
 
 **[Download LAKIS Studio v8.0.0 CMD Version](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.0/LAKIS_CMD_Installer_8.0.0.zip)**
 
-Use `LAKIS_Setup.exe` for normal installation and repair. The retained 8.0.0 CMD installer is an alternative for new installations only; run the installed app afterward to update. Neither installer requires administrator access or a Defender exclusion.
+Use `LAKIS_Setup.exe` for normal installation and interrupted-update recovery. The retained 8.0.0 CMD installer is an alternative for new installations only; run the installed app afterward to update. Neither installer requires administrator access or a Defender exclusion.
 
 Existing users should launch LAKIS and accept its update prompt. The existing updater preserves the required intermediate runtime update for older installations and continues to 8.1.1. No separate Setup, CMD, or manual ZIP is required. This distribution supports **Windows with an NVIDIA GPU**.
 
