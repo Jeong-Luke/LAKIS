@@ -248,9 +248,7 @@ internal static class RuntimeBundleInstaller
             // Setup runs outside the installation, so it does not need the
             // installed updater's self-replacement handoff. Never relax that
             // handoff for an executable that is itself inside the target.
-            string root = Path.GetFullPath(target).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
-            if (Path.GetFullPath(Assembly.GetExecutingAssembly().Location).StartsWith(root, StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("업데이트 설치기를 LAKIS 설치 폴더 밖에서 실행해 주세요.");
+            EnsureOutsideInstallation(target);
             var prepared = Prepare(python, CreateUpdateManifest(manifestJson), target, cache, report);
             return ApplyPrepared(prepared, report, false);
         }
@@ -265,6 +263,32 @@ internal static class RuntimeBundleInstaller
         VerifyManifest(context);
         if (!result.ContainsKey("status") || (string)result["status"] != "complete")
             throw new InvalidDataException("Runtime was not activated and verified.");
+        return result;
+    }
+
+    private static void EnsureOutsideInstallation(string target)
+    {
+        string root = Path.GetFullPath(target).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        if (Path.GetFullPath(Assembly.GetExecutingAssembly().Location).StartsWith(root, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("업데이트·복구 설치기를 LAKIS 설치 폴더 밖에서 실행해 주세요.");
+    }
+
+    internal static Dictionary<string, object> Recover(string python, string target, Action<string> report)
+    {
+        EnsureOutsideInstallation(target);
+        RejectReparse(target);
+        string root = Path.GetFullPath(target).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        if (Path.GetFullPath(python).StartsWith(root, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("복구용 Python은 LAKIS 설치 폴더 밖에 있어야 합니다.");
+        string workspace = CreateWorkspace();
+        VerifyHelpers(workspace);
+        var result = RunPython(python, workspace, new[] {
+            "-s", Path.Combine(workspace, "runtime_transition.py"),
+            "--target", Path.GetFullPath(target), "recover", "--probe-python", python
+        }, report);
+        if (!result.ContainsKey("status") || (string)result["status"] != "rolled-back")
+            throw new InvalidDataException("중단된 업데이트가 복구되지 않았습니다. 백업을 보존해 주세요.");
+        UpdateProtocol.EnsureNoPendingRuntimeTransition(target);
         return result;
     }
 

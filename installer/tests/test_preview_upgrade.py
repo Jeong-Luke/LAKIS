@@ -1,14 +1,18 @@
 """Compile the preview Setup upgrade entry without touching real installations."""
 import json
+import hashlib
 import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "installer"))
+import runtime_manifest
 CSC = Path(os.environ.get("WINDIR", "C:/Windows")) / "Microsoft.NET/Framework64/v4.0.30319/csc.exe"
 PROBE = r'''
 using System;
@@ -20,6 +24,13 @@ internal static class PreviewUpgradeProbe {
         try {
             if(args[0]=="mode") {
                 Console.WriteLine(SafeInstaller.ExistingInstallationMode(args[1]));
+            } else if(args[0]=="recover") {
+                RuntimeBundleInstaller.Recover(args[2],args[1],Console.WriteLine);
+            } else if(args[0]=="fresh") {
+                var validate=typeof(SafeInstaller).GetMethod("ValidateFreshTarget",BindingFlags.NonPublic|BindingFlags.Static);
+                validate.Invoke(null,new object[]{args[1]});
+            } else if(args[0]=="repair") {
+                SafeInstaller.Repair(args[1],Console.WriteLine);
             } else if(args[0]=="manifest") {
                 Console.WriteLine(RuntimeBundleInstaller.CreateUpdateManifest(File.ReadAllText(args[1])));
             } else if(args[0]=="inside") {
@@ -82,6 +93,9 @@ class PreviewUpgradeTests(unittest.TestCase):
             *[str(ROOT / "installer" / name) for name in (
                 "SplashArtwork.cs", "UpdateProtocol.cs",
                 "RuntimeBundleInstaller.cs", "Setup_LAKIS_Safe.cs")],
+            *["/resource:" + str(ROOT / "installer" / name) + ",LAKIS.Runtime." + name
+              for name in ("lakis_cmd_installer.py", "runtime_install.py", "runtime_transition.py",
+                           "runtime_manifest.py", "runtime_health.py", "runtime_patch.py", "runtime_update.py")],
             str(probe),
         ]
         cls.compile_command = command
@@ -130,6 +144,130 @@ class PreviewUpgradeTests(unittest.TestCase):
             root = Path(folder)
             self.assertNotEqual(self.run_probe("mode", root).returncode, 0)
             self.assertEqual(list(root.iterdir()), [])
+
+    def interrupted_installation(self, parent, phase="staged"):
+        target = parent / "installed"
+        self.installation(target, "8.1.1")
+        (target / "LAKIS.exe").write_bytes(b"original launcher")
+        workspace = parent / ".installed-recovery-test"
+        workspace.mkdir()
+        state = {
+            "schema": 1, "target": str(target), "version": "8.1.0",
+            "manifest_sha256": "A" * 64, "had_original": True,
+            "workspace": workspace.name, "phase": phase,
+        }
+        journal = parent / ".installed-runtime-transition.json"
+        journal.write_text(json.dumps(state), encoding="utf-8")
+        return target, workspace, state, journal
+
+    def test_interrupted_update_enables_recovery_even_for_newer_or_missing_installation(self):
+        for missing in (False, True):
+            with self.subTest(missing=missing), tempfile.TemporaryDirectory(dir=self.root) as folder:
+                target, workspace, state, journal = self.interrupted_installation(Path(folder))
+                if missing:
+                    target.rename(workspace / "backup")
+                before = journal.read_bytes()
+                result = self.run_probe("mode", target)
+                self.assertEqual(result.returncode, 0, result.stderr.decode(errors="replace"))
+                self.assertEqual(result.stdout.decode().strip(), "recover")
+                self.assertEqual(journal.read_bytes(), before)
+                self.assertFalse((workspace / "failed").exists())
+
+    def test_fresh_install_cannot_bypass_an_interrupted_update_with_missing_target(self):
+        with tempfile.TemporaryDirectory(dir=self.root) as folder:
+            target, workspace, state, journal = self.interrupted_installation(Path(folder))
+            target.rename(workspace / "backup")
+            result = self.run_probe("fresh", target)
+            self.assertEqual(result.returncode, 1)
+            self.assertFalse(target.exists())
+            self.assertEqual((workspace / "backup/VERSION").read_text(), "8.1.1")
+            self.assertEqual(json.loads(journal.read_text()), state)
+
+    def test_finished_transition_does_not_allow_a_newer_installation_to_be_downgraded(self):
+        for phase in ("complete", "rolled-back"):
+            with self.subTest(phase=phase), tempfile.TemporaryDirectory(dir=self.root) as folder:
+                target, workspace, state, journal = self.interrupted_installation(Path(folder), phase)
+                before = {p.relative_to(target): p.read_bytes() for p in target.rglob("*") if p.is_file()}
+                self.assertEqual(self.run_probe("repair", target).returncode, 1)
+                self.assertEqual({p.relative_to(target): p.read_bytes() for p in target.rglob("*") if p.is_file()}, before)
+                self.assertEqual(json.loads(journal.read_text()), state)
+
+    def test_recovery_restores_interrupted_promotion_and_preserves_both_trees(self):
+        for promoted in (False, True):
+            with self.subTest(promoted=promoted), tempfile.TemporaryDirectory(dir=self.root) as folder:
+                parent = Path(folder)
+                target, workspace, state, journal = self.interrupted_installation(parent, "promoting")
+                (target / "ComfyUI/output").mkdir()
+                (target / "ComfyUI/output/user.png").write_bytes(b"original user image")
+                original = {p.relative_to(target): p.read_bytes() for p in target.rglob("*") if p.is_file()}
+                target.rename(workspace / "backup")
+                failed = {"partial.bin": b"retained incomplete update"}
+                if promoted:
+                    target.mkdir()
+                    raw = b"candidate manifest marker"
+                    state["manifest_sha256"] = hashlib.sha256(raw).hexdigest()
+                    (target / runtime_manifest.MANIFEST_NAME).write_bytes(raw)
+                    for name, content in failed.items():
+                        (target / name).write_bytes(content)
+                    journal.write_text(json.dumps(state), encoding="utf-8")
+                else:
+                    (workspace / "stage").mkdir()
+                    (workspace / "stage/partial.bin").write_bytes(failed["partial.bin"])
+                result = subprocess.run([str(self.exe), "recover", str(target), sys.executable],
+                                        capture_output=True, timeout=60)
+                self.assertEqual(result.returncode, 0, result.stderr.decode(errors="replace"))
+                self.assertEqual({p.relative_to(target): p.read_bytes() for p in target.rglob("*") if p.is_file()}, original)
+                retained = workspace / ("failed" if promoted else "stage")
+                self.assertEqual((retained / "partial.bin").read_bytes(), failed["partial.bin"])
+                self.assertEqual(json.loads(journal.read_text())["phase"], "rolled-back")
+                self.assertEqual((target / "VERSION").read_text(), "8.1.1")
+
+    def test_recovery_rejects_mismatched_journal_without_touching_original_data(self):
+        with tempfile.TemporaryDirectory(dir=self.root) as folder:
+            target, workspace, state, journal = self.interrupted_installation(Path(folder))
+            state["target"] = str(Path(folder) / "unrelated")
+            journal.write_text(json.dumps(state), encoding="utf-8")
+            original = (target / "owner.txt").read_bytes()
+            self.assertEqual(self.run_probe("mode", target).returncode, 1)
+            result = subprocess.run([str(self.exe), "recover", str(target), sys.executable],
+                                    capture_output=True, timeout=60)
+            self.assertEqual(result.returncode, 1)
+            self.assertEqual((target / "owner.txt").read_bytes(), original)
+            self.assertEqual(json.loads(journal.read_text()), state)
+
+    def test_missing_backup_blocks_recovery_without_clearing_the_journal(self):
+        with tempfile.TemporaryDirectory(dir=self.root) as folder:
+            target, workspace, state, journal = self.interrupted_installation(Path(folder), "promoting")
+            target.rename(workspace / "retained-original")
+            result = subprocess.run([str(self.exe), "recover", str(target), sys.executable],
+                                    capture_output=True, timeout=60)
+            self.assertEqual(result.returncode, 1)
+            self.assertFalse(target.exists())
+            self.assertEqual((workspace / "retained-original/owner.txt").read_bytes(), b"existing user data")
+            self.assertEqual(json.loads(journal.read_text()), state)
+
+    def test_locked_installation_is_not_partially_restored(self):
+        import ctypes
+        from ctypes import wintypes
+        with tempfile.TemporaryDirectory(dir=self.root) as folder:
+            target, workspace, state, journal = self.interrupted_installation(Path(folder))
+            kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+            create = kernel.CreateFileW
+            create.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD,
+                               wintypes.LPVOID, wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE]
+            create.restype = wintypes.HANDLE
+            kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+            handle = create(str(target / "owner.txt"), 0x80000000, 0, None, 3, 0x80, None)
+            self.assertNotEqual(handle, ctypes.c_void_p(-1).value)
+            try:
+                result = subprocess.run([str(self.exe), "recover", str(target), sys.executable],
+                                        capture_output=True, timeout=60)
+                self.assertEqual(result.returncode, 1)
+                self.assertEqual(json.loads(journal.read_text()), state)
+                self.assertFalse((workspace / "backup").exists())
+            finally:
+                kernel.CloseHandle(handle)
+            self.assertEqual((target / "owner.txt").read_bytes(), b"existing user data")
 
     def test_update_uses_installed_python_without_downloading_bootstrap(self):
         with tempfile.TemporaryDirectory(dir=self.root) as folder:

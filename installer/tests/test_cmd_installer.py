@@ -14,9 +14,10 @@ import zipfile
 
 
 ROOT = Path(__file__).resolve().parents[2]
-CURRENT_VERSION = (ROOT / "VERSION").read_text(encoding="utf-8-sig").strip()
 SCRIPT = ROOT / "installer" / "lakis_cmd_installer.py"
 MANIFEST = ROOT / "installer" / "cmd-installer-manifest.json"
+# The published installer baseline stays at 8.1.0; app file patches are separate.
+CURRENT_VERSION = "8.1.0"
 CMD = ROOT / "installer" / "LAKIS_CMD_Install.cmd"
 spec = importlib.util.spec_from_file_location("lakis_cmd_installer", SCRIPT)
 module = importlib.util.module_from_spec(spec)

@@ -174,10 +174,16 @@ internal static class UpdateProtocol
 
     internal static void EnsureNoPendingRuntimeTransition(string root)
     {
+        if (HasPendingRuntimeTransition(root))
+            throw new InvalidDataException("진행 중이거나 중단된 런타임 업데이트가 있습니다. 복구를 마친 뒤 실행해 주세요.");
+    }
+
+    internal static bool HasPendingRuntimeTransition(string root)
+    {
         root = Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar);
         string journal = Path.Combine(Path.GetDirectoryName(root),
             "." + Path.GetFileName(root) + "-runtime-transition.json");
-        if (!File.Exists(journal)) return;
+        if (!File.Exists(journal)) return false;
         try
         {
             if ((File.GetAttributes(journal) & FileAttributes.ReparsePoint) != 0)
@@ -194,8 +200,7 @@ internal static class UpdateProtocol
                 !(target is string) || !String.Equals(Path.GetFullPath((string)target).TrimEnd(Path.DirectorySeparatorChar),
                     root, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidDataException("업데이트 상태 정보가 설치 경로와 일치하지 않습니다.");
-            if ((string)phase != "complete" && (string)phase != "rolled-back")
-                throw new InvalidDataException("진행 중이거나 중단된 런타임 업데이트가 있습니다. 복구를 마친 뒤 실행해 주세요.");
+            return (string)phase != "complete" && (string)phase != "rolled-back";
         }
         catch (InvalidDataException) { throw; }
         catch (Exception error)

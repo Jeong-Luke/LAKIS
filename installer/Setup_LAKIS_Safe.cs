@@ -172,33 +172,35 @@ internal sealed class SafeSetupForm : Form
         string target;
         try{target=Path.GetFullPath(destination.Text.Trim());}
         catch{install.Enabled=false;repair.Enabled=false;status.Text="설치 위치를 확인해 주세요";return;}
-        if(SafeInstaller.IsExistingInstallation(target))
+        try
         {
-            install.Enabled=false;
-            try
+            if(UpdateProtocol.HasPendingRuntimeTransition(target)||SafeInstaller.IsExistingInstallation(target))
             {
-                bool upgrade=SafeInstaller.ExistingInstallationMode(target)=="update";
+                install.Enabled=false;
+                string mode=SafeInstaller.ExistingInstallationMode(target);
+                bool upgrade=mode=="update";
                 repair.Text=upgrade?"기존 설치 업데이트":"기존 설치 복구";
                 repair.Enabled=true;
                 repair.BackColor=Color.FromArgb(208,72,137);
-                status.Text=upgrade?"기존 LAKIS 감지 · 사용자 파일을 보존하며 업데이트합니다":"기존 LAKIS 감지 · '기존 설치 복구'를 사용하세요";
+                status.Text=mode=="recover"?"중단된 업데이트 감지 · '기존 설치 복구'를 사용하세요":
+                    upgrade?"기존 LAKIS 감지 · 사용자 파일을 보존하며 업데이트합니다":"기존 LAKIS 감지 · '기존 설치 복구'를 사용하세요";
+                return;
             }
-            catch(Exception error){repair.Enabled=false;status.Text=error.Message;}
-            return;
+            repair.Text="기존 설치 복구";
+            repair.BackColor=Color.FromArgb(111,82,225);
+            repair.Enabled=false;
+            if(SafeInstaller.HasDirectoryEntries(target))
+            {
+                install.Enabled=false;
+                status.Text="비어 있지 않은 폴더입니다 · 빈 설치 위치를 선택하세요";
+            }
+            else
+            {
+                install.Enabled=true;
+                status.Text="설치 준비 완료";
+            }
         }
-        repair.Text="기존 설치 복구";
-        repair.BackColor=Color.FromArgb(111,82,225);
-        repair.Enabled=false;
-        if(SafeInstaller.HasDirectoryEntries(target))
-        {
-            install.Enabled=false;
-            status.Text="비어 있지 않은 폴더입니다 · 빈 설치 위치를 선택하세요";
-        }
-        else
-        {
-            install.Enabled=true;
-            status.Text="설치 준비 완료";
-        }
+        catch(Exception error){install.Enabled=false;repair.Enabled=false;status.Text=error.Message;}
     }
 
     private async Task InstallAsync()
@@ -250,6 +252,9 @@ internal sealed class SafeSetupForm : Form
         try{mode=SafeInstaller.ExistingInstallationMode(target);}
         catch(Exception error){MessageBox.Show(error.Message);return;}
         string operation=mode=="update"?"업데이트":"복구";
+        if(mode=="recover"&&MessageBox.Show("중단된 업데이트 이전의 설치로 복구할까요?\n\n"+target+
+            "\n\n모델, 이미지, 설정과 복원용 백업은 삭제하지 않습니다.\n복구 후 LAKIS를 실행해 업데이트를 다시 진행해 주세요.",
+            "LAKIS 업데이트 복구",MessageBoxButtons.YesNo,MessageBoxIcon.Information)!=DialogResult.Yes)return;
         if(mode=="update"&&MessageBox.Show("이 설치를 LAKIS 8.1.0으로 업데이트할까요?\n\n"+target+
             "\n\nMOSS 모델·VAE·CLIP 약 15.5GB를 추가로 받을 수 있습니다.\n기존 모델, 이미지, 워크플로와 설정은 보존됩니다.",
             "LAKIS 업데이트",MessageBoxButtons.YesNo,MessageBoxIcon.Information)!=DialogResult.Yes)return;
@@ -370,6 +375,7 @@ internal static class SafeInstaller
         if(Directory.GetParent(target)==null)
             throw new InvalidOperationException("드라이브 최상위 경로에는 설치할 수 없습니다. 새 하위 폴더를 선택하세요.");
         RejectReparsePath(target);
+        UpdateProtocol.EnsureNoPendingRuntimeTransition(target);
         if(IsExistingInstallation(target))
             throw new InvalidOperationException("기존 LAKIS 설치가 감지되었습니다. 사용자 데이터를 보존하려면 새 설치 대신 '기존 설치 복구'를 사용하세요.");
         if(HasDirectoryEntries(target))
@@ -557,7 +563,8 @@ internal static class SafeInstaller
                 status("기존 Python으로 업데이트를 준비합니다. 교체는 검증된 새 Python으로 진행합니다.");
             }
             else python=PrepareBootstrapPython(cache,status,out workspace);
-            RuntimeBundleInstaller.Install(python,manifest,target,cache,mode,includeAnimeSharp,status);
+            if(mode=="recover")RuntimeBundleInstaller.Recover(python,target,status);
+            else RuntimeBundleInstaller.Install(python,manifest,target,cache,mode,includeAnimeSharp,status);
             complete=true;
         }
         finally
@@ -576,6 +583,7 @@ internal static class SafeInstaller
     {
         target=Path.GetFullPath(target);
         RejectReparsePath(target);RejectReparsePath(Path.Combine(target,"VERSION"));
+        if(UpdateProtocol.HasPendingRuntimeTransition(target))return "recover";
         if(!IsExistingInstallation(target))
             throw new InvalidOperationException("완료된 LAKIS 설치를 찾을 수 없습니다.");
         string current=File.ReadAllText(Path.Combine(target,"VERSION")).Trim();
@@ -611,22 +619,37 @@ internal static class SafeInstaller
         foreach(string relative in new[]{"", "ComfyUI/custom_nodes", "ComfyUI/LAKIS/workflows", "third_party_licenses", "ComfyUI/models/upscale_models", ".lakis", "VERSION", "repair.log", "python_embeded", "python_embeded/python.exe"})
             RejectReparsePath(Path.Combine(target,relative));
         string comfy=Path.Combine(target,"ComfyUI");
-        if(!IsExistingInstallation(target)||!Directory.Exists(comfy))
-            throw new InvalidOperationException("완료된 LAKIS 설치를 찾을 수 없습니다. 설치 위치를 확인하거나 새로 설치를 선택하세요.");
-        string installedVersion=File.ReadAllText(Path.Combine(target,"VERSION")).Trim();
-        if(!String.Equals(installedVersion,ReleaseVersion,StringComparison.Ordinal))
-            throw new InvalidOperationException("이 복구는 LAKIS "+ReleaseVersion+" 설치에만 적용할 수 있습니다. 기존 설치를 변경하지 않았습니다.");
-        string manifest=ReadRuntimeInstallManifest();
+        bool recovering=UpdateProtocol.HasPendingRuntimeTransition(target);
+        string manifest=null;
+        if(!recovering)
+        {
+            if(!IsExistingInstallation(target)||!Directory.Exists(comfy))
+                throw new InvalidOperationException("완료된 LAKIS 설치를 찾을 수 없습니다. 설치 위치를 확인하거나 새로 설치를 선택하세요.");
+            string installedVersion=File.ReadAllText(Path.Combine(target,"VERSION")).Trim();
+            if(!String.Equals(installedVersion,ReleaseVersion,StringComparison.Ordinal))
+                throw new InvalidOperationException("이 복구는 LAKIS "+ReleaseVersion+" 설치에만 적용할 수 있습니다. 기존 설치를 변경하지 않았습니다.");
+            manifest=ReadRuntimeInstallManifest();
+        }
         var log=new List<string>();
         Action<string> status=s=>{lock(log)log.Add(s);report(s);};
         try
         {
             StopOwned(target);
             string cache=InstallerCache();
-            RunRuntimeInstaller(manifest,target,cache,"repair",false,status);
-            CreateDesktopShortcut(target,status);
+            if(recovering)
+            {
+                status("중단된 업데이트를 이전 설치로 복구합니다. 기존 백업은 보존합니다.");
+                RunRuntimeInstaller(null,target,cache,"recover",false,status);
+                if(!IsExistingInstallation(target)||!File.Exists(Path.Combine(target,"LAKIS.exe")))
+                    throw new InvalidDataException("이전 설치 실행 파일을 확인할 수 없습니다. 남아 있는 백업을 보존해 주세요.");
+            }
+            else
+            {
+                RunRuntimeInstaller(manifest,target,cache,"repair",false,status);
+                CreateDesktopShortcut(target,status);
+            }
             File.WriteAllLines(Path.Combine(target,"repair.log"),log.ToArray());
-            status("복구 완료");
+            status(recovering?"중단된 업데이트 복구 완료 · LAKIS를 실행해 업데이트를 다시 진행하세요":"복구 완료");
         }
         catch(Exception error)
         {

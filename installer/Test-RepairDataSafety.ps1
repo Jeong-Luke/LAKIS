@@ -120,17 +120,18 @@ class RepairDataSafety(unittest.TestCase):
             self.data[relative] = relative.encode()
         # Keep real model paths and real collision/preservation code, using tiny
         # authenticated fixture payloads rather than downloading 100 MB.
-        pose_models = {}
-        for relative, spec in contract.POSE_MODELS.items():
-            data = relative.encode()
-            self.data[relative] = data
-            pose_models[relative] = dict(spec, size=len(data), sha256=hashlib.sha256(data).hexdigest().upper())
+        for group in ("POSE_MODELS", "MOSS_MODELS"):
+            models = {}
+            for relative, spec in getattr(contract, group).items():
+                data = relative.encode()
+                self.data[relative] = data
+                models[relative] = dict(spec, size=len(data), sha256=hashlib.sha256(data).hexdigest().upper())
+            self.stack.enter_context(patch.object(contract, group, models))
         for relative, content in self.data.items():
             self.write(self.target / relative, content)
         self.local = self.root / "localappdata"
         self.write(self.local / "LAKIS Studio/user-state.json", b"external user state")
         self.stack.enter_context(patch.dict(os.environ, LOCALAPPDATA=str(self.local)))
-        self.stack.enter_context(patch.object(contract, "POSE_MODELS", pose_models))
         self.stack.enter_context(patch.object(installer, "validate_bundle", return_value=self.install_manifest["runtime_bundle"]))
         self.stack.enter_context(patch.object(installer, "prepare_bundle", return_value=self.candidate))
         self.stack.enter_context(patch.object(installer, "verify_runtime", return_value=self.manifest))
