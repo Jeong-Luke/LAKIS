@@ -211,18 +211,76 @@ class CmdInstallerTests(unittest.TestCase):
             target.mkdir()
             (target / "LAKIS.exe").write_bytes(b"launcher")
             desktop = root / "Desktop"
-            observed = {}
+            def write_shortcut(path, launcher, working_directory):
+                self.assertEqual(launcher, target / "LAKIS.exe")
+                self.assertEqual(working_directory, target)
+                self.assertFalse((desktop / "LAKIS.lnk").exists())
+                path.write_bytes(b"shortcut")
 
-            def fake_runner(command, **kwargs):
-                observed["command"] = command
-                observed["kwargs"] = kwargs
-                Path(command[3]).write_bytes(b"shortcut")
-
-            shortcut = module.create_desktop_shortcut(target, desktop, fake_runner)
+            with mock.patch.object(module, "_write_windows_shortcut", side_effect=write_shortcut):
+                shortcut = module.create_desktop_shortcut(target, desktop)
             self.assertEqual(shortcut, desktop / "LAKIS.lnk")
-            self.assertEqual(observed["command"][4], str(target / "LAKIS.exe"))
-            self.assertEqual(observed["command"][5], str(target))
-            self.assertTrue(observed["kwargs"]["check"])
+            self.assertEqual(shortcut.read_bytes(), b"shortcut")
+            self.assertEqual(list(desktop.iterdir()), [shortcut])
+
+    def test_desktop_shortcut_preserves_existing_user_file(self):
+        with tempfile.TemporaryDirectory() as folder:
+            desktop = Path(folder)
+            shortcut = desktop / "LAKIS.lnk"
+            shortcut.write_bytes(b"user-customized shortcut")
+            with mock.patch.object(module, "_write_windows_shortcut") as writer:
+                self.assertEqual(module.create_desktop_shortcut(desktop / "LAKIS", desktop), shortcut)
+            writer.assert_not_called()
+            self.assertEqual(shortcut.read_bytes(), b"user-customized shortcut")
+
+    def test_desktop_shortcut_failure_leaves_no_partial_shortcut(self):
+        with tempfile.TemporaryDirectory() as folder:
+            desktop = Path(folder)
+            with mock.patch.object(module, "_write_windows_shortcut", side_effect=OSError("COM failed")):
+                with self.assertRaisesRegex(OSError, "COM failed"):
+                    module.create_desktop_shortcut(desktop / "LAKIS", desktop)
+            self.assertEqual(list(desktop.iterdir()), [])
+
+    def test_desktop_shortcut_preserves_file_created_during_save(self):
+        with tempfile.TemporaryDirectory() as folder:
+            desktop = Path(folder)
+            shortcut = desktop / "LAKIS.lnk"
+
+            def concurrent_write(path, *_arguments):
+                path.write_bytes(b"new shortcut")
+                shortcut.write_bytes(b"user shortcut created concurrently")
+
+            with mock.patch.object(module, "_write_windows_shortcut", side_effect=concurrent_write):
+                self.assertEqual(module.create_desktop_shortcut(desktop / "LAKIS", desktop), shortcut)
+            self.assertEqual(shortcut.read_bytes(), b"user shortcut created concurrently")
+            self.assertEqual(list(desktop.iterdir()), [shortcut])
+
+    def test_desktop_shortcut_native_unicode_paths_and_properties(self):
+        with tempfile.TemporaryDirectory() as folder:
+            target = Path(folder) / "설치 & '$% 폴더"
+            target.mkdir()
+            launcher = target / "LAKIS.exe"
+            launcher.write_bytes(b"launcher fixture")
+            shortcut = module.create_desktop_shortcut(target, Path(folder) / "바탕 화면")
+            # Independently read the saved Shell link through the Windows automation API.
+            environment = os.environ.copy()
+            environment["LAKIS_TEST_SHORTCUT"] = str(shortcut)
+            command = (
+                "[Console]::OutputEncoding = [Text.Encoding]::UTF8; "
+                "$ErrorActionPreference = 'Stop'; "
+                "$shell = New-Object -ComObject WScript.Shell; "
+                "$link = $shell.CreateShortcut($env:LAKIS_TEST_SHORTCUT); "
+                "@{target=$link.TargetPath; working=$link.WorkingDirectory; icon=$link.IconLocation} "
+                "| ConvertTo-Json -Compress"
+            )
+            completed = subprocess.run(
+                ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", command],
+                env=environment, check=True, capture_output=True, encoding="utf-8-sig", timeout=30,
+            )
+            properties = json.loads(completed.stdout)
+            self.assertEqual(Path(properties["target"]), launcher)
+            self.assertEqual(Path(properties["working"]), target)
+            self.assertEqual(properties["icon"], f"{launcher},0")
 
     def test_default_input_image_is_valid_png_with_expected_dimensions(self):
         with tempfile.TemporaryDirectory() as folder:
