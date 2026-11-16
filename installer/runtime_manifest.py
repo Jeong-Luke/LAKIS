@@ -80,6 +80,9 @@ PROTECTED_FILES = (
 GENERATED_PATHS = (
     "ComfyUI/LAKIS/launcher_logs", "ComfyUI/LAKIS/lakis_launcher_state.json",
 )
+# Setup writes these exact root-level files after installation or repair.
+# They are diagnostics, never release-owned files or ignored directories.
+GENERATED_FILES = ("network-install.log", "repair.log")
 # Exact shipped editable locations supported by workflow_bridge and MOSS.
 # They remain authenticated release defaults in pristine candidates; only an
 # installed tree may contain user-edited bytes at these names.
@@ -212,7 +215,8 @@ def protected_path(relative: str) -> bool:
 
 def generated_path(relative: str) -> bool:
     path = relative.casefold()
-    return (any(part.casefold() in {".git", "__pycache__"} for part in relative.split("/"))
+    return (path in GENERATED_FILES
+            or any(part.casefold() in {".git", "__pycache__"} for part in relative.split("/"))
             or any(path == name.casefold() or path.startswith(name.casefold() + "/")
                    for name in GENERATED_PATHS))
 
@@ -289,6 +293,10 @@ def _runtime_file_batches(root: Path, *, allow_user_data: bool, scopes=None, bat
             if not allow_user_data:
                 raise ValueError(f"user data in runtime payload: {relative}")
             return False
+        if relative.casefold() in GENERATED_FILES:
+            # Do not let a directory or reparse point hide behind a log name.
+            with _pinned_path(root / relative, read_file=True):
+                pass
         return not generated_path(relative)
 
     def visit(path, relative):

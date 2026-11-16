@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import struct
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -524,6 +525,77 @@ class CmdInstallerTests(unittest.TestCase):
                 target, manifest["runtime_bundle"]["manifest_sha256"], CURRENT_VERSION, allow_user_data=True)
             self.assertEqual((target / ".lakis" / "install-method.txt").read_text(encoding="ascii"), "cmd\n")
             self.assertEqual(sibling.read_bytes(), b"must survive promotion")
+
+    def test_runtime_verification_accepts_only_setup_root_log_files(self):
+        with tempfile.TemporaryDirectory() as folder:
+            candidate, manifest = self._runtime_candidate(Path(folder))
+            for relative in ("network-install.log", "REPAIR.LOG"):
+                (candidate / relative).write_text("Setup completed\n", encoding="utf-8")
+            expected = manifest["runtime_bundle"]["manifest_sha256"]
+            runtime_contract.verify_runtime(candidate, expected, CURRENT_VERSION, allow_user_data=True)
+            (candidate / "REPAIR.LOG").write_text("Repair completed again\n", encoding="utf-8")
+            runtime_contract.verify_runtime(candidate, expected, CURRENT_VERSION, allow_user_data=True)
+            (candidate / "LAKIS.exe").write_bytes(b"damaged managed file")
+            with self.assertRaisesRegex(ValueError, "runtime file mismatch"):
+                runtime_contract.verify_runtime(candidate, expected, CURRENT_VERSION, allow_user_data=True)
+
+    def test_setup_logs_are_not_release_manifest_entries(self):
+        with tempfile.TemporaryDirectory() as folder:
+            candidate, manifest = self._runtime_candidate(Path(folder))
+            inventory = json.loads((candidate / runtime_contract.MANIFEST_NAME).read_text(encoding="utf-8"))
+            for relative in ("network-install.log", "repair.log"):
+                (candidate / relative).write_bytes(b"diagnostic")
+            self.assertEqual(runtime_contract.create_manifest(
+                candidate, CURRENT_VERSION, inventory["source_revision"], inventory["runtime"]), inventory)
+            for relative in ("network-install.log", "repair.log"):
+                with self.subTest(relative=relative):
+                    invalid = dict(inventory, files=inventory["files"] + [{
+                        "path": relative, "size": 10,
+                        "sha256": hashlib.sha256(b"diagnostic").hexdigest(),
+                    }])
+                    with self.assertRaisesRegex(ValueError, "non-release path in manifest"):
+                        runtime_contract.validate_runtime_manifest(invalid, CURRENT_VERSION)
+
+    def test_runtime_verification_rejects_unlisted_log_lookalikes(self):
+        for relative in ("install.log", "repair.log.exe", "network-install.log.bak",
+                         "ComfyUI/repair.log", "ComfyUI/network-install.log"):
+            with self.subTest(relative=relative), tempfile.TemporaryDirectory() as folder:
+                candidate, manifest = self._runtime_candidate(Path(folder))
+                (candidate / relative).write_bytes(b"unlisted")
+                with self.assertRaisesRegex(ValueError, "unlisted runtime file"):
+                    runtime_contract.verify_runtime(candidate,
+                        manifest["runtime_bundle"]["manifest_sha256"], CURRENT_VERSION, allow_user_data=True)
+
+    def test_runtime_verification_rejects_directories_named_as_setup_logs(self):
+        for relative in ("network-install.log", "repair.log"):
+            with self.subTest(relative=relative), tempfile.TemporaryDirectory() as folder:
+                candidate, manifest = self._runtime_candidate(Path(folder))
+                log = candidate / relative
+                log.mkdir()
+                (log / "hidden.exe").write_bytes(b"must not be ignored")
+                with self.assertRaisesRegex(ValueError, "runtime file became a directory"):
+                    runtime_contract.verify_runtime(candidate,
+                        manifest["runtime_bundle"]["manifest_sha256"], CURRENT_VERSION, allow_user_data=True)
+
+    def test_runtime_verification_rejects_junctions_named_as_setup_logs(self):
+        for relative in ("network-install.log", "repair.log"):
+            with self.subTest(relative=relative), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                candidate, manifest = self._runtime_candidate(root)
+                outside = root / "outside"
+                outside.mkdir()
+                sentinel = outside / "keep.bin"
+                sentinel.write_bytes(b"outside data")
+                log = candidate / relative
+                subprocess.run(["cmd.exe", "/d", "/c", "mklink", "/J", str(log), str(outside)],
+                               check=True, capture_output=True, timeout=10)
+                try:
+                    with self.assertRaisesRegex(RuntimeError, "unsafe reparse path"):
+                        runtime_contract.verify_runtime(candidate,
+                            manifest["runtime_bundle"]["manifest_sha256"], CURRENT_VERSION, allow_user_data=True)
+                    self.assertEqual(sentinel.read_bytes(), b"outside data")
+                finally:
+                    log.rmdir()
 
     def test_runtime_repair_keeps_exact_version_and_all_protected_data(self):
         with tempfile.TemporaryDirectory() as folder:
