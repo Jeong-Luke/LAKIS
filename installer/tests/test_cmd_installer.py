@@ -5,6 +5,7 @@ import io
 import json
 import os
 from pathlib import Path
+import shutil
 import struct
 import subprocess
 import sys
@@ -66,8 +67,73 @@ class CmdInstallerTests(unittest.TestCase):
             archive = root / "runtime.zip"
             with zipfile.ZipFile(archive, "w") as bundle:
                 bundle.writestr(relative, b'{"workflow":"preserved"}')
+            # Inspect and clean up with an independent Win32 path spelling:
+            # the test runner must not require the machine's long-path policy.
+            extended = Path("\\\\?\\" + str(destination))
+            try:
+                runtime_install.extract_runtime_zip(archive, destination, expected_entries=1)
+                self.assertEqual((extended / relative).read_bytes(), b'{"workflow":"preserved"}')
+            finally:
+                if extended.exists():
+                    shutil.rmtree(extended)
+
+    def test_runtime_unpack_long_archive_and_destination_with_unicode(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            parent = root / ("긴 경로_" + "a" * 90) / ("b" * 90) / ("c" * 90)
+            extended_parent = Path("\\\\?\\" + str(parent))
+            self.assertGreater(len(str(parent)), 260)
+            extended_parent.mkdir(parents=True)
+            try:
+                archive = parent / "실행 환경.zip"
+                with zipfile.ZipFile(extended_parent / archive.name, "w") as bundle:
+                    bundle.writestr("empty/", b"")
+                    bundle.writestr("nested/파일.json", b'{"preserved":true}')
+                for prefixed in (False, True):
+                    with self.subTest(prefixed=prefixed):
+                        destination = parent / ("prefixed" if prefixed else "ordinary")
+                        extended = extended_parent / destination.name
+                        runtime_install.extract_runtime_zip(
+                            extended_parent / archive.name if prefixed else archive,
+                            extended if prefixed else destination, expected_entries=2,
+                        )
+                        self.assertTrue((extended / "empty").is_dir())
+                        self.assertEqual((extended / "nested/파일.json").read_bytes(),
+                                         b'{"preserved":true}')
+            finally:
+                shutil.rmtree(Path("\\\\?\\" + str(root / parent.relative_to(root).parts[0])))
+
+    def test_runtime_unpack_short_paths_and_existing_root_protection(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            archive, destination = root / "runtime.zip", root / "candidate"
+            with zipfile.ZipFile(archive, "w") as bundle:
+                bundle.writestr("file.txt", b"release")
             runtime_install.extract_runtime_zip(archive, destination, expected_entries=1)
-            self.assertEqual(output.read_bytes(), b'{"workflow":"preserved"}')
+            self.assertEqual((destination / "file.txt").read_bytes(), b"release")
+            (destination / "file.txt").write_bytes(b"user-owned")
+            with self.assertRaises(FileExistsError):
+                runtime_install.extract_runtime_zip(archive, destination, expected_entries=1)
+            self.assertEqual((destination / "file.txt").read_bytes(), b"user-owned")
+
+    def test_runtime_unpack_rejects_unsafe_members_before_creating_root(self):
+        cases = (
+            ("../escape.txt",), ("/escape.txt",), ("C:/escape.txt",),
+            ("//server/share/file.txt",), ("folder/file.txt:stream",),
+            ("folder/trailing. ",), ("NUL",), ("folder\\..\\escape.txt",),
+            ("Folder/File.txt", "folder/file.TXT"), ("file", "file/child"),
+        )
+        for members in cases:
+            with self.subTest(members=members), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                archive, destination = root / "bad.zip", root / "candidate"
+                with zipfile.ZipFile(archive, "w") as bundle:
+                    for member in members:
+                        bundle.writestr(member, b"must not escape")
+                with self.assertRaises(RuntimeError):
+                    runtime_install.extract_runtime_zip(
+                        archive, destination, expected_entries=len(members))
+                self.assertEqual({path.name for path in root.iterdir()}, {"bad.zip"})
 
     def test_manifest_dependency_contract_matches_runtime_loader(self):
         data = json.loads(MANIFEST.read_text(encoding="utf-8"))

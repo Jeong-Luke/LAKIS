@@ -130,10 +130,20 @@ def download_bundle(bundle: dict, cache: Path) -> Path:
     return destination
 
 
+def _extended_path(path: Path) -> Path:
+    """Use Win32 extended paths without depending on LongPathsEnabled."""
+    absolute = os.path.abspath(path)
+    if absolute.startswith("\\\\?\\"):
+        return Path(absolute)
+    if absolute.startswith("\\\\"):
+        return Path("\\\\?\\UNC\\" + absolute[2:])
+    return Path("\\\\?\\" + absolute)
+
+
 def extract_runtime_zip(archive: Path, destination: Path, *, expected_entries: int) -> None:
     """Extract only into a new root; pin the archive and each active ancestry."""
-    archive = Path(os.path.abspath(archive))
-    root = Path(os.path.abspath(destination))
+    archive = _extended_path(archive)
+    root = _extended_path(destination)
     with ExitStack() as ancestors:
         for path in (archive, root):
             for parent in reversed(path.parents):
