@@ -22,6 +22,7 @@ using System.Net;
 using System.Reflection;
 internal static class PreviewUpgradeProbe {
     private static int Main(string[] args) {
+        Console.OutputEncoding = new System.Text.UTF8Encoding(false);
         try {
             if(args[0]=="mode") {
                 Console.WriteLine(SafeInstaller.ExistingInstallationMode(args[1]));
@@ -84,6 +85,9 @@ class PreviewUpgradeTests(unittest.TestCase):
         probe = cls.root / "probe.cs"
         probe.write_text(PROBE, encoding="utf-8")
         cls.exe = cls.root / "probe.exe"
+        from installer.tests.test_setup_source_pin import SetupSourcePinTests
+        pinned_manifest = cls.root / "pinned-manifest.json"
+        pinned_manifest.write_text(json.dumps(SetupSourcePinTests.pinned_manifest()), encoding="utf-8")
         command = [
             str(CSC), "/nologo", "/target:exe", "/main:PreviewUpgradeProbe",
             "/out:" + str(cls.exe),
@@ -94,9 +98,12 @@ class PreviewUpgradeTests(unittest.TestCase):
             *[str(ROOT / "installer" / name) for name in (
                 "SplashArtwork.cs", "UpdateProtocol.cs",
                 "RuntimeBundleInstaller.cs", "Setup_LAKIS_Safe.cs")],
+            "/resource:" + str(pinned_manifest) +
+            ",LAKIS.RuntimeInstallManifest",
             *["/resource:" + str(ROOT / "installer" / name) + ",LAKIS.Runtime." + name
               for name in ("lakis_cmd_installer.py", "runtime_install.py", "runtime_transition.py",
-                           "runtime_manifest.py", "runtime_health.py", "runtime_patch.py", "runtime_update.py")],
+                           "runtime_manifest.py", "runtime_health.py", "runtime_patch.py", "runtime_update.py",
+                           "application_release.py")],
             str(probe),
         ]
         cls.compile_command = command
@@ -131,8 +138,25 @@ class PreviewUpgradeTests(unittest.TestCase):
                 self.assertEqual(result.stdout.decode().strip(), expected)
                 self.assertEqual({p.relative_to(root): p.read_bytes() for p in root.rglob("*") if p.is_file()}, before)
 
+    def test_incomplete_identified_install_selects_repair_without_writes(self):
+        with tempfile.TemporaryDirectory(dir=self.root) as folder:
+            root = Path(folder)
+            (root / "ComfyUI").mkdir()
+            (root / "VERSION").write_text("8.1.0", encoding="ascii")
+            (root / "LAKIS.exe").write_bytes(b"existing LAKIS launcher")
+            before = {p.relative_to(root): p.read_bytes() for p in root.rglob("*") if p.is_file()}
+            result = self.run_probe("mode", root)
+            self.assertEqual(result.returncode, 0, result.stderr.decode(errors="replace"))
+            self.assertEqual(result.stdout.decode().strip(), "repair")
+            self.assertFalse((root / "python_embeded").exists())
+            self.assertFalse((root / "ComfyUI/LAKIS/STOP_AUTOMATION").exists())
+            self.assertEqual(
+                {p.relative_to(root): p.read_bytes() for p in root.rglob("*") if p.is_file()},
+                before,
+            )
+
     def test_newer_legacy_and_malformed_versions_are_not_upgraded(self):
-        for version in ("8.2.0", "7.5.4", "invalid", "8.1"):
+        for version in ("8.2.0", "8.1.1", "7.5.4", "invalid", "8.1"):
             with self.subTest(version=version), tempfile.TemporaryDirectory(dir=self.root) as folder:
                 root = Path(folder)
                 self.installation(root, version)
@@ -354,7 +378,7 @@ class PreviewUpgradeTests(unittest.TestCase):
             manifest.write_bytes(original)
             result = self.run_probe("manifest", manifest)
             self.assertEqual(result.returncode, 0, result.stderr.decode(errors="replace"))
-            update = json.loads(result.stdout)
+            update = json.loads(result.stdout.decode("utf-8"))
             self.assertEqual(update["kind"], "runtime-update")
             self.assertEqual(update["version"], "8.1.0")
             self.assertEqual(update["minimum_version"], "8.0.0")

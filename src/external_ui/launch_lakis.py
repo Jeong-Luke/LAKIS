@@ -70,6 +70,7 @@ def wait_ready(url: str, process: subprocess.Popen | None, timeout: float) -> bo
 PUBLIC_DYNAMIC_NODE_TYPES = {
     "LAKIS_DETAIL",
     "LAKIS_SCOPE",
+    "LAKISScopeUpscaleModelLoader",
     "LAKIS_VRAM_GATE",
     "LAKIS_LocalInpaintPrepare",
     "LAKIS_LocalInpaintComposite",

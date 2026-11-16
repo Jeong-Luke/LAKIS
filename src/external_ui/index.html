@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="composition-control.css">
   <link rel="stylesheet" href="camera-3d.css">
   <link rel="stylesheet" href="mockup-layout.css">
-  <link rel="stylesheet" href="layout-adjustment.css?v=20260905-composition-54">
+  <link rel="stylesheet" href="layout-adjustment.css?v=column-gaps-2">
   <link rel="stylesheet" href="prompt-model-controls.css">
   <link rel="stylesheet" href="brand-position-fix.css">
   <link rel="stylesheet" href="seed-controls.css?v=20260906-i2i-result-badge">
@@ -22,7 +22,7 @@
   <link rel="stylesheet" href="status-footer.css?v=20260905-copyright">
   <link rel="stylesheet" href="status-footer-large.css?v=20260905-copyright">
   <link rel="stylesheet" href="prompt-width.css?v=20260905-ratio-1-1-25-15">
-  <link rel="stylesheet" href="generation-actions.css?v=20260905-responsive-action">
+  <link rel="stylesheet" href="generation-actions.css?v=continuous-input-2">
   <link rel="stylesheet" href="prompt-categories.css?v=20260906-equal-prompt-halves">
   <link rel="stylesheet" href="prompt-highlighting.css?v=20260911-inpaint-tags">
   <link rel="stylesheet" href="lora-controls.css?v=20260906-lora-search-150">
@@ -32,29 +32,30 @@
   <link rel="stylesheet" href="readability.css">
   <link rel="stylesheet" href="composition-toggle.css">
   <link rel="stylesheet" href="i2i-control.css?v=20260906-composition-notice">
-  <link rel="stylesheet" href="i2i-preview-contain.css?v=original-i2i-2">
+  <link rel="stylesheet" href="i2i-preview-contain.css?v=collapsed-i2i-3">
   <link rel="stylesheet" href="inpaint-control.css?v=20260921-cover-wildcard">
   <link rel="stylesheet" href="wildcard-control.css?v=20260913-experiment-1">
-  <link rel="stylesheet" href="wildcard-refinement.css?v=20261006-exclude-all">
+  <link rel="stylesheet" href="wildcard-refinement.css?v=card-button-size-2">
   <link rel="stylesheet" href="continuous-generation.css?v=20260913-mockup-1">
   <link rel="stylesheet" href="continuous-generation-polish.css?v=8.1.1">
   <link rel="stylesheet" href="seed-mode-gradient.css?v=20260913-mockup-1">
   <link rel="stylesheet" href="preview-mode-badge.css?v=20260913-mockup-1">
   <link rel="stylesheet" href="panel-height-polish.css?v=20260913-mockup-1">
-  <link rel="stylesheet" href="advanced-node-settings.css?v=20260906-advanced-audit">
+  <link rel="stylesheet" href="advanced-node-settings.css?v=feature-card-settings-2">
   <link rel="stylesheet" href="horizontal-overflow-fix.css?v=20260906-fixed-prompt-column">
   <link rel="stylesheet" href="prompt-maximize.css?v=20260920-split-panels-v2">
   <link rel="stylesheet" href="upscaler-license-migration.css?v=20260906-first-run">
   <link rel="stylesheet" href="system-info-dialog.css?v=20260906-licenses">
   <link rel="stylesheet" href="image-history.css?v=20261005-library-pagination">
   <link rel="stylesheet" href="moss-mode.css?v=engine-easter-egg-1">
-  <link rel="stylesheet" href="moss-regions.css?v=region-prompts-3">
+  <link rel="stylesheet" href="moss-regions.css?v=bounding-box-cards-1">
+  <link rel="stylesheet" href="anima-reference.css?v=per-reference-target-1">
   <link rel="stylesheet" href="lakis-link-download.css?v=8.0.2">
   <link rel="stylesheet" href="desktop-window.css?v=8.1.0">
   <link rel="stylesheet" href="lakis-link-mobile.css?v=20260913-link-1">
   <link rel="stylesheet" href="lakis-link-control.css?v=20260913-link-1">
   <link rel="stylesheet" href="lakis-link-sidebar.css?v=20260913-parity-1">
-  <link rel="stylesheet" href="synapse-theme.css?v=workspace-footer-1">
+  <link rel="stylesheet" href="synapse-theme.css?v=lakis-detail-progress-2">
 </head>
 <body>
   <div id="generationEngineTransition" class="engine-transition" role="status" aria-live="polite" hidden>
@@ -219,22 +220,66 @@
           </article>
           <article id="sceneControls" class="panel scene-node-panel">
             <div class="panel-heading">
-              <div class="toyxyz-card-title"><h2 class="section-title-accent">3D 포즈</h2><small class="inpaint-dev-badge">BETA</small></div>
+              <div class="toyxyz-card-title"><h2 class="section-title-accent">3D 포즈</h2></div>
               <div class="toyxyz-card-actions">
                 <button type="button" class="lora-switch" data-toyxyz-toggle aria-label="3D 포즈 켜기" aria-pressed="false" disabled></button>
-                <button type="button" class="mini-button" data-open-toyxyz aria-label="3D 포즈 설정" title="3D 편집기 열기" disabled>설정</button>
+                <button type="button" class="mini-button" data-open-toyxyz aria-label="3D 포즈 편집" title="3D 편집기 열기" disabled>편집</button>
               </div>
             </div>
             <p class="scene-note" role="status" data-scene-status hidden></p>
           </article>
+          <section id="mossRegionPanel" class="panel moss-region-panel" hidden></section>
+          <section id="animaRegionPanel" class="panel moss-region-panel" hidden></section>
+          <section id="animaReferencePanel" class="panel anima-reference-panel" aria-labelledby="animaReferenceTitle" hidden>
+            <div class="panel-heading">
+              <div><h2 id="animaReferenceTitle" class="section-title-accent">레퍼런스</h2><small class="inpaint-dev-badge">BETA</small></div>
+              <div class="anima-reference-heading-actions">
+                <button id="animaReferenceToggle" class="lora-switch" type="button" aria-label="레퍼런스 켜기" aria-pressed="false" disabled></button>
+              </div>
+            </div>
+            <p id="animaReferenceStatus" class="anima-reference-status" role="status">실험 준비 상태 확인 중…</p>
+            <div class="anima-reference-common-settings">
+              <label><span>참조 크기 (MP)</span><input id="animaReferenceMegapixels" class="anima-reference-megapixels" data-reference-field="megapixels" type="number" min="0.25" max="2" step="0.25" value="1" disabled></label>
+              <label><span>세부 유지도</span><input id="animaReferenceFidelity" class="anima-reference-fidelity" data-reference-field="fidelity" type="number" min="0" max="1" step="0.05" value="1" title="높을수록 원본의 세부 특징을 유지하고, 낮을수록 프롬프트에 따라 자유롭게 변형합니다." disabled></label>
+              <label><span>영역 생성 가속</span><select id="animaReferenceForecast" aria-describedby="animaReferenceForecastHint" disabled><option value="off">OFF (기본)</option><option value="on">ON (실험)</option></select></label>
+            </div>
+            <div id="animaReferenceRows" class="anima-reference-rows">
+            <div class="anima-reference-body" data-reference-index="0">
+              <div class="anima-reference-image">
+                <button id="animaReferenceDropZone" class="anima-reference-preview" type="button" aria-label="레퍼런스 이미지 선택" disabled>
+                  <img id="animaReferencePreview" alt="레퍼런스 이미지" hidden>
+                  <span id="animaReferenceEmpty" class="anima-reference-empty-text"><strong>이미지 선택</strong><small>PNG · JPEG · WebP / 드래그 앤 드롭</small></span>
+                </button>
+                <button id="animaReferenceRemove" class="mini-button anima-reference-remove" type="button" aria-label="레퍼런스 이미지 제거" title="이미지 제거" hidden disabled>×</button>
+                <input id="animaReferenceFile" class="anima-reference-file-input" type="file" accept="image/png,image/jpeg,image/webp" aria-label="레퍼런스 이미지 파일" hidden disabled>
+              </div>
+              <div class="anima-reference-settings">
+                <div class="anima-reference-row-heading">
+                  <h3 class="anima-reference-row-title">레퍼런스 1</h3>
+                  <button id="animaReferenceAdd" class="mini-button" type="button" aria-label="레퍼런스 영역 추가" title="레퍼런스 영역 추가" disabled>＋</button>
+                  <button class="mini-button anima-reference-row-remove" type="button" data-row-remove title="레퍼런스 삭제" hidden disabled>−</button>
+                </div>
+                <label data-shared="mode"><span>참조 모드</span><select id="animaReferenceMode" class="anima-reference-mode" data-reference-field="mode" aria-describedby="animaReferenceModeHint" disabled><option value="cs">캐릭터 + 그림체 (CS)</option><option value="char">캐릭터 (char)</option></select></label>
+                <label data-reference-target><span>적용 대상</span><select id="animaReferenceTarget" class="anima-reference-target" data-reference-field="target" aria-label="레퍼런스 적용 대상" aria-describedby="animaReferenceTargetHint" disabled><option value="global">전체</option><option value="auto_pose" disabled>자동 연결 (인물 1)</option></select></label>
+                <label data-shared="strength"><span>가중치</span><input id="animaReferenceWeight" class="anima-reference-strength" data-reference-field="strength" type="number" min="-3" max="3" step="0.1" value="0" aria-describedby="animaReferenceStrengthHint" disabled></label>
+              </div>
+            </div>
+            </div>
+            <div class="anima-reference-help">
+              <p id="animaReferenceForecastHint" class="anima-reference-hint">기본 최적화는 항상 적용됩니다. ON은 3D 인물·박스별 독립 예측 캐시를 추가로 사용합니다. 전체 참조에는 적용되지 않습니다. RAM에 예측 이력을 보관하고 GPU에서 나누어 계산하며, 이미지 세부가 달라질 수 있습니다.</p>
+              <p id="animaReferenceModeHint" class="anima-reference-hint">CS: 캐릭터의 외형·의상과 그림체를 함께 참고합니다. 캐릭터: 외형·의상을 참고하고, 그림체는 모델과 프롬프트를 따릅니다.</p>
+              <p id="animaReferenceStrengthHint" class="anima-reference-hint">가중치: 0은 기본 세기입니다. 음수는 참조를 약하게, 양수는 강하게 반영합니다.</p>
+              <p id="animaReferenceTargetHint" class="anima-reference-hint">적용 대상: 전체·3D 인물·박스를 직접 선택하거나, ‘자동 연결’로 같은 번호의 3D 인물에 연결합니다. 연결 후에는 인물 고유 ID로 유지됩니다. 자동 연결은 3D 포즈를 켜고 편집기를 적용해야 선택할 수 있습니다.</p>
+              <p class="anima-reference-hint">BETA · 단일 이미지 + FAST가 첫 검증 범위입니다. 포즈·영역 박스·DETAIL 조합은 아직 실험 단계입니다. i2i·인페인트 사용 중에는 참조가 생성 요청에서만 제외되며, 저장한 설정은 유지됩니다.</p>
+            </div>
+          </section>
           <article class="panel wildcard-panel">
-            <div class="panel-heading"><div><h2 class="section-title-accent">와일드카드</h2><small class="inpaint-dev-badge">BETA</small></div><div class="wildcard-heading-actions"><button id="wildcardToggle" class="lora-switch" type="button" aria-label="와일드카드 켜기" aria-pressed="false"></button><button id="wildcardOpen" class="mini-button" type="button">열기</button></div></div>
+            <div class="panel-heading"><div><h2 class="section-title-accent">와일드카드</h2></div><div class="wildcard-heading-actions"><button id="wildcardToggle" class="lora-switch" type="button" aria-label="와일드카드 켜기" aria-pressed="false"></button><button id="wildcardOpen" class="mini-button" type="button">열기</button></div></div>
             <div id="wildcardPanelActiveTokens" class="wildcard-panel-active-tokens">사용 중인 와일드카드 없음</div>
           </article>
-          <section id="mossRegionPanel" class="panel moss-region-panel" hidden></section>
           <article class="panel inpaint-panel">
             <div class="panel-heading">
-              <div><h2 class="section-title-accent">인페인트</h2><small class="inpaint-dev-badge">BETA</small></div>
+              <div><h2 class="section-title-accent">인페인트</h2></div>
               <div class="inpaint-heading-actions">
                 <button id="inpaintToggle" class="lora-switch" type="button" aria-label="인페인트 켜기" aria-pressed="false"></button>
               </div>
@@ -270,7 +315,7 @@
               <small id="inpaintStatus">최근 생성 이미지를 고르거나 큰 화면을 눌러 파일을 선택한 뒤 수정할 영역을 칠하세요.</small>
             </div>
           </article>
-          <article class="panel i2i-panel">
+          <article class="panel i2i-panel is-disabled">
             <div class="panel-heading"><div><h2 class="section-title-accent">Image to Image</h2></div><button id="i2iToggle" class="lora-switch" type="button" aria-label="Image to Image 켜기" aria-pressed="false"></button></div>
             <input id="i2iFileInput" type="file" accept="image/png,image/jpeg,image/webp" hidden>
             <div id="i2iDropZone" class="i2i-drop-zone" role="button" tabindex="0" aria-label="i2i 이미지 선택">
@@ -373,7 +418,7 @@
           <section class="generation-control-stack" aria-label="생성 제어">
             <div class="generation-utility-row continuous-generation-row">
               <span class="generation-utility-label">연속 생성</span>
-              <div class="continuous-count-control" role="group" aria-label="연속 생성 장수"><button id="continuousCountDown" type="button" aria-label="생성 장수 줄이기">−</button><output id="continuousCount">1</output><button id="continuousCountUp" type="button" aria-label="생성 장수 늘리기">＋</button></div>
+              <div class="continuous-count-control" role="group" aria-label="연속 생성 장수"><button id="continuousCountDown" type="button" aria-label="생성 장수 줄이기">−</button><input id="continuousCount" type="number" min="1" max="1000" step="1" value="1" inputmode="numeric" aria-label="연속 생성 장수"><button id="continuousCountUp" type="button" aria-label="생성 장수 늘리기">＋</button></div>
               <div id="continuousProgress" class="continuous-progress" aria-live="polite"><strong id="continuousProgressCount"></strong><span id="continuousProgressLabel"></span></div>
               <button id="continuousToggle" class="lora-switch" type="button" aria-label="연속 생성 켜기" aria-pressed="false"></button>
             </div>
@@ -394,7 +439,7 @@
               <div id="detailContract" class="compact-mode-note"><span class="contract-dot"></span>Face · Eye · USDU</div>
             </article>
 
-            <button id="generateButton" class="generate-button"><span>제작하기</span><small id="generateHint">DETAIL · COMPOSITION READY</small></button>
+            <button id="generateButton" class="generate-button"><span>제작하기</span><small id="generateHint">DETAIL · COMPOSITION READY</small><small id="generateElapsed" hidden></small></button>
           </div>
         </div>
       </section>
@@ -508,9 +553,10 @@
     </section>
   </div>
   <div id="wildcardOverlay" class="wildcard-overlay" hidden><section class="wildcard-card" role="dialog" aria-modal="true" aria-labelledby="wildcardTitle"><header><div><span>LAKIS</span><h2 id="wildcardTitle">와일드카드</h2></div><button id="wildcardClose" type="button" aria-label="닫기">×</button></header><nav><button type="button" data-wildcard-source="BUILT_IN" class="active">기본 제공</button><button type="button" data-wildcard-source="USER">내 와일드카드</button></nav><input id="wildcardSearch" type="search" placeholder="와일드카드 검색"><div class="wildcard-browser"><div id="wildcardList" class="wildcard-list"></div><div class="wildcard-preview"><div class="wildcard-selection-head"><div><strong id="wildcardSelectionName">목록에서 선택하세요</strong><small id="wildcardSelectionMeta"></small><small id="wildcardUseCount"></small></div><div><button id="wildcardIncludeAll" type="button">전체 포함</button><button id="wildcardExcludeAll" type="button">전체 해제</button><button id="wildcardReset" type="button">초기화</button></div></div><div id="wildcardEntries" class="wildcard-entry-list"></div></div><aside><h3>사용 중인 와일드카드</h3><div id="activeWildcards" class="active-wildcard-list"><small>프롬프트에 삽입된 와일드카드가 없습니다.</small></div><code id="wildcardToken">__name__</code><button id="wildcardInsert" type="button" disabled>프롬프트에 삽입</button></aside></div><footer><button id="wildcardFolder" type="button">폴더 열기</button><button id="wildcardRefresh" type="button">새로고침</button><span id="wildcardStatus"></span></footer></section></div>
-  <link rel="stylesheet" href="scene-controls.css?v=8.0.2">
-  <link rel="stylesheet" href="precision-prompts.css?v=8.0.0">
-  <dialog id="toyxyzSceneEditor" class="toyxyz-scene-editor" aria-labelledby="toyxyzSceneTitle">
+  <link rel="stylesheet" href="scene-controls.css?v=output-mode-toolbar-3">
+  <link rel="stylesheet" href="precision-prompts.css?v=combined-pose-only-1">
+  <link rel="stylesheet" href="precision-pose-controls.css?v=combined-controls-1">
+  <dialog id="toyxyzSceneEditor" class="toyxyz-scene-editor moss-region-panel" aria-labelledby="toyxyzSceneTitle">
     <header class="scene-editor-heading">
       <h2 id="toyxyzSceneTitle" class="section-title-accent">3D 인물·포즈</h2>
       <span class="scene-note" role="status" data-toyxyz-status>포즈를 불러오는 중…</span>
@@ -521,16 +567,37 @@
       <label>포즈 <input data-field="pose_strength" type="number" min="0" max="2" step="0.05" value="1"></label>
       <label>영역 <input data-field="region_strength" type="number" min="0" max="2" step="0.05" value="1"></label>
     </fieldset>
-    <iframe title="3D 인물·영역 편집기"></iframe>
+    <div class="scene-editor-workspace">
+      <aside class="scene-editor-control-column" aria-label="통합 제어 조작 패널" hidden>
+        <nav class="scene-editor-modes" data-scene-editor-modes aria-label="편집할 제어 선택" hidden>
+          <button type="button" data-scene-editor-mode="boxes" aria-pressed="false">바운딩 박스 조작하기</button>
+          <button type="button" data-scene-editor-mode="pose" aria-pressed="true">3D 포즈 조작하기</button>
+        </nav>
+        <div class="scene-editor-control-panel">
+        <section class="scene-editor-control-section">
+          <h3 class="scene-editor-control-title">바운딩 박스</h3>
+          <div class="scene-editor-box-tools" hidden></div>
+        </section>
+        <section class="scene-editor-control-section">
+          <h3 class="scene-editor-control-title">3D 포즈</h3>
+          <div class="scene-editor-pose-controls"></div>
+        </section>
+        </div>
+      </aside>
+      <div class="scene-editor-view"><iframe title="3D 인물·영역 편집기"></iframe></div>
+      <aside class="scene-editor-box-settings" aria-label="바운딩 박스 설정" hidden></aside>
+    </div>
   </dialog>
   <script src="diagnostic-packet.js?v=1"></script>
   <script src="generation-diagnostics.js?v=1"></script>
-  <script src="moss-regions.js?v=region-prompts-1"></script>
-  <script src="app.js?v=engine-easter-egg-1"></script>
-  <script src="scene-controls.js?v=8.0.2"></script>
+  <script src="moss-regions.js?v=pose-box-editor-1"></script>
+  <script src="generation-clock.js?v=1"></script>
+  <script src="app.js?v=prompt-modes-1"></script>
+  <script src="anima-reference.js?v=regional-speed-1"></script>
+  <script src="scene-controls.js?v=regional-reference-target-1"></script>
   <script src="wildcard-control.js?v=20261006-exclude-all"></script>
-  <script src="advanced-node-settings.js?v=moss-sampling-1"></script>
-  <script type="module" src="prompt-highlighting.js?v=region-prompts-2"></script>
+  <script src="advanced-node-settings.js?v=multi-reference-1"></script>
+  <script type="module" src="prompt-highlighting.js?v=linked-prompt-heights-1"></script>
   <script src="upscaler-license-migration.js?v=20260906-first-run"></script>
   <script src="system-info-dialog.js?v=20260906-licenses"></script>
   <script src="lakis-link-control.js?v=20260913-link-1"></script>

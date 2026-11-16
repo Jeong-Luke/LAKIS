@@ -1,9 +1,6 @@
 (() => {
   "use strict";
 
-  const root = document.querySelector("#mossRegionPanel");
-  const imageWidthInput = document.querySelector("#imageWidth");
-  const imageHeightInput = document.querySelector("#imageHeight");
   const MAX_REGIONS = 16;
   const MAX_TEXT_LENGTH = 2000;
   const LABELS = {
@@ -19,6 +16,12 @@
   const KNOWN_REGION_FIELDS = new Set(["id", "label", "caption", "negative_prompt", "text", "bbox"]);
   const KNOWN_STATE_FIELDS = new Set(["enabled", "regions"]);
 
+  function createRegionEditor(config) {
+    const root = document.querySelector(config.rootSelector);
+    if (!root) return { restore() {}, snapshot() { return { enabled: false, regions: [] }; }, close() {}, setPosePreview() {} };
+    const imageWidthInput = document.querySelector("#imageWidth");
+    const imageHeightInput = document.querySelector("#imageHeight");
+
   let enabled = false;
   let regions = [];
   let unknownStateFields = {};
@@ -28,6 +31,10 @@
   let tool = "select";
   let outputWidth = 1536;
   let outputHeight = 1024;
+  let poseEmbedding = null;
+  let posePreviewEnabled = false;
+  let posePreviewData = "";
+  let posePreviewCapture = null;
 
   function element(tag, className, text) {
     const node = document.createElement(tag);
@@ -78,7 +85,7 @@
     let id;
     do {
       nextId += 1;
-      id = `moss-region-${Date.now().toString(36)}-${nextId.toString(36)}`;
+      id = `${config.idPrefix}-${Date.now().toString(36)}-${nextId.toString(36)}`;
     } while (regions.some(region => region.id === id));
     return id;
   }
@@ -149,12 +156,14 @@
   }
 
   const cardHeading = element("div", "panel-heading moss-region-card-heading");
-  cardHeading.append(element("h2", "section-title-accent", "MOSS 영역 프롬프트"));
+  const cardTitle = element("div", "moss-region-card-title");
+  cardTitle.append(element("h2", "section-title-accent", "바운딩 박스"));
+  cardHeading.append(cardTitle);
   const cardEnableLabel = element("div", "moss-region-enable");
   const cardEnableSwitch = element("button", "lora-switch");
   cardEnableSwitch.type = "button";
   cardEnableSwitch.setAttribute("role", "switch");
-  cardEnableSwitch.setAttribute("aria-label", "MOSS 영역 프롬프트 사용");
+  cardEnableSwitch.setAttribute("aria-label", `${config.engineName} 바운딩 박스 사용`);
   cardEnableLabel.append(cardEnableSwitch);
   cardHeading.append(cardEnableLabel);
   const overviewButton = element("button", "moss-region-overview-button");
@@ -168,21 +177,18 @@
   const openButton = element("button", "mini-button moss-region-open", "편집");
   openButton.type = "button";
   openButton.setAttribute("aria-haspopup", "dialog");
-  openButton.setAttribute("aria-controls", "mossRegionEditor");
+  openButton.setAttribute("aria-controls", config.dialogId);
   cardEnableLabel.append(openButton);
   root.replaceChildren(cardHeading, overviewButton);
 
   const dialog = element("dialog", "moss-region-panel moss-region-dialog");
-  dialog.id = "mossRegionEditor";
-  dialog.setAttribute("aria-labelledby", "mossRegionEditorTitle");
+  dialog.id = config.dialogId;
+  dialog.setAttribute("aria-labelledby", config.titleId);
   const heading = element("header", "moss-region-heading");
   const headingText = element("div", "moss-region-heading-copy");
-  const title = element("h2", "section-title-accent", "MOSS 영역 프롬프트");
-  title.id = "mossRegionEditorTitle";
-  headingText.append(
-    title,
-    element("p", "moss-region-hint", "인물·오브젝트·텍스트의 위치와 설명을 지정하세요. 정확한 위치를 보장하는 마스크가 아닌 배치 힌트입니다."),
-  );
+  const title = element("h2", "section-title-accent", "바운딩 박스");
+  title.id = config.titleId;
+  headingText.append(title);
   const enableLabel = element("div", "moss-region-enable");
   const enableSwitch = element("button", "lora-switch");
   enableSwitch.type = "button";
@@ -192,7 +198,7 @@
   enableLabel.append(enableText, enableSwitch);
   const closeButton = element("button", "moss-region-close", "×");
   closeButton.type = "button";
-  closeButton.setAttribute("aria-label", "MOSS 영역 편집기 닫기");
+  closeButton.setAttribute("aria-label", `${config.engineName} 영역 편집기 닫기`);
   heading.append(headingText, enableLabel, closeButton);
 
   const toolbar = element("div", "moss-region-toolbar");
@@ -205,12 +211,12 @@
   tools.append(selectTool, drawTool);
   const addButton = element("button", "moss-region-button moss-region-add", "+ 영역 추가");
   addButton.type = "button";
-  const deleteButton = element("button", "moss-region-button");
+  const deleteButton = element("button", "moss-region-button moss-region-delete");
   deleteButton.type = "button";
   deleteButton.textContent = "선택 삭제";
   const clearButton = element("button", "moss-region-button moss-region-clear");
   clearButton.type = "button";
-  clearButton.textContent = "전체 지우기";
+  clearButton.textContent = "전체 삭제";
   const status = element("p", "moss-region-status");
   status.setAttribute("role", "status");
   status.setAttribute("aria-live", "polite");
@@ -221,14 +227,12 @@
   const canvasFrame = element("div", "moss-region-canvas-frame");
   const outputFrame = element("div", "moss-region-output-frame");
   const outputLabel = element("span", "moss-region-output-label");
-  outputLabel.id = "moss-region-output-label";
+  outputLabel.id = config.outputLabelId;
   const canvas = element("canvas", "moss-region-canvas");
   canvas.tabIndex = 0;
   canvas.setAttribute("role", "img");
   canvas.setAttribute("aria-label", "출력 비율 영역 편집 캔버스");
-  const canvasHelp = element("p", "moss-region-help", "출력 테두리 안에 영역을 배치하세요. ‘영역 그리기’로 추가 · ‘선택·이동’으로 배치 · 손잡이로 크기 조절");
-  canvasHelp.id = "moss-region-canvas-help";
-  canvas.setAttribute("aria-describedby", `${outputLabel.id} ${canvasHelp.id}`);
+  canvas.setAttribute("aria-describedby", outputLabel.id);
   outputFrame.append(canvas, outputLabel);
   canvasFrame.append(outputFrame);
 
@@ -236,9 +240,9 @@
   listSection.append(element("h3", "moss-region-subheading", "등록된 영역"));
   const regionList = element("div", "moss-region-list");
   regionList.setAttribute("role", "group");
-  regionList.setAttribute("aria-label", "MOSS 영역 선택");
+  regionList.setAttribute("aria-label", `${config.engineName} 영역 선택`);
   listSection.append(regionList);
-  canvasColumn.append(canvasFrame, canvasHelp);
+  canvasColumn.append(canvasFrame);
 
   const editor = element("div", "moss-region-editor");
   const editorTitle = element("h3", "moss-region-subheading", "영역 설정");
@@ -259,7 +263,7 @@
 
   const captionLabel = element("label", "moss-region-field", "영역 프롬프트");
   const captionInput = element("textarea");
-  captionInput.id = "mossRegionCaptionInput";
+  captionInput.id = config.captionInputId;
   captionInput.rows = 4;
   captionInput.placeholder = "예: 창가에 앉아 있는 인물, 붉은 도자기 컵";
   captionInput.maxLength = MAX_TEXT_LENGTH;
@@ -279,7 +283,7 @@
 
   const negativeLabel = element("label", "moss-region-field", "부정 프롬프트");
   const negativeInput = element("textarea");
-  negativeInput.id = "mossRegionNegativeInput";
+  negativeInput.id = config.negativeInputId;
   negativeInput.rows = 4;
   negativeInput.placeholder = "이 영역에서 제외할 요소를 입력하세요.";
   negativeInput.maxLength = MAX_TEXT_LENGTH;
@@ -319,14 +323,14 @@
   const footer = element("footer", "moss-region-footer");
   const doneButton = element("button", "moss-region-button moss-region-done", "완료");
   doneButton.type = "button";
-  footer.append(element("p", "moss-region-help", "변경 내용은 생성 설정에 자동 반영됩니다. 닫아도 편집 내용은 유지됩니다."), doneButton);
+  footer.append(doneButton);
   dialog.append(heading, toolbar, workspace, footer);
   document.body.append(dialog);
 
   const context = canvas.getContext("2d");
 
   function emitChange() {
-    window.dispatchEvent(new CustomEvent("lakis:moss-regions-change"));
+    window.dispatchEvent(new CustomEvent(config.eventName));
   }
 
   function setStatus() {
@@ -344,17 +348,46 @@
     editorTitle.textContent = selected ? `${selectedIndex}번 영역 · ${LABELS[selected.label]}` : "영역 설정";
     canvas.setAttribute(
       "aria-label",
-      `출력 비율 영역 편집 캔버스. 영역 ${regions.length}개${selected ? `, ${selectedIndex}번 선택됨` : ""}. ${tool === "draw" ? "영역 그리기" : "선택·이동"} 도구.`,
+      `출력 비율 영역 편집 캔버스. 영역 ${regions.length}개${selected ? `, ${selectedIndex}번 선택됨` : ""}. ${poseEmbedding ? "영역 선택·이동·크기 조절 및 빈 공간에 영역 그리기" : tool === "draw" ? "영역 그리기" : "선택·이동"} 도구.`,
     );
+  }
+
+  function setPosePreview(poseEnabled, renderData) {
+    const active = poseEnabled === true;
+    if (active === posePreviewEnabled && renderData === posePreviewData) return;
+    posePreviewEnabled = active;
+    if (renderData !== posePreviewData) {
+      posePreviewData = renderData;
+      try {
+        posePreviewCapture = renderData ? JSON.parse(renderData) : null;
+      } catch (error) {
+        posePreviewCapture = null;
+        console.warn("Could not read 3D pose preview", error);
+      }
+    }
+    renderOverview();
   }
 
   function renderOverview() {
     summary.textContent = `영역 ${regions.length}개 · ${outputWidth} × ${outputHeight}`;
-    root.style.setProperty("--moss-output-ratio", String(outputWidth / outputHeight));
     overview.style.aspectRatio = `${outputWidth} / ${outputHeight}`;
-    overview.style.width = `min(100%, ${150 * outputWidth / outputHeight}px)`;
+    overview.style.width = `min(100%, ${240 * outputWidth / outputHeight}px)`;
     overview.replaceChildren();
-    if (!regions.length) overview.append(element("span", "moss-region-overview-empty", "+ 영역 설정"));
+    const capture = posePreviewCapture;
+    const showPose = posePreviewEnabled && capture?.version === 1
+      && capture.region_painter?.width === outputWidth && capture.region_painter?.height === outputHeight
+      && typeof capture.render === "string" && capture.render.startsWith("data:image/png;base64,");
+    if (showPose) {
+      const image = element("img", "moss-region-overview-pose");
+      image.src = capture.render;
+      image.alt = "";
+      image.draggable = false;
+      overview.append(image);
+    } else if (posePreviewEnabled) {
+      overview.append(element("span", "moss-region-overview-empty", "3D 편집기에서 포즈를 적용해 주세요."));
+    } else if (!regions.length) {
+      overview.append(element("span", "moss-region-overview-empty", "+ 영역 설정"));
+    }
     regions.forEach((region, index) => {
       const box = element("span", "moss-region-overview-box", String(index + 1));
       const [x0, y0, x1, y1] = region.bbox;
@@ -424,6 +457,7 @@
   }
 
   function fitCanvas() {
+    if (poseEmbedding) { drawCanvas(); return; }
     if (!dialog.open) return;
     const gutter = 16;
     const scale = Math.min(
@@ -436,8 +470,71 @@
     drawCanvas();
   }
 
+  function cancelGesture() {
+    if (!gesture) return;
+    if (gesture.mode !== "draw") gesture.region.bbox = gesture.original.slice();
+    if (canvas.hasPointerCapture(gesture.pointerId)) canvas.releasePointerCapture(gesture.pointerId);
+    gesture = null;
+    drawCanvas();
+  }
+
+  function mountToPose({ canvasHost, toolbarHost, sidebarHost, onClose }) {
+    if (poseEmbedding) return;
+    if (dialog.open) dialog.close();
+    cancelGesture();
+    poseEmbedding = { onClose, mode: null };
+    toolbarHost.append(toolbar);
+    sidebarHost.append(sidebar);
+    tools.hidden = true;
+    canvasHost.append(canvas);
+    canvas.classList.add("scene-editor-box-canvas");
+    canvas.hidden = true;
+    tool = regions.length ? "select" : "draw";
+    updateAspectRatio();
+    renderAll();
+    setPoseInteraction("pose");
+  }
+
+  function unmountFromPose() {
+    if (!poseEmbedding) return;
+    cancelGesture();
+    outputFrame.prepend(canvas);
+    dialog.insertBefore(toolbar, workspace);
+    tools.hidden = false;
+    workspace.append(sidebar);
+    canvas.classList.remove("scene-editor-box-canvas");
+    canvas.hidden = canvas.inert = false;
+    canvas.tabIndex = 0;
+    for (const property of ["left", "top", "width", "height", "pointerEvents"]) canvas.style[property] = "";
+    poseEmbedding = null;
+    renderAll();
+  }
+
+  function setPoseViewport(rect) {
+    if (!poseEmbedding) return;
+    const { left, top, width, height } = rect;
+    canvas.hidden = ![left, top, width, height].every(Number.isFinite) || width <= 0 || height <= 0;
+    if (canvas.hidden) return;
+    Object.assign(canvas.style, {
+      left: `${left}px`, top: `${top}px`, width: `${width}px`, height: `${height}px`,
+    });
+    drawCanvas();
+  }
+
+  function setPoseInteraction(mode) {
+    if (!poseEmbedding || poseEmbedding.mode === mode) return;
+    cancelGesture();
+    poseEmbedding.mode = mode;
+    canvas.inert = mode !== "boxes";
+    canvas.tabIndex = mode === "boxes" ? 0 : -1;
+    canvas.style.pointerEvents = mode === "boxes" ? "auto" : "none";
+  }
+
   function openEditor() {
     if (root.hidden || dialog.open) return;
+    if (config.engineName === "ANIMA" && !window.dispatchEvent(
+      new CustomEvent("lakis:anima-regions-open", { cancelable: true }),
+    )) return;
     tool = regions.length ? "select" : "draw";
     updateAspectRatio();
     renderAll();
@@ -449,6 +546,7 @@
   }
 
   function closeEditor() {
+    if (poseEmbedding) { poseEmbedding.onClose(); return; }
     if (dialog.open) dialog.close();
   }
 
@@ -457,11 +555,7 @@
   closeButton.addEventListener("click", closeEditor);
   doneButton.addEventListener("click", closeEditor);
   dialog.addEventListener("close", () => {
-    if (gesture) {
-      if (gesture.mode !== "draw") gesture.region.bbox = gesture.original.slice();
-      if (canvas.hasPointerCapture(gesture.pointerId)) canvas.releasePointerCapture(gesture.pointerId);
-      gesture = null;
-    }
+    cancelGesture();
     renderAll();
     if (!root.hidden) openButton.focus();
   });
@@ -546,8 +640,10 @@
     const width = canvas.width;
     const height = canvas.height;
     context.clearRect(0, 0, width, height);
-    context.fillStyle = "#11151b";
-    context.fillRect(0, 0, width, height);
+    if (!poseEmbedding) {
+      context.fillStyle = "#11151b";
+      context.fillRect(0, 0, width, height);
+    }
 
     const rect = canvas.getBoundingClientRect();
     const scaleX = rect.width > 0 ? width / rect.width : 1;
@@ -733,12 +829,14 @@
   }
 
   canvas.addEventListener("pointerdown", event => {
+    if (poseEmbedding && poseEmbedding.mode !== "boxes") return;
     if (event.button !== 0 && event.pointerType !== "touch") return;
     const point = getCanvasPoint(event);
     if (!point) return;
 
     const current = selectedRegion();
-    const handle = tool === "select" && current ? hitHandle(point, current) : null;
+    const selectExisting = poseEmbedding || tool === "select";
+    const handle = selectExisting && current ? hitHandle(point, current) : null;
     if (handle) {
       gesture = {
         mode: "resize",
@@ -749,7 +847,7 @@
         original: current.bbox.slice(),
       };
     } else {
-      const hit = tool === "select" ? hitRegion(point) : null;
+      const hit = selectExisting ? hitRegion(point) : null;
       if (hit) {
         if (hit.id !== selectedId) {
           selectedId = hit.id;
@@ -763,7 +861,7 @@
           original: hit.bbox.slice(),
         };
       } else {
-        if (tool === "select") {
+        if (tool === "select" && !poseEmbedding) {
           selectedId = null;
           renderAll();
           return;
@@ -804,6 +902,11 @@
       );
       if (distance >= 3 && currentGesture.preview) {
         addRegion(currentGesture.preview);
+        return;
+      }
+      if (poseEmbedding) {
+        selectedId = null;
+        renderAll();
         return;
       }
     } else {
@@ -867,5 +970,29 @@
 
   updateAspectRatio();
   renderAll();
-  window.LAKISMossRegions = { restore, snapshot, close: closeEditor };
+    return { restore, snapshot, close: closeEditor, mountToPose, unmountFromPose, setPoseViewport, setPoseInteraction, setPosePreview };
+  }
+
+  window.LAKISMossRegions = createRegionEditor({
+    rootSelector: "#mossRegionPanel",
+    engineName: "MOSS",
+    eventName: "lakis:moss-regions-change",
+    captionInputId: "mossRegionCaptionInput",
+    negativeInputId: "mossRegionNegativeInput",
+    dialogId: "mossRegionEditor",
+    titleId: "mossRegionEditorTitle",
+    outputLabelId: "moss-region-output-label",
+    idPrefix: "moss-region",
+  });
+  window.LAKISAnimaRegions = createRegionEditor({
+    rootSelector: "#animaRegionPanel",
+    engineName: "ANIMA",
+    eventName: "lakis:anima-regions-change",
+    captionInputId: "animaRegionCaptionInput",
+    negativeInputId: "animaRegionNegativeInput",
+    dialogId: "animaRegionEditor",
+    titleId: "animaRegionEditorTitle",
+    outputLabelId: "anima-region-output-label",
+    idPrefix: "anima-region",
+  });
 })();

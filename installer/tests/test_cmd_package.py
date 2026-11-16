@@ -56,25 +56,26 @@ class CmdPackageTests(unittest.TestCase):
         setup = dist / 'LAKIS_Setup.exe'
         setup.write_bytes(b'fixture-only compiled Setup')
         template = json.loads((installer / 'cmd-installer-manifest.json').read_text())
+        runtime_version = template["version"]
         name = 'LAKIS_RuntimeBundle.zip'
         manifest = {
-            'schema': 1, 'version': version, 'webview2': webview_record,
+            'schema': 1, 'version': runtime_version, 'webview2': webview_record,
             **{key: template[key] for key in ('base', 'models', 'optional_animesharp')},
             'runtime_bundle': {
-                'schema': 2, 'product': 'LAKIS', 'version': version,
+                'schema': 2, 'product': 'LAKIS', 'version': runtime_version,
                 'comfyui_version': runtime_manifest.COMFY_VERSION,
                 'name': name, 'sha256': 'A' * 64, 'manifest_sha256': 'B' * 64,
                 'bytes': 1, 'files': 1,
                 'parts': [{
                     'name': name + '.part001', 'sha256': 'C' * 64, 'bytes': 1,
-                    'url': f'https://github.com/Jeong-Luke/LAKIS/releases/download/v{version}/{name}.part001',
+                    'url': f'https://github.com/Jeong-Luke/LAKIS/releases/download/v{runtime_version}/{name}.part001',
                 }],
             },
         }
         manifest_path = root / 'runtime-installer-manifest.json'
         manifest_path.write_text(json.dumps(manifest), encoding='utf-8')
         (root / 'runtime-installer-contract.json').write_text(json.dumps({
-            'schema': 1, 'version': version,
+            'schema': 1, 'version': runtime_version,
             'manifest_sha256': builder.sha256(manifest_path),
             'setup_sha256': builder.sha256(setup),
         }), encoding='utf-8')

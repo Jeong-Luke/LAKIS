@@ -31,6 +31,22 @@ LAKIS 애플리케이션, 사용자 인터페이스, 설치기, 업데이터, �
 
 이 저장소는 LAKIS의 안정 배포 버전을 관리합니다. 현재 안정 버전은 **`v8.1.1`**입니다. 이전 정식 릴리즈는 보존하며, 개발 패키지와 개발용 워크플로는 별도로 관리합니다.
 
+## v8.1.2 — 기능 구성 확정 · 미배포
+
+현재 소스의 `VERSION`은 `8.1.2`이며 ANIMA SnapRef 레퍼런스를 포함한 기능 구성이 확정됐습니다. 상세 내용은 [RELEASE_NOTES.md](RELEASE_NOTES.md)와 [RELEASE_PLAN_8.1.2.md](RELEASE_PLAN_8.1.2.md)를 참고하세요. 설치기·업데이트 패키지 제작과 실제 패키지 검증은 남아 있으며, 위 정식 배포 링크와 업데이트 채널은 아직 8.1.1을 유지합니다. 기능 구성 확정은 공개 출시 승인이 아닙니다.
+
+### 8.1.2 후보의 선택형 SnapRef 의존성
+
+일반 런처에서 ANIMA 레퍼런스 패널을 제공하며, 생성 적용은 기본 OFF입니다. 필요한 SnapRef 노드·가중치가 없으면 제어가 비활성화됩니다. 설치기·업데이터가 가중치를 자동 다운로드하지 않습니다.
+
+SnapRef 가중치는 CircleStone Labs Non-Commercial License v1.2의 비상업·비프로덕션 조건이 적용됩니다. [고정된 원문 약관](https://huggingface.co/0ppxnhximxr/snapref-v2a/blob/e6d6a21e4d56faae4454a1cc9bfd065d87358bf2/LICENSE.md)과 [NOTICE](https://huggingface.co/0ppxnhximxr/snapref-v2a/blob/e6d6a21e4d56faae4454a1cc9bfd065d87358bf2/NOTICE.txt)를 읽고 사용 목적이 허용되는지 확인한 뒤, 앱을 종료하고 **8.1.2 설치 폴더**에서 PowerShell로 실행합니다.
+
+```powershell
+& ".\python_embeded\python.exe" ".\ComfyUI\LAKIS\install_snapref.py" --install-root "." --acknowledge-snapref-terms
+```
+
+이 도우미는 공식 출처의 고정된 파일을 검증하고 라이선스·NOTICE를 보존하며, 다른 기존 파일은 덮어쓰지 않습니다. 설치 후 LAKIS를 다시 실행합니다. 약관 확인은 상업·프로덕션 이용 허가를 새로 부여하지 않습니다.
+
 ## v8.1.1 — LoRA·프롬프트·화면 배치 수정
 
 - ANIMA·MOSS LoRA Manager와 다운로드 폴더를 분리하고 새 LoRA 목록을 즉시 갱신합니다.

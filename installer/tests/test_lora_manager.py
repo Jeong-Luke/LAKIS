@@ -1,9 +1,11 @@
 """LoRA profile, routing and inventory regressions without model inference."""
 
 import asyncio
+from copy import deepcopy
 import json
 import os
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 import time
@@ -18,7 +20,7 @@ import lora_manager as lm
 import moss_mode
 import serve_ui
 import workflow_bridge as bridge
-from test_moss_mode import schema, state
+from installer.tests.test_moss_mode import schema, state
 
 
 class ManagerTests(unittest.TestCase):
@@ -41,10 +43,131 @@ class ManagerTests(unittest.TestCase):
             self.assertEqual(data["active_library"], engine.upper())
             self.assertTrue(Path(data["recipes_path"]).is_relative_to(directory))
             self.assertTrue(Path(data["example_images_path"]).is_relative_to(directory))
+            for library in (data, data["libraries"][engine.upper()]):
+                if engine == "moss":
+                    unet_root = self.root / "models" / "diffusion_models" / "moss"
+                    self.assertEqual(library["folder_paths"]["unet"], [str(unet_root)])
+                    self.assertEqual(library["default_unet_root"], str(unet_root))
+                    self.assertTrue(unet_root.is_dir())
+                else:
+                    self.assertEqual(library["folder_paths"]["unet"], [])
+                    self.assertNotIn("default_unet_root", library)
             profiles[engine] = directory
         self.assertNotEqual(profiles["anima"], profiles["moss"])
         moss = json.loads((profiles["moss"] / "settings.json").read_text(encoding="utf-8"))
         self.assertEqual(moss["extra_folder_paths"]["loras"], [])
+
+    def test_existing_moss_profile_adds_only_missing_model_paths(self):
+        directory = self.pool.prepare_profile("moss")
+        file = directory / "settings.json"
+        settings = json.loads(file.read_text(encoding="utf-8"))
+        unet_root = self.root / "models" / "diffusion_models" / "moss"
+        for library in (settings, settings["libraries"]["MOSS"]):
+            library["folder_paths"]["unet"] = [str(self.root / "custom-models")]
+            library["folder_paths"]["checkpoints"] = [str(self.root / "custom-checkpoints")]
+            library["extra_folder_paths"]["unet"] = [str(self.root / "shared-models")]
+            library.pop("default_unet_root")
+        settings["libraries"]["MOSS"]["default_unet_root"] = ""
+        settings["libraries"]["inactive"] = {
+            "folder_paths": {"unet": [str(self.root / "inactive-models")]},
+            "default_unet_root": str(self.root / "inactive-models"),
+        }
+        settings["civitai_api_key"] = "test-only-preserve-auth"
+        settings["future_preference"] = {"layout": "compact"}
+        expected = deepcopy(settings)
+        for library in (expected, expected["libraries"]["MOSS"]):
+            library["folder_paths"]["unet"].append(str(unet_root))
+            library["default_unet_root"] = str(unet_root)
+        file.write_text(json.dumps(settings), encoding="utf-8")
+
+        self.pool.prepare_profile("moss")
+
+        self.assertEqual(json.loads(file.read_text(encoding="utf-8")), expected)
+        before = file.read_bytes()
+        self.pool.prepare_profile("moss")
+        self.assertEqual(file.read_bytes(), before)
+
+    def test_existing_moss_custom_defaults_and_equivalent_paths_are_preserved(self):
+        directory = self.pool.prepare_profile("moss")
+        file = directory / "settings.json"
+        settings = json.loads(file.read_text(encoding="utf-8"))
+        unet_root = self.root / "models" / "diffusion_models" / "moss"
+        for library in (settings, settings["libraries"]["MOSS"]):
+            library["folder_paths"]["unet"] = [str(unet_root) + os.sep + "."]
+            library["default_unet_root"] = str(self.root / "custom-models")
+        file.write_text(json.dumps(settings), encoding="utf-8")
+        before = file.read_bytes()
+
+        self.pool.prepare_profile("moss")
+
+        self.assertEqual(file.read_bytes(), before)
+
+    def test_existing_moss_profile_with_no_unet_key_is_completed(self):
+        directory = self.pool.prepare_profile("moss")
+        file = directory / "settings.json"
+        settings = json.loads(file.read_text(encoding="utf-8"))
+        for library in (settings, settings["libraries"]["MOSS"]):
+            library["folder_paths"].pop("unet")
+            library.pop("default_unet_root")
+        file.write_text(json.dumps(settings), encoding="utf-8")
+
+        self.pool.prepare_profile("moss")
+
+        settings = json.loads(file.read_text(encoding="utf-8"))
+        expected = str(self.root / "models" / "diffusion_models" / "moss")
+        for library in (settings, settings["libraries"]["MOSS"]):
+            self.assertEqual(library["folder_paths"]["unet"], [expected])
+            self.assertEqual(library["default_unet_root"], expected)
+
+    def test_existing_moss_profile_fills_only_missing_lora_roots(self):
+        shared_root = self.root / "shared-models" / "loras"
+        pool = lm.ManagerPool(self.root, [self.loras, shared_root])
+        self.addCleanup(pool.close)
+        directory = pool.prepare_profile("moss")
+        file = directory / "settings.json"
+        settings = json.loads(file.read_text(encoding="utf-8"))
+        for library in (settings, settings["libraries"]["MOSS"]):
+            library["folder_paths"].pop("loras")
+            library["extra_folder_paths"].pop("loras")
+            library.pop("default_lora_root")
+        settings["civitai_api_key"] = "test-only-preserve-auth"
+        settings["future_preference"] = {"layout": "compact"}
+        expected = deepcopy(settings)
+        model_root = self.loras / "moss"
+        for library in (expected, expected["libraries"]["MOSS"]):
+            library["folder_paths"]["loras"] = [str(model_root)]
+            library["extra_folder_paths"]["loras"] = [str(shared_root / "moss")]
+            library["default_lora_root"] = str(model_root)
+        model_root.rmdir()
+        file.write_text(json.dumps(settings), encoding="utf-8")
+
+        pool.prepare_profile("moss")
+
+        self.assertEqual(json.loads(file.read_text(encoding="utf-8")), expected)
+        self.assertTrue(model_root.is_dir())
+        before = file.read_bytes()
+        pool.prepare_profile("moss")
+        self.assertEqual(file.read_bytes(), before)
+
+    def test_additional_moss_model_reaches_generation_inventory_and_graph(self):
+        directory = self.pool.prepare_profile("moss")
+        settings = json.loads((directory / "settings.json").read_text(encoding="utf-8"))
+        model = Path(settings["default_unet_root"]) / "additional.safetensors"
+        model.write_bytes(b"path-only-fixture")
+        expected = "moss/additional.safetensors"
+        with patch.object(bridge, "COMFY_ROOT", self.root), \
+                patch.dict(os.environ, {"LAKIS_SHARED_MODELS_ROOT": ""}):
+            names = [name.replace("\\", "/") for name in bridge._model_files("diffusion_models")]
+        self.assertEqual(names, [expected])
+        info = schema()
+        info["UNet loader with Name (Image Saver)"]["input"]["required"]["unet_name"][0] = names
+        with patch.object(bridge, "_comfy_object_info", return_value=info):
+            self.assertEqual(bridge.model_inventory()["moss"]["inventory"]["checkpoint"], [expected])
+        value = state()
+        value["model"]["checkpoint"] = expected
+        graph, _ = moss_mode.build_prompt(value, info, Path("fixture-output"), 2**53 - 1)
+        self.assertEqual(graph["1"]["inputs"]["unet_name"], expected)
+        moss_mode.validate_models(graph, info)
 
     def test_legacy_anima_preferences_and_files_are_not_overwritten_or_moved(self):
         legacy = self.pool.state_root / "settings.json"
@@ -82,6 +205,14 @@ class ManagerTests(unittest.TestCase):
         self.assertEqual(asyncio.run(scanner._process_model_file(anima, str(self.loras))), {"file_path": anima})
         self.assertEqual(calls, [anima])
 
+    def test_scanner_scope_ignores_overlapping_root_order(self):
+        nested_root = self.loras / "moss"
+        moss_file = nested_root / "style.safetensors"
+        roots = [nested_root, self.loras]
+
+        self.assertTrue(lm.file_matches_engine(moss_file, "moss", roots))
+        self.assertFalse(lm.file_matches_engine(moss_file, "anima", roots))
+
     def test_cross_engine_settings_are_rejected_without_rewriting(self):
         directory = self.pool.prepare_profile("moss")
         file = directory / "settings.json"
@@ -110,6 +241,72 @@ class ManagerTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "LoRA Manager"):
             self.pool.manager_url("moss")
         self.assertEqual(self.pool.instances, {})
+
+
+class MossDownloadRoutingTests(unittest.TestCase):
+    setUp = ManagerTests.setUp
+
+    def test_backend_moss_classification_preserves_other_model_families(self):
+        from types import SimpleNamespace
+
+        module = self.root / "static" / "js" / "managers" / "DownloadManager.js"
+        module.parent.mkdir(parents=True)
+        module.write_text(
+            "            const _isDiffusionModel = this.selectedFile\n"
+            "        return (file.type === 'UNet' || file.type === 'Diffusion Model') ? 'diffusion' : 'model';",
+            encoding="utf-8",
+        )
+        backend = SimpleNamespace(DIFFUSION_MODEL_BASE_MODELS=frozenset({"Anima", "Flux.1 D"}))
+        with patch.dict(sys.modules, {"py.services": SimpleNamespace(download_manager=backend)}):
+            lm.install_moss_download_routing(Mock(), self.root / "standalone.py")
+        self.assertEqual(backend.DIFFUSION_MODEL_BASE_MODELS, {"Anima", "Flux.1 D", "MOSS Image"})
+
+    @unittest.skipUnless(os.environ.get("LAKIS_LORA_MANAGER_TEST_SOURCE"), "Set the bundled standalone.py path for offline UI regression")
+    def test_bundled_moss_download_dialog_routes_by_model_type_without_starting_a_manager(self):
+        bundled_source = Path(os.environ["LAKIS_LORA_MANAGER_TEST_SOURCE"])
+        bundled_module = bundled_source.parent / "static" / "js" / "managers" / "DownloadManager.js"
+        module = self.root / "static" / "js" / "managers" / "DownloadManager.js"
+        module.parent.mkdir(parents=True)
+        module.write_text(bundled_module.read_text(encoding="utf-8"), encoding="utf-8")
+
+        class Router:
+            def add_get(self, path, handler):
+                self.path = path
+                self.handler = handler
+
+        class Response:
+            def __init__(self, *, text, content_type, headers):
+                self.text = text
+                self.content_type = content_type
+                self.headers = headers
+
+        router = Router()
+        server = type("Server", (), {"app": type("App", (), {"router": router})()})()
+        backend = type("Backend", (), {"DIFFUSION_MODEL_BASE_MODELS": frozenset({"Anima", "Flux.1 D"})})()
+        web = type("Web", (), {"Response": Response})()
+        with patch.dict(sys.modules, {
+            "aiohttp": type("Aiohttp", (), {"web": web})(),
+            "py.services": type("Services", (), {"download_manager": backend})(),
+        }):
+            lm.install_moss_download_routing(server, self.root / "standalone.py")
+            response = asyncio.run(router.handler(Mock()))
+
+        self.assertEqual(router.path, "/loras_static/js/managers/DownloadManager.js")
+        self.assertEqual(backend.DIFFUSION_MODEL_BASE_MODELS,
+                         {"Anima", "Flux.1 D", "MOSS Image"})
+        module.write_text(response.text, encoding="utf-8")
+        env = os.environ.copy()
+        env["LAKIS_MOSS_MANAGER_MODULE"] = str(module)
+        env["LAKIS_MOSS_TEST_ROOT"] = str(self.root / "models" / "diffusion_models" / "moss")
+        env["LAKIS_MOSS_LORA_TEST_ROOT"] = str(self.loras / "moss")
+        subprocess.run(
+            [
+                "node", "--test",
+                str(Path(__file__).with_name("test_moss_download_routing.cjs")),
+                str(Path(__file__).with_name("test_advanced_settings_commit.cjs")),
+            ],
+            env=env, check=True,
+        )
 
 
 class RoutingAndInventoryTests(unittest.TestCase):

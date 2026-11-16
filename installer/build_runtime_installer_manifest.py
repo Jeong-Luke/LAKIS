@@ -7,9 +7,11 @@ import json
 from pathlib import Path
 
 from runtime_install import validate_bundle
+from application_release import validate_release
 
 
-def build(repo: Path, bundle_path: Path, webview_path: Path, output: Path) -> dict:
+def build(repo: Path, bundle_path: Path, webview_path: Path, output: Path,
+          application_release: Path | None = None) -> dict:
     template = json.loads(
         (repo / "installer/cmd-installer-manifest.json").read_text(encoding="utf-8")
     )
@@ -39,12 +41,16 @@ def build(repo: Path, bundle_path: Path, webview_path: Path, output: Path) -> di
         "webview2": webview,
         "runtime_bundle": bundle,
     }
+    if application_release is not None:
+        manifest["application_release"] = validate_release(
+            json.loads(application_release.read_text(encoding="utf-8-sig")), bundle)
     raw = (json.dumps(manifest, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
     with output.open("xb") as stream:
         stream.write(raw)
     return {
         "path": str(output),
         "version": version,
+        "application_version": manifest.get("application_release", {}).get("version", version),
         "sha256": hashlib.sha256(raw).hexdigest().upper(),
     }
 
@@ -54,6 +60,7 @@ if __name__ == "__main__":
     parser.add_argument("--bundle", required=True, type=Path)
     parser.add_argument("--webview2", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--application-release", type=Path)
     args = parser.parse_args()
     print(json.dumps(build(Path(__file__).resolve().parents[1], args.bundle,
-                           args.webview2, args.output)))
+                           args.webview2, args.output, args.application_release)))

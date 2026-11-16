@@ -4,9 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>LAKIS · 3D 인물·영역 편집기</title>
-  <link rel="stylesheet" href="precision-pose-controls.css">
+  <link rel="stylesheet" href="synapse-theme.css?v=lakis-detail-progress-2">
+  <link rel="stylesheet" href="precision-pose-controls.css?v=3d-theme-2">
   <style>
     :root{color-scheme:dark;--bg:#090b10;--panel:#11141b;--panel2:#171b24;--line:#272c38;--text:#f3f5fa;--muted:#858d9e;--violet:#8b6cff}
+    html[data-synapse-theme="true"]{--bg:var(--mx-bg-base);--panel:var(--mx-bg-layer-1);--panel2:var(--mx-bg-layer-2);--line:var(--mx-border);--text:var(--mx-text);--muted:var(--mx-text-muted);--violet:var(--mx-accent-bg)}
     html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font:13px sans-serif}
     body{display:flex;flex-direction:column}
     main{position:relative;flex:1;min-height:0}
@@ -18,6 +20,6 @@
 <body>
   <main><div id="pose" aria-label="3D 인물·포즈"></div><div id="painter" hidden></div></main>
   <p id="error" role="alert" hidden></p>
-  <script type="module" src="toyxyz-editor.js"></script>
+  <script type="module" src="toyxyz-editor.js?v=prompt-modes-1"></script>
 </body>
 </html>

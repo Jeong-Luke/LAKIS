@@ -140,19 +140,20 @@ $releasePublishIndex = $workflow.IndexOf("Publish the fully verified release", [
 $publishIndex = $workflow.IndexOf("Publish only the verified manifest", [System.StringComparison]::Ordinal)
 Require ($approvalIndex -ge 0 -and $draftCreateIndex -gt $approvalIndex -and $draftVerifyIndex -gt $draftCreateIndex -and $releasePublishIndex -gt $draftVerifyIndex -and $publishIndex -gt $releasePublishIndex) "Approval, draft staging, remote verification, release publication, and manifest publication are out of order."
 
-function Test-RuntimeInstallerContract([string]$ExpectedVersion) {
+function Test-RuntimeInstallerContract([string]$ExpectedRuntimeVersion) {
     $setup = Read-RepoFile "installer\Setup_LAKIS_Safe.cs"
     $uninstaller = Read-RepoFile "installer\LAKIS_Uninstaller.cs"
     $bridge = Read-RepoFile "installer\RuntimeBundleInstaller.cs"
     $runtimeInstall = Read-RepoFile "installer\runtime_install.py"
+    $applicationRelease = Read-RepoFile "installer\application_release.py"
     $runtimeManifest = Read-RepoFile "installer\runtime_manifest.py"
     $transition = Read-RepoFile "installer\runtime_transition.py"
     $manifestText = Read-RepoFile "installer\cmd-installer-manifest.json"
     $manifest = $manifestText | ConvertFrom-Json
-    Require ($uninstaller.Contains('string version="' + $ExpectedVersion + '";')) "Uninstaller fallback version must match VERSION."
+    Require ($uninstaller.Contains('string version="' + $ExpectedRuntimeVersion + '";')) "Uninstaller fallback version must match the runtime installer version."
     foreach ($needle in @(
-        ('private const string Revision = "v' + $ExpectedVersion + '"'),
-        ('private const string ReleaseVersion = "' + $ExpectedVersion + '"'),
+        ('private const string Revision = "v' + $ExpectedRuntimeVersion + '"'),
+        ('private const string ReleaseVersion = "' + $ExpectedRuntimeVersion + '"'),
         'GetManifestResourceStream("LAKIS.RuntimeInstallManifest")',
         'RequiredString(manifest,"version"),ReleaseVersion,StringComparison.Ordinal',
         'ValidateRuntimeBundle(RequiredObject(manifest,"runtime_bundle"))',
@@ -165,24 +166,36 @@ function Test-RuntimeInstallerContract([string]$ExpectedVersion) {
     $repair = $setup.Substring($setup.IndexOf('internal static void Repair('),
         $setup.IndexOf('private static string Fetch') - $setup.IndexOf('internal static void Repair('))
     foreach ($entry in @($fresh, $repair)) {
-        Require ($entry.Contains('string manifest=ReadRuntimeInstallManifest();')) "Fresh Setup and Repair must both validate the embedded runtime manifest."
+        Require ($entry.Contains('manifest=ReadRuntimeInstallManifest();')) "Fresh Setup and Repair must both validate the embedded runtime manifest."
     }
+    Require ($repair.Contains('UpdateProtocol.HasPendingRuntimeTransition(target)')) "Interrupted-update recovery must detect a pending transition."
+    Require ($repair.Contains('RunRuntimeInstaller(null,target,cache,"recover",false,status)')) "Interrupted-update recovery must use the shared runtime recovery mode."
     Require ($fresh.Contains('ValidateFreshTarget(target);')) "Fresh Setup must validate its destination before runtime work."
     Require ($fresh.Contains('RunRuntimeInstaller(manifest,target,cache,"fresh",includeAnimeSharp,status)')) "Fresh Setup must use the shared runtime installer."
     Require ($repair.Contains('RunRuntimeInstaller(manifest,target,cache,"repair",false,status)')) "Repair must use the shared runtime installer without reseeding optional defaults."
-    Require ($repair.Contains('installedVersion,ReleaseVersion,StringComparison.Ordinal')) "Repair must require the exact installed release."
+    $repairIdentity = 'string intendedVersion=RuntimeBundleInstaller.InstallerTargetVersion(manifest);'
+    Require ($repair.Contains($repairIdentity) -and
+        $repair.IndexOf('manifest=ReadRuntimeInstallManifest();') -lt $repair.IndexOf($repairIdentity)) "Repair application identity must come from the validated descriptor."
+    Require ([regex]::IsMatch($repair, 'if\(!String\.Equals\(installedVersion,intendedVersion,StringComparison\.Ordinal\)\)\s*throw new InvalidOperationException')) "Repair must require the exact installed release."
     Require ([regex]::IsMatch($setup, 'if\(IsExistingInstallation\(target\)\)\s*throw new InvalidOperationException')) "New install must reject an existing LAKIS installation."
     Require ([regex]::IsMatch($setup, 'if\(HasDirectoryEntries\(target\)\)\s*throw new InvalidOperationException')) "New install must reject every non-empty destination."
     foreach ($needle in @('runtime_install.py', '"--mode", mode, "--method", "gui"', '(string)result["status"] != "complete"')) {
         Require ($bridge.Contains($needle)) "RuntimeBundleInstaller.Install invariant is missing: $needle"
     }
     foreach ($needle in @(
-        'version = manifest["version"]',
-        'verify_runtime(candidate, bundle["manifest_sha256"], version)',
-        'return activate(candidate, target, bundle["manifest_sha256"], version, mode,',
+        'bundle, release, version, manifest_hash = installer_identity(manifest)',
+        'verify_runtime(candidate, manifest_hash, version)',
+        'return activate(candidate, target, manifest_hash, version, mode,',
         'if mode == "fresh":'
     )) {
         Require ($runtimeInstall.Contains($needle)) "Runtime installation invariant is missing: $needle"
+    }
+    foreach ($needle in @(
+        'release = validate_release(manifest["application_release"], bundle)',
+        'release["version"] if release else bundle["version"]',
+        'release["manifest"]["sha256"] if release else bundle["manifest_sha256"]'
+    )) {
+        Require ($applicationRelease.Contains($needle)) "Application release identity invariant is missing: $needle"
     }
     # VERSION is authenticated and copied with the candidate, not rewritten by Setup.
     Require ($runtimeManifest.Contains('(root / "VERSION").read_text(encoding="utf-8-sig").strip() != expected_version')) "Installed VERSION must equal the trusted runtime release."
@@ -207,8 +220,8 @@ function Test-RuntimeInstallerContract([string]$ExpectedVersion) {
     )) {
         Require ($requiredFiles.Contains('"' + $name + '"')) "Base runtime REQUIRED_FILES is missing: $name"
     }
-    Require ($manifest.version -eq $ExpectedVersion) "Installer manifest template must match VERSION."
-    Require ($manifest.release_base -eq "https://github.com/Jeong-Luke/LAKIS/releases/download/v$ExpectedVersion") "Installer manifest template must use the candidate release."
+    Require ($manifest.version -eq $ExpectedRuntimeVersion) "Installer manifest template must match the runtime installer version."
+    Require ($manifest.release_base -eq "https://github.com/Jeong-Luke/LAKIS/releases/download/v$ExpectedRuntimeVersion") "Installer manifest template must use the runtime release."
     Require ($manifest.source.url -eq "https://codeload.github.com/Jeong-Luke/LAKIS/zip/373cbf40a2f94553dde26ccad31c33275e27babc") "Installer source must remain pinned."
     Require ($manifest.source.sha256 -eq "D6D8BC920C7A74BE4728C0F7703744469E62E80502F297E582EE1A1406FA052D") "Installer source hash must remain pinned."
     foreach ($model in @(
@@ -226,7 +239,9 @@ function Test-RuntimeInstallerContract([string]$ExpectedVersion) {
     Require (-not [regex]::IsMatch($manifestText + $requiredFiles, 'LAKIS_DEV|LAKIS_LUKE|DEKIS|LUKIS|DEV_VERSION|LUKE_VERSION')) "Public installer/runtime contract must not include private components."
 }
 
-Test-RuntimeInstallerContract $ExpectedVersion
+# App-only patches retain the pinned installer/runtime baseline.
+$runtimeInstallerVersion = ((Read-RepoFile "installer\cmd-installer-manifest.json") | ConvertFrom-Json).version
+Test-RuntimeInstallerContract $runtimeInstallerVersion
 
 $externalLauncher = Read-RepoFile "src\external_ui\launch_lakis.py"
 $externalServer = Read-RepoFile "src\external_ui\serve_ui.py"
@@ -276,7 +291,7 @@ Require ($desktopLauncher.Contains("UsesReleaseLayout(root)")) "Pre-v7.5.0 insta
 Require ($desktopLauncher.Contains("version >= new Version(7, 5, 0)")) "Release-layout checks must begin at v7.5.0."
 Require ($desktopLauncher.Contains("Repair post-check failed")) "Automatic Repair must complete a full post-replacement layout check before restart."
 Require ($desktopLauncher.Contains("if((-not [IO.File]::Exists(`$dst))")) "Automatic Repair must replace only missing or size-mismatched files."
-Require ($desktopLauncher.Contains("ComfyUI/models/") -and $desktopLauncher.Contains("ComfyUI/user/") -and $desktopLauncher.Contains("ComfyUI/input/") -and $desktopLauncher.Contains("ComfyUI/output/")) "Automatic Repair must protect user-owned trees."
+Require ($desktopLauncher.Contains('"ComfyUI/models"') -and $desktopLauncher.Contains('"ComfyUI/user"') -and $desktopLauncher.Contains('"ComfyUI/input"') -and $desktopLauncher.Contains('"ComfyUI/output"') -and $desktopLauncher.Contains('normalized.StartsWith(directory + "/", StringComparison.OrdinalIgnoreCase)')) "Automatic Repair must protect user-owned trees."
 $layoutCheckIndex = $desktopLauncher.IndexOf("TryGetReleaseLayout", [System.StringComparison]::Ordinal)
 $updaterLaunchIndex = $desktopLauncher.IndexOf("FileName = updater", [System.StringComparison]::Ordinal)
 Require ($layoutCheckIndex -ge 0 -and $updaterLaunchIndex -gt $layoutCheckIndex) "Public Launcher must run version-consistency checking before it can launch Patcher/Updater."

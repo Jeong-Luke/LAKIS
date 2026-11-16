@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-import { installPromptEditor } from "./prompt-highlighting.js?v=20260913-wildcard-experiment-1";
+import { installPromptEditor } from "./prompt-highlighting.js?v=linked-prompt-heights-1";
 
 export const precisionEnabled = (config, engine = "anima") =>
   engine === "anima" && config.enabled && config.toyxyz_enabled;
@@ -16,8 +16,8 @@ export function commonPromptValues(config, prompt) {
   };
 }
 
-export function generationPrompt(config, prompt, engine = "anima") {
-  if (!precisionEnabled(config, engine)) return structuredClone(prompt);
+export function generationPrompt(config, prompt, engine = "anima", boxesEnabled = false) {
+  if (!precisionEnabled(config, engine) || boxesEnabled) return structuredClone(prompt);
   const common = commonPromptValues(config, prompt);
   return { ...prompt, trigger: common.trigger, quality: common.quality,
     general: common.global, fixed: "", artist: "" };
@@ -33,46 +33,54 @@ export function editorPainting(config, prompt, engine = "anima") {
 
 export function updateLayerPrompt(config, id, text) {
   const painting = readPainting(config), layer = painting.layers.find(item => item.id === id);
-  if (!layer) throw Error("인물 구성이 바뀌었습니다. 정밀 프롬프트를 다시 확인해 주세요.");
+  if (!layer) throw Error("인물 구성이 바뀌었습니다. 3D 포즈의 인물 프롬프트를 다시 확인해 주세요.");
   layer.prompt = text;
   config.toyxyz_paint_data = JSON.stringify(painting);
 }
 
 export class PrecisionPrompts {
-  constructor({ getConfig, getPrompt, getEngine, onChange }) {
-    Object.assign(this, { getConfig, getPrompt, getEngine, onChange });
+  constructor({ getConfig, getPrompt, getEngine, getRegionsEnabled = () => false, onChange }) {
+    Object.assign(this, { getConfig, getPrompt, getEngine, getRegionsEnabled, onChange });
     this.cards = new Map();
     this.activeKey = "global";
     this.normal = document.querySelector(".prompt-column > .prompt-panel:not(.negative-prompt-panel)");
     this.root = document.createElement("article");
-    this.root.className = "panel prompt-panel precision-prompts";
+    this.root.className = "panel prompt-panel precision-prompts advanced-settings-host";
     this.root.hidden = true;
-    this.root.setAttribute("aria-label", "정밀 프롬프트");
-    this.root.innerHTML = `<header class="precision-prompts-heading"><strong>정밀 프롬프트</strong></header>
-      <div class="prompt-tools precision-prompts-tabs" role="tablist" aria-label="정밀 프롬프트 분류"></div>
-      <div class="precision-prompts-cards"></div>`;
+    this.root.setAttribute("aria-label", "프롬프트 ( 3D 포즈 )");
+    this.root.innerHTML = `<div class="field-label prompt-field-title">
+      <div class="prompt-heading-row precision-prompts-heading"><div class="advanced-settings-title-group"><strong class="prompt-section-heading">프롬프트 ( 3D 포즈 )</strong></div></div>
+      <div class="prompt-tools precision-prompts-tabs" role="tablist" aria-label="3D 포즈 프롬프트 분류"></div>
+      <div class="precision-prompts-cards"></div>
+    </div>`;
     this.normal.before(this.root);
-    this.heading = this.root.querySelector("header");
+    this.heading = this.root.querySelector(".precision-prompts-heading");
     this.tabs = this.root.querySelector(".precision-prompts-tabs");
     this.list = this.root.querySelector(".precision-prompts-cards");
     this.translation = document.querySelector(".prompt-translation-toggle");
     this.translationAnchor = document.createComment("normal prompt translation control");
     this.translation.before(this.translationAnchor);
+    this.settingsButtonAnchor = document.createComment("normal prompt settings button");
+    this.normal.querySelector(".prompt-section-heading").after(this.settingsButtonAnchor);
+    this.settingsOverlayAnchor = document.createComment("normal prompt settings overlay");
+    this.normal.append(this.settingsOverlayAnchor);
+    window.addEventListener("lakis-advanced-settings-ready", () => this.refresh());
     window.addEventListener("lakis-prompt-state-loaded", () => this.refresh());
     window.addEventListener("lakis-generation-engine-changed", () => this.refresh());
+    window.addEventListener("lakis:anima-regions-change", () => this.refresh());
     this.refresh();
   }
 
   refresh() {
     const config = this.getConfig(), enabled = precisionEnabled(config, this.getEngine());
-    if (enabled && this.normal.classList.contains("prompt-panel-maximized")) {
+    const inMain = enabled && !this.getRegionsEnabled();
+    if (inMain && this.normal.classList.contains("prompt-panel-maximized")) {
       document.querySelector("#positivePromptMaximizeButton").click();
     }
-    this.root.hidden = !enabled;
-    this.normal.classList.toggle("precision-prompt-normal-hidden", enabled);
-    if (enabled && this.translation.parentNode !== this.heading) this.heading.append(this.translation);
-    else if (!enabled && this.translation.previousSibling !== this.translationAnchor) this.translationAnchor.after(this.translation);
-    if (!enabled) return;
+    this.root.hidden = !inMain;
+    this.normal.classList.toggle("precision-prompt-normal-hidden", inMain);
+    this.syncHeaderControls(inMain);
+    if (!inMain) return;
     const common = commonPromptValues(config, this.getPrompt());
     const fields = [
       ["trigger", "트리거", common.trigger], ["quality", "품질", common.quality],
@@ -93,7 +101,7 @@ export class PrecisionPrompts {
       let card = this.cards.get(key);
       if (!card) {
         const root = document.createElement("section"), label = document.createElement("label");
-        root.className = "precision-prompt-card";
+        root.className = "fixed-prompt-panel precision-prompt-card";
         root.id = `precisionPanel-${crypto.randomUUID()}`;
         root.setAttribute("role", "tabpanel");
         const button = document.createElement("button");
@@ -110,7 +118,12 @@ export class PrecisionPrompts {
         input.maxLength = 4000;
         input.placeholder = "영문 태그 또는 한국어로 입력하세요…";
         label.htmlFor = input.id;
-        root.append(label, input);
+        const heading = document.createElement("div"), badge = document.createElement("span");
+        heading.className = "fixed-prompt-heading";
+        badge.className = "fixed-badge";
+        badge.textContent = "3D";
+        heading.append(label, badge);
+        root.append(heading, input);
         this.list.append(root);
         input.addEventListener("input", () => {
           const current = this.getConfig();
@@ -137,11 +150,30 @@ export class PrecisionPrompts {
     }
   }
 
-  forGeneration(prompt) { return generationPrompt(this.getConfig(), prompt, this.getEngine()); }
+  syncHeaderControls(enabled) {
+    if (enabled && this.translation.parentNode !== this.heading) this.heading.append(this.translation);
+    else if (!enabled && this.translation.previousSibling !== this.translationAnchor) this.translationAnchor.after(this.translation);
+    const button = document.querySelector('.advanced-settings-button[data-advanced-group="prompt"]');
+    const overlay = document.querySelector('.advanced-settings-overlay[data-advanced-group="prompt"]');
+    if (button && overlay) {
+      const title = this.heading.firstElementChild;
+      if (enabled) {
+        if (button.parentNode !== title) title.append(button);
+        if (overlay.parentNode !== this.root) this.root.append(overlay);
+      } else {
+        if (button.previousSibling !== this.settingsButtonAnchor) this.settingsButtonAnchor.after(button);
+        if (overlay.previousSibling !== this.settingsOverlayAnchor) this.settingsOverlayAnchor.after(overlay);
+      }
+    }
+  }
+
+  forGeneration(prompt) {
+    return generationPrompt(this.getConfig(), prompt, this.getEngine(), this.getRegionsEnabled());
+  }
 
   paintDataForEditor() {
     const config = this.getConfig();
-    if (precisionEnabled(config, this.getEngine())) {
+    if (precisionEnabled(config, this.getEngine()) && !this.getRegionsEnabled()) {
       config.precision_prompts ??= commonPromptValues(config, this.getPrompt());
     }
     return editorPainting(config, this.getPrompt(), this.getEngine());

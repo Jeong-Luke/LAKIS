@@ -23,6 +23,7 @@ class GraphContracts(unittest.TestCase):
             (self.root/'input'/n).write_bytes(b'path-only fixture; builder does not decode')
         template=ROOT/'workflows/LAKIS_runtime_api_v7.4.json'
         data=json.loads(template.read_text(encoding='utf-8-sig'))
+        self.original_upscaler=json.loads(json.dumps(data['1541:1536']))
         checkpoint=data['890:1365']['inputs']['model_name'];vae=data['890:159']['inputs']['vae_name'];clip=data['890:164']['inputs']['clip_name']
         config={'checkpoint':{'current':checkpoint,'options':[checkpoint]},'vae':{'current':vae,'options':[vae]},
             'clip':{'current':clip,'options':[clip]},'sampler':{'options':list(m.SAMPLER_OPTIONS)},
@@ -62,6 +63,19 @@ class GraphContracts(unittest.TestCase):
         key=f'{mode}:{inpaint or "off"}:{v2}:{i2i}'
         digest_prompt=json.loads(json.dumps(prompt))
         digest_prompt['lakis:configured_output_path']['inputs']['string_a']='<OUTPUT_ROOT>/LAKIS'
+        if mode == 'lakis_detail':
+            # Only project the approved SCOPE loader-ownership change back to
+            # the original fixture. All other graph bytes retain the 744 hash.
+            static_id='lakis:scope_upscaler:1541:1538'
+            self.assertEqual(digest_prompt['1541:1538']['inputs']['upscale_model'],[static_id,0])
+            expected_loader={
+                **self.original_upscaler,
+                'class_type':'LAKISScopeUpscaleModelLoader',
+                '_meta':{**self.original_upscaler.get('_meta',{}),'lakis_source_id':static_id},
+            }
+            self.assertEqual(digest_prompt.pop(static_id),expected_loader)
+            digest_prompt['1541:1536']=json.loads(json.dumps(self.original_upscaler))
+            digest_prompt['1541:1538']['inputs']['upscale_model']=['1541:1536',0]
         digest=hashlib.sha256(json.dumps(digest_prompt,sort_keys=True,ensure_ascii=False,separators=(',',':')).encode()).hexdigest()
         # Full builder parity fixture captured from original 744, not a second
         # implementation of the expected graph. Tests below also enforce mode contracts.
@@ -85,6 +99,8 @@ class GraphContracts(unittest.TestCase):
     def test_lakis_detail(self):
         p,a=self.graph('lakis_detail');types={x['class_type'] for x in p.values()}
         self.assertTrue({'LAKIS_DETAIL','LAKIS_SCOPE','LAKIS_VRAM_GATE'}<=types)
+        self.assertNotIn('1541:1536',p)
+        self.assertEqual(a['node_count'],len(p))
     def test_i2i(self):
         p,a=self.graph('detail',i2i=True);self.assertTrue(a['i2i_enabled'])
     def test_stale_i2i_advanced_overrides_cannot_poison_later_t2i(self):

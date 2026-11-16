@@ -26,7 +26,7 @@ try {
     # disagree immediately after installation.
     $source = $snapshot
     $archive = Join-Path $temp "source.zip"
-    & git -c core.autocrlf=false -C $repo archive --format=zip -o $archive HEAD -- VERSION LICENSE.md THIRD_PARTY_NOTICES.md third_party_licenses resources src workflows
+    & git -c core.autocrlf=false -C $repo archive --format=zip -o $archive HEAD -- VERSION LICENSE.md THIRD_PARTY_NOTICES.md third_party_licenses resources src workflows installer/install_snapref_experiment.py
     if ($LASTEXITCODE -ne 0) { throw "git archive failed." }
     Expand-Archive -LiteralPath $archive -DestinationPath $snapshot
 
@@ -78,6 +78,7 @@ try {
     }
 
     Copy-ManagedFile "ComfyUI/LAKIS/STOP_AUTOMATION" (Join-Path $source "resources\STOP_AUTOMATION")
+    Copy-ManagedFile "ComfyUI/LAKIS/install_snapref.py" (Join-Path $source "installer\install_snapref_experiment.py")
     Copy-ManagedFile "ComfyUI/LAKIS/sync_runtime_workflow.py" (Join-Path $source "src\runtime\sync_runtime_workflow.py")
     Copy-ManagedFile "ComfyUI/LAKIS/external_ui/runtime/native_workflow.py" (Join-Path $source "src\runtime\native_workflow.py")
 
@@ -156,6 +157,7 @@ try {
         schema = 1
         product = "LAKIS"
         version = $version
+        editable_template_policy = "preserve-v1"
         files = $files
         retired = $retired
     }

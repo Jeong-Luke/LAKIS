@@ -29,6 +29,10 @@ import uuid
 import aiohttp
 
 import scene_controls
+import anima_regions as anima_region_controls
+import anima_reference
+from scope_upscale import bind_scope_upscalers
+import prompt_fields
 import lora_manager
 import moss_mode
 import moss_sampling
@@ -40,7 +44,7 @@ import sys
 # src/runtime. Neither import path points into saved user workflows.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "runtime"))
 sys.path.insert(0, str(Path(__file__).resolve().parent / "runtime"))
-from native_workflow import alias_view as _native_alias_view, native_view as _native_view
+from native_workflow import alias_view as _native_alias_view, native_view as _native_view, is_link as _native_is_link
 
 try:
     from PIL import Image
@@ -386,20 +390,29 @@ def _validate_live_prompt_models(prompt: dict[str, Any], object_info: dict[str, 
     if prompt.get(FINAL_NODE, {}).get("_meta", {}).get("generation_engine") == "moss":
         moss_mode.validate_models(prompt, object_info)
         return
-    prompt = _native_alias_view(prompt)
+    aliases = _native_alias_view(prompt)
     checks = (
         ("890:1365", "DiffusionModelLoaderKJ", "model_name", "Unknown diffusion model"),
         ("890:159", "VAELoader", "vae_name", "Unknown VAE"),
         ("890:164", "CLIPLoader", "clip_name", "Unknown CLIP"),
     )
     for node_id, class_type, input_name, label in checks:
-        node = prompt.get(node_id)
+        node = aliases.get(node_id)
         if not isinstance(node, dict):
             continue
         selected = str(node.get("inputs", {}).get(input_name, ""))
         allowed = _live_loader_inventory(class_type, input_name, object_info)
         if not selected or selected not in allowed:
             raise ValueError(f"{label}: {selected}")
+    for node_id, node in prompt.items():
+        if node.get("class_type") != "LoraLoaderModelOnly":
+            continue
+        selected = node.get("inputs", {}).get("lora_name", "")
+        if not isinstance(selected, str):
+            continue
+        allowed = _live_loader_inventory("LoraLoaderModelOnly", "lora_name", object_info)
+        if not selected or selected not in allowed:
+            raise MissingRuntimeLoRAError(selected, node_id=str(node_id))
 
 
 def _enum_options(class_type: str, name: str, fallback: tuple[Any, ...] = (),
@@ -571,6 +584,12 @@ def _apply_advanced_node_overrides(prompt: dict[str, Any], requested: Any) -> No
                     node_declaration=declaration,
                 )
 
+            if node_id == "2133" and name == "advanced_fields":
+                try:
+                    inputs[name] = prompt_fields.merge_override(original, value)
+                except ValueError as error:
+                    fail(str(error))
+                continue
             if options and value not in options:
                 fail(f"{node_id}.{name} is not a supported option")
             boolean_string = isinstance(original, str) and original.strip().lower() in {"true", "false"}
@@ -653,8 +672,12 @@ def _clean_advanced_node_overrides(
             continue
         for name, value in fields.items():
             try:
+                if node_id == "2133" and name == "advanced_fields":
+                    value = prompt_fields.normalize_override(value)
+                    if value is None:
+                        continue
                 _apply_advanced_node_overrides(validated, {node_id: {name: value}})
-            except SettingsValidationError:
+            except (SettingsValidationError, ValueError):
                 if not drop_invalid:
                     raise
                 _audit("legacy_setting_dropped", node_id=node_id, setting_name=name)
@@ -677,6 +700,8 @@ def _clean_advanced_node_overrides(
             and (node_id, name) not in AUTHORITATIVE_MODEL_FIELDS
             and not (node_id == UPSCALER_NODE_ID and name == UPSCALER_FIELD_NAME)
         }
+        if node_id == "2133" and "advanced_fields" in selected:
+            selected["advanced_fields"] = fields["advanced_fields"]
         if selected:
             clean[node_id] = selected
     return clean
@@ -932,7 +957,7 @@ def load_external_generation_state() -> dict[str, Any]:
         "wildcard_enabled": _coerce_bool(payload.get("wildcard_enabled", False), False),
         "node_overrides": node_overrides,
         **{key: copy.deepcopy(payload[key]) for key in (
-            "moss_regions", "moss_detail", "moss_node_overrides", "i2i", "continuous", "wildcard_exclusions"
+            "moss_regions", "anima_regions", "anima_reference", "moss_detail", "moss_node_overrides", "i2i", "continuous", "wildcard_exclusions"
         ) if isinstance(payload.get(key), dict)},
     }
 
@@ -958,6 +983,16 @@ def _clean_generation_model_output(model: Any, output: Any):
     return clean_model, clean_output
 
 
+def _validate_continuous_settings(value: Any) -> None:
+    if value is None:
+        return
+    if not isinstance(value, dict):
+        raise ValueError("연속 생성 설정은 객체여야 합니다.")
+    count = value.get("count", 1)
+    if type(count) is not int or not 1 <= count <= 1000:
+        raise ValueError("연속 생성 횟수는 1~1000 사이의 정수여야 합니다.")
+
+
 @_state_transaction
 def save_external_generation_state(
     model: Any, output: Any, loras: Any = None, lora_enabled: Any = True,
@@ -965,6 +1000,8 @@ def save_external_generation_state(
     camera: Any = None, composition_enabled: Any = True, wildcard_enabled: Any = False,
     moss_regions: Any = None, moss_detail: Any = None, moss_node_overrides: Any = None,
     i2i: Any = None, continuous: Any = None, wildcard_exclusions: Any = None,
+    anima_regions: Any = None,
+    anima_reference: Any = None,
 ) -> dict[str, Any]:
     clean_model, clean_output = _clean_generation_model_output(model, output)
     generation = generation if isinstance(generation, dict) else {}
@@ -1019,13 +1056,22 @@ def save_external_generation_state(
     if upscale_engine not in allowed_engines:
         raise ValueError("Unsupported upscale engine")
     for key, value in (
-        ("moss_regions", moss_regions), ("moss_detail", moss_detail),
+        ("moss_regions", moss_regions), ("anima_regions", anima_regions),
+        ("anima_reference", anima_reference), ("moss_detail", moss_detail),
         ("moss_node_overrides", moss_node_overrides), ("i2i", i2i),
         ("continuous", continuous), ("wildcard_exclusions", wildcard_exclusions),
     ):
         if value is not None:
             if not isinstance(value, dict):
                 raise ValueError(f"{key} state must be an object")
+            if key == "anima_regions":
+                anima_region_controls.normalize(value)
+            if key == "anima_reference":
+                # The argument shares the persisted key, not the module name.
+                import anima_reference as reference_controls
+                reference_controls.normalize(value)
+            if key == "continuous":
+                _validate_continuous_settings(value)
             payload[key] = copy.deepcopy(value)
     payload.update({
         "version": GENERATION_STATE_VERSION,
@@ -1133,7 +1179,22 @@ def _live_model_inventories(object_info: dict[str, Any] | None = None) -> dict[s
 def _live_lora_inventory(object_info: dict[str, Any] | None = None) -> list[str]:
     info = object_info if object_info is not None else _comfy_object_info()
     return [name for name in _live_loader_inventory("LoraLoader", "lora_name", info)
-            if not moss_mode.is_moss_path(name)]
+            if not moss_mode.is_moss_path(name) and not anima_reference.is_adapter(name)]
+
+
+def _runtime_anima_lora_name(name: str, object_info: dict[str, Any]) -> str:
+    """Resolve a required adapter in the legacy or dedicated ANIMA folder."""
+    registered = {
+        value.replace("\\", "/").casefold(): value
+        for value in _live_loader_inventory("LoraLoaderModelOnly", "lora_name", object_info)
+    }
+    for candidate in (name, f"anima/{name}"):
+        installed = registered.get(candidate.replace("\\", "/").casefold())
+        if installed is not None:
+            return installed
+    # Keep the required filename for the existing missing-model preflight.
+    # Never substitute a same-named MOSS or arbitrary nested adapter.
+    return name
 
 
 def _select_live_model(saved: Any, canonical: Any, options: list[str]) -> str:
@@ -1325,7 +1386,7 @@ def workflow_configuration(object_info: dict[str, Any] | None = None) -> dict[st
             },
             "node_overrides": saved.get("node_overrides", {}),
             **{key: copy.deepcopy(saved[key]) for key in (
-                "moss_regions", "moss_detail", "moss_node_overrides", "i2i", "continuous", "wildcard_exclusions"
+                "moss_regions", "anima_regions", "anima_reference", "moss_detail", "moss_node_overrides", "i2i", "continuous", "wildcard_exclusions"
             ) if key in saved},
         },
     }
@@ -1612,6 +1673,7 @@ def _build_native_prompt(application_state: dict[str, Any], original: dict[str, 
     inpaint = application_state.get("inpaint", {})
     i2i = application_state.get("i2i", {})
     scene = scene_controls.normalize_state(application_state.get("scene_controls", {}))
+    boxes_enabled = anima_region_controls.normalize(application_state.get("anima_regions"))["enabled"]
     controls.update(
         mode=modes[mode], composition=_coerce_bool(application_state.get("composition_enabled", True), True),
         i2i=_coerce_bool(i2i.get("enabled", False)),
@@ -1632,6 +1694,8 @@ def _build_native_prompt(application_state: dict[str, Any], original: dict[str, 
                                     ("vae", "890:159", "vae_name"), ("clip", "890:164", "clip_name")):
         if source in model:
             prompt[node_id]["inputs"][field] = str(model[source])
+    turbo = prompt["3005"]["inputs"]
+    turbo["lora_name"] = _runtime_anima_lora_name(turbo["lora_name"], info)
     _validate_live_prompt_models(prompt, info)
     sampler = prompt["890:905"]["inputs"]
     for source, target in (("steps", "steps_total"), ("cfg", "cfg"),
@@ -1679,24 +1743,40 @@ def _build_native_prompt(application_state: dict[str, Any], original: dict[str, 
             inputs[target] = _bounded_number(camera.get(source, camera.get(target)), inputs[target], -1., 1.)
     if controls["pose"] and not (controls["i2i"] or controls["inpaint"]):
         prompt["3030"]["inputs"].update(pose_data=scene["pose_data"], render_data=scene["toyxyz_render_data"])
-        prompt["3032"]["inputs"]["paint_data"] = scene["toyxyz_paint_data"]
         prompt["3033"]["inputs"]["value"] = scene["pose_strength"]
-        prompt["3034"]["inputs"]["value"] = scene["region_strength"]
+        if not boxes_enabled:
+            prompt["3032"]["inputs"]["paint_data"] = scene["toyxyz_paint_data"]
+            prompt["3034"]["inputs"]["value"] = scene["region_strength"]
         try:
             capture = json.loads(scene["toyxyz_render_data"])
-            painting = json.loads(scene["toyxyz_paint_data"])
+            painting = None if boxes_enabled else json.loads(scene["toyxyz_paint_data"])
             pose = json.loads(scene["pose_data"])
         except (TypeError, ValueError) as error:
             raise ValueError("Apply the 3D editor first") from error
         expected_size = (canvas["width"], canvas["height"])
-        if (not all(isinstance(value, dict) and value.get("version") == 1 for value in (capture, painting, pose))
+        documents = (capture, pose) if boxes_enabled else (capture, painting, pose)
+        if (not all(isinstance(value, dict) and value.get("version") == 1 for value in documents)
                 or tuple(capture.get("region_painter", {}).get(key) for key in ("width", "height")) != expected_size
-                or tuple(painting.get(key) for key in ("width", "height")) != expected_size):
+                or (not boxes_enabled and tuple(painting.get(key) for key in ("width", "height")) != expected_size)):
             raise ValueError("Image dimensions changed; apply the 3D editor again")
     _apply_advanced_node_overrides(prompt, application_state.get("node_overrides"))
+    if controls["pose"] and boxes_enabled:
+        # In combined mode, only the pose model uses the 3D capture. Text and
+        # regional attention come from the main prompt and independent boxes.
+        for model_switch, pose_node, positive_switch, negative_switch in (
+                ("3063", "3060", "3064", "3065"), ("3073", "3070", "3074", "3075")):
+            prompt[model_switch]["inputs"]["on_true"] = [pose_node, 0]
+            for switch in (positive_switch, negative_switch):
+                prompt[switch]["inputs"]["on_true"] = list(prompt[switch]["inputs"]["on_false"])
+    region_assertions = anima_region_controls.apply(
+        prompt, application_state, info, canvas["width"], canvas["height"])
+    reference_assertions = anima_reference.apply(
+        prompt, application_state, info, COMFY_ROOT, width=canvas["width"], height=canvas["height"])
     upscaler = _preferred_upscaler()
     if upscaler:
         prompt["1541:1536"]["inputs"]["model_name"] = upscaler
+    bind_scope_upscalers(
+        prompt, contiguous_tiles=reference_assertions.get("anima_reference_experimental_forecast", False))
     prompt["lakis:configured_output_path"] = {
         "class_type": "StringConcatenate",
         "inputs": {"string_a": str(configured_output_root() / "LAKIS"),
@@ -1713,11 +1793,17 @@ def _build_native_prompt(application_state: dict[str, Any], original: dict[str, 
             controls["i2i"] or controls["inpaint"] or controls["pose"]),
         "scene_controls_enabled": controls["pose"] and not (controls["i2i"] or controls["inpaint"]),
         "resolution": f"{canvas['width']}x{canvas['height']}", "node_count": len(prompt),
-        "inpaint_pipeline": "local_v2" if controls["inpaint"] else "off", **lora_assertions}
+        "inpaint_pipeline": "local_v2" if controls["inpaint"] else "off",
+        **lora_assertions, **region_assertions, **reference_assertions}
 
 
 def build_prompt(application_state: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
     if moss_mode.engine(application_state.get("generation", {}).get("engine")) == "moss":
+        if (anima_reference.experimental()
+                and anima_reference.normalize(application_state.get("anima_reference"))["enabled"]):
+            raise ValueError("MOSS 모드에서는 ANIMA 레퍼런스를 비활성화해 주세요.")
+        if anima_region_controls.normalize(application_state.get("anima_regions"))["enabled"]:
+            raise ValueError("MOSS 모드에서는 ANIMA 영역 설정을 비활성화해 주세요.")
         return moss_mode.build_prompt(
             application_state, _wait_for_comfy_object_info(),
             configured_output_root(), COMFYUI_SEED_MAX, camera_prompt_builder=_camera_prompt)
@@ -2476,7 +2562,8 @@ def _build_legacy_prompt(application_state: dict[str, Any]) -> tuple[dict[str, A
             "class_type": "LoraLoaderModelOnly",
             "inputs": {
                 "model": ["1634:1626", 0],
-                "lora_name": "anima-turbo-lora-v0.2.safetensors",
+                "lora_name": _runtime_anima_lora_name(
+                    "anima-turbo-lora-v0.2.safetensors", live_object_info),
                 "strength_model": 1.0,
             },
             "_meta": {"title": "LAKIS - Turbo Initial (Experimental)"},
@@ -2500,7 +2587,8 @@ def _build_legacy_prompt(application_state: dict[str, Any]) -> tuple[dict[str, A
         prompt[turbo_id] = {
             "class_type": "LoraLoaderModelOnly",
             "inputs": {"model": ["1633:1619", 0],
-                       "lora_name": "anima-turbo-lora-v0.2.safetensors",
+                       "lora_name": _runtime_anima_lora_name(
+                           "anima-turbo-lora-v0.2.safetensors", live_object_info),
                        "strength_model": 1.0},
             "_meta": {"title": "LAKIS External UI - Turbo HighRez"},
         }
@@ -2682,11 +2770,23 @@ def _build_legacy_prompt(application_state: dict[str, Any]) -> tuple[dict[str, A
         raise RuntimeError(f"External UI prompt preflight failed: {assertions}")
     assertions.update(scene_controls.apply_scene_controls(
         prompt, application_state, live_object_info, COMFY_ROOT, width, height,
+        pose_only=anima_region_controls.normalize(application_state.get("anima_regions"))["enabled"],
     ))
     if assertions["scene_controls_enabled"]:
         prompt = _final_only(prompt)
         assertions["node_count"] = len(prompt)
         assertions["prompt_contract"].update(assertions.pop("scene_prompt_contract"))
+    assertions.update(anima_region_controls.apply(
+        prompt, application_state, live_object_info, width, height))
+    if assertions["anima_regions_enabled"]:
+        prompt = _final_only(prompt)
+        assertions["node_count"] = len(prompt)
+    assertions.update(anima_reference.apply(
+        prompt, application_state, live_object_info, COMFY_ROOT, width=width, height=height))
+    bind_scope_upscalers(
+        prompt, contiguous_tiles=assertions.get("anima_reference_experimental_forecast", False))
+    prompt = _final_only(prompt)
+    assertions["node_count"] = len(prompt)
     return prompt, assertions
 
 
@@ -2698,7 +2798,7 @@ NODE_WEIGHTS = {
 }
 NODE_LABELS = {
     "1634:1622": "Initial", "1635": "Decode",
-    "1633:1790": "HighRez Decode", "1633:1794": "HighRez Encode",
+    "1633:1790": "Initial Decode", "1633:1794": "HighRez Encode",
     "1633:1612": "HighRez", "1633:1611": "HighRez Decode",
     "1530:1824": "Face Detection", "1530:1823": "Face Mask",
     "1530:1826": "Face Detail", "1836:2069": "Eye Detail",
@@ -2712,6 +2812,62 @@ NODE_LABELS = {
     "lakis:inpaint_color_match": "Local Inpaint Color Match",
     "lakis:inpaint_final_composite": "Local Inpaint Composite",
 }
+
+
+def _progress_node_plan(prompt: dict[str, Any]) -> tuple[dict[str, float], dict[str, str]]:
+    """Track the submitted Final Saver dependencies, not inactive mode branches."""
+    def boolean_output(value: Any) -> bool | None:
+        if isinstance(value, bool):
+            return value
+        if not _native_is_link(value):
+            return None
+        node = prompt[str(value[0])]
+        inputs = node.get("inputs", {})
+        output = value[1]
+        if node["class_type"] == "PrimitiveBoolean" and output == 0:
+            return boolean_output(inputs.get("value"))
+        if node["class_type"] != "LAKIS_GenerationControls" or not 0 <= output < 8:
+            return None
+        mode = inputs.get("mode")
+        flags = [inputs.get(name) for name in ("composition", "i2i", "inpaint", "pose")]
+        if mode not in {"FAST", "DETAIL", "LAKIS DETAIL"} or not all(isinstance(flag, bool) for flag in flags):
+            return None
+        composition, i2i, inpaint, pose = flags
+        i2i = i2i and not inpaint
+        pose = pose and not (inpaint or i2i)
+        composition = composition and not (inpaint or i2i or pose)
+        return (mode == "DETAIL", mode != "FAST", mode == "LAKIS DETAIL",
+                composition, i2i, inpaint, pose, i2i)[output]
+
+    active: set[str] = set()
+
+    def visit(node_id: str) -> None:
+        if node_id in active:
+            return
+        active.add(node_id)
+        node = prompt[node_id]
+        inputs = node.get("inputs", {})
+        selection = boolean_output(inputs.get("switch")) if node["class_type"] == "ComfySwitchNode" else None
+        selected = "on_true" if selection else "on_false"
+        for name, value in inputs.items():
+            if selection is not None and name in {"on_false", "on_true"} and name != selected:
+                continue
+            if _native_is_link(value):
+                visit(str(value[0]))
+
+    visit(FINAL_NODE)
+    class_weights = {"LAKIS_DETAIL": 27.0, "LAKIS_SCOPE": 24.0}
+    class_labels = {"LAKIS_DETAIL": "Face · Eye Detail", "LAKIS_SCOPE": "SCOPE Upscale"}
+    weights, labels = {}, {}
+    for node_id in active:
+        node = prompt[node_id]
+        metadata = node.get("_meta", {})
+        source_id = str(metadata.get("lakis_source_id", node_id))
+        kind = node["class_type"]
+        weights[node_id] = NODE_WEIGHTS.get(source_id, class_weights.get(kind, 0.08))
+        labels[node_id] = NODE_LABELS.get(source_id, class_labels.get(kind, metadata.get("title") or kind))
+    return weights, labels
+
 
 NODE_ERROR_CODES = {
     "890:1365": ("LKS-MOD-1001", "체크포인트를 불러오지 못했어요."),
@@ -2766,6 +2922,19 @@ class SettingsValidationError(ValueError):
             "node_declaration": self.node_declaration,
             "internal_reason": self.internal_reason,
         }
+
+
+class MissingRuntimeLoRAError(ValueError):
+    failure_stage = "모델 파일 확인"
+    node_type = "LoraLoaderModelOnly"
+
+    def __init__(self, lora_name: str, *, node_id: str) -> None:
+        self.lora_name = lora_name
+        self.node_id = node_id
+        super().__init__(f"Unknown LoRA: {lora_name} (node {node_id})")
+
+    def diagnostic(self) -> dict[str, Any]:
+        return {"missing_lora": self.lora_name, "input_name": "lora_name"}
 
 
 class MissingRuntimeNodesError(RuntimeError):
@@ -3185,6 +3354,7 @@ class WorkflowBridge:
             self.status.preview_mime = mime
 
     def start(self, application_state: dict[str, Any]) -> dict[str, Any]:
+        _validate_continuous_settings(application_state.get("continuous"))
         with self._job_lock:
             # A terminal UI status is not proof that its worker finished cleanup.
             if self._active_request_id is not None or self.status.snapshot()["state"] in {
@@ -3380,6 +3550,12 @@ class WorkflowBridge:
             return "LKS-CFG-1104", "ComfyUI가 생성 요청 입력을 거부했어요. 오류 정보에서 노드와 입력값을 확인해 주세요."
         if isinstance(error, SettingsValidationError):
             return "LKS-CFG-1103", "세부 설정값이 해당 ComfyUI 노드의 입력 규격과 맞지 않아요."
+        if isinstance(error, MissingRuntimeLoRAError):
+            return (
+                "LKS-MOD-1201",
+                f"생성에 필요한 LoRA 파일을 모델 목록에서 찾을 수 없어요: {error.lora_name}. "
+                "파일 설치와 LoRA 경로를 확인해 주세요.",
+            )
         if ("fault failed: 2" in lowered or "vram allocation failed" in lowered
                 or "cuda error: unknown error" in lowered or "torch.acceleratorerror" in lowered):
             return (
@@ -3662,12 +3838,11 @@ class WorkflowBridge:
     async def _observe(self, session: aiohttp.ClientSession,
                        ws: aiohttp.ClientWebSocketResponse, prompt_id: str,
                        prompt: dict[str, Any]) -> bool:
-        weights = {node_id: NODE_WEIGHTS.get(node_id, 0.08) for node_id in prompt}
+        weights, labels = _progress_node_plan(prompt)
         total = sum(weights.values()) or 1.0
         completed: set[str] = set()
         current: str | None = None
         current_started_at: float | None = None
-        current_fraction = 0.0
         while True:
             try:
                 message = await ws.receive(timeout=GENERATION_STALL_SECONDS)
@@ -3715,9 +3890,21 @@ class WorkflowBridge:
             event_prompt = data.get("prompt_id")
             if event_prompt and event_prompt != prompt_id:
                 continue
-            if event == "executing":
+            if event == "execution_cached":
+                completed.update(str(node) for node in data.get("nodes", []) if str(node) in weights)
+                self._set_weighted_progress(weights, completed, total, current or "", 0.0,
+                                            labels.get(current, "캐시 적용"))
+                self._record_running_journal()
+            elif event == "executed":
+                node_id = str(data.get("node"))
+                if node_id in weights:
+                    completed.add(node_id)
+                    self._set_weighted_progress(weights, completed, total, current or "", 0.0,
+                                                labels.get(current, labels[node_id]))
+                    self._record_running_journal()
+            elif event == "executing":
                 next_node = data.get("node")
-                if current and current in prompt:
+                if current and current in prompt and current != str(next_node):
                     completed.add(current)
                     if DEVELOPMENT and current_started_at is not None:
                         _audit(
@@ -3729,18 +3916,25 @@ class WorkflowBridge:
                         )
                 current = str(next_node) if next_node is not None else None
                 current_started_at = time.time() if current is not None else None
-                current_fraction = 0.0
                 if next_node is None:
                     return True
                 node_type = str(prompt.get(current, {}).get("class_type") or "") or None
                 self.status.update(last_node_id=current, last_node_type=node_type,
                                    last_node_started_at=time.time())
                 self._record_running_journal()
-                self._set_weighted_progress(weights, completed, total, current, 0.0)
+                self._set_weighted_progress(weights, completed, total, current, 0.0,
+                                            labels.get(current, node_type or "처리"))
             elif event == "progress" and current:
-                maximum = float(data.get("max") or 1)
-                current_fraction = min(1.0, float(data.get("value") or 0) / maximum)
-                self._set_weighted_progress(weights, completed, total, current, current_fraction)
+                event_node = data.get("node")
+                if event_node is not None and str(event_node) != current:
+                    continue
+                maximum = float(data.get("max") or 0)
+                value = float(data.get("value") or 0)
+                if not math.isfinite(maximum) or not math.isfinite(value) or maximum <= 0:
+                    continue
+                current_fraction = max(0.0, min(1.0, value / maximum))
+                title = f"{labels.get(current, '처리')} · {value:g}/{maximum:g}"
+                self._set_weighted_progress(weights, completed, total, current, current_fraction, title)
                 self._record_running_journal()
             elif event in {"execution_error", "execution_interrupted"}:
                 if event == "execution_interrupted" and self.status.cancel_requested:
@@ -3752,7 +3946,7 @@ class WorkflowBridge:
                 ) or None
                 raise GenerationExecutionError(
                     data, node_id=failed_node_id, node_type=failed_node_type,
-                    failure_stage=NODE_LABELS.get(failed_node_id, self.status.stage or "ComfyUI 실행"),
+                    failure_stage=labels.get(failed_node_id, self.status.stage or "ComfyUI 실행"),
                 )
             elif event == "execution_success":
                 return True
@@ -3778,12 +3972,14 @@ class WorkflowBridge:
             self._set_preview(frame[image_start:], mime)
 
     def _set_weighted_progress(self, weights: dict[str, float], completed: set[str],
-                               total: float, current: str, fraction: float) -> None:
+                               total: float, current: str, fraction: float,
+                               title: str | None = None) -> None:
         value = sum(weights[node] for node in completed if node in weights)
-        value += weights.get(current, 0.0) * fraction
+        if current not in completed:
+            value += weights.get(current, 0.0) * fraction
         # Keep 100% for confirmed Final Saver/history completion.
         percent = min(99.0, max(self.status.percent, value / total * 100.0))
-        title = NODE_LABELS.get(current, "처리")
+        title = title or NODE_LABELS.get(current, "처리")
         self.status.update(percent=percent, stage=f"생성 중 · {title}")
 
     async def _find_output(self, session: aiohttp.ClientSession, prompt_id: str) -> str:

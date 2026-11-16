@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 import subprocess
 import tempfile
@@ -9,6 +10,7 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[2]
 INSTALLER = ROOT / "installer"
 LAYOUT_SCRIPT = INSTALLER / "New-ReleaseLayout.ps1"
+CSC = Path(os.environ.get("WINDIR", "C:/Windows")) / "Microsoft.NET/Framework64/v4.0.30319/csc.exe"
 
 ROOT_ASSETS = (
     "LAKIS.exe",
@@ -21,6 +23,31 @@ ROOT_ASSETS = (
     "Microsoft.Web.WebView2.WinForms.dll",
     "WebView2Loader.dll",
 )
+
+REPAIR_ATTEMPT_PROBE = r'''
+using System;
+using System.IO;
+using System.Reflection;
+internal static class RepairAttemptProbe {
+    private static bool HasAttempt(string marker, string version) {
+        var startup = typeof(LakisLauncher).GetNestedType("StartupForm", BindingFlags.NonPublic);
+        var method = startup.GetMethod(
+            "HasAutomaticRepairAttempt", BindingFlags.NonPublic | BindingFlags.Static);
+        return (bool)method.Invoke(null, new object[] { marker, version });
+    }
+    private static int Main(string[] args) {
+        bool result;
+        if (args[0] == "locked") {
+            using (var marker = new FileStream(args[1], FileMode.Open, FileAccess.Read, FileShare.None))
+                result = HasAttempt(args[1], args[2]);
+        } else {
+            result = HasAttempt(args[1], args[2]);
+        }
+        Console.WriteLine(result ? "true" : "false");
+        return 0;
+    }
+}
+'''
 
 
 class ReleaseLayoutTests(unittest.TestCase):
@@ -62,6 +89,7 @@ class ReleaseLayoutTests(unittest.TestCase):
             payload, pack = self.build_fixture(Path(directory))
             self.assertEqual(1, payload["schema"])
             self.assertEqual("LAKIS", payload["product"])
+            self.assertEqual("preserve-v1", payload["editable_template_policy"])
             self.assertEqual((ROOT / "VERSION").read_text(encoding="utf-8").strip(), payload["version"])
 
             files = {item["path"]: item["size"] for item in payload["files"]}
@@ -74,6 +102,7 @@ class ReleaseLayoutTests(unittest.TestCase):
                 "ComfyUI/LAKIS/external_ui/app.js",
                 "ComfyUI/LAKIS/external_ui/serve_ui.py",
                 "ComfyUI/LAKIS/external_ui/workflow_bridge.py",
+                "ComfyUI/LAKIS/install_snapref.py",
                 "ComfyUI/LAKIS/external_ui/runtime/native_workflow.py",
                 "ComfyUI/LAKIS/external_ui/workflows/LAKIS_custom_v8.0_editable.json",
                 "ComfyUI/LAKIS/external_ui/workflows/LAKIS_runtime_api_v8.0.json",
@@ -82,6 +111,7 @@ class ReleaseLayoutTests(unittest.TestCase):
                 "ComfyUI/custom_nodes/ComfyUI-LAKIS-Detail/native_controls.py",
                 "ComfyUI/custom_nodes/ComfyUI-LAKIS-Detail/web/native_workflow.js",
                 "ComfyUI/custom_nodes/ComfyUI-LAKIS-Local-Inpaint/__init__.py",
+                "ComfyUI/custom_nodes/ComfyUI-LAKIS-Regional-Reference/__init__.py",
             ):
                 self.assertIn(required, files)
 
@@ -149,14 +179,85 @@ class ReleaseLayoutTests(unittest.TestCase):
         self.assertIn("if((-not [IO.File]::Exists($dst))", launcher)
         self.assertIn("자동 복구에 실패했습니다.`nLAKIS Setup을 다시 실행하여 Repair를 진행해 주세요.", launcher)
         for path in (
-            "ComfyUI/models/",
-            "ComfyUI/user/",
-            "ComfyUI/input/",
-            "ComfyUI/output/",
+            "ComfyUI/models",
+            "ComfyUI/user",
+            "ComfyUI/input",
+            "ComfyUI/output",
         ):
-            self.assertIn(path, launcher)
+            self.assertIn('"' + path + '"', launcher)
+        self.assertIn(
+            'normalized.StartsWith(directory + "/", StringComparison.OrdinalIgnoreCase)', launcher
+        )
         self.assertNotIn("ReleaseIntegritySha256", launcher)
         self.assertNotIn("ComputeIntegrityHash", launcher)
+
+
+@unittest.skipUnless(CSC.is_file(), "Windows .NET Framework compiler required")
+class AutomaticRepairAttemptBehaviorTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.temp = tempfile.TemporaryDirectory(prefix="lakis-repair-attempt-probe-")
+        root = Path(cls.temp.name)
+        probe_source = root / "probe.cs"
+        probe_source.write_text(REPAIR_ATTEMPT_PROBE, encoding="utf-8")
+        cls.exe = root / "probe.exe"
+        command = [
+            str(CSC), "/nologo", "/target:exe", "/main:RepairAttemptProbe",
+            "/out:" + str(cls.exe),
+            *["/reference:" + name for name in (
+                "System.Windows.Forms.dll", "System.Drawing.dll",
+                "System.Web.Extensions.dll", "System.IO.Compression.dll",
+                "System.IO.Compression.FileSystem.dll")],
+            str(INSTALLER / "SplashArtwork.cs"),
+            str(INSTALLER / "UpdateProtocol.cs"),
+            str(INSTALLER / "LAKIS_Launcher.cs"),
+            str(probe_source),
+        ]
+        result = subprocess.run(command, capture_output=True, timeout=60)
+        if result.returncode:
+            cls.temp.cleanup()
+            raise RuntimeError(
+                result.stdout.decode(errors="replace") +
+                result.stderr.decode(errors="replace")
+            )
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.temp.cleanup()
+
+    def run_probe(self, marker, version, *, locked=False):
+        action = "locked" if locked else "check"
+        result = subprocess.run(
+            [str(self.exe), action, str(marker), version],
+            capture_output=True,
+            timeout=15,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr.decode(errors="replace"))
+        return result.stdout.decode("ascii").strip() == "true"
+
+    def test_marker_behavior_and_bytes_are_preserved(self):
+        with tempfile.TemporaryDirectory() as folder:
+            marker = Path(folder) / "release-layout-repair.attempt"
+            self.assertFalse(self.run_probe(marker, "8.1.1"))
+            self.assertFalse(marker.exists())
+
+            cases = (
+                ("matching", b"8.1.1", True),
+                ("different", b"8.1.0", False),
+                ("malformed", b"not-a-version", True),
+                ("empty", b"", True),
+            )
+            for name, contents, expected in cases:
+                with self.subTest(name=name):
+                    marker.write_bytes(contents)
+                    before = marker.read_bytes()
+                    self.assertEqual(self.run_probe(marker, "8.1.1"), expected)
+                    self.assertEqual(marker.read_bytes(), before)
+
+            marker.write_bytes(b"8.1.1")
+            before = marker.read_bytes()
+            self.assertTrue(self.run_probe(marker, "8.1.1", locked=True))
+            self.assertEqual(marker.read_bytes(), before)
 
 
 if __name__ == "__main__":

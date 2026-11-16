@@ -3,44 +3,35 @@
   color: var(--text, #e9edf5);
 }
 
-#mossRegionPanel { flex: 0 0 auto; }
-#mossRegionPanel > :not(.panel-heading) {
-  transition: opacity .18s ease, filter .18s ease;
+#mossRegionPanel,
+#animaRegionPanel { flex: 0 0 auto; }
+#mossRegionPanel:not(.is-enabled),
+#animaRegionPanel:not(.is-enabled) {
+  flex: 0 0 auto;
+  min-height: 0;
 }
-#mossRegionPanel:not(.is-enabled) > :not(.panel-heading) {
-  opacity: .38;
-  filter: saturate(.25);
+#mossRegionPanel:not(.is-enabled) > :not(.panel-heading),
+#animaRegionPanel:not(.is-enabled) > :not(.panel-heading) {
+  display: none;
 }
-@media (min-width: 1181px) {
-  #mossRegionPanel {
-    display: flex;
-    flex-direction: column;
-    flex: 1 1 281px;
-    min-height: 128px;
-  }
-  #mossRegionPanel > :not(.moss-region-overview-button) { flex: none; }
-  #mossRegionPanel > .moss-region-overview-button {
-    flex: 1;
-    min-height: 32px;
-    container-type: size;
-  }
-  #mossRegionPanel .moss-region-overview {
-    width: min(100cqw, calc(100cqh * var(--moss-output-ratio))) !important;
-  }
+#mossRegionPanel:not(.is-enabled) > .panel-heading,
+#animaRegionPanel:not(.is-enabled) > .panel-heading {
+  margin-bottom: 0;
 }
 .moss-region-card-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .moss-region-card-heading h2 { margin: 0; font-size: 14px; }
 .moss-region-overview-button {
   position: relative; display: grid; place-items: center; width: 100%; margin: 8px 0 0;
-  padding: 28px 10px 10px; min-height: 100px; border: 1px solid var(--line);
+  padding: 28px 10px 10px; min-height: 280px; border: 1px solid var(--line);
   border-radius: 10px; background: var(--panel2); cursor: pointer;
 }
 .moss-region-overview {
   position: relative; display: grid; place-items: center; overflow: hidden;
   border: 1px solid #3c5860; border-radius: 5px; background: #101a20;
 }
+.moss-region-overview-pose { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
 .moss-region-overview-box {
-  position: absolute; display: block; box-sizing: border-box;
+  position: absolute; z-index: 1; display: block; box-sizing: border-box;
   border: 1px solid currentColor; background: #6bd58614;
   text-align: left; padding: 2px; font: 600 11px system-ui;
 }
@@ -84,7 +75,7 @@
 .moss-region-dialog.moss-region-panel .moss-region-editor { padding: 16px; }
 .moss-region-dialog.moss-region-panel .moss-region-field textarea { min-height: 120px; }
 .moss-region-footer { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding-top: 14px; flex: none; }
-.moss-region-panel .moss-region-done { min-width: 90px; border-color: #477963; color: #a5e4c5; }
+.moss-region-panel .moss-region-done { min-width: 90px; margin-inline-start: auto; border-color: #477963; color: #a5e4c5; }
 
 @media (max-width: 760px) {
   .moss-region-dialog { width: calc(100vw - 12px); height: calc(100dvh - 12px); padding: 12px; border-radius: 10px; }

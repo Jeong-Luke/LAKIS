@@ -87,6 +87,8 @@ Get-ChildItem -LiteralPath $externalRoot -File -Recurse |
 # marker. It must be restored by every repair/update, not treated as stale data.
 Add-UpdateFile "ComfyUI/LAKIS/STOP_AUTOMATION" (Join-Path $repo "resources\STOP_AUTOMATION") `
     "$rawBase/resources/STOP_AUTOMATION"
+Add-UpdateFile "ComfyUI/LAKIS/install_snapref.py" (Join-Path $repo "installer\install_snapref_experiment.py") `
+    "$rawBase/installer/install_snapref_experiment.py"
 
 # These public, release-managed providers are shared with Install and Repair.
 # No model files, runtime markers, caches, or user-created workflows are added.

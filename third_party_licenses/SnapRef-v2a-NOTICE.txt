@@ -1,0 +1,15 @@
+The CircleStone Model is licensed by CircleStone Labs LLC under the CircleStone Non-Commercial License. Copyright CircleStone Labs LLC.
+IN NO EVENT SHALL CIRCLESTONE LABS LLC BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH USE OF THIS MODEL.
+
+Modification notice: snapref_v2a.safetensors and snapref_v2a_fp8.safetensors (SnapRef v2a stable) is a derivative of the
+CircleStone Model (Anima base v1.0). It contains trained adapter weights that modify the
+model behavior when applied. It is not an official product of CircleStone Labs LLC and is not
+endorsed, approved or validated by it.
+
+Anima base v1.0 is a Derivative Model of NVIDIA Cosmos-Predict2-2B-Text2Image and is subject to the NVIDIA Open
+Model License Agreement insofar as it applies to Derivative Models.
+
+These weights are distributed under the CircleStone Non-Commercial License (LICENSE.md). Your rights to use the
+CircleStone Model and this derivative come directly from CircleStone Labs LLC under that license.
+THE WEIGHTS ARE PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND; IN NO EVENT SHALL THE AUTHOR OR CIRCLESTONE LABS
+LLC BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY ARISING FROM THEIR USE.

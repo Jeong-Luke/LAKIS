@@ -12,7 +12,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-import test_cmd_installer as fixtures
+from installer.tests import test_cmd_installer as fixtures
 import lakis_cmd_installer as downloader
 import runtime_install
 import runtime_manifest as contract

@@ -4,11 +4,28 @@
     ["lora", ".lora-panel", "로라"],
     ["composition", ".composition-panel", "구도 설정"],
     ["i2i", ".i2i-panel", "i2i"],
-    ["prompt", ".prompt-panel", "프롬프트"],
+    ["prompt", ".prompt-column > .prompt-panel:not(.precision-prompts):not(.negative-prompt-panel)", "프롬프트"],
+    ["inpaint", ".inpaint-panel", "인페인트"],
     ["generation", ".compact-mode-panel", "생성 모드", true],
   ];
   let configuration = {};
   let configurationByEngine = null;
+  const featureSelectors = {
+    reference: "#animaReferencePanel .anima-reference-common-settings, #animaReferencePanel .anima-reference-settings, #animaReferencePanel .anima-reference-help",
+    inpaint: "#inpaintControls > label",
+  };
+  const featureControls = new Map();
+  const referenceHomes = new Map();
+  const mossLoraHomes = new Map();
+  function liveReferenceControls() {
+    return [...document.querySelectorAll(featureSelectors.reference)];
+  }
+  function liveMossLoraControls() {
+    return [...document.querySelectorAll(".lora-heading-actions, #loraList")];
+  }
+  const actions = new Map([
+    ["anima_regions", () => document.querySelector("#animaRegionPanel .moss-region-open").click()],
+  ]);
   const mossDetailControls = document.querySelector("#mossDetailControls");
   const mossDetailHome = document.querySelector("#mossDetailSettings");
   const generationModeSwitches = new Set(["2138", "2139", "2140"]);
@@ -22,6 +39,13 @@
 
   function cloneValue(value) {
     return value && typeof value === "object" ? structuredClone(value) : value;
+  }
+
+  function stableStringify(value) {
+    if (value === null || typeof value !== "object") return JSON.stringify(value);
+    if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
+    const keys = Object.keys(value).sort();
+    return `{${keys.map(key => `${JSON.stringify(key)}:${stableStringify(value[key])}`).join(",")}}`;
   }
 
   function currentValue(nodeId, field) {
@@ -104,13 +128,41 @@
       ? JSON.stringify(value, null, 2) : String(value ?? "");
     const commit = () => {
       try {
+        const stored = currentValue(nodeId, field);
         let next = input.value;
         if (field.type === "number") {
           next = Number(next);
           if (!Number.isFinite(next)) throw new Error("number");
+          if (Object.is(next, stored)) {
+            input.classList.remove("advanced-field-error");
+            return;
+          }
         } else if (field.type === "json") {
           const parsed = JSON.parse(next);
-          next = field.encoded_json ? JSON.stringify(parsed) : parsed;
+          if (field.encoded_json) {
+            let storedParsed = stored;
+            if (typeof storedParsed === "string") {
+              try {
+                storedParsed = JSON.parse(storedParsed);
+              } catch (_) {
+                storedParsed = stored;
+              }
+            }
+            if (stableStringify(parsed) === stableStringify(storedParsed)) {
+              input.classList.remove("advanced-field-error");
+              return;
+            }
+            next = JSON.stringify(parsed);
+          } else {
+            if (stableStringify(parsed) === stableStringify(stored)) {
+              input.classList.remove("advanced-field-error");
+              return;
+            }
+            next = parsed;
+          }
+        } else if (next === String(stored ?? "")) {
+          input.classList.remove("advanced-field-error");
+          return;
         }
         saveValue(nodeId, field.name, next);
         input.classList.remove("advanced-field-error");
@@ -129,6 +181,46 @@
       mossDetailHome.append(mossDetailControls);
     }
     body.replaceChildren();
+    if (group === "reference") {
+      body.classList.toggle("inpaint-controls", false);
+      for (const control of liveReferenceControls()) {
+        if (!referenceHomes.has(control)) {
+          const home = document.createComment(`${group} settings home`);
+          control.before(home);
+          referenceHomes.set(control, home);
+        }
+      }
+      for (const [control, home] of [...referenceHomes]) {
+        if (!control.isConnected) {
+          if (home.isConnected) home.remove();
+          referenceHomes.delete(control);
+        }
+      }
+      body.append(...liveReferenceControls());
+      return;
+    }
+    if (featureControls.has(group)) {
+      body.classList.toggle("inpaint-controls", group === "inpaint");
+      body.append(...featureControls.get(group).map(item => item.control));
+      return;
+    }
+    if (group === "lora" && state.generation.engine === "moss") {
+      const overlay = body.closest(".advanced-settings-overlay");
+      overlay.dataset.engine = "moss";
+      overlay.querySelector("h3").textContent = "MOSS · 로라 설정";
+      overlay.querySelector(".advanced-settings-header span").textContent =
+        "현재 MOSS LoRA의 선택·강도·활성 상태를 설정합니다.";
+      body.classList.add("moss-lora-settings");
+      for (const control of liveMossLoraControls()) {
+        if (!mossLoraHomes.has(control)) {
+          const home = document.createComment("MOSS LoRA settings home");
+          control.before(home);
+          mossLoraHomes.set(control, home);
+        }
+      }
+      body.append(...liveMossLoraControls());
+      return;
+    }
     if (group === "generation") {
       const moss = state.generation.engine === "moss";
       const overlay = body.closest(".advanced-settings-overlay");
@@ -232,6 +324,30 @@
   function closeOverlay(overlay, button) {
     overlay.hidden = true;
     button?.setAttribute("aria-expanded", "false");
+    if (overlay.dataset.advancedGroup === "reference") {
+      for (const [control, home] of [...referenceHomes]) {
+        if (!control.isConnected) {
+          if (home.isConnected) home.remove();
+          referenceHomes.delete(control);
+          continue;
+        }
+        if (home.isConnected) home.after(control);
+      }
+      return;
+    }
+    if (overlay.dataset.advancedGroup === "lora" && overlay.dataset.engine === "moss") {
+      for (const [control, home] of mossLoraHomes) {
+        if (home.isConnected) home.after(control);
+      }
+      overlay.querySelector(".advanced-settings-body").classList.remove("moss-lora-settings");
+      overlay.querySelector("h3").textContent = "로라 · 노드 설정";
+      overlay.querySelector(".advanced-settings-header span").textContent =
+        "연결된 ComfyUI 노드의 전체 입력 설정";
+      return;
+    }
+    for (const item of featureControls.get(overlay.dataset.advancedGroup) || []) {
+      item.home.after(item.control);
+    }
   }
 
   window.LAKISAdvancedSettings = {
@@ -240,7 +356,9 @@
       const engineNodes = configurationByEngine?.[state.generation.engine] || configuration;
       for (const button of document.querySelectorAll(".advanced-settings-button")) {
         const group = button.dataset.advancedGroup;
-        button.disabled = moss && (group === "generation" || !(engineNodes[group]?.length));
+        button.disabled = moss && (group === "generation" || (
+          group !== "lora" && !(engineNodes[group]?.length)
+        ));
         const overlay = document.querySelector(`.advanced-settings-overlay[data-advanced-group="${group}"]`);
         if (overlay && !overlay.hidden && (button.disabled || overlay.dataset.engine !== state.generation.engine)) {
           closeOverlay(overlay, button);
@@ -251,11 +369,17 @@
 
   function toggleOverlay(button) {
     const group = button.dataset.advancedGroup;
+    if (actions.has(group)) {
+      actions.get(group)();
+      return;
+    }
     if (group === "generation" && state.generation.engine === "moss") return;
     const overlay = document.querySelector(`.advanced-settings-overlay[data-advanced-group="${group}"]`);
     if (!group || !overlay) return;
     const opening = overlay.hidden;
-    document.querySelectorAll(".advanced-settings-overlay:not([hidden])").forEach(item => { item.hidden = true; });
+    document.querySelectorAll(".advanced-settings-overlay:not([hidden])").forEach(item => {
+      closeOverlay(item, document.querySelector(`.advanced-settings-button[data-advanced-group="${item.dataset.advancedGroup}"]`));
+    });
     document.querySelectorAll(".advanced-settings-button[aria-expanded='true']").forEach(item => item.setAttribute("aria-expanded", "false"));
     if (opening) {
       overlay.dataset.engine = state.generation.engine;
@@ -299,6 +423,11 @@
       }
     }
 
+    if (actions.has(group)) {
+      button.removeAttribute("aria-expanded");
+      button.setAttribute("aria-haspopup", "dialog");
+      return;
+    }
     const overlay = document.createElement("section");
     overlay.className = "advanced-settings-overlay";
     overlay.dataset.advancedGroup = group;
@@ -306,7 +435,21 @@
     overlay.hidden = true;
     overlay.innerHTML = `<header class="advanced-settings-header"><div><h3></h3><span>연결된 ComfyUI 노드의 전체 입력 설정</span></div><button class="advanced-settings-close" type="button" aria-label="닫기">×</button></header><div class="advanced-settings-body"></div>`;
     overlay.querySelector("h3").textContent = `${title} · 노드 설정`;
-    (floating ? document.body : panel).append(overlay);
+    if (featureSelectors[group]) {
+      overlay.classList.add("feature-settings-overlay");
+      overlay.setAttribute("role", "dialog");
+      overlay.setAttribute("aria-label", `${title} 세부설정`);
+      overlay.querySelector("h3").textContent = `${title} · 세부설정`;
+      overlay.querySelector(".advanced-settings-header span").textContent = "현재 카드의 설정 · 변경한 값은 생성에 적용됩니다.";
+      if (group !== "reference") {
+        featureControls.set(group, [...document.querySelectorAll(featureSelectors[group])].map(control => {
+          const home = document.createComment(`${group} settings home`);
+          control.before(home);
+          return { control, home };
+        }));
+      }
+    }
+    (floating || featureSelectors[group] ? document.body : panel).append(overlay);
     if (floating) window.addEventListener("resize", () => { if (!overlay.hidden) placeGenerationOverlay(overlay); });
   }
 
@@ -334,6 +477,7 @@
 
   async function initialize() {
     groups.forEach(args => install(...args));
+    window.dispatchEvent(new Event("lakis-advanced-settings-ready"));
     // Prompt panels are rebuilt when their saved state is restored. Delegated
     // events keep both the settings gear and close button operational even when
     // those elements have been replaced after this module initialized.

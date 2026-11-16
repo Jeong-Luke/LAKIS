@@ -14,6 +14,7 @@ VERSION = "7.5.4"
 RUNTIME_HELPERS = (
     "lakis_cmd_installer.py", "runtime_install.py", "runtime_transition.py",
     "runtime_manifest.py", "runtime_health.py", "runtime_patch.py", "runtime_update.py",
+    "application_release.py",
 )
 BASELINE_HASHES = {
     "LAKIS_Updater.exe": "fc842225c22d7c6ec58639cbbe2581f94b3825200f2520c81d2bd3e4798efc50",

@@ -8,6 +8,16 @@ import { bindPoseRegions } from "./vendor/toyxyz/util/pose_region_bridge.js";
 import { PrecisionPoseControls } from "./precision-pose-controls.js";
 import { findMissingPaintPrompt } from "./toyxyz-prompt-validation.js";
 
+function bindParentTheme() {
+  const host = parent.document.documentElement;
+  const update = () => { document.documentElement.dataset.synapseTheme = host.dataset.synapseTheme; };
+  const observer = new MutationObserver(update);
+  update();
+  observer.observe(host, { attributes: true, attributeFilter: ["data-synapse-theme"] });
+  window.addEventListener("pagehide", () => observer.disconnect(), { once: true });
+}
+if (parent !== window) bindParentTheme();
+
 let loaded = false, handling = false, revision = 0;
 const poseNode = {
   id: -76, properties: {}, setDirtyCanvas() {
@@ -39,11 +49,24 @@ poseNode.graph = paintNode.graph = graph;
 const pose = poseNode._pose3d = new Pose3DEditorUI(poseNode, document.querySelector("#pose"));
 const painter = new CoupleRegionPainterUI(paintNode, document.querySelector("#painter"), app);
 let binding, simple, commands = Promise.resolve();
+let viewportObserver;
 const errorOutput = document.querySelector("#error");
 function reply(message) { parent.postMessage(message, location.origin); }
+function publishPoseViewport() {
+  const { left, top, width, height } = simple.outputFrame.getBoundingClientRect();
+  reply({ type: "lakis:toyxyz-viewport", rect: { left, top, width, height } });
+}
 const ready = Promise.all([pose.ready, painter.ready]).then(() => {
   pose.getPoseButton.hidden = true;
   simple = new PrecisionPoseControls(pose);
+  window.LAKISPoseControls = {
+    mount: host => simple.mountControls(host),
+    unmount: () => simple.unmountControls(),
+  };
+  viewportObserver = new ResizeObserver(publishPoseViewport);
+  viewportObserver.observe(pose.view);
+  viewportObserver.observe(simple.outputFrame);
+  publishPoseViewport();
   reply({ type: "lakis:toyxyz-ready" });
 });
 ready.catch(error => {
@@ -91,7 +114,7 @@ async function handle(message) {
   if (message.validate_prompts) {
     const missing = findMissingPaintPrompt(painter);
     if (missing) {
-      throw Object.assign(Error(`${missing.index + 1}번 인물/영역의 프롬프트가 비어 있습니다. 메인 화면의 정밀 프롬프트에 외형·의상을 입력하거나 해당 레이어를 숨겨 주세요.`),
+      throw Object.assign(Error(`${missing.index + 1}번 인물/영역의 프롬프트가 비어 있습니다. 해당 인물 프롬프트에 외형·의상을 입력하거나 해당 레이어를 숨겨 주세요.`),
         { missing_layer_id: missing.layer.id });
     }
   }
@@ -122,5 +145,6 @@ window.addEventListener("message", event => {
   });
 });
 window.addEventListener("pagehide", () => {
+  viewportObserver?.disconnect();
   simple?.dispose(); painter.dispose(); pose.dispose();
 });

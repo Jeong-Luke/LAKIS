@@ -209,6 +209,24 @@ export class PrecisionPoseControls {
     editor.resize();
   }
 
+  mountControls(host) {
+    if (this.controls.parentElement === host) return;
+    this.externalControlsKey ||= event => this.historyKey(event);
+    this.controls.addEventListener("keydown", this.externalControlsKey,
+      { capture: true, signal: this.abort.signal });
+    host.append(this.controls);
+    this.editor.root.classList.add("precision-pose-controls-external");
+    this.editor.resize();
+  }
+
+  unmountControls() {
+    if (this.controls.parentElement === this.editor.root) return;
+    this.controls.removeEventListener("keydown", this.externalControlsKey, true);
+    this.editor.root.prepend(this.controls);
+    this.editor.root.classList.remove("precision-pose-controls-external");
+    this.editor.resize();
+  }
+
   historyKey(event) {
     if (event.defaultPrevented || event.isComposing || event.altKey ||
         !(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "z" ||
@@ -564,11 +582,13 @@ export class PrecisionPoseControls {
     this.finishWheel();
     this.busy = true;
     this.editor.root.inert = true;
+    this.controls.inert = true;
     this.refresh();
     try { await action(); }
     catch (error) { this.status.textContent = `포즈 편집 실패: ${error.message}`; }
     finally {
       this.editor.root.inert = false;
+      this.controls.inert = false;
       this.busy = false;
       this.refresh();
     }
@@ -583,6 +603,7 @@ export class PrecisionPoseControls {
 
   dispose() {
     this.finishWheel();
+    this.unmountControls();
     this.abort.abort();
     this.editor.updateControllerVisibility = this.originalVisibility;
     this.editor.updateGetPoseButton = this.originalReadiness;

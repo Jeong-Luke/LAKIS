@@ -10,6 +10,9 @@
 }
 .precision-pose-workspace { grid-column: 2; grid-row: 1; }
 .precision-pose-note { grid-column: 2; grid-row: 2; color: var(--muted) !important; }
+.precision-pose-editor.precision-pose-controls-external { grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto; }
+.precision-pose-controls-external .precision-pose-workspace { grid-column:1;grid-row:1; }
+.precision-pose-controls-external .precision-pose-note { grid-column:1;grid-row:2; }
 .precision-pose-output-frame {
   position: absolute;
   left: 50%;
@@ -192,6 +195,9 @@
 .precision-pose-controls [data-parameter-slot] > div { max-width: 520px; }
 .precision-pose-controls p { margin: 7px 0 0; color: var(--muted); }
 .precision-pose-controls p:empty { display: none; }
+html[data-synapse-theme="true"] .precision-pose-controls {
+  font-family: var(--mx-font-sans, "Pretendard Variable", Pretendard, "Malgun Gothic", "Segoe UI", sans-serif);
+}
 @media (max-width: 700px) {
   .precision-pose-help { top: auto; bottom: 12px; font-size: 10px; line-height: 1.65; }
   .precision-pose-editor { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 38%) minmax(0, 1fr) auto; }

@@ -5,4 +5,5 @@ ComfyUI-LAKIS-AutoPatch
 ComfyUI-LAKIS-Detail
 ComfyUI-LAKIS-Fast-Refiner
 ComfyUI-LAKIS-Local-Inpaint
+ComfyUI-LAKIS-Regional-Reference
 ComfyUI-PreviewMonitor

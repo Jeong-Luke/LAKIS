@@ -30,6 +30,63 @@ restrictions and source-data conditions remain applicable to official downloads.
 The GPL Toyxyz editor, MIT Three.js, Apache MHR meshes, SAM-licensed sparse
 mapping, and Apache LLLite node code are separate components with separate terms.
 
+## Optional SnapRef references in the 8.1.2 candidate
+
+The intended LAKIS delivery is a free standalone local application, not a
+paid feature or paid generation service. No monetization is planned here.
+Free delivery still preserves the publisher's model-use conditions.
+
+SnapRef inference code and its model weights have separate terms:
+
+- Code: `ArcAnima/SnapRef` revision
+  `1f7e606621052c11486c7aa5ccf6c2c12c2c5a3a`, Apache-2.0.
+- Adapter: `0ppxnhximxr/snapref-v2a` revision
+  `e6d6a21e4d56faae4454a1cc9bfd065d87358bf2`,
+  `snapref_v2a.safetensors`, SHA-256
+  `8a22fc28d060447544eda283b36efe2dcdbad7422cbc0b8d42828d55a8a61ab4`.
+  Its [exact license](https://huggingface.co/0ppxnhximxr/snapref-v2a/blob/e6d6a21e4d56faae4454a1cc9bfd065d87358bf2/LICENSE.md)
+  is CircleStone Labs Non-Commercial License v1.2; its
+  [original notice](https://huggingface.co/0ppxnhximxr/snapref-v2a/blob/e6d6a21e4d56faae4454a1cc9bfd065d87358bf2/NOTICE.txt)
+  is preserved in `third_party_licenses/SnapRef-v2a-NOTICE.txt`.
+
+The weight license is **not an unconditional redistribution ban**: sections
+2 and 3 permit distribution subject to non-commercial-purpose restrictions,
+the license text, attribution, direct rights from CircleStone, and the other
+conditions. This does not authorize commercial or production model operation.
+Section 2(c)'s individual sale-of-derivative-weights exception does not cover
+a larger product, tool, or feature incorporating the model. Output permissions
+are separate; applicable base-model and third-party terms still apply.
+
+The 8.1.2 candidate package list includes the original LAKIS regional
+integration code, `ComfyUI-LAKIS-Regional-Reference`, but excludes upstream
+SnapRef and its adapter. The regular standalone launcher exposes the reference
+panel; generation remains OFF until the user enables it, and unavailable
+dependencies keep its controls disabled. Installers/updaters do not
+automatically download the adapter. The manually invoked helper
+`ComfyUI/LAKIS/install_snapref.py` (source:
+`installer/install_snapref_experiment.py`) requires
+`--acknowledge-snapref-terms` before any download or installation. It fetches
+the pinned upstream code license, weight license and notice, verifies their
+hashes, and preserves those files with the installed inference package.
+Existing conflicting files are not overwritten.
+
+Separate user installation, default-off gating and acknowledgement do not
+change the model license or constitute release approval. The formal weight license's
+non-commercial definition and the publisher's
+[free-service clarification](https://huggingface.co/circlestone-labs/Anima/discussions/37)
+must not be treated as a blanket exemption for every free application.
+The free local integration must retain the license, attribution and limits
+on model use. Any use outside those terms, including an ambiguous
+third-party-end-user/production scenario, needs separate clarification.
+The publisher lists `tdrussell@circlestone.ai` as its licensing contact.
+
+The reference feature is approved for the 8.1.2 scope. This does not certify
+license compliance for every deployment or authorize publication.
+The regional extension's original LAKIS code remains subject to `LICENSE.md`;
+interoperation with Apache-licensed SnapRef does not relicense either the
+weights or LAKIS code. This change does not authorize a new public release,
+change the pinned base model's v1.0 license, or change existing installations.
+
 ## Translation network disclosure
 
 한국어 번역 기능을 사용하면 번역할 프롬프트 텍스트가 외부 Google 번역 서비스로 전송될 수 있습니다.

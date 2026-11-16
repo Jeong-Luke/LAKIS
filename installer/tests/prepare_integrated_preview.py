@@ -85,14 +85,47 @@ def seed_model(source, target, expected_size, expected_hash):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--baseline", type=Path, required=True)
-    parser.add_argument("--baseline-manifest-sha256", required=True)
-    parser.add_argument("--source-revision", required=True)
-    parser.add_argument("--source-diff", type=Path, required=True)
-    parser.add_argument("--workspace-parent", type=Path, required=True)
-    parser.add_argument("--moss-models", type=Path, required=True)
-    parser.add_argument("--anima-models", type=Path, required=True)
+    parser.add_argument(
+        "--materialize-runtime",
+        action="store_true",
+        help="explicitly authorize preparing the private integrated runtime preview",
+    )
+    parser.add_argument("--baseline", type=Path)
+    parser.add_argument("--baseline-manifest-sha256")
+    parser.add_argument("--source-revision")
+    parser.add_argument("--source-diff", type=Path)
+    parser.add_argument("--workspace-parent", type=Path)
+    parser.add_argument("--moss-models", type=Path)
+    parser.add_argument("--anima-models", type=Path)
     args = parser.parse_args()
+
+    if not args.materialize_runtime:
+        parser.exit(
+            2,
+            "error: runtime/model materialization is disabled unless explicitly authorized.\n"
+            "For ordinary checks, use installer/run_installed_tests.py with the installed "
+            "Python and dotted unittest targets.\n"
+            "Use --materialize-runtime only for the authorized integrated preview.\n",
+        )
+
+    required_arguments = (
+        ("baseline", "--baseline"),
+        ("baseline_manifest_sha256", "--baseline-manifest-sha256"),
+        ("source_revision", "--source-revision"),
+        ("source_diff", "--source-diff"),
+        ("workspace_parent", "--workspace-parent"),
+        ("moss_models", "--moss-models"),
+        ("anima_models", "--anima-models"),
+    )
+    missing_arguments = [
+        option for name, option in required_arguments if getattr(args, name) is None
+    ]
+    if missing_arguments:
+        parser.error(
+            "the following arguments are required with --materialize-runtime: "
+            + ", ".join(missing_arguments)
+        )
+
     if not re.fullmatch(r"[a-fA-F0-9]{40}", args.source_revision):
         raise ValueError("a base source commit is required")
     diff = reject_reparse_path(args.source_diff).read_bytes()

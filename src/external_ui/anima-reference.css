@@ -1,0 +1,136 @@
+#animaReferencePanel {
+  min-width: 0;
+  flex: 0 0 auto;
+  color: var(--text, #e9edf5);
+}
+#animaReferencePanel[hidden] { display: none !important; }
+#animaReferencePanel .panel-heading { gap: 10px; }
+#animaReferencePanel .panel-heading h2 { margin: 0; font-size: 14px; }
+#animaReferencePanel:not(.is-enabled) > .panel-heading { margin-bottom: 0; }
+#animaReferencePanel:not(.is-enabled) > :not(.panel-heading) { display: none; }
+.anima-reference-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  align-items: stretch;
+  gap: 10px;
+}
+.anima-reference-image { position: relative; min-width: 0; min-height: 0; }
+.anima-reference-preview {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  min-height: 224px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px dashed var(--line, #34404b);
+  border-radius: 10px;
+  background: var(--panel2, #111820);
+  color: var(--text, #e9edf5);
+  font: inherit;
+  cursor: pointer;
+}
+.anima-reference-preview.has-image { border-style: solid; }
+.anima-reference-preview:hover:not(:disabled),
+.anima-reference-preview.is-dragging { border-color: var(--cyan, #47d7ff); }
+.anima-reference-preview:focus-visible { outline: 2px solid var(--cyan, #47d7ff); outline-offset: 2px; }
+.anima-reference-preview:disabled { cursor: not-allowed; }
+.anima-reference-preview img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  object-fit: contain;
+}
+.anima-reference-preview [hidden],
+.anima-reference-image > input[hidden],
+.anima-reference-remove[hidden],
+.anima-reference-status[hidden],
+.anima-reference-row-remove[hidden],
+.anima-reference-settings label[hidden] { display: none !important; }
+.anima-reference-preview span {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  color: var(--muted, #a4acb8);
+  font-size: 11px;
+}
+.anima-reference-preview strong { color: var(--text, #e9edf5); font-size: 13px; }
+.anima-reference-preview small { font-size: 10px; }
+.anima-reference-remove {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 7px;
+  font-size: 18px;
+}
+.anima-reference-settings { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 8px; min-width: 0; }
+.anima-reference-common-settings { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 12px 0; }
+.anima-reference-settings label,
+.anima-reference-common-settings label { display: block; min-width: 0; font-size: 11px; color: var(--muted, #a4acb8); }
+.anima-reference-settings input,
+.anima-reference-settings select,
+.anima-reference-common-settings input,
+.anima-reference-common-settings select { box-sizing: border-box; display: block; width: 100%; min-width: 0; min-height: 32px; margin-top: 4px; }
+#animaReferenceMegapixels,
+#animaReferenceFidelity,
+#animaReferenceForecast {
+  height: 40px;
+  min-height: 40px;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 13px;
+  line-height: normal;
+}
+.anima-reference-target { max-width: 100%; }
+.anima-reference-help { display: none; }
+.feature-settings-overlay .anima-reference-help { display: block; }
+.feature-settings-overlay .anima-reference-settings { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.anima-reference-status,
+.anima-reference-hint { margin: 8px 0; font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; color: var(--muted, #a4acb8); }
+.anima-reference-heading-actions { display: flex; align-items: center; gap: 6px; }
+#animaReferenceAdd { min-width: 28px; }
+.anima-reference-rows { display: grid; gap: 10px; }
+.anima-reference-body + .anima-reference-body { border-top: 1px solid var(--line, #34404b); padding-top: 10px; }
+.anima-reference-row-heading { display: flex; grid-column: 1 / -1; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+.anima-reference-row-title { margin: 0; color: var(--text, #e9edf5); font-size: 13px; font-weight: 600; white-space: nowrap; }
+.anima-reference-row-heading button { flex: none; min-width: 28px; padding-inline: 6px; }
+.anima-reference-warning {
+  box-sizing: border-box;
+  max-width: calc(100vw - 32px);
+  color: var(--text, #e9edf5);
+  font: inherit;
+  border-color: rgba(238,176,74,.7);
+}
+#animaReferenceWarning { width: 560px; container-type: inline-size; }
+#animaReferenceWarningMessage {
+  white-space: pre;
+  overflow-wrap: normal;
+  font-size: min(13px, calc(100cqi / 37));
+}
+.anima-reference-warning::backdrop { background: rgba(3,5,10,.72); backdrop-filter: blur(7px); }
+.anima-reference-warning h2 { display: flex; justify-content: center; align-items: center; gap: 10px; }
+.anima-reference-warning .anima-reference-warning-icon { color: #f0c35a; font: 30px "Segoe UI Symbol", sans-serif; }
+.anima-reference-warning label {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 6px;
+  margin-top: 18px;
+  color: var(--muted, #a4acb8);
+  font-size: 12px;
+  cursor: pointer;
+}
+.anima-reference-warning label > span { min-width: 0; text-align: left; white-space: nowrap; }
+.anima-reference-warning input[type="checkbox"] {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--cyan, #47d7ff);
+}

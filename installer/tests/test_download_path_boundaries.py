@@ -130,6 +130,9 @@ class NativeWriteBoundaryTests(unittest.TestCase):
         for path in ('.lakis/settings.json','arbitrary-document.txt','app.js:payload',
                      'ComfyUI/LAKIS/external_ui/CON.txt','ComfyUI/LAKIS/external_ui/a.js:payload',
                      'ComfyUI/user/prompt.json','ComfyUI/models/loras/user.safetensors',
+                     'ComfyUI/models/snapref/user.safetensors',
+                     'ComfyUI/LAKIS/install_snapref.py/../settings.json',
+                     'ComfyUI/custom_nodes/ComfyUI-LAKIS-Regional-Reference/startup_workflow.json',
                      'ComfyUI/LAKIS/workflows/LAKIS_custom_v7.4_editable.json',
                      'ComfyUI/custom_nodes/ComfyUI-LAKIS-AutoPatch/startup_workflow.json',
                      'ComfyUI/LAKIS/external_ui/a.js.','ComfyUI/LAKIS/external_ui//a.js'):
@@ -137,6 +140,7 @@ class NativeWriteBoundaryTests(unittest.TestCase):
         self.run_probe('delete','LICENSE.md')
     def test_all_production_owned_source_paths_are_allowed(self):
         paths=['LAKIS.exe','Microsoft.Web.WebView2.Core.dll','ComfyUI/LAKIS/STOP_AUTOMATION',
+               'ComfyUI/LAKIS/install_snapref.py',
                'ComfyUI/LAKIS/sync_runtime_workflow.py','ComfyUI/LAKIS/workflows/LAKIS_runtime_api_v7.4.json',
                'ComfyUI/LAKIS/workflows/LAKIS_runtime_visual_v7.4.json']
         for path in (ROOT/'src/external_ui').rglob('*'):

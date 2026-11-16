@@ -526,12 +526,18 @@ class CmdInstallerTests(unittest.TestCase):
             root = Path(folder)
             candidate, manifest = self._runtime_candidate(root)
             target = root / "installed"
-            for relative in ("VERSION", "ComfyUI/LAKIS/STOP_AUTOMATION"):
-                path = target / relative
-                path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_bytes((candidate / relative).read_bytes())
+            (target / "ComfyUI").mkdir(parents=True)
+            (target / "VERSION").write_text(CURRENT_VERSION, encoding="ascii")
+            (target / "LAKIS.exe").write_bytes(b"old launcher")
             protected = [name + "/user-owned.bin" for name in runtime_contract.PROTECTED_DIRECTORIES]
             protected.extend(runtime_contract.PROTECTED_FILES)
+            protected.extend((
+                "ComfyUI/models/loras/user.safetensors",
+                "ComfyUI/user/default/workflows/user-workflow.json",
+                ".lakis/settings.json",
+                "ComfyUI/input/user.png",
+                "ComfyUI/output/generated.png",
+            ))
             for relative in protected:
                 path = target / relative
                 path.parent.mkdir(parents=True, exist_ok=True)
@@ -551,6 +557,27 @@ class CmdInstallerTests(unittest.TestCase):
             self.assertEqual({relative: (target / relative).read_bytes() for relative in protected}, before)
             self.assertEqual((target / "LAKIS_Model_Importer.exe").read_bytes(),
                              (candidate / "LAKIS_Model_Importer.exe").read_bytes())
+
+    def test_runtime_repair_still_rejects_unidentified_partial_install_without_changes(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            candidate, manifest = self._runtime_candidate(root)
+            target = root / "installed"
+            target.mkdir()
+            (target / "ComfyUI").mkdir()
+            (target / "VERSION").write_text(CURRENT_VERSION, encoding="ascii")
+            (target / "user-workflow.json").write_bytes(b"preserve")
+            before = {str(p.relative_to(target)): p.read_bytes() for p in target.rglob("*") if p.is_file()}
+            with mock.patch.object(runtime_install, "prepare_bundle", return_value=candidate), \
+                 mock.patch.object(runtime_install, "prepare_required_models", return_value=None), \
+                 mock.patch.object(runtime_transition, "check_runtime"), \
+                 mock.patch.object(runtime_transition, "assert_idle"), \
+                 self.assertRaisesRegex(ValueError, "identified public LAKIS installation"):
+                runtime_install.install(manifest, target, root / "cache", "repair", "gui")
+            self.assertEqual(
+                {str(p.relative_to(target)): p.read_bytes() for p in target.rglob("*") if p.is_file()},
+                before,
+            )
 
     def test_runtime_fresh_rejects_nonempty_and_existing_installation_without_changes(self):
         for existing_installation in (False, True):

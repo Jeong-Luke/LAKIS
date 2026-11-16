@@ -42,7 +42,8 @@ internal static class RuntimeBundleInstaller
 {
     private static readonly string[] Helpers = {
         "lakis_cmd_installer.py", "runtime_install.py", "runtime_transition.py",
-        "runtime_manifest.py", "runtime_health.py", "runtime_patch.py", "runtime_update.py"
+        "runtime_manifest.py", "runtime_health.py", "runtime_patch.py", "runtime_update.py",
+        "application_release.py"
     };
 
     internal static string Quote(string value)
@@ -64,6 +65,32 @@ internal static class RuntimeBundleInstaller
     internal static string HashFile(string path)
     {
         using (var stream = File.OpenRead(path)) return HashStream(stream);
+    }
+
+    internal static bool IsRecognizedInstallation(string target)
+    {
+        if (String.IsNullOrWhiteSpace(target)) return false;
+        try
+        {
+            string full = Path.GetFullPath(target);
+            string version = Path.Combine(full, "VERSION");
+            string comfy = Path.Combine(full, "ComfyUI");
+            string python = Path.Combine(full, "python_embeded");
+            string stop = Path.Combine(full, "ComfyUI", "LAKIS", "STOP_AUTOMATION");
+            string launcher = Path.Combine(full, "LAKIS.exe");
+            string complete = Path.Combine(full, "install.complete");
+            foreach (string path in new[] { full, version, comfy, python, stop, launcher, complete })
+                RejectReparse(path);
+
+            bool hasVersion = File.Exists(version);
+            bool identity = hasVersion && File.Exists(stop);
+            bool launcherIdentity = hasVersion && File.Exists(launcher) && Directory.Exists(comfy);
+            bool runtime = Directory.Exists(comfy) &&
+                (Directory.Exists(python) || identity || launcherIdentity);
+            bool marker = File.Exists(complete) || hasVersion || File.Exists(launcher);
+            return hasVersion && runtime && marker;
+        }
+        catch { return false; }
     }
 
     private static string HashStream(Stream stream)
@@ -243,14 +270,21 @@ internal static class RuntimeBundleInstaller
     {
         if ((mode != "fresh" && mode != "repair" && mode != "update") || (mode != "fresh" && includeAnimeSharp))
             throw new ArgumentException("Invalid GUI runtime installation mode.");
+        if (mode == "repair" && !IsRecognizedInstallation(target))
+            throw new InvalidOperationException("Repair requires a recognized LAKIS installation.");
+        if (mode == "update") EnsureOutsideInstallation(target);
+        InstallerTargetVersion(manifestJson);
+        var installer = new JavaScriptSerializer().Deserialize<Dictionary<string, object>>(manifestJson);
         if (mode == "update")
         {
             // Setup runs outside the installation, so it does not need the
             // installed updater's self-replacement handoff. Never relax that
             // handoff for an executable that is itself inside the target.
-            EnsureOutsideInstallation(target);
-            var prepared = Prepare(python, CreateUpdateManifest(manifestJson), target, cache, report);
-            return ApplyPrepared(prepared, report, false);
+            if (!installer.ContainsKey("application_release"))
+            {
+                var prepared = Prepare(python, CreateUpdateManifest(manifestJson), target, cache, report);
+                return ApplyPrepared(prepared, report, false);
+            }
         }
         var context = CreateInstallContext(manifestJson, target, cache);
         var arguments = new List<string> {
@@ -259,6 +293,24 @@ internal static class RuntimeBundleInstaller
             "--target", context.target, "--cache", context.cache, "--mode", mode, "--method", "gui"
         };
         if (includeAnimeSharp) arguments.Add("--include-noncommercial-upscaler");
+        if (installer.ContainsKey("application_release"))
+        {
+            // Preparation can use the installed interpreter; activation cannot.
+            // Preserve the candidate-engine and helper/manifest rechecks used by
+            // the updater handoff without dropping the application descriptor.
+            var preparation = new List<string>(arguments);
+            preparation.Add("--prepare-only");
+            var prepared = RunPython(python, context.workspace, preparation, report);
+            if (!prepared.ContainsKey("status") || (string)prepared["status"] != "prepared")
+                throw new InvalidDataException("Application preparation did not finish.");
+            context.candidate = Path.GetFullPath((string)prepared["candidate"]);
+            VerifyHelpers(context.workspace);
+            VerifyManifest(context);
+            VerifyCandidateEngine(context.candidate);
+            arguments.Add("--prepared-root");
+            arguments.Add(context.candidate);
+            python = Path.Combine(context.candidate, "python_embeded", "python.exe");
+        }
         var result = RunPython(python, context.workspace, arguments, report);
         VerifyManifest(context);
         if (!result.ContainsKey("status") || (string)result["status"] != "complete")
@@ -296,6 +348,8 @@ internal static class RuntimeBundleInstaller
     {
         var serializer = new JavaScriptSerializer();
         var installer = serializer.Deserialize<Dictionary<string, object>>(installerJson);
+        if (installer != null && installer.ContainsKey("application_release"))
+            throw new InvalidDataException("A composed application release requires its complete installer descriptor.");
         object schema, version, bundle;
         if (installer == null || !installer.TryGetValue("schema", out schema) || !Equals(schema, 1) ||
             !installer.TryGetValue("version", out version) || !(version is string) ||
@@ -312,6 +366,63 @@ internal static class RuntimeBundleInstaller
         string json = serializer.Serialize(update);
         UpdateProtocol.Read(json);
         return json;
+    }
+
+    internal static string InstallerTargetVersion(string json)
+    {
+        var installer = new JavaScriptSerializer().Deserialize<Dictionary<string, object>>(json);
+        if (installer == null || !installer.ContainsKey("version") || !(installer["version"] is string))
+            throw new InvalidDataException("Invalid installer identity.");
+        string baseline = (string)installer["version"];
+        if (!installer.ContainsKey("application_release")) return baseline;
+        var release = ObjectField(installer, "application_release");
+        var bundle = ObjectField(installer, "runtime_bundle");
+        string version = TextField(release, "version");
+        if (!release.ContainsKey("schema") || !Equals(release["schema"], 1) ||
+            TextField(release, "product") != "LAKIS" ||
+            !System.Text.RegularExpressions.Regex.IsMatch(version, @"^\d+\.\d+\.\d+$") ||
+            !System.Text.RegularExpressions.Regex.IsMatch(TextField(release, "source_revision"), "^[a-fA-F0-9]{40}$") ||
+            TextField(release, "runtime_version") != baseline ||
+            TextField(bundle, "version") != baseline ||
+            UpdateProtocol.CompareVersions(version, baseline) < 0)
+            throw new InvalidDataException("Application release identity mismatch.");
+        foreach (string field in new[] { "sha256", "manifest_sha256" })
+        {
+            string value = TextField(release, "runtime_" + field);
+            if (!System.Text.RegularExpressions.Regex.IsMatch(value, "^[a-fA-F0-9]{64}$") ||
+                !String.Equals(value, TextField(bundle, field), StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("Application release is not bound to this runtime.");
+        }
+        foreach (string field in new[] { "payload", "layout", "manifest" })
+        {
+            var asset = ObjectField(release, field);
+            string name = field == "payload" ? "LAKIS_RepairPack.zip" :
+                field == "layout" ? "release-layout.json" : "RUNTIME_SHA256SUMS.json";
+            object bytes;
+            if (TextField(asset, "name") != name ||
+                TextField(asset, "url") != "https://github.com/Jeong-Luke/LAKIS/releases/download/v" + version + "/" + name ||
+                !System.Text.RegularExpressions.Regex.IsMatch(TextField(asset, "sha256"), "^[a-fA-F0-9]{64}$") ||
+                !asset.TryGetValue("bytes", out bytes) || (!(bytes is int) && !(bytes is long)) ||
+                Convert.ToInt64(bytes) <= 0)
+                throw new InvalidDataException("Invalid pinned application asset.");
+        }
+        return version;
+    }
+
+    private static Dictionary<string, object> ObjectField(Dictionary<string, object> owner, string name)
+    {
+        object value;
+        if (!owner.TryGetValue(name, out value) || !(value is Dictionary<string, object>))
+            throw new InvalidDataException("Missing application object: " + name);
+        return (Dictionary<string, object>)value;
+    }
+
+    private static string TextField(Dictionary<string, object> owner, string name)
+    {
+        object value;
+        if (!owner.TryGetValue(name, out value) || !(value is string) || String.IsNullOrWhiteSpace((string)value))
+            throw new InvalidDataException("Missing application identity: " + name);
+        return (string)value;
     }
 
     internal static string WriteHandoff(RuntimeHandoff handoff, bool launch)

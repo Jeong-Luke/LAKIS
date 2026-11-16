@@ -1,6 +1,7 @@
 """Static source/package contract checks, NOT Windows installer execution."""
 import ast
 import base64
+import json
 import os
 from pathlib import Path
 import re
@@ -24,7 +25,9 @@ class ReleaseSourceContracts(unittest.TestCase):
         install=s[s.index('internal static void Install('):s.index('private static InvalidOperationException RuntimeFailure')]
         repair=s[s.index('internal static void Repair'):s.index('private static string Fetch')]
         for entry in (install,repair):
-            self.assertIn('string manifest=ReadRuntimeInstallManifest();',entry)
+            self.assertIn('manifest=ReadRuntimeInstallManifest();',entry)
+        self.assertIn('UpdateProtocol.HasPendingRuntimeTransition(target)',repair)
+        self.assertIn('RunRuntimeInstaller(null,target,cache,"recover",false,status)',repair)
         self.assertIn('RunRuntimeInstaller(manifest,target,cache,"fresh",includeAnimeSharp,status)',install)
         self.assertIn('RunRuntimeInstaller(manifest,target,cache,"repair",false,status)',repair)
         self.assertIn('RuntimeBundleInstaller.Install(python,manifest,target,cache,mode,includeAnimeSharp,status)',s)
@@ -40,7 +43,7 @@ class ReleaseSourceContracts(unittest.TestCase):
         runtime=self.text('installer/runtime_install.py')
         self.assertIn('runtime_install.py',bridge)
         self.assertIn('"--mode", mode, "--method", "gui"',bridge)
-        self.assertIn('return activate(candidate, target, bundle["manifest_sha256"], version, mode,',runtime)
+        self.assertIn('return activate(candidate, target, manifest_hash, version, mode,',runtime)
         self.assertIn('PRODUCTION_NODE_PACKAGES.txt',g)
         self.assertIn('ComfyUI/LAKIS/sync_runtime_workflow.py',g)
         workflow_names=(
@@ -146,12 +149,15 @@ class RuntimeInstallerGateTests(unittest.TestCase):
         'installer/Setup_LAKIS_Safe.cs', 'installer/LAKIS_Uninstaller.cs',
         'installer/RuntimeBundleInstaller.cs', 'installer/runtime_install.py',
         'installer/runtime_manifest.py', 'installer/runtime_transition.py',
+        'installer/application_release.py',
         'installer/cmd-installer-manifest.json',
     )
 
-    def run_gate(self, root):
+    def run_gate(self, root, expected_runtime_version=None):
         quote=lambda path: str(path).replace("'", "''")
-        version=(ROOT/'VERSION').read_text(encoding='utf-8-sig').strip()
+        version=expected_runtime_version or json.loads(
+            (ROOT/'installer/cmd-installer-manifest.json').read_text(encoding='utf-8-sig')
+        )['version']
         command = """
 $ErrorActionPreference = 'Stop'
 $tokens = $null; $errors = $null
@@ -173,14 +179,39 @@ Test-RuntimeInstallerContract '%s'
         result=self.run_gate(ROOT)
         self.assertEqual(result.returncode,0,result.stderr.decode(errors='replace'))
 
+    def copy_fixture(self, root):
+        for relative in self.files:
+            target=root/relative
+            target.parent.mkdir(parents=True,exist_ok=True)
+            shutil.copyfile(ROOT/relative,target)
+
+    def test_app_patch_version_does_not_replace_runtime_baseline(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder)
+            self.copy_fixture(root)
+            (root/'VERSION').write_text('999.0.0',encoding='utf-8')
+            result=self.run_gate(root)
+            self.assertEqual(result.returncode,0,result.stderr.decode(errors='replace'))
+
+    def test_wrong_expected_runtime_version_is_rejected(self):
+        result=self.run_gate(ROOT,expected_runtime_version='0.0.0')
+        self.assertNotEqual(result.returncode,0)
+        self.assertIn('Uninstaller fallback version',result.stderr.decode(errors='replace'))
+
     def test_gate_rejects_missing_active_contracts(self):
         mutations=(
             ('installer/runtime_manifest.py', '"LAKIS_Model_Importer.exe", ', '', 'REQUIRED_FILES'),
             ('installer/runtime_manifest.py', '.strip() != expected_version', '.strip() == expected_version', 'Installed VERSION'),
             ('installer/Setup_LAKIS_Safe.cs', 'RuntimeBundleInstaller.Install(python,manifest,target,cache,mode,includeAnimeSharp,status);', 'throw new InvalidOperationException();', 'Runtime Setup invariant'),
-            ('installer/runtime_install.py', 'return activate(candidate, target, bundle["manifest_sha256"], version, mode,', 'return replaced_engine(candidate, target, bundle["manifest_sha256"], version, mode,', 'Runtime installation invariant'),
+            ('installer/runtime_install.py', 'return activate(candidate, target, manifest_hash, version, mode,', 'return replaced_engine(candidate, target, manifest_hash, version, mode,', 'Runtime installation invariant'),
+            ('installer/Setup_LAKIS_Safe.cs', 'string intendedVersion=RuntimeBundleInstaller.InstallerTargetVersion(manifest);', 'string intendedVersion=ReleaseVersion;', 'Repair application identity'),
+            ('installer/Setup_LAKIS_Safe.cs', 'if(!String.Equals(installedVersion,intendedVersion,StringComparison.Ordinal))', 'if(String.Equals(installedVersion,intendedVersion,StringComparison.Ordinal))', 'Repair must require the exact installed release'),
+            ('installer/application_release.py', 'release["version"] if release else bundle["version"]', 'bundle["version"]', 'Application release identity invariant'),
+            ('installer/application_release.py', 'release["manifest"]["sha256"] if release else bundle["manifest_sha256"]', 'bundle["manifest_sha256"]', 'Application release identity invariant'),
             ('installer/Setup_LAKIS_Safe.cs', 'if(HasDirectoryEntries(target))', 'if(false)', 'non-empty destination'),
             ('installer/Setup_LAKIS_Safe.cs', 'if(IsExistingInstallation(target))', 'if(false)', 'existing LAKIS installation'),
+            ('installer/Setup_LAKIS_Safe.cs', '            manifest=ReadRuntimeInstallManifest();', '            manifest=null;', 'embedded runtime manifest'),
+            ('installer/Setup_LAKIS_Safe.cs', 'RunRuntimeInstaller(null,target,cache,"recover",false,status)', 'RunRuntimeInstaller(null,target,cache,"repair",false,status)', 'Interrupted-update recovery'),
             ('installer/runtime_transition.py', '_copy_data(data_source, stage)', 'pass', 'data-protection'),
             ('installer/cmd-installer-manifest.json', 'D6D8BC920C7A74BE4728C0F7703744469E62E80502F297E582EE1A1406FA052D', '0'*64, 'source hash'),
             ('installer/cmd-installer-manifest.json', '457fbf842cb86e96af72c65bdd13e3f1c448de84', '0'*40, 'model URL/hash'),
@@ -188,10 +219,7 @@ Test-RuntimeInstallerContract '%s'
         for path,old,new,message in mutations:
             with self.subTest(path=path,contract=message),tempfile.TemporaryDirectory() as folder:
                 root=Path(folder)
-                for relative in self.files:
-                    target=root/relative
-                    target.parent.mkdir(parents=True,exist_ok=True)
-                    shutil.copyfile(ROOT/relative,target)
+                self.copy_fixture(root)
                 target=root/path
                 text=target.read_text(encoding='utf-8-sig')
                 self.assertIn(old,text)

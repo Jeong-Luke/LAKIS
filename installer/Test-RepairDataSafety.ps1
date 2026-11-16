@@ -46,7 +46,9 @@ foreach ($helper in @('DeleteTree(', 'Reset(', 'InstallZip(', 'CopyTree(', 'Fetc
 Require (-not $compactRepair.Contains('Path.Combine(comfy,"models"')) "GUI Repair must not mutate the model inventory directly."
 Require ($compactRepair.Contains('RunRuntimeInstaller(manifest,target,cache,"repair",false,status);')) `
     "Repair must use the runtime installer in repair mode without optional fresh-install models."
-Require ($compactRepair.Contains('String.Equals(installedVersion,ReleaseVersion,StringComparison.Ordinal)')) `
+Require ($compactRepair.Contains('intendedVersion=RuntimeBundleInstaller.InstallerTargetVersion(manifest);')) `
+    "Repair must use the authenticated application version, not the runtime version."
+Require ($compactRepair.Contains('String.Equals(installedVersion,intendedVersion,StringComparison.Ordinal)')) `
     "Repair must reject a different installed release."
 
 # Run the real runtime_install.install -> runtime_transition.activate path in
@@ -99,7 +101,8 @@ class RepairDataSafety(unittest.TestCase):
         self.write(self.candidate / contract.MANIFEST_NAME, raw)
         self.digest = hashlib.sha256(raw).hexdigest()
         self.install_manifest = {"schema": 1, "version": self.version,
-                                 "runtime_bundle": {"manifest_sha256": self.digest}}
+                                 "runtime_bundle": {"version": self.version,
+                                                    "manifest_sha256": self.digest}}
         # Independent required paths: dropping a protected root from the runtime
         # contract must lose one of these sentinels and fail this test.
         self.data = {

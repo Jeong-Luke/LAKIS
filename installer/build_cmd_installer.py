@@ -9,11 +9,13 @@ import re
 import zipfile
 
 from runtime_install import validate_bundle
+from application_release import installer_identity
 
 PACKAGE_FILES = (
     "LAKIS_CMD_Install.cmd", "lakis_cmd_installer.py", "CMD_INSTALL_README_KO.txt",
     "runtime_install.py", "runtime_transition.py", "runtime_manifest.py",
     "runtime_health.py", "runtime_patch.py", "runtime_update.py",
+    "application_release.py",
 )
 
 
@@ -60,14 +62,14 @@ def build(repo: Path, dist: Path, archive: Path, contract_path: Path, pinned_set
     runtime_contract = json.loads(
         (contract_path.parent / "runtime-installer-contract.json").read_text(encoding="utf-8-sig")
     )
-    if (runtime_contract.get("schema") != 1 or runtime_contract.get("version") != version
+    baseline, release, application_version, _ = installer_identity(manifest)
+    if (runtime_contract.get("schema") != 1 or runtime_contract.get("version") != application_version
             or runtime_contract.get("manifest_sha256") != sha256(manifest_path)
             or runtime_contract.get("setup_sha256") != sha256(dist / "LAKIS_Setup.exe")):
         raise ValueError("GUI and CMD runtime installer contracts differ")
-    if (manifest.get("schema") != 1 or manifest.get("version") != version
-            or template.get("version") != version):
+    if (manifest.get("schema") != 1 or template.get("version") != baseline["version"]):
         raise ValueError("runtime installer version mismatch")
-    validate_bundle(manifest.get("runtime_bundle"), version)
+    validate_bundle(manifest.get("runtime_bundle"), baseline["version"])
     for key in ("base", "models", "optional_animesharp"):
         if manifest.get(key) != template[key]:
             raise ValueError("runtime installer dependency template is stale: " + key)
@@ -108,7 +110,7 @@ def build(repo: Path, dist: Path, archive: Path, contract_path: Path, pinned_set
     payload = {name: (installer / name).read_bytes() for name in PACKAGE_FILES}
     payload["LAKIS_CMD_Install.cmd"] = cmd_bytes
     payload["cmd-installer-manifest.json"] = manifest_bytes
-    destination = dist / f"LAKIS_CMD_Installer_{version}.zip"
+    destination = dist / f"LAKIS_CMD_Installer_{application_version}.zip"
     temporary = destination.with_suffix(".zip.tmp")
     with zipfile.ZipFile(temporary, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as bundle:
         for name, data in sorted(payload.items()):

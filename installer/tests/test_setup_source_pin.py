@@ -326,7 +326,7 @@ class SetupSourcePinTests(unittest.TestCase):
         self.run_probe(STAGING_PROBE)
 
     def test_repair_wrong_release_rejection_preserves_user_state_and_files(self):
-        self.run_probe(REPAIR_PROBE)
+        self.run_probe(REPAIR_PROBE, manifest=self.pinned_manifest())
 
     def test_actual_setup_fetch_recovers_complete_and_corrupt_partials(self):
         requests = []

@@ -578,6 +578,7 @@ def install_release_source(source_root: Path, portable_root: Path) -> None:
     copy_tree(source_root / "src" / "external_ui", runtime / "external_ui")
     runtime.mkdir(parents=True, exist_ok=True)
     copy_file(source_root / "resources" / "STOP_AUTOMATION", runtime / "STOP_AUTOMATION")
+    copy_file(source_root / "installer" / "install_snapref_experiment.py", runtime / "install_snapref.py")
     copy_file(source_root / "src" / "runtime" / "sync_runtime_workflow.py", runtime / "sync_runtime_workflow.py")
     workflows = runtime / "workflows"
     workflows.mkdir(parents=True, exist_ok=True)

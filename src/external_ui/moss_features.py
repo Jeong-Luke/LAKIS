@@ -98,6 +98,46 @@ def _validate_disabled_feature(raw, key, *, label, scope=False):
             raise MossValidationError("LKS-MOSS-1008", "이 MOSS FAST 미리보기에서는 scope를 사용할 수 없어.")
 
 
+def normalize_regions(raw_regions):
+    """Validate the shared region-editor schema without touching its source."""
+    if not isinstance(raw_regions, Mapping):
+        raise MossValidationError("LKS-MOSS-1007", "regions는 설정 객체여야 해.")
+    regions_enabled = raw_regions.get("enabled")
+    if not isinstance(regions_enabled, bool):
+        raise MossValidationError("LKS-MOSS-1007", "regions.enabled는 boolean이어야 해.")
+    items = raw_regions.get("regions")
+    if not isinstance(items, (list, tuple)) or len(items) > _MAX_REGIONS:
+        raise MossValidationError("LKS-MOSS-1007", f"영역은 최대 {_MAX_REGIONS}개의 배열이어야 해.")
+    result = copy.deepcopy(dict(raw_regions))
+    result["regions"] = []
+    seen_ids = set()
+    for index, item in enumerate(items):
+        field = f"regions[{index}]"
+        if not isinstance(item, Mapping):
+            raise MossValidationError("LKS-MOSS-1007", f"{field}는 객체여야 해.")
+        editor_id = item.get("id")
+        if not isinstance(editor_id, str) or not editor_id.strip() or editor_id in seen_ids:
+            raise MossValidationError("LKS-MOSS-1007", f"{field}.id는 중복되지 않는 문자열이어야 해.")
+        seen_ids.add(editor_id)
+        label = item.get("label")
+        if not isinstance(label, str) or label not in _LAYOUT_LABELS:
+            raise MossValidationError("LKS-MOSS-1007", f"{field}.label은 object, character, text 중 하나여야 해.")
+        if "type" in item and item["type"] != label:
+            raise MossValidationError("LKS-MOSS-1007", f"{field}.type과 label은 같은 종류여야 해.")
+        normalized = copy.deepcopy(dict(item))
+        normalized.pop("type", None)
+        normalized["caption"] = _validate_text(item.get("caption"), f"{field}.caption")
+        normalized["bbox"] = _validate_bbox(item.get("bbox"), field)
+        if "negative_prompt" in item:
+            normalized["negative_prompt"] = _validate_text(item["negative_prompt"], f"{field}.negative_prompt")
+        if "text" in item:
+            normalized["text"] = _validate_text(item["text"], f"{field}.text", required=label == "text")
+        elif label == "text":
+            raise MossValidationError("LKS-MOSS-1007", f"{field}.text는 text 영역에 꼭 필요해.")
+        result["regions"].append(normalized)
+    return result
+
+
 def validate_options(raw, *, checkpoints, loras, width, height,
                      available_nodes):
     """Validate options against supplied inventories and return a safe copy.
@@ -153,58 +193,7 @@ def validate_options(raw, *, checkpoints, loras, width, height,
             "enabled": enabled,
         })
 
-    raw_regions = raw.get("regions")
-    if not isinstance(raw_regions, Mapping):
-        raise MossValidationError("LKS-MOSS-1007", "regions는 설정 객체여야 해.")
-    regions_enabled = raw_regions.get("enabled")
-    if not isinstance(regions_enabled, bool):
-        raise MossValidationError("LKS-MOSS-1007", "regions.enabled는 boolean이어야 해.")
-    raw_region_items = raw_regions.get("regions")
-    if not isinstance(raw_region_items, (list, tuple)):
-        raise MossValidationError("LKS-MOSS-1007", "regions.regions는 영역 배열이어야 해.")
-    if len(raw_region_items) > _MAX_REGIONS:
-        raise MossValidationError("LKS-MOSS-1007", f"영역 프롬프트는 최대 {_MAX_REGIONS}개까지 설정할 수 있어.")
-
-    normalized_regions = []
-    seen_ids = set()
-    for index, item in enumerate(raw_region_items):
-        field = f"regions[{index}]"
-        if not isinstance(item, Mapping):
-            raise MossValidationError("LKS-MOSS-1007", f"{field}는 객체여야 해.")
-        editor_id = item.get("id")
-        if not isinstance(editor_id, str) or not editor_id.strip():
-            raise MossValidationError("LKS-MOSS-1007", f"{field}.id는 비어 있지 않은 문자열이어야 해.")
-        if editor_id in seen_ids:
-            raise MossValidationError("LKS-MOSS-1007", f"영역 editor ID가 중복됐어: {editor_id}")
-        seen_ids.add(editor_id)
-
-        label = item.get("label")
-        if not isinstance(label, str) or label not in _LAYOUT_LABELS:
-            raise MossValidationError("LKS-MOSS-1007", f"{field}.label은 object, character, text 중 하나여야 해.")
-        if "type" in item:
-            layout_type = item["type"]
-            if not isinstance(layout_type, str) or layout_type not in _LAYOUT_LABELS:
-                raise MossValidationError("LKS-MOSS-1007", f"{field}.type은 object, character, text 중 하나여야 해.")
-            if layout_type != label:
-                raise MossValidationError("LKS-MOSS-1007", f"{field}.type과 label은 같은 종류여야 해.")
-
-        caption = _validate_text(item.get("caption"), f"{field}.caption")
-        bbox = _validate_bbox(item.get("bbox"), field)
-        normalized_region = {
-            "id": editor_id,
-            "label": label,
-            "caption": caption,
-            "bbox": bbox,
-        }
-        if "negative_prompt" in item:
-            normalized_region["negative_prompt"] = _validate_text(
-                item["negative_prompt"], f"{field}.negative_prompt")
-        if "text" in item:
-            normalized_region["text"] = _validate_text(
-                item["text"], f"{field}.text", required=(label == "text"))
-        elif label == "text":
-            raise MossValidationError("LKS-MOSS-1007", f"{field}.text는 text 영역에 꼭 필요해.")
-        normalized_regions.append(normalized_region)
+    regions = normalize_regions(raw.get("regions"))
 
     if any(item["enabled"] for item in normalized_loras):
         missing_nodes = {"LoraLoaderModelOnly"} - node_inventory
@@ -217,10 +206,7 @@ def validate_options(raw, *, checkpoints, loras, width, height,
         "checkpoint": checkpoint,
         "i2i": {"enabled": False},
         "loras": normalized_loras,
-        "regions": {
-            "enabled": regions_enabled,
-            "regions": normalized_regions,
-        },
+        "regions": regions,
         "detail": {
             "enabled": False,
             "scope": "none",

@@ -124,6 +124,8 @@ class PublicProductBoundaryTests(unittest.TestCase):
                 "launch_lakis.py", "workflow_bridge.py", "serve_ui.py", "scene_controls.py",
                 "moss_mode.py", "moss_sampling.py", "moss_errors.py", "moss_features.py",
                 "moss_workflows.py", "wildcard_service.py",
+                "anima_regions.py", "anima_reference.py", "scope_upscale.py",
+                "prompt_fields.py", "lora_manager.py",
             ):
                 shutil.copy2(EXTERNAL / name, ext / name)
             helpers = ext / "runtime"
@@ -148,8 +150,9 @@ class PublicProductBoundaryTests(unittest.TestCase):
             })
             result = subprocess.run(
                 [sys.executable, "-c", code], env=env, text=True,
-                capture_output=True, check=True,
+                capture_output=True, check=False,
             )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             return json.loads(result.stdout.strip().splitlines()[-1])
 
     def test_public_runtime_fails_closed_even_with_dev_environment(self):
