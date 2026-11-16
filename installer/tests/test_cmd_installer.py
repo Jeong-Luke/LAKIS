@@ -16,8 +16,8 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "installer" / "lakis_cmd_installer.py"
 MANIFEST = ROOT / "installer" / "cmd-installer-manifest.json"
-# The published installer baseline stays at 8.1.0; app file patches are separate.
-CURRENT_VERSION = "8.1.0"
+# Fresh, update and repair packages share the confirmed 8.1.2 runtime baseline.
+CURRENT_VERSION = "8.1.2"
 CMD = ROOT / "installer" / "LAKIS_CMD_Install.cmd"
 spec = importlib.util.spec_from_file_location("lakis_cmd_installer", SCRIPT)
 module = importlib.util.module_from_spec(spec)
@@ -461,8 +461,11 @@ class CmdInstallerTests(unittest.TestCase):
             self.assertIn("codeload.github.com/ltdrdata/ffmpy/zip/f000737", text)
             self.assertNotIn("git+https://", text)
 
-    def _runtime_candidate(self, root):
-        version = json.loads(MANIFEST.read_text(encoding="utf-8"))["version"]
+    def _runtime_candidate(self, root, version=None):
+        manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+        version = manifest["version"] if version is None else version
+        manifest["version"] = version
+        manifest["release_base"] = f"https://github.com/Jeong-Luke/LAKIS/releases/download/v{version}"
         candidate = root / "candidate"
         for relative in runtime_contract.REQUIRED_FILES:
             path = candidate / relative
@@ -475,7 +478,6 @@ class CmdInstallerTests(unittest.TestCase):
             })
         inventory_path = candidate / runtime_contract.MANIFEST_NAME
         inventory_path.write_text(json.dumps(inventory), encoding="utf-8")
-        manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
         name = "LAKIS_RuntimeBundle.zip"
         manifest["runtime_bundle"] = {
             "schema": 2, "product": "LAKIS", "version": version,

@@ -128,7 +128,8 @@ class PreviewUpgradeTests(unittest.TestCase):
 
     def test_existing_versions_select_update_or_repair_without_writes(self):
         for version, expected in (("8.0.0", "update"), ("8.0.2", "update"),
-                                  ("8.0.3", "update"), ("8.1.0", "repair")):
+                                  ("8.0.3", "update"), ("8.1.0", "update"),
+                                  ("8.1.1", "update"), ("8.1.2", "repair")):
             with self.subTest(version=version), tempfile.TemporaryDirectory(dir=self.root) as folder:
                 root = Path(folder)
                 self.installation(root, version)
@@ -142,7 +143,7 @@ class PreviewUpgradeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(dir=self.root) as folder:
             root = Path(folder)
             (root / "ComfyUI").mkdir()
-            (root / "VERSION").write_text("8.1.0", encoding="ascii")
+            (root / "VERSION").write_text("8.1.2", encoding="ascii")
             (root / "LAKIS.exe").write_bytes(b"existing LAKIS launcher")
             before = {p.relative_to(root): p.read_bytes() for p in root.rglob("*") if p.is_file()}
             result = self.run_probe("mode", root)
@@ -156,7 +157,7 @@ class PreviewUpgradeTests(unittest.TestCase):
             )
 
     def test_newer_legacy_and_malformed_versions_are_not_upgraded(self):
-        for version in ("8.2.0", "8.1.1", "7.5.4", "invalid", "8.1"):
+        for version in ("8.2.0", "8.1.3", "7.5.4", "invalid", "8.1"):
             with self.subTest(version=version), tempfile.TemporaryDirectory(dir=self.root) as folder:
                 root = Path(folder)
                 self.installation(root, version)
@@ -320,11 +321,11 @@ class PreviewUpgradeTests(unittest.TestCase):
     def test_same_version_update_rejected_before_manifest_or_network_access(self):
         with tempfile.TemporaryDirectory(dir=self.root) as folder:
             root = Path(folder)
-            self.installation(root, "8.1.0")
+            self.installation(root, "8.1.2")
             result = self.run_probe("same", root)
             self.assertEqual(result.returncode, 1)
             self.assertIn(b"InvalidOperationException", result.stderr)
-            self.assertEqual((root / "VERSION").read_text(), "8.1.0")
+            self.assertEqual((root / "VERSION").read_text(), "8.1.2")
 
     def test_setup_inside_destination_cannot_replace_its_own_components(self):
         result = self.run_probe("inside", self.root)
@@ -411,7 +412,10 @@ class InstallerManifestBuildTests(unittest.TestCase):
         (repo / "installer").mkdir(parents=True)
         (repo / "VERSION").write_text("8.1.1\n", encoding="ascii")
         template = json.loads((ROOT / "installer/cmd-installer-manifest.json").read_text(encoding="utf-8"))
-        self.assertEqual(template["version"], "8.1.0")
+        # Keep this historical app/runtime-separation fixture independent of the
+        # current release's complete-runtime baseline.
+        template["version"] = "8.1.0"
+        template["release_base"] = "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.0"
         (repo / "installer/cmd-installer-manifest.json").write_text(json.dumps(template), encoding="utf-8")
         name = "LAKIS_Runtime_8.1.0.zip"
         bundle = {

@@ -39,7 +39,7 @@ def snapshot(root):
 
 class ApplicationReleaseTests(unittest.TestCase):
     def fixture(self, root, version="8.1.1", editable_template_policy=None):
-        baseline, installer = cmd_tests.CmdInstallerTests()._runtime_candidate(root)
+        baseline, installer = cmd_tests.CmdInstallerTests()._runtime_candidate(root, version="8.1.0")
         editable = contract.EDITABLE_TEMPLATE_FILES[1]
         retired = "ComfyUI/LAKIS/external_ui/obsolete.py"
         put(baseline, editable, b'{"pristine":"baseline"}')
@@ -515,9 +515,9 @@ internal static class PinProbe {
         with tempfile.TemporaryDirectory() as directory:
             _, manifest, _, _, _ = ApplicationReleaseTests().fixture(Path(directory))
             reader = setup_tests.SetupSourcePinTests()
-            reader.run_probe(probe, ["8.1.1"], manifest=manifest)
+            reader.run_probe(probe, ["8.1.1"], manifest=manifest, runtime_version="8.1.0")
             del manifest["application_release"]
-            reader.run_probe(probe, ["8.1.0"], manifest=manifest)
+            reader.run_probe(probe, ["8.1.0"], manifest=manifest, runtime_version="8.1.0")
 
     def test_setup_uses_bound_app_target_and_never_flattens_it_to_a_baseline_update(self):
         compiler = Path(os.environ.get("WINDIR", "C:/Windows")) / "Microsoft.NET/Framework64/v4.0.30319/csc.exe"
@@ -533,7 +533,8 @@ internal static class PinProbe {
                     "System.Windows.Forms.dll", "System.Drawing.dll", "System.Web.Extensions.dll",
                     "System.IO.Compression.dll", "System.IO.Compression.FileSystem.dll")],
                 *[str(ROOT / "installer" / name) for name in ("SplashArtwork.cs", "UpdateProtocol.cs",
-                    "RuntimeBundleInstaller.cs", "Setup_LAKIS_Safe.cs")], str(probe),
+                    "RuntimeBundleInstaller.cs")],
+                str(setup_tests.SetupSourcePinTests.source_for_runtime(root, "8.1.0")), str(probe),
                 "/resource:" + str(embedded) + ",LAKIS.RuntimeInstallManifest"],
                 capture_output=True, timeout=60)
             self.assertEqual(result.returncode, 0, result.stdout.decode(errors="replace"))
@@ -552,14 +553,14 @@ internal static class PinProbe {
         with tempfile.TemporaryDirectory() as directory:
             _, manifest, _, _, _ = ApplicationReleaseTests().fixture(Path(directory))
             reader = setup_tests.SetupSourcePinTests()
-            reader.run_probe(setup_tests.MANIFEST_PROBE, ["accept"], manifest=manifest)
+            reader.run_probe(setup_tests.MANIFEST_PROBE, ["accept"], manifest=manifest, runtime_version="8.1.0")
             for field in ("source_revision", "runtime_manifest_sha256", "manifest", "layout"):
                 bad = copy.deepcopy(manifest)
                 del bad["application_release"][field]
-                reader.run_probe(setup_tests.MANIFEST_PROBE, ["reject"], manifest=bad)
+                reader.run_probe(setup_tests.MANIFEST_PROBE, ["reject"], manifest=bad, runtime_version="8.1.0")
             bad = copy.deepcopy(manifest)
             bad["application_release"]["schema"] = True
-            reader.run_probe(setup_tests.MANIFEST_PROBE, ["reject"], manifest=bad)
+            reader.run_probe(setup_tests.MANIFEST_PROBE, ["reject"], manifest=bad, runtime_version="8.1.0")
 
     def test_launcher_rejects_retired_user_data_before_emitting_repair_helper(self):
         compiler = Path(os.environ.get("WINDIR", "C:/Windows")) / "Microsoft.NET/Framework64/v4.0.30319/csc.exe"

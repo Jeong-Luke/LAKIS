@@ -189,8 +189,21 @@ internal static class PinProbe {
 
 @unittest.skipUnless(COMPILER.is_file(), 'Windows .NET Framework compiler required')
 class SetupSourcePinTests(unittest.TestCase):
+    @staticmethod
+    def source_for_runtime(directory, version=None):
+        source = ROOT / 'installer/Setup_LAKIS_Safe.cs'
+        if version is None:
+            return source
+        current = json.loads((ROOT / 'installer/cmd-installer-manifest.json').read_text(encoding='utf-8'))['version']
+        declaration = f'private const string ReleaseVersion = "{current}";'
+        text = source.read_text(encoding='utf-8')
+        assert text.count(declaration) == 1
+        pinned = directory / 'Setup_RuntimePinned.cs'
+        pinned.write_text(text.replace(declaration, f'private const string ReleaseVersion = "{version}";'), encoding='utf-8')
+        return pinned
+
     def run_probe(self, probe, extra_args=None, *, manifest=None,
-                  resource_name='LAKIS.RuntimeInstallManifest'):
+                  resource_name='LAKIS.RuntimeInstallManifest', runtime_version=None):
         with tempfile.TemporaryDirectory() as directory:
             temporary = Path(directory)
             (temporary / 'Probe.cs').write_text(probe, encoding='utf-8')
@@ -208,7 +221,7 @@ class SetupSourcePinTests(unittest.TestCase):
                 '/reference:System.Web.Extensions.dll',
                 '/reference:System.IO.Compression.dll', '/reference:System.IO.Compression.FileSystem.dll',
                 str(ROOT / 'installer/UpdateProtocol.cs'), str(ROOT / 'installer/RuntimeBundleInstaller.cs'),
-                str(ROOT / 'installer/SplashArtwork.cs'), str(ROOT / 'installer/Setup_LAKIS_Safe.cs'),
+                str(ROOT / 'installer/SplashArtwork.cs'), str(self.source_for_runtime(temporary, runtime_version)),
                 str(temporary / 'Probe.cs'),
             ] + resources, capture_output=True, timeout=30)
             self.assertEqual(compiled.returncode, 0, compiled.stdout.decode(errors='replace'))
