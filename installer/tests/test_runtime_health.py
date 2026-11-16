@@ -14,6 +14,8 @@ import runtime_health as health
 
 class RuntimeHealthTests(unittest.TestCase):
     def setUp(self):
+        self.run_process = subprocess.run
+        self.spawn_process = subprocess.Popen
         self.temp = tempfile.TemporaryDirectory(prefix="lakis-health-test-")
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
@@ -171,6 +173,18 @@ class RuntimeHealthTests(unittest.TestCase):
         command = self.spawn.call_args.args[0]
         self.assertIn("--disable-assets", command)
         self.assertIn("--disable-auto-launch", command)
+        self.assert_stopped()
+
+    def test_unicode_logs_survive_an_inherited_cp949_environment(self):
+        with mock.patch.dict(health.os.environ, {"PYTHONUTF8": "0", "PYTHONIOENCODING": "cp949"}):
+            health.check_runtime(self.candidate)
+        environment = self.spawn.call_args.kwargs["env"]
+        with mock.patch.object(subprocess, "Popen", self.spawn_process):
+            process = self.run_process(
+                [sys.executable, "-s", "-c", "print('시작 🎉')"],
+                env=environment, capture_output=True, check=True,
+            )
+        self.assertEqual(process.stdout.decode("utf-8").strip(), "시작 🎉")
         self.assert_stopped()
 
     def test_invalid_timeout_rejected_before_launch(self):

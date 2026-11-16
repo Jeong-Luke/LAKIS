@@ -70,7 +70,7 @@ def build(repo: Path, dist: Path, archive: Path, contract_path: Path, pinned_set
     if (manifest.get("schema") != 1 or template.get("version") != baseline["version"]):
         raise ValueError("runtime installer version mismatch")
     validate_bundle(manifest.get("runtime_bundle"), baseline["version"])
-    for key in ("base", "models", "optional_animesharp"):
+    for key in ("base", "models", "optional_animesharp", "visual_cpp"):
         if manifest.get(key) != template[key]:
             raise ValueError("runtime installer dependency template is stale: " + key)
     if any(key in manifest for key in ("nodes", "nested_node", "source", "repair_pack", "release_layout")):

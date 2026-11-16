@@ -22,12 +22,12 @@ if __name__ == "__main__":
 
 from lakis_cmd_installer import (
     cache_entry_lock, cache_path, copy_file, create_default_input_image, download,
-    ensure_webview2_runtime, promote_verified_partial,
+    ensure_visual_cpp_runtime, ensure_webview2_runtime, promote_verified_partial,
     reject_reparse_path, safe_leaf, sha256, zip_extraction_plan,
 )
 from runtime_manifest import COMFY_VERSION, _pinned_path, normalized_path, verify_runtime
 import runtime_manifest as runtime_contract
-from runtime_transition import _target_path, activate
+from runtime_transition import _assert_original, _target_path, activate
 from application_release import compose, installer_identity, read_release_metadata
 
 RUNTIME_HELPERS = (
@@ -330,6 +330,10 @@ def install(manifest: dict, target: Path, cache: Path, mode: str, method: str,
         contract = metadata["editable_templates"]
         runtime_contract.check_editable_template_compatibility(
             runtime_contract.editable_template_snapshot(target, contract), contract)
+    # Reject an unrelated target before installing a system prerequisite.
+    # Activation repeats the identity check under its transaction lock.
+    _assert_original(target, version, mode)
+    ensure_visual_cpp_runtime(manifest, cache)
     if prepared_root is None:
         candidate = prepare_candidate(manifest, cache, metadata=metadata)
     else:

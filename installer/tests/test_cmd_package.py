@@ -60,7 +60,7 @@ class CmdPackageTests(unittest.TestCase):
         name = 'LAKIS_RuntimeBundle.zip'
         manifest = {
             'schema': 1, 'version': runtime_version, 'webview2': webview_record,
-            **{key: template[key] for key in ('base', 'models', 'optional_animesharp')},
+            **{key: template[key] for key in ('base', 'models', 'optional_animesharp', 'visual_cpp')},
             'runtime_bundle': {
                 'schema': 2, 'product': 'LAKIS', 'version': runtime_version,
                 'comfyui_version': runtime_manifest.COMFY_VERSION,
@@ -80,6 +80,16 @@ class CmdPackageTests(unittest.TestCase):
             'setup_sha256': builder.sha256(setup),
         }), encoding='utf-8')
         return repo, dist, archive, contract, pinned
+
+    def test_visual_cpp_pin_must_match_the_gui_manifest(self):
+        with tempfile.TemporaryDirectory() as directory:
+            args = self.fixture(Path(directory))
+            template_path = args[0] / 'installer/cmd-installer-manifest.json'
+            template = json.loads(template_path.read_text())
+            template['visual_cpp']['sha256'] = 'F' * 64
+            template_path.write_text(json.dumps(template))
+            with self.assertRaisesRegex(ValueError, 'dependency template is stale: visual_cpp'):
+                builder.build(*args)
 
     def test_exact_source_and_release_assets_generate_reproducible_package(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -1,6 +1,13 @@
 {
   "schema": 1,
   "version": "8.1.2",
+  "visual_cpp": {
+    "name": "vc_redist.x64.exe",
+    "version": "14.52.37029.0",
+    "url": "https://download.visualstudio.microsoft.com/download/pr/78d061c5-9ef3-42ab-98ed-3309d1095dc4/9C02C9ED120F671B900E6B9471D890E3B2414117A7E53F4AE2E855466FA2B7C9/VC_redist.x64.exe",
+    "sha256": "9C02C9ED120F671B900E6B9471D890E3B2414117A7E53F4AE2E855466FA2B7C9",
+    "bytes": 18863624
+  },
   "webview2": {
     "name": "MicrosoftEdgeWebview2Setup.exe",
     "url": "https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/1c9db68b-8343-4d70-85c2-d3e3735cdf15/MicrosoftEdgeWebview2Setup.exe",

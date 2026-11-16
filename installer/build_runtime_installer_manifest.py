@@ -38,6 +38,7 @@ def build(repo: Path, bundle_path: Path, webview_path: Path, output: Path,
         "base": template["base"],
         "models": template["models"],
         "optional_animesharp": template["optional_animesharp"],
+        "visual_cpp": template["visual_cpp"],
         "webview2": webview,
         "runtime_bundle": bundle,
     }

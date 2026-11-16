@@ -214,6 +214,13 @@ and `third_party_licenses/NVIDIA-Cosmos-NOTICE.txt`. Built on NVIDIA Cosmos.
 
 ## Installer and runtime prerequisites
 
+- Microsoft Visual C++ v14 x64 Redistributable 14.52.37029.0 is downloaded
+  directly from Microsoft's fixed HTTPS URL when required, with a pinned
+  SHA-256 and size. The Microsoft-signed installer is not bundled in LAKIS.
+  It is governed by the [Microsoft Visual C++ Runtime licence terms](https://aka.ms/VCRedistLicense);
+  LAKIS's licence does not replace those terms. Installation may require
+  Windows administrator approval; LAKIS never forces a reboot or removes
+  this shared system runtime when uninstalling LAKIS.
 - The installer uses the official unmodified `7zr.exe` from
   [7-Zip](https://www.7-zip.org/). Its publisher documents GNU LGPL, BSD
   3-Clause, and unRAR-notice portions.

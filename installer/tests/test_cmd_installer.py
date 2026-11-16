@@ -74,7 +74,7 @@ class CmdInstallerTests(unittest.TestCase):
         self.assertIn('GetManifestResourceStream("LAKIS.RuntimeInstallManifest")', setup)
         self.assertIn('ValidateModelList(RequiredList(manifest,"models"),"models",false)', setup)
         self.assertIn('ValidateModelList(RequiredList(manifest,"optional_animesharp"),"optional_animesharp",true)', setup)
-        records = [data["base"], data["source"], data["webview2"], *(
+        records = [data["base"], data["source"], data["webview2"], data["visual_cpp"], *(
             {"url": row[1], "sha256": row[2]} for row in data["nodes"]
         ), {"url": data["nested_node"][1], "sha256": data["nested_node"][2]}, *(
             {"url": row[1], "sha256": row[2]} for row in data["models"]
@@ -507,12 +507,14 @@ class CmdInstallerTests(unittest.TestCase):
             with mock.patch.object(
                 runtime_install, "prepare_bundle", return_value=candidate
             ), mock.patch.object(runtime_install, "prepare_default_data", return_value=seed) as defaults, \
+                 mock.patch.object(runtime_install, "ensure_visual_cpp_runtime") as visual_cpp, \
                  mock.patch.object(runtime_install, "ensure_webview2_runtime") as webview, \
                  mock.patch.object(runtime_transition, "check_runtime"), \
                  mock.patch.object(runtime_transition, "assert_idle"), \
                  mock.patch.object(module, "create_desktop_shortcut", return_value=root / "LAKIS.lnk"), \
                  mock.patch("sys.stdout", io.StringIO()):
                 module.install(manifest_path, portable, target, root / "cache", False)
+                visual_cpp.assert_called_once_with(manifest, root / "cache")
                 webview.assert_called_once()
                 defaults.assert_called_once_with(candidate, manifest, root / "cache", "cmd", False)
             self.assertEqual((target / "VERSION").read_text(encoding="utf-8"), CURRENT_VERSION)
@@ -547,11 +549,13 @@ class CmdInstallerTests(unittest.TestCase):
             before = {relative: (target / relative).read_bytes() for relative in protected}
             with mock.patch.object(runtime_install, "prepare_bundle", return_value=candidate), \
                  mock.patch.object(runtime_install, "prepare_default_data") as defaults, \
+                 mock.patch.object(runtime_install, "ensure_visual_cpp_runtime") as visual_cpp, \
                  mock.patch.object(runtime_install, "ensure_webview2_runtime") as webview, \
                  mock.patch.object(runtime_install, "prepare_required_models", return_value=None), \
                  mock.patch.object(runtime_transition, "check_runtime"), \
                  mock.patch.object(runtime_transition, "assert_idle"):
                 result = runtime_install.install(manifest, target, root / "cache", "repair", "gui")
+                visual_cpp.assert_called_once_with(manifest, root / "cache")
                 defaults.assert_not_called()
                 webview.assert_not_called()
             self.assertEqual(result["status"], "complete")

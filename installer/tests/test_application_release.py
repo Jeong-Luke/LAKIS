@@ -38,6 +38,11 @@ def snapshot(root):
 
 
 class ApplicationReleaseTests(unittest.TestCase):
+    def setUp(self):
+        prerequisite = mock.patch.object(install, "ensure_visual_cpp_runtime")
+        prerequisite.start()
+        self.addCleanup(prerequisite.stop)
+
     def fixture(self, root, version="8.1.1", editable_template_policy=None):
         baseline, installer = cmd_tests.CmdInstallerTests()._runtime_candidate(root, version="8.1.0")
         editable = contract.EDITABLE_TEMPLATE_FILES[1]

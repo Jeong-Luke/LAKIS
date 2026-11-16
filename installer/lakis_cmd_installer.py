@@ -266,7 +266,8 @@ def validate_download_origin(requested: str, final: str) -> None:
         return  # Explicit local fixtures are not network downloads.
     hosts = {"github.com", "api.github.com", "codeload.github.com", "raw.githubusercontent.com",
              "objects.githubusercontent.com", "release-assets.githubusercontent.com", "cdn.jsdelivr.net",
-             "huggingface.co", "go.microsoft.com", "msedge.sf.dl.delivery.mp.microsoft.com"}
+             "huggingface.co", "go.microsoft.com", "msedge.sf.dl.delivery.mp.microsoft.com",
+             "download.visualstudio.microsoft.com"}
     local_request = original.scheme == "http" and original.hostname in {"127.0.0.1", "localhost", "::1"}
     for value in (original, target):
         local = local_request and value.scheme == "http" and value.netloc.lower() == original.netloc.lower()
@@ -652,6 +653,54 @@ def desktop_directory() -> Path:
         return Path(os.path.expandvars(value)).resolve()
     except (ImportError, OSError):
         return (Path.home() / "Desktop").resolve()
+
+
+def has_visual_cpp_runtime() -> bool:
+    # Probe system DLLs in a short-lived child so an upgrade is not blocked by
+    # DLL handles held by this installer. Do not search the working directory.
+    probe = subprocess.run(
+        [sys.executable, "-I", "-c",
+         "import ctypes; "
+         "[ctypes.WinDLL(name, winmode=0x00000800) for name in "
+         "('MSVCP140.dll', 'VCRUNTIME140.dll', 'VCRUNTIME140_1.dll')]"],
+        capture_output=True, timeout=30,
+    )
+    return probe.returncode == 0
+
+
+def ensure_visual_cpp_runtime(manifest: dict, cache: Path) -> None:
+    if has_visual_cpp_runtime():
+        print('  [확인] Microsoft Visual C++ x64 Runtime', flush=True)
+        return
+    record = manifest['visual_cpp']
+    installer = download(
+        record['url'], cache_path(cache, record['name'], record['sha256']),
+        record['sha256'], int(record['bytes']), display_name=record['name'],
+    )
+    with tempfile.NamedTemporaryFile(
+        prefix="visual-cpp-", suffix=".log", dir=cache, delete=False,
+    ) as log:
+        log_path = Path(log.name)
+    print('  [설치] Microsoft Visual C++ x64 Runtime (Windows 관리자 승인이 필요할 수 있습니다)', flush=True)
+    result = subprocess.run(
+        [str(installer), '/install', '/quiet', '/norestart', '/log', str(log_path)],
+        cwd=cache,
+    )
+    if result.returncode == 3010:
+        raise RuntimeError(
+            f'Microsoft Visual C++ Runtime 설치 후 재부팅이 필요합니다 (3010). '
+            f'Windows를 재부팅한 뒤 LAKIS 설치기를 다시 실행해 주세요. 로그: {log_path}'
+        )
+    if result.returncode != 0:
+        raise RuntimeError(
+            f'Microsoft Visual C++ Runtime 설치 실패 (코드 {result.returncode}). '
+            f'관리자 승인 및 Microsoft 설치 로그를 확인해 주세요: {log_path}'
+        )
+    if not has_visual_cpp_runtime():
+        raise RuntimeError(
+            f'Microsoft Visual C++ Runtime 설치 후에도 필수 DLL을 불러올 수 없습니다. '
+            f'Windows 재부팅 또는 Microsoft Runtime 복구가 필요합니다. 로그: {log_path}'
+        )
 
 
 def has_webview2_runtime() -> bool:
