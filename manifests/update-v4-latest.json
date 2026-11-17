@@ -1,40 +1,46 @@
 {
   "schema": 2,
   "kind": "runtime-update",
-  "version": "8.1.2",
+  "version": "8.1.3",
   "minimum_version": "8.1.0",
   "minimum_updater_version": "8.1.0",
-  "release_notes": "LAKIS 8.1.2 정식 업데이트\n\n• ANIMA SnapRef 레퍼런스·박스·3D 포즈 편집\n• MOSS 전환·LoRA 보존·프롬프트 설정 수정\n• 연속 생성·경과시간·진행률 개선\n• 설치·업데이트·복구 안전성 및 라이선스 고지 보완\n\nSnapRef 가중치는 약관 확인 후 별도 설치하며 비상업·비프로덕션 조건이 적용됩니다.",
+  "release_notes": "LAKIS 8.1.3 업데이트: 8.1.0~8.1.2에서 전체 런타임으로 업데이트합니다. 레퍼런스 모델이 없으면 업데이트 후 LAKIS 업데이터를 직접 열어 SnapRef 다운로드를 선택하세요. 레퍼런스를 처음 켤 때 이용 조건에 동의해야 합니다.",
   "files": [],
   "delete": [],
   "runtime_bundle": {
     "schema": 2,
     "product": "LAKIS",
-    "version": "8.1.2",
+    "version": "8.1.3",
     "comfyui_version": "0.42.0",
-    "name": "LAKIS_Runtime_8.1.2.zip",
-    "bytes": 3130335464,
+    "name": "LAKIS_Runtime_8.1.3.zip",
+    "bytes": 3247470477,
     "files": 63039,
-    "sha256": "C5B0718FD4B351A8DD7F23F7658F9DCB7C9C78634F702E55D77E9BE46EA1031C",
-    "manifest_sha256": "83DDABB941B97F08F1382E647A83F18417F2F59A0A4FFD503F32A113F37546F0",
+    "sha256": "3582D209EEAC476F3C0FEF557D90AFA03178392D760570E794F35BA2B7C921B5",
+    "manifest_sha256": "2681AEFF0CB7CA87A788D5E2F97DE581DFD06F1BA1F506E6CB227EC027FD41EC",
     "parts": [
       {
-        "name": "LAKIS_Runtime_8.1.2.zip.part001",
+        "name": "LAKIS_Runtime_8.1.3.zip.part001",
         "bytes": 1073741824,
-        "sha256": "B30C634B18350E0B1D8014AAFBD76B60117D4531D8626B6B95D811C0DA5E059F",
-        "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.2/LAKIS_Runtime_8.1.2.zip.part001"
+        "sha256": "E66F9C43966520CFC6B72BC23FC9C32564267B0CEFE768B06304CBF5A74A43C4",
+        "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.3/LAKIS_Runtime_8.1.3.zip.part001"
       },
       {
-        "name": "LAKIS_Runtime_8.1.2.zip.part002",
+        "name": "LAKIS_Runtime_8.1.3.zip.part002",
         "bytes": 1073741824,
-        "sha256": "7EDD14C4CEF4C776AD9AA4F7EA2F3A66B1BABD8A026B4F3B78C66767A982B46B",
-        "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.2/LAKIS_Runtime_8.1.2.zip.part002"
+        "sha256": "5E1CC3783DC48C4D77CDD758F3C469923ACC0408F6C6CE9AE818248AC76A6D8E",
+        "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.3/LAKIS_Runtime_8.1.3.zip.part002"
       },
       {
-        "name": "LAKIS_Runtime_8.1.2.zip.part003",
-        "bytes": 982851816,
-        "sha256": "20B50FFFD4903DD2833488837FE03B18CB00BCCB497046F7BA5FB1DF33C2F666",
-        "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.2/LAKIS_Runtime_8.1.2.zip.part003"
+        "name": "LAKIS_Runtime_8.1.3.zip.part003",
+        "bytes": 1073741824,
+        "sha256": "91F9F6F5E510016A1F0812336522E2494CA5F7613A1968F08330F7DE9B4DFA83",
+        "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.3/LAKIS_Runtime_8.1.3.zip.part003"
+      },
+      {
+        "name": "LAKIS_Runtime_8.1.3.zip.part004",
+        "bytes": 26245005,
+        "sha256": "E3F988FDDB49EA4AB2682EE5CC49B1B9D8BA7C674BCF9E87925403EB8178771E",
+        "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.3/LAKIS_Runtime_8.1.3.zip.part004"
       }
     ]
   }
