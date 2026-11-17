@@ -10,7 +10,7 @@ downloads. Once installed they are user data and remain on program rollback.
 from __future__ import annotations
 
 import argparse
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 import ctypes
 from ctypes import wintypes
 import json
@@ -69,6 +69,22 @@ def _valid_identity(value):
     )
 
 
+def _check_update_filesystem(target: Path) -> None:
+    """Require the same handle queries used by health/verification before any swap."""
+    try:
+        with ExitStack() as pins:
+            for path in (*reversed(target.parents), target):
+                pins.enter_context(runtime_contract._pinned_path(path, directory=True))
+    except OSError as error:
+        if getattr(error, "winerror", None) != 87:
+            raise
+        raise RuntimeError(
+            "이 설치 드라이브는 안전한 업데이트에 필요한 파일 정보 조회를 지원하지 않습니다. "
+            "NTFS 드라이브의 설치를 사용하세요. 기존 설치 파일은 변경하지 않았습니다. "
+            "(WinError 87)"
+        ) from error
+
+
 def _stage_component(source: Path, destination: Path) -> None:
     """Move verified staging data without replacing anything or changing access."""
     identity = _identity(source)
@@ -79,6 +95,12 @@ def _stage_component(source: Path, destination: Path) -> None:
             raise RuntimeError(f"staging component changed before move: {source}")
         try:
             os.rename(source, destination)
+            if _identity(destination) != identity:
+                raise RuntimeError(
+                    "이 설치 드라이브는 파일 이동 후 식별번호를 유지하지 않아 "
+                    "안전한 업데이트와 자동 복구를 지원할 수 없습니다. "
+                    "NTFS 드라이브의 설치를 사용하세요. 기존 설치 파일은 변경하지 않았습니다."
+                )
             return
         except OSError as error:
             if (getattr(error, "winerror", None) in {225, 226}
@@ -357,6 +379,7 @@ def activate(candidate, target, manifest_sha256, version, *, model_files=None):
         _assert_original(target, version, "update")
         if _version((target / "VERSION").read_text(encoding="utf-8-sig").strip()) < (7, 5, 4):
             raise ValueError("install the 7.5.4 updater bridge before a runtime update")
+        _check_update_filesystem(target)
         started = time.monotonic()
         timings = {}
         probe_python = candidate / "python_embeded/python.exe"
