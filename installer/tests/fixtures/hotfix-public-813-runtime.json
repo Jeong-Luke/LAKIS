@@ -1,0 +1,47 @@
+{
+  "schema": 2,
+  "kind": "runtime-update",
+  "version": "8.1.3",
+  "minimum_version": "8.1.0",
+  "minimum_updater_version": "8.1.0",
+  "release_notes": "LAKIS 8.1.3 업데이트: 8.1.0~8.1.2에서 전체 런타임으로 업데이트합니다. 레퍼런스 모델이 없으면 업데이트 후 LAKIS 업데이터를 직접 열어 SnapRef 다운로드를 선택하세요. 레퍼런스를 처음 켤 때 이용 조건에 동의해야 합니다.",
+  "files": [],
+  "delete": [],
+  "runtime_bundle": {
+    "schema": 2,
+    "product": "LAKIS",
+    "version": "8.1.3",
+    "comfyui_version": "0.42.0",
+    "name": "LAKIS_Runtime_8.1.3.zip",
+    "bytes": 3247470477,
+    "files": 63039,
+    "sha256": "3582D209EEAC476F3C0FEF557D90AFA03178392D760570E794F35BA2B7C921B5",
+    "manifest_sha256": "2681AEFF0CB7CA87A788D5E2F97DE581DFD06F1BA1F506E6CB227EC027FD41EC",
+    "parts": [
+      {
+        "name": "LAKIS_Runtime_8.1.3.zip.part001",
+        "bytes": 1073741824,
+        "sha256": "E66F9C43966520CFC6B72BC23FC9C32564267B0CEFE768B06304CBF5A74A43C4",
+        "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.3/LAKIS_Runtime_8.1.3.zip.part001"
+      },
+      {
+        "name": "LAKIS_Runtime_8.1.3.zip.part002",
+        "bytes": 1073741824,
+        "sha256": "5E1CC3783DC48C4D77CDD758F3C469923ACC0408F6C6CE9AE818248AC76A6D8E",
+        "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.3/LAKIS_Runtime_8.1.3.zip.part002"
+      },
+      {
+        "name": "LAKIS_Runtime_8.1.3.zip.part003",
+        "bytes": 1073741824,
+        "sha256": "91F9F6F5E510016A1F0812336522E2494CA5F7613A1968F08330F7DE9B4DFA83",
+        "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.3/LAKIS_Runtime_8.1.3.zip.part003"
+      },
+      {
+        "name": "LAKIS_Runtime_8.1.3.zip.part004",
+        "bytes": 26245005,
+        "sha256": "E3F988FDDB49EA4AB2682EE5CC49B1B9D8BA7C674BCF9E87925403EB8178771E",
+        "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.3/LAKIS_Runtime_8.1.3.zip.part004"
+      }
+    ]
+  }
+}

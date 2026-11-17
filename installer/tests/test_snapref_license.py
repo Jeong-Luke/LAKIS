@@ -8,6 +8,7 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
+from urllib.error import HTTPError
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -79,37 +80,140 @@ class SnapRefTermsTests(unittest.TestCase):
         install.assert_called_once_with(Path("fixture"), acknowledge_terms=True)
         self.assertEqual(json.loads(output.getvalue()), {"ok": True})
 
-    def test_acknowledged_install_preserves_both_weight_notices(self):
-        # Tiny fixtures exercise publication only, not model or licence validity.
-        files = {
+class SnapRefProvisioningTests(unittest.TestCase):
+    def setUp(self):
+        self.root = Path(self.enterContext(tempfile.TemporaryDirectory(prefix="snapref-provision-test-")))
+        self.node = self.root / "ComfyUI/custom_nodes/snapref"
+        self.model = self.root / "ComfyUI/models/loras" / INSTALLER.WEIGHT_NAME
+        for relative in ("ComfyUI/main.py", "python_embeded/python.exe"):
+            path = self.root / relative
+            path.parent.mkdir(exist_ok=True)
+            path.touch()
+        (self.root / "VERSION").write_text("8.1.3", encoding="ascii")
+        self.files = {
             "__init__.py": b"# fixture inference code\n",
+            "simple.py": b"# fixture implementation\n",
+            "web/snapref.js": b"// fixture web extension\n",
             "LICENSE": b"fixture code license\n",
             "WEIGHTS_LICENSE.md": b"fixture publisher terms\n",
             "WEIGHTS_NOTICE.txt": b"fixture publisher attribution\n",
         }
-        weight = b"tiny weight fixture"
-        with tempfile.TemporaryDirectory(prefix="snapref-terms-test-") as temporary:
-            root = Path(temporary)
-            for relative in ("ComfyUI/custom_nodes", "ComfyUI/models/loras", "python_embeded"):
-                (root / relative).mkdir(parents=True)
-            (root / "ComfyUI/main.py").write_bytes(b"")
-            (root / "python_embeded/python.exe").write_bytes(b"")
-            with patch.object(INSTALLER, "inference_files", return_value=files), \
-                 patch.object(INSTALLER, "WEIGHT_SIZE", len(weight)), \
-                 patch.object(INSTALLER, "WEIGHT_SHA256", hashlib.sha256(weight).hexdigest()), \
-                 patch.object(INSTALLER, "download_weight", side_effect=lambda target: target.write_bytes(weight)):
-                result = INSTALLER.install(root, acknowledge_terms=True)
-                package = root / "ComfyUI/custom_nodes/snapref"
-                for name, expected in files.items():
-                    self.assertEqual((package / name).read_bytes(), expected)
-                self.assertEqual(Path(result["model"]).read_bytes(), weight)
-                # Reusing an existing adapter must still require confirmation.
-                with self.assertRaises(ValueError):
-                    INSTALLER.install(root)
-                (package / "WEIGHTS_NOTICE.txt").write_bytes(b"user-modified notice")
-                with self.assertRaisesRegex(ValueError, "was not overwritten"):
-                    INSTALLER.install(root, acknowledge_terms=True)
-                self.assertEqual((package / "WEIGHTS_NOTICE.txt").read_bytes(), b"user-modified notice")
+        self.weight = b"tiny weight fixture"
+        sources, notices, self.publisher = {}, {}, {INSTALLER.WEIGHT_URL: self.weight}
+        for name, (source, _) in INSTALLER.SOURCE_FILES.items():
+            data = self.files[name]
+            git_blob = b"blob %d\0" % len(data) + data
+            sources[name] = (source, hashlib.sha1(git_blob).hexdigest())
+            self.publisher[f"https://raw.githubusercontent.com/ArcAnima/SnapRef/{INSTALLER.SOURCE_REVISION}/{source}"] = data
+        for name, (source, _) in INSTALLER.WEIGHT_NOTICES.items():
+            data = self.files[name]
+            notices[name] = (source, hashlib.sha256(data).hexdigest())
+            self.publisher[f"https://huggingface.co/0ppxnhximxr/snapref-v2a/raw/{INSTALLER.WEIGHT_REVISION}/{source}"] = data
+        self.enterContext(patch.multiple(INSTALLER, SOURCE_FILES=sources, WEIGHT_NOTICES=notices,
+                                         WEIGHT_SIZE=len(self.weight), WEIGHT_SHA256=hashlib.sha256(self.weight).hexdigest()))
+        self.stream = self.enterContext(patch.object(
+            INSTALLER, "publisher_stream", side_effect=lambda url, timeout: io.BytesIO(self.publisher[url])))
+
+    def provision(self):
+        output = io.StringIO()
+        with redirect_stdout(output):
+            INSTALLER.main(["--install-root", str(self.root), "--provision-for-update"])
+        return json.loads(output.getvalue())
+
+    def test_normal_update_installs_exact_pins_without_manual_ack_or_saved_consent(self):
+        with patch.object(INSTALLER, "install") as manual:
+            result = self.provision()
+        manual.assert_not_called()
+        self.assertEqual(Path(result["model"]), self.model)
+        expected = {self.node / name: data for name, data in self.files.items()}
+        expected.update({
+            self.model: self.weight,
+            self.root / "VERSION": b"8.1.3",
+            self.root / "ComfyUI/main.py": b"",
+            self.root / "python_embeded/python.exe": b"",
+        })
+        self.assertEqual({p: p.read_bytes() for p in self.root.rglob("*") if p.is_file()}, expected)
+
+    def test_verified_local_files_need_no_network_or_rewrites(self):
+        self.provision()
+        unrelated = self.node / "user-notes.txt"
+        unrelated.write_bytes(b"keep")
+        with patch.object(INSTALLER, "publisher_stream", side_effect=AssertionError("unexpected network")), \
+             patch.object(INSTALLER.tempfile, "TemporaryDirectory", side_effect=AssertionError("unexpected staging")):
+            self.provision()
+            INSTALLER.install(self.root, acknowledge_terms=True)
+            with self.assertRaises(ValueError):
+                INSTALLER.install(self.root)
+        self.assertEqual(unrelated.read_bytes(), b"keep")
+
+    def test_fetches_only_missing_component(self):
+        self.provision()
+        self.model.unlink()
+        self.stream.reset_mock()
+        self.provision()
+        self.stream.assert_called_once_with(INSTALLER.WEIGHT_URL, timeout=90)
+        for name in self.files:
+            (self.node / name).unlink()
+        (self.node / "web").rmdir()
+        self.node.rmdir()
+        self.stream.reset_mock()
+        self.provision()
+        self.assertEqual({call.args[0] for call in self.stream.call_args_list},
+                         self.publisher.keys() - {INSTALLER.WEIGHT_URL})
+
+    def test_modified_notice_and_weight_are_preserved_without_network(self):
+        self.provision()
+        notice = self.node / "WEIGHTS_NOTICE.txt"
+        for existing in (notice, self.model):
+            with self.subTest(existing=existing):
+                original = existing.read_bytes()
+                modified = b"x" * len(original)
+                existing.write_bytes(modified)
+                self.stream.reset_mock()
+                error = io.StringIO()
+                with redirect_stderr(error), self.assertRaises(SystemExit) as caught:
+                    self.provision()
+                self.assertEqual(caught.exception.code, 1)
+                self.assertIn("was not overwritten", error.getvalue())
+                self.assertEqual(existing.read_bytes(), modified)
+                self.stream.assert_not_called()
+                existing.write_bytes(original)
+
+    def test_http_and_hash_failures_report_error_and_clean_staging(self):
+        def unavailable(url, timeout):
+            if url == INSTALLER.WEIGHT_URL:
+                raise HTTPError(url, 503, "Service Unavailable", None, None)
+            return io.BytesIO(self.publisher[url])
+
+        for side_effect, message in (
+            (unavailable, "HTTP Error 503"),
+            (lambda url, timeout: io.BytesIO(
+                b"x" * len(self.weight) if url == INSTALLER.WEIGHT_URL else self.publisher[url]),
+             "size/SHA-256 verification failed"),
+        ):
+            with self.subTest(message=message):
+                error = io.StringIO()
+                with patch.object(INSTALLER, "publisher_stream", side_effect=side_effect), \
+                     redirect_stderr(error), self.assertRaises(SystemExit) as caught:
+                    self.provision()
+                self.assertEqual(caught.exception.code, 1)
+                self.assertIn(message, error.getvalue())
+                self.assertFalse(self.node.exists())
+                self.assertFalse(self.model.exists())
+                self.assertEqual(list(self.root.rglob(".lakis-snapref-*")), [])
+        self.provision()
+
+    def test_update_mode_requires_correct_source_and_cannot_be_combined_with_ack(self):
+        (self.root / "VERSION").write_text("8.1.2", encoding="ascii")
+        error = io.StringIO()
+        with redirect_stderr(error), self.assertRaises(SystemExit) as caught:
+            self.provision()
+        self.assertEqual(caught.exception.code, 1)
+        self.assertIn("requires a LAKIS 8.1.3 installation", error.getvalue())
+        with redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as caught:
+            INSTALLER.main(["--install-root", str(self.root), "--provision-for-update", "--acknowledge-snapref-terms"])
+        self.assertEqual(caught.exception.code, 2)
+        self.stream.assert_not_called()
 
 
 if __name__ == "__main__":

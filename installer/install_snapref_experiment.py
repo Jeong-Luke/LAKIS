@@ -1,11 +1,12 @@
 """Install only pinned SnapRef inference files into a standalone LAKIS.
 
-This is a local non-commercial experiment, not a release builder. Training
-dependencies, example galleries, full runtimes and model copies are not used.
+Used by the 8.1.3.1 file-patch finisher and for manual non-commercial installs.
+Training dependencies, example galleries and full runtimes are not used.
 """
 from __future__ import annotations
 
 import argparse
+from contextlib import ExitStack
 import hashlib
 import json
 from pathlib import Path
@@ -20,6 +21,8 @@ WEIGHT_REVISION = "e6d6a21e4d56faae4454a1cc9bfd065d87358bf2"
 WEIGHT_NAME = "snapref_v2a.safetensors"
 WEIGHT_SIZE = 381_821_960
 WEIGHT_SHA256 = "8a22fc28d060447544eda283b36efe2dcdbad7422cbc0b8d42828d55a8a61ab4"
+UPDATE_SOURCE_VERSION = "8.1.3"
+MAX_TEXT_BYTES = 256 * 1024
 SOURCE_FILES = {
     "__init__.py": ("comfyui_nodes/snapref/__init__.py", "9d882434211262d35a02bb3902be538134afc4d9"),
     "simple.py": ("comfyui_nodes/snapref/simple.py", "4115eabe861013c6d60e727e32675d12aa60d325"),
@@ -91,8 +94,8 @@ def check_install_path(path):
 
 def read_small(url):
     with publisher_stream(url, timeout=45) as response:
-        data = response.read(256 * 1024 + 1)
-    if len(data) > 256 * 1024:
+        data = response.read(MAX_TEXT_BYTES + 1)
+    if len(data) > MAX_TEXT_BYTES:
         raise ValueError("Pinned inference text file exceeded 256 KiB: " + url)
     return data
 
@@ -102,21 +105,35 @@ def digest(path):
         return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
-def inference_files():
+def inference_files(existing_node=None):
     files = {}
-    for target, (source, expected) in SOURCE_FILES.items():
-        data = read_small(
-            f"https://raw.githubusercontent.com/ArcAnima/SnapRef/{SOURCE_REVISION}/{source}")
-        blob = b"blob " + str(len(data)).encode("ascii") + b"\0" + data
-        if hashlib.sha1(blob).hexdigest() != expected:
-            raise ValueError("Pinned SnapRef source mismatch: " + source)
-        files[target] = data
-    for target, (source, expected) in WEIGHT_NOTICES.items():
-        data = read_small(
-            f"https://huggingface.co/0ppxnhximxr/snapref-v2a/raw/{WEIGHT_REVISION}/{source}")
-        if hashlib.sha256(data).hexdigest() != expected:
-            raise ValueError("Pinned SnapRef notice mismatch: " + source)
-        files[target] = data
+    for pins, base_url, git_blob in (
+        (SOURCE_FILES, f"https://raw.githubusercontent.com/ArcAnima/SnapRef/{SOURCE_REVISION}/", True),
+        (WEIGHT_NOTICES, f"https://huggingface.co/0ppxnhximxr/snapref-v2a/raw/{WEIGHT_REVISION}/", False),
+    ):
+        for target, (source, expected) in pins.items():
+            if existing_node is None:
+                data = read_small(base_url + source)
+            else:
+                local = existing_node / target
+                check_install_path(local)
+                data = None
+                if local.is_file():
+                    with local.open("rb") as stream:
+                        data = stream.read(MAX_TEXT_BYTES + 1)
+                if data is None or len(data) > MAX_TEXT_BYTES:
+                    raise ValueError("Existing SnapRef package differs; it was not overwritten: " + str(local))
+
+            if git_blob:
+                blob = b"blob " + str(len(data)).encode("ascii") + b"\0" + data
+                observed = hashlib.sha1(blob).hexdigest()
+            else:
+                observed = hashlib.sha256(data).hexdigest()
+            if observed != expected:
+                if existing_node is not None:
+                    raise ValueError("Existing SnapRef package differs; it was not overwritten: " + str(local))
+                raise ValueError("Pinned SnapRef " + ("source" if git_blob else "notice") + " mismatch: " + source)
+            files[target] = data
     return files
 
 
@@ -139,41 +156,54 @@ def install(install_root, *, acknowledge_terms=False):
     # weights. This confirmation is not a separate commercial licence grant.
     if acknowledge_terms is not True:
         raise ValueError(TERMS_NOTICE)
+    return _install_pinned(install_root)
+
+
+def _install_pinned(install_root, *, from_update=False):
     supplied = Path(install_root).absolute()
     check_install_path(supplied)
     root = supplied.resolve(strict=True)
     if root == Path(root.anchor):
         raise ValueError("An explicit standalone LAKIS installation is required")
-    if not (root / "ComfyUI/main.py").is_file() or not (root / "python_embeded/python.exe").is_file():
-        raise ValueError("Target is not a standalone LAKIS installation")
-    node_parent = root / "ComfyUI/custom_nodes"
-    node = node_parent / "snapref"
-    weight_parent = root / "ComfyUI/models/loras"
-    weight = weight_parent / WEIGHT_NAME
-    for path in (weight, node, *(node / name for name in (*SOURCE_FILES, *WEIGHT_NOTICES))):
+    for relative in ("ComfyUI/main.py", "python_embeded/python.exe"):
+        path = root / relative
         check_install_path(path)
-    files = inference_files()
+        if not path.is_file():
+            raise ValueError("Target is not a standalone LAKIS installation")
+    if from_update:
+        version = root / "VERSION"
+        check_install_path(version)
+        if not version.is_file() or version.read_text(encoding="utf-8-sig").strip() != UPDATE_SOURCE_VERSION:
+            raise ValueError("SnapRef update preparation requires a LAKIS 8.1.3 installation")
+    node = root / "ComfyUI/custom_nodes/snapref"
+    weight = root / "ComfyUI/models/loras" / WEIGHT_NAME
+    check_install_path(node)
+    check_install_path(weight)
     node_existing = node.exists()
-    if node_existing:
-        for name, expected in files.items():
-            if not (node / name).is_file() or (node / name).read_bytes() != expected:
-                raise ValueError("Existing SnapRef package differs; it was not overwritten: " + str(node))
     weight_existing = weight.exists()
-    if weight_existing and (weight.stat().st_size != WEIGHT_SIZE or digest(weight) != WEIGHT_SHA256):
+    if weight_existing and (not weight.is_file() or weight.stat().st_size != WEIGHT_SIZE
+                            or digest(weight) != WEIGHT_SHA256):
         raise ValueError("Existing SnapRef model differs; it was not overwritten: " + str(weight))
+    if node_existing and not node.is_dir():
+        raise ValueError("Existing SnapRef package differs; it was not overwritten: " + str(node))
+    files = inference_files(node if node_existing else None)
+
     # Separate same-volume staging directories allow atomic publication without
     # holding another full model copy after completion. Only these new
     # TemporaryDirectory instances are removed, including on failure.
-    with tempfile.TemporaryDirectory(prefix=".lakis-snapref-", dir=node_parent) as code_tmp, \
-            tempfile.TemporaryDirectory(prefix=".lakis-snapref-", dir=weight_parent) as model_tmp:
-        package = Path(code_tmp) / "snapref"
-        package.mkdir()
-        for name, data in files.items():
-            target = package / name
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(data)
-        staged_weight = Path(model_tmp) / WEIGHT_NAME
+    with ExitStack() as work:
+        if not node_existing:
+            node.parent.mkdir(parents=True, exist_ok=True)
+            code_tmp = work.enter_context(tempfile.TemporaryDirectory(prefix=".lakis-snapref-", dir=node.parent))
+            package = Path(code_tmp) / "snapref"
+            for name, data in files.items():
+                target = package / name
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(data)
         if not weight_existing:
+            weight.parent.mkdir(parents=True, exist_ok=True)
+            model_tmp = work.enter_context(tempfile.TemporaryDirectory(prefix=".lakis-snapref-", dir=weight.parent))
+            staged_weight = Path(model_tmp) / WEIGHT_NAME
             download_weight(staged_weight)
             # Recheck the exact destination rather than replace a concurrently
             # installed or user-provided file.
@@ -196,18 +226,27 @@ def install(install_root, *, acknowledge_terms=False):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description=__doc__, epilog=TERMS_NOTICE)
+    parser = argparse.ArgumentParser(description=__doc__, epilog=TERMS_NOTICE, allow_abbrev=False)
     parser.add_argument("--install-root", type=Path, required=True)
-    parser.add_argument(
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
         "--acknowledge-snapref-terms", action="store_true",
         help="Confirm review and acceptance of the pinned publisher terms; not a commercial licence.",
     )
+    # Internal mode for the normal update, which discloses the publisher terms
+    # before acceptance. It is not a CLI terms acknowledgement or use consent.
+    mode.add_argument("--provision-for-update", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
-    if not args.acknowledge_snapref_terms:
+    if not (args.acknowledge_snapref_terms or args.provision_for_update):
         parser.error(TERMS_NOTICE)
-    print(json.dumps(install(
-        args.install_root, acknowledge_terms=args.acknowledge_snapref_terms,
-    ), ensure_ascii=False), flush=True)
+    try:
+        if args.provision_for_update:
+            result = _install_pinned(args.install_root, from_update=True)
+        else:
+            result = install(args.install_root, acknowledge_terms=args.acknowledge_snapref_terms)
+    except (OSError, ValueError) as error:
+        parser.exit(1, f"SnapRef preparation failed: {error}\n")
+    print(json.dumps(result), flush=True)
 
 
 if __name__ == "__main__":

@@ -485,6 +485,13 @@ internal static class RuntimeBundleInstaller
         ApplyPrepared(handoff, report, rollback);
     }
 
+    internal static void UpdateFromExternalFinisher(string python, string manifestJson, string target,
+        string cache, Action<string> report)
+    {
+        EnsureOutsideInstallation(target);
+        ApplyPrepared(Prepare(python, manifestJson, target, cache, report), report, false);
+    }
+
     private static Dictionary<string, object> ApplyPrepared(RuntimeHandoff handoff, Action<string> report, bool rollback)
     {
         VerifyHelpers(handoff.workspace);

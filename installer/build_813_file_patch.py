@@ -64,6 +64,16 @@ def write_json(path, document):
     path.write_bytes((json.dumps(document, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
 
 
+def write_repair(site, layout, payload, version):
+    write_json(site / LAYOUT, dict(layout, version=version, files=[
+        {"path": path, "size": len(data)} for path, data in sorted(payload.items())
+    ]))
+    with zipfile.ZipFile(site / PACK, "x", compression=zipfile.ZIP_DEFLATED) as archive:
+        for path, data in sorted(payload.items()):
+            entry = zipfile.ZipInfo(path)  # fixed time and file order
+            archive.writestr(entry, data, compress_type=zipfile.ZIP_DEFLATED)
+
+
 def read_baseline(directory):
     assets = {}
     for name, (size, digest) in BASE_ASSETS.items():
@@ -240,21 +250,14 @@ def build(stage, baseline_dir, port):
     overlay = {**replacements, "VERSION": VERSION.encode("ascii")}
     payload.update(overlay)
     runtime.update({path.casefold(): row(path, data) for path, data in overlay.items()})
-    layout.update(version=VERSION, files=[
-        {"path": path, "size": len(data)} for path, data in sorted(payload.items())
-    ])
     # The complete inventory is an offline expectation only. It is not installed
     # by the patcher and must not be used as a release-pinned Setup descriptor.
     inventory.update(version=VERSION, files=sorted(runtime.values(), key=lambda item: item["path"]),
                      local_candidate={"working_tree": True,
                                       "base_head": git("rev-parse", "HEAD").decode("ascii").strip()})
     validate_runtime_manifest(inventory, VERSION)
-    write_json(site / LAYOUT, layout)
+    write_repair(site, layout, payload, VERSION)
     write_json(site / MANIFEST_NAME, inventory)
-    with zipfile.ZipFile(site / PACK, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-        for path, data in sorted(payload.items()):
-            entry = zipfile.ZipInfo(path)  # fixed time and file order
-            archive.writestr(entry, data, compress_type=zipfile.ZIP_DEFLATED)
     artifacts = sorted(file for file in site.rglob("*") if file.is_file())
     (site / "SHA256SUMS.txt").write_bytes("".join(
         f"{sha256(file.read_bytes())}  {file.relative_to(site).as_posix()}\n" for file in artifacts
