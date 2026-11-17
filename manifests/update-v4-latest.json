@@ -1,71 +1,41 @@
 {
   "schema": 2,
-  "kind": "file-patch",
-  "version": "8.1.1",
+  "kind": "runtime-update",
+  "version": "8.1.2",
   "minimum_version": "8.1.0",
   "minimum_updater_version": "8.1.0",
-  "release_notes": "LAKIS 8.1.1 정식 업데이트\n\n• ANIMA·MOSS LoRA Manager와 다운로드 폴더 분리\n• ANIMA 3D 포즈의 정밀 프롬프트가 MOSS에 적용되던 문제 수정\n• MOSS 영역 프롬프트만으로 생성 요청 가능\n• 화면 배율에 따른 연속생성 버튼 잘림 수정",
-  "files": [
-    {
-      "path": "ComfyUI/LAKIS/external_ui/app.js",
-      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/7f46ffa21e87caccdd373709f92c743d38e88654/src/external_ui/app.js",
-      "sha256": "79AA92E8582D0EFFE372BD4FD7B100D4A02B3CAFE3870B446C2B914243F33071"
-    },
-    {
-      "path": "ComfyUI/LAKIS/external_ui/continuous-generation-polish.css",
-      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/7f46ffa21e87caccdd373709f92c743d38e88654/src/external_ui/continuous-generation-polish.css",
-      "sha256": "3E35987D9FD22A33AC2E5BC0AEF725436872773B74CEBC28E66A5C238E96D9F9"
-    },
-    {
-      "path": "ComfyUI/LAKIS/external_ui/index.html",
-      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/7f46ffa21e87caccdd373709f92c743d38e88654/src/external_ui/index.html",
-      "sha256": "D1F409E5DAABAD59828C3BA4E0D5CAFC43E2A5323F76BEB2FD55A5908F119D4F"
-    },
-    {
-      "path": "ComfyUI/LAKIS/external_ui/lora_manager.py",
-      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/7f46ffa21e87caccdd373709f92c743d38e88654/src/external_ui/lora_manager.py",
-      "sha256": "E899659FF41529393F8AA0706F66C526C80344A452468B16474B973E1495CD91"
-    },
-    {
-      "path": "ComfyUI/LAKIS/external_ui/moss_features.py",
-      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/7f46ffa21e87caccdd373709f92c743d38e88654/src/external_ui/moss_features.py",
-      "sha256": "75664E7738EE00F7AB322366E2E1F32B1B274D4A8C5CE2EDB07B952B09D2CD3B"
-    },
-    {
-      "path": "ComfyUI/LAKIS/external_ui/moss_mode.py",
-      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/7f46ffa21e87caccdd373709f92c743d38e88654/src/external_ui/moss_mode.py",
-      "sha256": "2B20447C29CE7608E674CEF8344CE297A55A8C28F83C3E34AB8312E91FBC6517"
-    },
-    {
-      "path": "ComfyUI/LAKIS/external_ui/precision-prompts.js",
-      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/7f46ffa21e87caccdd373709f92c743d38e88654/src/external_ui/precision-prompts.js",
-      "sha256": "7A32221BAF6F26B6B6F2A9D3D4D0C00C207A4775D0DA95091493D5073032066A"
-    },
-    {
-      "path": "ComfyUI/LAKIS/external_ui/scene-controls.js",
-      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/7f46ffa21e87caccdd373709f92c743d38e88654/src/external_ui/scene-controls.js",
-      "sha256": "AAD8D41CE2BA61C463D8069F15E6C494BE43C34F4B09DC75107AD7C9EDDFEEFA"
-    },
-    {
-      "path": "ComfyUI/LAKIS/external_ui/serve_ui.py",
-      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/7f46ffa21e87caccdd373709f92c743d38e88654/src/external_ui/serve_ui.py",
-      "sha256": "0E1633E1CFAB8FA9784949C29727B4AB85C5D352BF33B0D3519E653408944A5D"
-    },
-    {
-      "path": "ComfyUI/LAKIS/external_ui/workflow_bridge.py",
-      "url": "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/7f46ffa21e87caccdd373709f92c743d38e88654/src/external_ui/workflow_bridge.py",
-      "sha256": "9375F63D09D063904C3DFE8E94D5801328F4179BA182ABFAF5636317E0597F97"
-    },
-    {
-      "path": "LAKIS_Patcher.exe",
-      "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.1/LAKIS_Patcher.exe",
-      "sha256": "A34C7EEB62DCE4C57CE0F89D1CCC0A77B8431A2D96B84413B31E77307FD05EA5"
-    },
-    {
-      "path": "LAKIS_Updater.exe",
-      "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.1/LAKIS_Updater.exe",
-      "sha256": "A34C7EEB62DCE4C57CE0F89D1CCC0A77B8431A2D96B84413B31E77307FD05EA5"
-    }
-  ],
-  "delete": []
+  "release_notes": "LAKIS 8.1.2 정식 업데이트\n\n• ANIMA SnapRef 레퍼런스·박스·3D 포즈 편집\n• MOSS 전환·LoRA 보존·프롬프트 설정 수정\n• 연속 생성·경과시간·진행률 개선\n• 설치·업데이트·복구 안전성 및 라이선스 고지 보완\n\nSnapRef 가중치는 약관 확인 후 별도 설치하며 비상업·비프로덕션 조건이 적용됩니다.",
+  "files": [],
+  "delete": [],
+  "runtime_bundle": {
+    "schema": 2,
+    "product": "LAKIS",
+    "version": "8.1.2",
+    "comfyui_version": "0.42.0",
+    "name": "LAKIS_Runtime_8.1.2.zip",
+    "bytes": 3130335464,
+    "files": 63039,
+    "sha256": "C5B0718FD4B351A8DD7F23F7658F9DCB7C9C78634F702E55D77E9BE46EA1031C",
+    "manifest_sha256": "83DDABB941B97F08F1382E647A83F18417F2F59A0A4FFD503F32A113F37546F0",
+    "parts": [
+      {
+        "name": "LAKIS_Runtime_8.1.2.zip.part001",
+        "bytes": 1073741824,
+        "sha256": "B30C634B18350E0B1D8014AAFBD76B60117D4531D8626B6B95D811C0DA5E059F",
+        "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.2/LAKIS_Runtime_8.1.2.zip.part001"
+      },
+      {
+        "name": "LAKIS_Runtime_8.1.2.zip.part002",
+        "bytes": 1073741824,
+        "sha256": "7EDD14C4CEF4C776AD9AA4F7EA2F3A66B1BABD8A026B4F3B78C66767A982B46B",
+        "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.2/LAKIS_Runtime_8.1.2.zip.part002"
+      },
+      {
+        "name": "LAKIS_Runtime_8.1.2.zip.part003",
+        "bytes": 982851816,
+        "sha256": "20B50FFFD4903DD2833488837FE03B18CB00BCCB497046F7BA5FB1DF33C2F666",
+        "url": "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.2/LAKIS_Runtime_8.1.2.zip.part003"
+      }
+    ]
+  }
 }

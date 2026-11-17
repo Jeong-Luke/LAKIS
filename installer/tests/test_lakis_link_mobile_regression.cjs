@@ -143,9 +143,12 @@ function makeGenerationContext(cryptoMode) {
   };
   const sandbox = {
     state, workflowConfigurationReady: configurationReady,
+    engineTransitionActive: false, engineSwitchBusy: false, engineConfiguration: null,
+    syncGenerationEngineUI() {}, generationClock: { begin() {} },
     generationPreparationPending: false, generationActive: false,
     generationCancelRequested: false, generationSubmissionPending: false,
     generationTrace: null, lastPreviewRevision: 0, lastGenerationState: "idle",
+    lastGenerationSubmission: null,
     continuousRun: null, continuousAdvance: false,
     generationModeLabel: () => "DETAIL", setContinuousProgress() {},
     syncOutputStateFromInputs() {}, syncPromptStateFromInputs() {},
@@ -191,6 +194,12 @@ function makeGenerationContext(cryptoMode) {
     path.join(ROOT, "src/external_ui/generation-diagnostics.js"), "utf8");
   vm.createContext(sandbox);
   vm.runInContext(diagnosticsSource, sandbox);
+  for (const name of ["currentGenerationEngine", "gateRegionPayloadForRequest"]) {
+    const start = appSource.indexOf(`function ${name}(`);
+    assert.notEqual(start, -1, `missing generation helper: ${name}`);
+    vm.runInContext(appSource.slice(start, appSource.indexOf("\n}", start) + 2),
+      sandbox, { filename: appPath });
+  }
   const clickBody = extractBody(appSource, 'generateButton.addEventListener("click", async () =>');
   sandbox.generateButton = { addEventListener: (type, callback) => {
     assert.equal(type, "click");
@@ -239,6 +248,23 @@ async function testCancellationRemainsAvailable() {
   context.sandbox.dispatchEvent(new context.sandbox.CustomEvent("lakis:generation-cancel-request"));
   await Promise.all(context.eventPromises);
   assert.equal(context.apiRequests.filter(request => request.url === "/api/cancel").length, 1);
+}
+
+async function testEngineTransitionAndPendingPreparationDoNotSubmitAgain() {
+  const context = makeGenerationContext("randomUUID");
+  context.sandbox.engineTransitionActive = true;
+  await context.sandbox.generateClick();
+  assert.equal(context.sandbox.generationPreparationPending, false);
+  assert.equal(context.apiRequests.length, 0);
+  context.sandbox.engineTransitionActive = false;
+  const first = context.sandbox.generateClick();
+  await context.sandbox.generateClick();
+  assert.equal(context.dispatched.length, 0);
+  context.resolveConfiguration();
+  await first;
+  await Promise.all(context.eventPromises);
+  assert.equal(context.dispatched.filter(event => event.type === "lakis:generate").length, 1);
+  assert.equal(context.apiRequests.filter(request => request.url === "/api/generate").length, 1);
 }
 
 async function testSceneRequestCorrelationUsesSecureUUID(cryptoMode) {
@@ -338,6 +364,7 @@ async function main() {
     await testSceneRequestCorrelationUsesSecureUUID(mode);
   }
   await testCancellationRemainsAvailable();
+  await testEngineTransitionAndPendingPreparationDoNotSubmitAgain();
   testSecureIdsFailClosedWithoutCryptoSource();
   testMobileReorderingLeavesGenerateButtonInteractive();
   console.log("PASS LAKIS Link/mobile hydration, secure IDs, single generation submission, scene correlation, cancellation and mobile layout");

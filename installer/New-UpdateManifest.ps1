@@ -55,7 +55,7 @@ foreach ($name in @(
 
 # Legal notices are application-owned release files. Existing installations
 # must receive the same notices as clean installs.
-foreach ($name in @("LICENSE.md", "THIRD_PARTY_NOTICES.md")) {
+foreach ($name in @("LICENSE.md", "THIRD_PARTY_NOTICES.md", "COMPLIANCE.md")) {
     Add-UpdateFile $name (Join-Path $repo $name) "$rawBase/$name"
 }
 $licenceRoot = Join-Path $repo "third_party_licenses"
@@ -87,6 +87,8 @@ Get-ChildItem -LiteralPath $externalRoot -File -Recurse |
 # marker. It must be restored by every repair/update, not treated as stale data.
 Add-UpdateFile "ComfyUI/LAKIS/STOP_AUTOMATION" (Join-Path $repo "resources\STOP_AUTOMATION") `
     "$rawBase/resources/STOP_AUTOMATION"
+Add-UpdateFile "ComfyUI/LAKIS/install_snapref.py" (Join-Path $repo "installer\install_snapref_experiment.py") `
+    "$rawBase/installer/install_snapref_experiment.py"
 
 # These public, release-managed providers are shared with Install and Repair.
 # No model files, runtime markers, caches, or user-created workflows are added.

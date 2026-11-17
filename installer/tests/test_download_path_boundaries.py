@@ -128,15 +128,22 @@ class NativeWriteBoundaryTests(unittest.TestCase):
         self.run_probe('origin-reject-updater','http://127.0.0.1:19475/archive','http://127.0.0.1:9/archive')
     def test_updater_rejects_user_files_ads_devices_and_unknown_paths(self):
         for path in ('.lakis/settings.json','arbitrary-document.txt','app.js:payload',
+                     'COMPLIANCE.md/extra.txt','COMPLIANCE.md:payload','../COMPLIANCE.md',
                      'ComfyUI/LAKIS/external_ui/CON.txt','ComfyUI/LAKIS/external_ui/a.js:payload',
                      'ComfyUI/user/prompt.json','ComfyUI/models/loras/user.safetensors',
+                     'ComfyUI/models/snapref/user.safetensors',
+                     'ComfyUI/LAKIS/install_snapref.py/../settings.json',
+                     'ComfyUI/custom_nodes/ComfyUI-LAKIS-Regional-Reference/startup_workflow.json',
                      'ComfyUI/LAKIS/workflows/LAKIS_custom_v7.4_editable.json',
                      'ComfyUI/custom_nodes/ComfyUI-LAKIS-AutoPatch/startup_workflow.json',
                      'ComfyUI/LAKIS/external_ui/a.js.','ComfyUI/LAKIS/external_ui//a.js'):
             with self.subTest(path=path):self.run_probe('reject',path)
         self.run_probe('delete','LICENSE.md')
+        self.run_probe('delete','COMPLIANCE.md')
     def test_all_production_owned_source_paths_are_allowed(self):
         paths=['LAKIS.exe','Microsoft.Web.WebView2.Core.dll','ComfyUI/LAKIS/STOP_AUTOMATION',
+               'LICENSE.md','THIRD_PARTY_NOTICES.md','COMPLIANCE.md',
+               'ComfyUI/LAKIS/install_snapref.py',
                'ComfyUI/LAKIS/sync_runtime_workflow.py','ComfyUI/LAKIS/workflows/LAKIS_runtime_api_v7.4.json',
                'ComfyUI/LAKIS/workflows/LAKIS_runtime_visual_v7.4.json']
         for path in (ROOT/'src/external_ui').rglob('*'):

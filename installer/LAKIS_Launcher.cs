@@ -220,13 +220,15 @@ internal static class LakisLauncher
             catch { return "LAKIS Studio"; }
         }
 
+        private static readonly string[] ProtectedUserDirectories = {
+            "ComfyUI/models", "ComfyUI/user", "ComfyUI/input", "ComfyUI/output"
+        };
+
         private static bool IsProtectedUserPath(string relative)
         {
             string normalized = relative.Replace('\\', '/').TrimStart('/');
-            foreach (string prefix in new[] {
-                "ComfyUI/models/", "ComfyUI/user/", "ComfyUI/input/", "ComfyUI/output/"
-            })
-                if (normalized.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return true;
+            foreach (string directory in ProtectedUserDirectories)
+                if (normalized.StartsWith(directory + "/", StringComparison.OrdinalIgnoreCase)) return true;
             return false;
         }
 
@@ -328,6 +330,10 @@ internal static class LakisLauncher
                     layoutJson = reader.ReadToEnd();
 
                 var serializer = new JavaScriptSerializer { MaxJsonLength = 16 * 1024 * 1024 };
+                var rawLayout = serializer.Deserialize<Dictionary<string, object>>(layoutJson);
+                if (rawLayout != null && rawLayout.ContainsKey("editable_template_policy") &&
+                    !Object.Equals(rawLayout["editable_template_policy"], "preserve-v1"))
+                    throw new InvalidDataException("지원하지 않는 editable-template policy입니다.");
                 layout = serializer.Deserialize<ReleaseLayout>(layoutJson);
                 if (layout == null || layout.schema != 1 ||
                     !String.Equals(layout.product, "LAKIS", StringComparison.Ordinal) ||
@@ -342,8 +348,7 @@ internal static class LakisLauncher
                         throw new InvalidDataException("release-layout.json 파일 목록이 올바르지 않습니다.");
                     ResolveManagedPath(installRoot, entry.path);
                 }
-                foreach (string retired in layout.retired ?? new List<string>())
-                    ResolveManagedPath(installRoot, retired);
+                ValidateRetiredPaths(installRoot, layout);
                 return true;
             }
             catch (Exception error)
@@ -354,20 +359,62 @@ internal static class LakisLauncher
             }
         }
 
-        private static List<string> FindLayoutProblems(string installRoot, ReleaseLayout layout)
+        private static readonly string[] EditableTemplatePaths = {
+                "ComfyUI/LAKIS/workflows/LAKIS_custom_v7.4_editable.json",
+                "ComfyUI/LAKIS/external_ui/workflows/LAKIS_custom_v8.0_editable.json",
+                "ComfyUI/LAKIS/workflows/LAKIS_custom_v8.0_editable.json",
+                "ComfyUI/workflows/LAKIS_custom_v8.0_editable.json",
+                "ComfyUI/LAKIS/external_ui/workflows/LAKIS_MOSS_custom_v8.1_editable.json"
+        };
+
+        private static bool IsEditableTemplate(string relative)
         {
+            foreach (string name in EditableTemplatePaths)
+                if (String.Equals(relative.Replace('\\', '/'), name, StringComparison.OrdinalIgnoreCase)) return true;
+            return false;
+        }
+
+        private static string ResolveRetiredPath(string installRoot, string relative)
+        {
+            string full = ResolveManagedPath(installRoot, relative)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            foreach (string boundary in ProtectedUserDirectories.Concat(EditableTemplatePaths))
+            {
+                string protectedPath = Path.GetFullPath(Path.Combine(installRoot,
+                    boundary.Replace('/', Path.DirectorySeparatorChar)))
+                    .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                if (String.Equals(full, protectedPath, StringComparison.OrdinalIgnoreCase) ||
+                    protectedPath.StartsWith(full + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
+                    full.StartsWith(protectedPath + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidDataException("사용자 데이터 또는 그 상위 경로는 폐기할 수 없습니다: " + relative);
+            }
+            return full;
+        }
+
+        private static void ValidateRetiredPaths(string installRoot, ReleaseLayout layout)
+        {
+            foreach (string retired in layout.retired ?? new List<string>())
+                ResolveRetiredPath(installRoot, retired);
+        }
+
+        private static List<string> FindLayoutProblems(string installRoot, ReleaseLayout layout,
+            bool pristine = false)
+        {
+            // Validate every destructive path before a file failure can cause
+            // the bounded diagnostic list to return early.
+            ValidateRetiredPaths(installRoot, layout);
             var failures = new List<string>();
             foreach (ReleaseLayoutFile entry in layout.files)
             {
                 string path = ResolveManagedPath(installRoot, entry.path);
                 if (!File.Exists(path)) failures.Add("누락: " + entry.path);
-                else if (new FileInfo(path).Length != entry.size)
+                else if ((pristine || !IsEditableTemplate(entry.path)) && new FileInfo(path).Length != entry.size)
                     failures.Add("크기 불일치: " + entry.path);
                 if (failures.Count >= 8) return failures;
             }
             foreach (string retired in layout.retired ?? new List<string>())
             {
-                string path = ResolveManagedPath(installRoot, retired);
+                string path = ResolveRetiredPath(installRoot, retired);
                 if (File.Exists(path) || Directory.Exists(path))
                     failures.Add("구버전 잔재: " + retired);
                 if (failures.Count >= 8) break;
@@ -450,6 +497,19 @@ internal static class LakisLauncher
             return quoted.ToString();
         }
 
+        private static bool HasAutomaticRepairAttempt(string marker, string version)
+        {
+            if (!File.Exists(marker)) return false;
+            try
+            {
+                string attemptedVersion = File.ReadAllText(marker).Trim();
+                Version parsed;
+                if (!Version.TryParse(attemptedVersion, out parsed)) return true;
+                return String.Equals(attemptedVersion, version, StringComparison.Ordinal);
+            }
+            catch { return true; }
+        }
+
         private static bool ScheduleAutomaticRepair(string installRoot,
             ReleaseLayout layout, string layoutJson, out string failure)
         {
@@ -458,6 +518,7 @@ internal static class LakisLauncher
                 "LAKIS-AutoRepair-" + Guid.NewGuid().ToString("N"));
             try
             {
+                ValidateRetiredPaths(installRoot, layout);
                 Directory.CreateDirectory(staging);
                 string zip = Path.Combine(staging, "LAKIS_RepairPack.zip");
                 string payload = Path.Combine(staging, "payload");
@@ -465,7 +526,7 @@ internal static class LakisLauncher
                     zip, "LAKIS-AutoRepair/" + layout.version);
                 ExtractRepairPack(zip, payload);
 
-                List<string> stagedProblems = FindLayoutProblems(payload, layout);
+                List<string> stagedProblems = FindLayoutProblems(payload, layout, true);
                 if (stagedProblems.Count > 0)
                     throw new InvalidDataException("복구 패키지 검증 실패:\n" +
                         String.Join("\n", stagedProblems.ToArray()));
@@ -483,29 +544,42 @@ internal static class LakisLauncher
                     "Start-Sleep -Milliseconds 700",
                     "$layout=Get-Content -Raw -Encoding UTF8 -LiteralPath $LayoutPath | ConvertFrom-Json",
                     "$root=[IO.Path]::GetFullPath($InstallRoot).TrimEnd('\\')+'\\'",
+                    "$editable=@(" + String.Join(",", layout.files.FindAll(entry=>IsEditableTemplate(entry.path)).ConvertAll(entry=>"'"+entry.path.Replace("'","''")+"'").ToArray()) + ")",
+                    "$retiredUserData=@(" + String.Join(",", ProtectedUserDirectories.Concat(EditableTemplatePaths).Select(path=>"'"+path+"'").ToArray()) + ")",
+                    "$retiredPaths=@()",
+                    "foreach($retired in @($layout.retired)){",
+                    "  $rel=([string]$retired).Replace('/','\\')",
+                    "  if([string]::IsNullOrWhiteSpace($rel) -or [IO.Path]::IsPathRooted($rel) -or @($rel.Split('\\') | Where-Object {$_ -eq '..'}).Count){throw 'Unsafe retired path'}",
+                    "  $dst=[IO.Path]::GetFullPath((Join-Path $InstallRoot $rel)).TrimEnd('\\')",
+                    "  if(-not $dst.StartsWith($root,[StringComparison]::OrdinalIgnoreCase)){throw 'Unsafe retired path'}",
+                    "  foreach($boundary in $retiredUserData){",
+                    "    $protected=[IO.Path]::GetFullPath((Join-Path $InstallRoot $boundary)).TrimEnd('\\')",
+                    "    if($dst.Equals($protected,[StringComparison]::OrdinalIgnoreCase) -or $protected.StartsWith($dst+'\\',[StringComparison]::OrdinalIgnoreCase) -or $dst.StartsWith($protected+'\\',[StringComparison]::OrdinalIgnoreCase)){throw 'Retired path would remove user data'}",
+                    "  }",
+                    "  $retiredPaths+= $dst",
+                    "}",
                     "foreach($entry in $layout.files){",
                     "  $rel=([string]$entry.path).Replace('/','\\')",
                     "  $src=[IO.Path]::GetFullPath((Join-Path $PayloadRoot $rel))",
                     "  $dst=[IO.Path]::GetFullPath((Join-Path $InstallRoot $rel))",
                     "  if(-not $dst.StartsWith($root,[StringComparison]::OrdinalIgnoreCase)){throw 'Unsafe repair path'}",
+                    "  if($editable -contains ([string]$entry.path) -and [IO.File]::Exists($dst)){continue}",
                     "  if((-not [IO.File]::Exists($dst)) -or ([IO.FileInfo]$dst).Length -ne [int64]$entry.size){",
                     "    [IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($dst)) | Out-Null",
                     "    Copy-Item -LiteralPath $src -Destination $dst -Force",
                     "  }",
                     "}",
-                    "foreach($retired in @($layout.retired)){",
-                    "  $dst=[IO.Path]::GetFullPath((Join-Path $InstallRoot (([string]$retired).Replace('/','\\'))))",
-                    "  if(-not $dst.StartsWith($root,[StringComparison]::OrdinalIgnoreCase)){throw 'Unsafe retired path'}",
+                    "foreach($dst in $retiredPaths){",
                     "  if(Test-Path -LiteralPath $dst -PathType Leaf){Remove-Item -LiteralPath $dst -Force}",
                     "  elseif(Test-Path -LiteralPath $dst -PathType Container){Remove-Item -LiteralPath $dst -Recurse -Force}",
                     "}",
                     "foreach($entry in $layout.files){",
                     "  $dst=[IO.Path]::GetFullPath((Join-Path $InstallRoot (([string]$entry.path).Replace('/','\\'))))",
+                    "  if($editable -contains ([string]$entry.path) -and [IO.File]::Exists($dst)){continue}",
                     "  if((-not [IO.File]::Exists($dst)) -or ([IO.FileInfo]$dst).Length -ne [int64]$entry.size){throw ('Repair post-check failed: '+$entry.path)}",
                     "}",
-                    "foreach($retired in @($layout.retired)){",
-                    "  $dst=[IO.Path]::GetFullPath((Join-Path $InstallRoot (([string]$retired).Replace('/','\\'))))",
-                    "  if(Test-Path -LiteralPath $dst){throw ('Repair retired-path post-check failed: '+$retired)}",
+                    "foreach($dst in $retiredPaths){",
+                    "  if(Test-Path -LiteralPath $dst){throw ('Repair retired-path post-check failed: '+$dst)}",
                     "}",
                     "Start-Process -FilePath (Join-Path $InstallRoot 'LAKIS.exe') -WorkingDirectory $InstallRoot",
                     "} catch {",
@@ -585,7 +659,7 @@ internal static class LakisLauncher
                             try { if (File.Exists(attemptMarker)) File.Delete(attemptMarker); } catch { }
                             SetStatus("설치 파일 동일성 확인 완료");
                         }
-                        else if (File.Exists(attemptMarker))
+                        else if (HasAutomaticRepairAttempt(attemptMarker, layout.version))
                         {
                             progress.MarqueeAnimationSpeed = 0;
                             MessageBox.Show(this,
@@ -681,6 +755,7 @@ internal static class LakisLauncher
                     startInfo.EnvironmentVariables["LAKIS_FULL_TURBO_EXPERIMENT"] = "0";
                     startInfo.EnvironmentVariables["LAKIS_HALF_RES_FAST_EXPERIMENT"] = "0";
                     startInfo.EnvironmentVariables["LAKIS_LOCAL_INPAINT_V2"] = "1";
+                    startInfo.EnvironmentVariables["LAKIS_SNAPREF_EXPERIMENT"] = "1";
                     startInfo.EnvironmentVariables["LAKIS_COMFY_PORT"] = "8189";
                     startInfo.EnvironmentVariables["LAKIS_DESKTOP_HOST"] =
                         Path.Combine(root, "LAKIS_Desktop.exe");

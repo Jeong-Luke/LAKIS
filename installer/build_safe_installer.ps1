@@ -1,6 +1,7 @@
 param(
     [string]$PinnedWebView2Directory = "",
     [string]$RuntimeBundleManifest = "",
+    [string]$ApplicationReleaseDescriptor = "",
     [string]$PythonExecutable = "python"
 )
 $ErrorActionPreference = "Stop"
@@ -77,7 +78,11 @@ $setupSource = [regex]::Replace($setupSource,$bytesDeclaration,('private const l
 [IO.File]::WriteAllText($pinnedSetupSource, $setupSource, [Text.UTF8Encoding]::new($false))
 Write-Output "INSTALLER_SOURCE_REVISION=$sourceRevision"
 $runtimeInstallManifest = Join-Path $stage "runtime-installer-manifest.json"
-& $PythonExecutable (Join-Path $PSScriptRoot "build_runtime_installer_manifest.py") --bundle $RuntimeBundleManifest --webview2 (Join-Path $stage "webview2-bootstrapper.json") --output $runtimeInstallManifest
+$applicationArguments = @()
+if (-not [string]::IsNullOrWhiteSpace($ApplicationReleaseDescriptor)) {
+    $applicationArguments = @('--application-release', $ApplicationReleaseDescriptor)
+}
+& $PythonExecutable (Join-Path $PSScriptRoot "build_runtime_installer_manifest.py") --bundle $RuntimeBundleManifest --webview2 (Join-Path $stage "webview2-bootstrapper.json") --output $runtimeInstallManifest @applicationArguments
 if ($LASTEXITCODE) { throw "Frozen runtime installer manifest preparation failed." }
 
 $sevenZip = Join-Path $stage "7zr.exe"
@@ -105,7 +110,7 @@ $splash1 = Join-Path $repo "resources\splash\lakis-splash-01.png"
 $splash2 = Join-Path $repo "resources\splash\lakis-splash-02.png"
 & $csc /nologo /target:winexe ("/out:" + (Join-Path $stage "LAKIS.exe")) ("/win32icon:" + $icon) /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll ("/resource:" + $splash1 + ",LAKIS.Splash1") ("/resource:" + $splash2 + ",LAKIS.Splash2") (Join-Path $PSScriptRoot "SplashArtwork.cs") (Join-Path $PSScriptRoot "UpdateProtocol.cs") (Join-Path $PSScriptRoot "LAKIS_Launcher.cs")
 if ($LASTEXITCODE) { throw "Launcher compilation failed" }
-$runtimeResources = @('lakis_cmd_installer.py','runtime_install.py','runtime_transition.py','runtime_manifest.py','runtime_health.py','runtime_patch.py','runtime_update.py') | ForEach-Object { "/resource:" + (Join-Path $PSScriptRoot $_) + ",LAKIS.Runtime." + $_ }
+$runtimeResources = @('lakis_cmd_installer.py','runtime_install.py','runtime_transition.py','runtime_manifest.py','runtime_health.py','runtime_patch.py','runtime_update.py','application_release.py') | ForEach-Object { "/resource:" + (Join-Path $PSScriptRoot $_) + ",LAKIS.Runtime." + $_ }
 & $csc /nologo /target:winexe ("/out:" + (Join-Path $stage "LAKIS_Updater.exe")) ("/win32icon:" + $icon) /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll ("/resource:" + $splash1 + ",LAKIS.Splash1") ("/resource:" + $splash2 + ",LAKIS.Splash2") @runtimeResources (Join-Path $PSScriptRoot "SplashArtwork.cs") (Join-Path $PSScriptRoot "UpdateProtocol.cs") (Join-Path $PSScriptRoot "RuntimeBundleInstaller.cs") (Join-Path $PSScriptRoot "LAKIS_Updater.cs")
 if ($LASTEXITCODE) { throw "Updater compilation failed" }
 & $csc /nologo /target:winexe ("/out:" + (Join-Path $stage "LAKIS_Desktop.exe")) ("/win32icon:" + $icon) ("/win32manifest:" + (Join-Path $PSScriptRoot "LAKIS_Desktop.manifest")) /reference:System.Windows.Forms.dll /reference:System.Drawing.dll ("/reference:" + $webViewCore) ("/reference:" + $webViewForms) (Join-Path $PSScriptRoot "LAKIS_Desktop.cs")
@@ -125,10 +130,16 @@ if ($LASTEXITCODE) { throw "Uninstaller compilation failed" }
 Copy-Item -LiteralPath (Join-Path $stage "Uninstall_LAKIS.exe") -Destination (Join-Path (Split-Path $output) "Uninstall_LAKIS.exe") -Force
 & $csc /nologo /target:winexe ("/out:" + $output) ("/win32icon:" + $icon) /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll ("/resource:" + (Join-Path $stage "LAKIS.exe") + ",LAKIS.Launcher") ("/resource:" + (Join-Path $stage "LAKIS_Updater.exe") + ",LAKIS.Updater") ("/resource:" + (Join-Path $stage "LAKIS_Desktop.exe") + ",LAKIS.Desktop") ("/resource:" + (Join-Path $stage "LAKIS_Model_Importer.exe") + ",LAKIS.ModelImporter") ("/resource:" + $icon + ",LAKIS.Icon") ("/resource:" + $webViewCore + ",LAKIS.WebView2.Core") ("/resource:" + $webViewForms + ",LAKIS.WebView2.WinForms") ("/resource:" + $webViewLoader + ",LAKIS.WebView2.Loader") ("/resource:" + (Join-Path $stage "Uninstall_LAKIS.exe") + ",LAKIS.Uninstaller") ("/resource:" + $sevenZip + ",LAKIS.7zr") ("/resource:" + $splash1 + ",LAKIS.Splash1") ("/resource:" + $splash2 + ",LAKIS.Splash2") ("/resource:" + $runtimeInstallManifest + ",LAKIS.RuntimeInstallManifest") @runtimeResources (Join-Path $PSScriptRoot "SplashArtwork.cs") (Join-Path $PSScriptRoot "RuntimeBundleInstaller.cs") (Join-Path $PSScriptRoot "UpdateProtocol.cs") $pinnedSetupSource
 if ($LASTEXITCODE) { throw "Safe installer compilation failed" }
+$installerIdentity = Get-Content -Raw -Encoding UTF8 -LiteralPath $runtimeInstallManifest | ConvertFrom-Json
+$applicationVersion = $installerIdentity.version
+if ($null -ne $installerIdentity.application_release) {
+    $applicationVersion = $installerIdentity.application_release.version
+}
 [ordered]@{
     schema=1
-    version=(Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repo "VERSION")).Trim()
-    runtime_version=(Get-Content -Raw -Encoding UTF8 -LiteralPath $runtimeInstallManifest | ConvertFrom-Json).version
+    version=$applicationVersion
+    runtime_version=$installerIdentity.version
+    helper_source_revision=$sourceRevision
     manifest_sha256=(Get-FileHash -LiteralPath $runtimeInstallManifest -Algorithm SHA256).Hash
     setup_sha256=(Get-FileHash -LiteralPath $output -Algorithm SHA256).Hash
 } | ConvertTo-Json | Set-Content -Encoding UTF8 (Join-Path $stage "runtime-installer-contract.json")

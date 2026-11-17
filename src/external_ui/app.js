@@ -29,8 +29,34 @@ const state = {
   node_overrides: {}
 };
 state.moss_regions = { enabled: false, regions: [] };
+state.anima_regions = { enabled: false, regions: [] };
+state.anima_reference = { enabled: false, mode: "cs", fidelity: 1, ref_megapixels: 1, references: [{ image_name: "", strength: 0 }] };
 state.moss_detail = { enabled: false, scope: "none", steps: 20, denoise: 0.25 };
 state.moss_node_overrides = {};
+
+function normalizeContinuousCount(value, fallback = 1) {
+  const truncated = Math.trunc(Number(value));
+  if (!Number.isFinite(truncated) || truncated < 1 || !Number.isSafeInteger(truncated)) return fallback;
+  return Math.min(truncated, 1000);
+}
+
+function nextContinuousCount(current) {
+  const normalized = normalizeContinuousCount(current, 1);
+  return normalizeContinuousCount(normalized + 1, normalized);
+}
+
+function gateRegionPayloadForRequest({ mossMode, mossSnapshot, animaSnapshot, i2iEnabled, inpaintEnabled }) {
+  const moss = structuredClone(mossSnapshot || { enabled: false, regions: [] });
+  const anima = structuredClone(animaSnapshot || { enabled: false, regions: [] });
+  if (mossMode) {
+    if (i2iEnabled) moss.enabled = false;
+    anima.enabled = false;
+  } else {
+    moss.enabled = false;
+    if (i2iEnabled || inpaintEnabled) anima.enabled = false;
+  }
+  return { moss_regions: moss, anima_regions: anima };
+}
 
 let engineConfiguration = null;
 let runtimeCapabilities = {};
@@ -57,9 +83,15 @@ function enforceMossGenerationMode() {
 }
 
 function syncPromptHeadings() {
-  const global = currentGenerationEngine() === "moss" && state.moss_regions.enabled === true;
-  document.querySelector("#positivePromptHeading").textContent = global ? "전역 프롬프트" : "프롬프트";
-  document.querySelector("#negativePromptHeading").textContent = global ? "전역 부정 프롬프트" : "네거티브 프롬프트";
+  const engine = currentGenerationEngine();
+  const boxes = engine === "moss"
+    ? state.moss_regions.enabled === true
+    : state.anima_regions.enabled === true;
+  const pose = engine === "anima" && isToyxyzEnabled();
+  document.querySelector("#positivePromptHeading").textContent = boxes
+    ? pose ? "프롬프트 ( 3D포즈 · 바운딩 박스 )" : "프롬프트 ( 바운딩 박스 )"
+    : pose ? "프롬프트 ( 3D 포즈 )" : "프롬프트";
+  document.querySelector("#negativePromptHeading").textContent = "네거티브 프롬프트";
 }
 
 function syncMossI2iAvailability() {
@@ -76,6 +108,17 @@ function syncMossI2iAvailability() {
     }
     window.LAKISMossRegions?.close();
   }
+}
+
+function syncAnimaAvailability() {
+  const panel = document.querySelector("#animaRegionPanel");
+  if (!panel) return;
+  const unavailable = currentGenerationEngine() !== "moss"
+    && (state.i2i.enabled || state.inpaint.enabled);
+  panel.inert = unavailable;
+  panel.setAttribute("aria-disabled", String(unavailable));
+  panel.title = unavailable ? "i2i·인페인트 사용 중에는 바운딩 박스를 사용할 수 없습니다." : "";
+  if (unavailable) window.LAKISAnimaRegions?.close();
 }
 
 function captureGenerationEngineProfile() {
@@ -173,6 +216,11 @@ function syncGenerationEngineUI() {
   continuousRow.title = continuousUnavailable ? "이 MOSS 프로토타입은 한 번에 한 장씩 생성합니다." : "";
   document.querySelector("#mossRegionPanel").hidden = !moss || capabilities.regions !== true;
   if (document.querySelector("#mossRegionPanel").hidden) window.LAKISMossRegions?.close();
+  const animaPanel = document.querySelector("#animaRegionPanel");
+  if (animaPanel) {
+    animaPanel.hidden = moss;
+    if (animaPanel.hidden) window.LAKISAnimaRegions?.close();
+  }
   document.querySelector("#mossDetailControls").hidden = !moss || capabilities.detail !== true;
   if (state.moss_detail.scope === "face_eyes") state.moss_detail.scope = "none";
   document.querySelector("#mossDetailScope").value = state.moss_detail.scope;
@@ -182,6 +230,7 @@ function syncGenerationEngineUI() {
   document.querySelector("#mossDetailDenoise").disabled = state.moss_detail.scope === "none";
   renderCompositionAvailability();
   syncMossI2iAvailability();
+  syncAnimaAvailability();
   syncPromptHeadings();
   window.LAKISAdvancedSettings?.syncGenerationEngine();
   modeButtons.forEach(button => { button.disabled = moss; });
@@ -353,6 +402,8 @@ function persistedGenerationState() {
     continuous: state.continuous,
     i2i: state.i2i,
     moss_regions: window.LAKISMossRegions?.snapshot() || state.moss_regions,
+    anima_regions: window.LAKISAnimaRegions?.snapshot() || state.anima_regions,
+    anima_reference: window.LAKISAnimaReference?.snapshot() || state.anima_reference,
     moss_detail: state.moss_detail,
   };
 }
@@ -404,8 +455,12 @@ function applyPersistedGenerationState(saved) {
   Object.assign(state.continuous, saved.continuous || {});
   Object.assign(state.i2i, saved.i2i || {});
   state.moss_regions = isStateRecord(saved.moss_regions) ? structuredClone(saved.moss_regions) : state.moss_regions;
+  state.anima_regions = isStateRecord(saved.anima_regions) ? structuredClone(saved.anima_regions) : state.anima_regions;
+  state.anima_reference = isStateRecord(saved.anima_reference) ? structuredClone(saved.anima_reference) : state.anima_reference;
   Object.assign(state.moss_detail, saved.moss_detail || {});
   window.LAKISMossRegions?.restore(state.moss_regions);
+  window.LAKISAnimaRegions?.restore(state.anima_regions);
+  window.LAKISAnimaReference?.restore(state.anima_reference);
 }
 
 function syncEditedGenerationControls(edits) {
@@ -1160,6 +1215,7 @@ function syncPoseModeAvailability() {
     toggle.setAttribute("aria-disabled", String(locked));
   }
   renderCompositionAvailability();
+  syncAnimaAvailability();
 }
 
 function setCompositionEnabled(enabled) {
@@ -1169,16 +1225,22 @@ function setCompositionEnabled(enabled) {
 }
 
 function renderCompositionAvailability() {
+  const poseEnabled = isToyxyzEnabled();
   const unavailable = state.i2i.enabled || (currentGenerationEngine() === "moss"
     ? engineConfiguration?.moss?.capabilities?.composition !== true
-    : state.inpaint.enabled || isToyxyzEnabled());
+    : state.inpaint.enabled || poseEnabled);
   const toggle = document.querySelector("#compositionToggle");
   toggle.classList.toggle("on", state.composition_enabled);
   toggle.setAttribute("aria-pressed", String(state.composition_enabled));
   toggle.setAttribute("aria-label", `구도 설정 ${state.composition_enabled ? "끄기" : "켜기"}`);
   toggle.disabled = unavailable;
   toggle.setAttribute("aria-disabled", String(unavailable));
-  document.querySelector("#compositionControls").classList.toggle("is-disabled", !state.composition_enabled || unavailable);
+  const controls = document.querySelector("#compositionControls");
+  const wasHidden = controls.hidden;
+  controls.classList.toggle("is-disabled", !state.composition_enabled || unavailable);
+  controls.hidden = poseEnabled;
+  document.querySelector(".composition-panel").classList.toggle("is-pose-collapsed", poseEnabled);
+  if (wasHidden && !poseEnabled) drawCamera3d();
 }
 
 async function refreshLoraInventory() {
@@ -1540,8 +1602,8 @@ async function translatedPromptForGeneration(prompt, forceTranslation = false) {
   return result.prompt;
 }
 
-async function translatedMossRegionsForGeneration(mossRegions) {
-  const translatedRegions = structuredClone(mossRegions);
+async function translatedRegionPromptsForGeneration(regionState) {
+  const translatedRegions = structuredClone(regionState);
   if (!translatedRegions.enabled) return translatedRegions;
   // Translate each region separately to stay within the prompt API's limit.
   // Keep exact image text, coordinates and the saved editor source untouched.
@@ -1554,6 +1616,14 @@ async function translatedMossRegionsForGeneration(mossRegions) {
     region.negative_prompt = translated.negative_prompt;
   }
   return translatedRegions;
+}
+
+async function translatedMossRegionsForGeneration(mossRegions) {
+  return translatedRegionPromptsForGeneration(mossRegions);
+}
+
+async function translatedAnimaRegionsForGeneration(animaRegions) {
+  return translatedRegionPromptsForGeneration(animaRegions);
 }
 
 async function translatedInpaintForGeneration(inpaint) {
@@ -1788,7 +1858,7 @@ async function refreshWorkflowConfiguration() {
       ? structuredClone(savedGeneration.wildcard_exclusions) : {};
     window.lakisApplyWildcardExclusions?.(state.wildcard_exclusions);
     Object.assign(state.continuous, savedGeneration.continuous || {});
-    state.continuous.count = Math.max(1, Math.min(20, Number(state.continuous.count) || 1));
+    state.continuous.count = normalizeContinuousCount(state.continuous.count, 1);
     syncContinuousControls();
     renderCamera();
     Object.assign(state.generation, savedGeneration.generation || {});
@@ -1798,8 +1868,12 @@ async function refreshWorkflowConfiguration() {
       state.generation.mode = "fast";
     }
     state.moss_regions = structuredClone(savedGeneration.moss_regions || { enabled: false, regions: [] });
+    state.anima_regions = structuredClone(savedGeneration.anima_regions || { enabled: false, regions: [] });
+    state.anima_reference = structuredClone(savedGeneration.anima_reference || { enabled: false, mode: "cs", fidelity: 1, ref_megapixels: 1, references: [{ image_name: "", strength: 0 }] });
     Object.assign(state.moss_detail, savedGeneration.moss_detail || {});
     window.LAKISMossRegions?.restore(state.moss_regions);
+    window.LAKISAnimaRegions?.restore(state.anima_regions);
+    window.LAKISAnimaReference?.restore(state.anima_reference);
     Object.assign(state.model, savedGeneration.model || {});
     if (currentGenerationEngine() === "moss") {
       Object.assign(state.model, engineConfiguration?.moss?.defaults?.model || {}, savedGeneration.model || {});
@@ -2224,6 +2298,7 @@ function setInpaintEnabled(enabled, enforceExclusive = true) {
   inpaintPromptPanel.hidden = !state.inpaint.enabled;
   inpaintCanvas.hidden = !state.inpaint.enabled || !state.inpaint.image_name;
   renderCompositionAvailability();
+  syncAnimaAvailability();
   const controlColumn = document.querySelector(".control-column");
   controlColumn?.classList.toggle("inpaint-layout-active", state.inpaint.enabled);
   if (state.inpaint.enabled && state.inpaint.image_name) {
@@ -2351,11 +2426,9 @@ function applyI2iAutoSize() {
   if (!state.i2i.auto_size || !state.i2i.image_width || !state.i2i.image_height) return;
   let width = state.i2i.image_width, height = state.i2i.image_height;
   if (currentGenerationEngine() === "moss") {
-    const limits = engineConfiguration.moss.limits;
-    const scale = Math.min(1, limits.max_dimension / width, limits.max_dimension / height,
-      Math.sqrt(limits.max_pixels / (width * height)));
-    width = Math.max(limits.min_dimension, Math.floor(width * scale / 16) * 16);
-    height = Math.max(limits.min_dimension, Math.floor(height * scale / 16) * 16);
+    const minDimension = Number(engineConfiguration?.moss?.limits?.min_dimension) || 64;
+    width = Math.max(minDimension, Math.floor(Number(width) / 16) * 16);
+    height = Math.max(minDimension, Math.floor(Number(height) / 16) * 16);
   }
   setModelImageSize(width, height);
 }
@@ -2400,6 +2473,7 @@ function setI2iEnabled(enabled, enforceExclusive = true) {
   document.querySelector(".i2i-panel").classList.toggle("is-disabled", !state.i2i.enabled);
   renderCompositionAvailability();
   syncMossI2iAvailability();
+  syncAnimaAvailability();
   syncPromptHeadings();
 }
 
@@ -2628,14 +2702,30 @@ function setContinuousProgress(count = "", label = "") {
   continuousProgressLabel.textContent = label;
 }
 function syncContinuousControls() {
-  const count = Math.max(1, Math.min(20, Math.trunc(Number(state.continuous?.count)) || CONTINUOUS_DEFAULT_COUNT));
+  const count = normalizeContinuousCount(state.continuous?.count, CONTINUOUS_DEFAULT_COUNT);
   state.continuous.count = count;
-  continuousCount.textContent = String(count);
+  continuousCount.value = String(count);
   continuousToggle.classList.toggle("on", state.continuous.enabled === true);
   continuousToggle.setAttribute("aria-pressed", String(state.continuous.enabled === true));
   continuousToggle.setAttribute("aria-label", `연속 생성 ${state.continuous.enabled ? "끄기" : "켜기"}`);
   document.querySelector(".continuous-generation-row").classList.toggle("is-enabled", state.continuous.enabled === true);
 }
+function commitContinuousCount() {
+  const count = normalizeContinuousCount(continuousCount.value, state.continuous.count);
+  const changed = count !== state.continuous.count;
+  state.continuous.count = count;
+  syncContinuousControls();
+  if (changed) scheduleGenerationStateSave();
+}
+continuousCount.addEventListener("change", commitContinuousCount);
+continuousCount.addEventListener("blur", commitContinuousCount);
+continuousCount.addEventListener("keydown", event => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    commitContinuousCount();
+    continuousCount.blur();
+  }
+});
 continuousToggle.addEventListener("click", () => {
   state.continuous.enabled = !state.continuous.enabled;
   if (!state.continuous.enabled && continuousRun) continuousRun.stop = true;
@@ -2643,12 +2733,13 @@ continuousToggle.addEventListener("click", () => {
   scheduleGenerationStateSave();
 });
 document.querySelector("#continuousCountDown").addEventListener("click", () => { state.continuous.count = Math.max(1, state.continuous.count - 1); syncContinuousControls(); scheduleGenerationStateSave(); });
-document.querySelector("#continuousCountUp").addEventListener("click", () => { state.continuous.count = Math.min(20, state.continuous.count + 1); syncContinuousControls(); scheduleGenerationStateSave(); });
+document.querySelector("#continuousCountUp").addEventListener("click", () => { state.continuous.count = nextContinuousCount(state.continuous.count); syncContinuousControls(); scheduleGenerationStateSave(); });
 syncContinuousControls();
 
 const generateButton = document.querySelector("#generateButton");
 const generateButtonLabel = generateButton.querySelector("span");
 const generateButtonHint = document.querySelector("#generateHint");
+const generationClock = window.LAKISGenerationClock;
 const errorDialog = document.querySelector("#errorDialog");
 const errorDialogTitle = document.querySelector("#errorDialogTitle");
 const errorDialogMessage = document.querySelector("#errorDialogMessage");
@@ -2687,6 +2778,8 @@ function setGenerationProgress(percent, stage = "최종 이미지 생성 중") {
   }
   const knownProgress = percent != null && Number.isFinite(Number(percent));
   const progress = knownProgress ? Math.max(0, Math.min(100, Number(percent))) : 0;
+  if (progress < 100) generationClock.begin();
+  else generationClock.stop();
   const phase = String(stage || "")
     .replace(/^생성 중\s*·\s*/, "")
     .replace(/^생성 중$/, "준비")
@@ -2709,6 +2802,7 @@ function resetGenerationButton() {
   }
   generationActive = false;
   generationCancelRequested = false;
+  generationClock.stop();
   generateButton.style.setProperty("--generation-progress", "0%");
   generateButton.classList.remove("is-generating", "is-complete", "is-cancelling");
   generateButtonLabel.textContent = "제작하기";
@@ -2982,6 +3076,7 @@ async function pollGenerationStatus() {
     // previous job's terminal state for one poll. Ignore only that stale
     // terminal snapshot so it cannot unlock the button mid-submission.
     if ((generationPreparationPending || generationSubmissionPending) && ["idle", "complete", "cancelled", "error"].includes(status.state)) return;
+    generationClock.sync(status);
     if (["preparing", "running", "unknown"].includes(status.state)) {
       setGenerationProgress(status.percent, status.state === "unknown" ? "서버 접수 상태 확인 중" : status.stage || "생성 중");
       refreshGenerationPreview(status.preview_revision).catch(() => {});
@@ -3132,7 +3227,7 @@ generateButton.addEventListener("click", async () => {
     continuousAdvance = false;
     continuousRun.index += 1;
   } else {
-    continuousRun = { index: 1, total: state.continuous.enabled ? state.continuous.count : 1, stop: false };
+    continuousRun = { index: 1, total: state.continuous.enabled ? normalizeContinuousCount(state.continuous.count, 1) : 1, stop: false };
   }
   continuousRun.total > 1 ? setContinuousProgress(`${continuousRun.index} / ${continuousRun.total}`, "생성 중") : setContinuousProgress();
 
@@ -3174,19 +3269,42 @@ generateButton.addEventListener("click", async () => {
   // appear cropped or locked to that ratio.
   setPreviewZoom(100);
   const generationTrace = window.LAKISGenerationDiagnostics.createContext();
+  generationClock.begin();
   let generationPayload;
   try {
     generationPayload = structuredClone(state);
     delete generationPayload.generation.profiles;
+    generationPayload.anima_reference = window.LAKISAnimaReference?.forGeneration({
+      engine: currentGenerationEngine(),
+      i2i: Boolean(generationPayload.i2i.enabled),
+      inpaint: Boolean(generationPayload.inpaint.enabled),
+    }) || { ...structuredClone(state.anima_reference), enabled: false };
     if (mossMode) {
       generationPayload.generation.mode = "moss";
       generationPayload.generation.lakis_mode = false;
-      generationPayload.moss_regions = window.LAKISMossRegions.snapshot();
-      if (generationPayload.i2i.enabled) generationPayload.moss_regions.enabled = false;
+      const gated = gateRegionPayloadForRequest({
+        mossMode: true,
+        mossSnapshot: window.LAKISMossRegions?.snapshot() || state.moss_regions,
+        animaSnapshot: window.LAKISAnimaRegions?.snapshot() || state.anima_regions,
+        i2iEnabled: Boolean(generationPayload.i2i.enabled),
+        inpaintEnabled: false,
+      });
+      generationPayload.moss_regions = gated.moss_regions;
+      generationPayload.anima_regions = gated.anima_regions;
       generationPayload.moss_detail = { ...state.moss_detail, enabled: false };
       generationPayload.node_overrides = {};
       generationPayload.inpaint.enabled = false;
       generationPayload.scene_controls = { enabled: false, toyxyz_enabled: false };
+    } else {
+      const gated = gateRegionPayloadForRequest({
+        mossMode: false,
+        mossSnapshot: window.LAKISMossRegions?.snapshot() || state.moss_regions,
+        animaSnapshot: window.LAKISAnimaRegions?.snapshot() || state.anima_regions,
+        i2iEnabled: Boolean(generationPayload.i2i.enabled),
+        inpaintEnabled: Boolean(generationPayload.inpaint.enabled),
+      });
+      generationPayload.moss_regions = gated.moss_regions;
+      generationPayload.anima_regions = gated.anima_regions;
     }
     generationPayload.composition_enabled = state.composition_enabled
       && !generationPayload.i2i.enabled && !generationPayload.inpaint.enabled;
@@ -3213,8 +3331,11 @@ generateButton.addEventListener("click", async () => {
       selections: wildcardResult.selections,
     };
     const inpaintNeedsTranslation = state.inpaint.enabled && [state.inpaint.prompt, state.inpaint.negative_prompt].some(containsKoreanPrompt);
-    const regionsNeedTranslation = mossMode && generationPayload.moss_regions.enabled
-      && generationPayload.moss_regions.regions.some(region => [region.caption, region.negative_prompt].some(containsKoreanPrompt));
+    const mossRegionsNeedTranslation = generationPayload.moss_regions?.enabled
+      && (generationPayload.moss_regions.regions || []).some(region => [region.caption, region.negative_prompt].some(containsKoreanPrompt));
+    const animaRegionsNeedTranslation = generationPayload.anima_regions?.enabled
+      && (generationPayload.anima_regions.regions || []).some(region => [region.caption, region.negative_prompt].some(containsKoreanPrompt));
+    const regionsNeedTranslation = mossRegionsNeedTranslation || animaRegionsNeedTranslation;
     if ((state.translation_enabled && (Object.values(generationPayload.prompt).some(containsKoreanPrompt) || regionsNeedTranslation)) || inpaintNeedsTranslation) {
       setGenerationProgress(0, "프롬프트 번역 중");
     }
@@ -3222,9 +3343,13 @@ generateButton.addEventListener("click", async () => {
     generationPayload.prompt = await translatedPromptForGeneration(generationPayload.prompt);
     window.LAKISGenerationDiagnostics.mark(generationTrace, "inpaint_translate");
     generationPayload.inpaint = await translatedInpaintForGeneration(generationPayload.inpaint);
-    if (mossMode) {
+    if (generationPayload.moss_regions?.enabled) {
       window.LAKISGenerationDiagnostics.mark(generationTrace, "region_translate");
-      generationPayload.moss_regions = await translatedMossRegionsForGeneration(generationPayload.moss_regions);
+      generationPayload.moss_regions = await translatedRegionPromptsForGeneration(generationPayload.moss_regions);
+    }
+    if (generationPayload.anima_regions?.enabled) {
+      window.LAKISGenerationDiagnostics.mark(generationTrace, "region_translate");
+      generationPayload.anima_regions = await translatedAnimaRegionsForGeneration(generationPayload.anima_regions);
     }
     window.LAKISGenerationDiagnostics.mark(generationTrace, "scene_prepare");
     if (!mossMode) await window.lakisPrepareScene(generationPayload);
@@ -3258,7 +3383,18 @@ window.addEventListener("lakis:wildcard-enabled", event => {
 window.addEventListener("lakis:moss-regions-change", () => {
   state.moss_regions = window.LAKISMossRegions.snapshot();
   syncMossI2iAvailability();
+  syncAnimaAvailability();
   syncPromptHeadings();
+  scheduleGenerationStateSave();
+});
+window.addEventListener("lakis:anima-regions-change", () => {
+  state.anima_regions = window.LAKISAnimaRegions.snapshot();
+  syncAnimaAvailability();
+  syncPromptHeadings();
+  scheduleGenerationStateSave();
+});
+window.addEventListener("lakis:anima-reference-change", () => {
+  state.anima_reference = window.LAKISAnimaReference.snapshot();
   scheduleGenerationStateSave();
 });
 for (const [id, key, convert] of [

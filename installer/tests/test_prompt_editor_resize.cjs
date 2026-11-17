@@ -7,7 +7,7 @@ const vm = require("node:vm");
 const source = fs.readFileSync(path.join(__dirname, "../../src/external_ui/prompt-highlighting.js"), "utf8")
   .replace("export { install as installPromptEditor };", "");
 
-function editor(region) {
+function editor(region, { mirror = false, negative = false } = {}) {
   const classes = new Set();
   class Element {
     constructor() {
@@ -27,9 +27,11 @@ function editor(region) {
     addEventListener(name, callback) { this.listeners[name] = callback; }
     closest(selector) {
       if (selector === ".moss-region-field") return region ? field : null;
-      if (selector === ".moss-region-dialog") return region ? { clientHeight: 600 } : null;
+      if (selector === "dialog") return region ? { clientHeight: 600 } : null;
       if (selector === ".fixed-prompt-panel") return region ? null : panel;
       if (selector === ".prompt-field-title") return region ? null : promptField;
+      if (selector === ".prompt-column") return mirror ? column : null;
+      if (selector === ".negative-prompt-panel") return negative ? panel : null;
       return null;
     }
     getBoundingClientRect() { return { top: 100, bottom: 220, height: 120 }; }
@@ -41,6 +43,13 @@ function editor(region) {
   const field = new Element();
   const panel = new Element();
   const promptField = { getBoundingClientRect: () => ({ bottom: 512 }) };
+  const mirrorPanel = new Element();
+  const mirrorHost = new Element();
+  mirrorHost.getBoundingClientRect = () => ({ top: 120, bottom: 260, height: 140 });
+  mirrorHost.closest = selector => selector === ".fixed-prompt-panel" ? mirrorPanel : {
+    getBoundingClientRect: () => ({ bottom: 620 }),
+  };
+  const column = { querySelector: () => mirrorHost };
   const textarea = new Element();
   field.append(textarea);
   const context = {
@@ -54,7 +63,7 @@ function editor(region) {
   vm.runInContext(source + "\ninstall(textarea);", context);
   const host = textarea.parentNode;
   const handle = host.children.find(node => node.className === "prompt-resize-handle");
-  return { host, handle, panel, textarea, classes };
+  return { host, handle, panel, textarea, classes, mirrorHost, mirrorPanel };
 }
 
 test("region prompt handle grows and shrinks the editor within dialog bounds without changing its text", () => {
@@ -84,4 +93,28 @@ test("existing ANIMA category resizing retains its original bounds and panel adj
   e.handle.fire("pointercancel");
   assert.equal(e.handle.hasPointerCapture(1), false);
   assert.equal(e.classes.has("prompt-resizing"), false);
+});
+
+test("resizing a main positive prompt applies the same height delta to the negative prompt", () => {
+  const e = editor(false, { mirror: true });
+  e.textarea.value = "keep positive text";
+  e.handle.fire("pointerdown");
+  e.handle.fire("pointermove", { clientY: 320 });
+  assert.equal(e.host.style.height, "220px");
+  assert.equal(e.mirrorHost.style.height, "240px");
+  assert.equal(e.mirrorPanel.style.height, "272px");
+  e.handle.fire("pointermove", { clientY: -1000 });
+  assert.equal(e.host.style.height, "80px");
+  assert.equal(e.mirrorHost.style.height, "100px");
+  e.handle.fire("pointerup");
+  assert.equal(e.textarea.value, "keep positive text");
+});
+
+test("resizing the negative prompt does not resize a positive editor", () => {
+  const e = editor(false, { mirror: true, negative: true });
+  e.handle.fire("pointerdown");
+  e.handle.fire("pointermove", { clientY: 320 });
+  assert.equal(e.host.style.height, "220px");
+  assert.equal(e.mirrorHost.style.height, undefined);
+  e.handle.fire("pointerup");
 });

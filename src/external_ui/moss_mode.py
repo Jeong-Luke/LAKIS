@@ -20,8 +20,7 @@ MODEL = {
     "sampler": "euler", "scheduler": "sgm_uniform", "steps": 50, "cfg": 3.0,
 }
 OUTPUT = {"width": 1024, "height": 1024}
-LIMITS = {"min_dimension": 256, "max_dimension": 1536, "max_pixels": 1024 * 1536,
-          "max_steps": 100, "min_cfg": 1.0, "max_cfg": 10.0}
+LIMITS = {"min_dimension": 256, "max_steps": 100, "min_cfg": 1.0, "max_cfg": 10.0}
 LOADERS = (
     ("checkpoint", "UNet loader with Name (Image Saver)", "unet_name"),
     ("clip", "CLIPLoader", "clip_name"),
@@ -120,9 +119,10 @@ def validate_models(prompt, info):
             raise MossValidationError("LKS-MOSS-1003", "선택한 MOSS LoRA가 현재 설치에 없습니다.")
 
 
-def _integer(value, name, low, high):
-    if type(value) is not int or not low <= value <= high:
-        raise MossValidationError("LKS-MOSS-1009", f"MOSS {name}: {low}..{high} 범위의 정수가 필요합니다.")
+def _integer(value, name, low, high=None):
+    if type(value) is not int or value < low or (high is not None and value > high):
+        bounds = f"{low}..{high}" if high is not None else f"{low} 이상"
+        raise MossValidationError("LKS-MOSS-1009", f"MOSS {name}: {bounds} 범위의 정수가 필요합니다.")
     return value
 
 
@@ -160,10 +160,10 @@ def build_prompt(state, info, output_root, seed_max, *, camera_prompt_builder=No
         if model.get(key) not in inventory[key]:
             raise MossValidationError("LKS-MOSS-1002", f"MOSS {key} 설정을 확인해 주세요: {MODEL[key]}")
     output = state.get("output", {})
-    width = _integer(output.get("width"), "width", 256, 1536)
-    height = _integer(output.get("height"), "height", 256, 1536)
-    if width % 16 or height % 16 or width * height > LIMITS["max_pixels"]:
-        raise MossValidationError("LKS-MOSS-1009", "MOSS 해상도는 16의 배수이며 총 1,572,864 픽셀 이하여야 합니다.")
+    width = _integer(output.get("width"), "width", 256)
+    height = _integer(output.get("height"), "height", 256)
+    if width % 16 or height % 16:
+        raise MossValidationError("LKS-MOSS-1009", "MOSS 해상도는 16의 배수여야 합니다.")
     seed = _integer(output.get("seed"), "seed", 0, seed_max)
     steps = _integer(model.get("steps"), "steps", 1, 100)
     cfg = model.get("cfg")

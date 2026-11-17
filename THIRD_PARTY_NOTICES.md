@@ -1,6 +1,10 @@
 # LAKIS third-party notices
 
-Runtime inventory reviewed: 2026-10-27 (8.0.0 candidate; final artifact verification pending)
+Runtime inventory baseline: LAKIS 8.1.2 candidate, ComfyUI 0.42.0,
+Python 3.13.14, PyTorch 2.14.0+cu130, CUDA 13.0.
+The packaged dependency and licence-file inventories have been checked against
+this candidate. Inventory agreement is not a full legal review or public
+release approval.
 
 LAKIS includes, downloads, modifies, or interoperates with third-party software
 and model files. Those materials remain subject to their own copyright notices
@@ -14,9 +18,9 @@ authorship or ownership of these components.
 
 ## Core platform and extensions
 
-### 8.1.0 preview: MOSS model downloads
+### 8.1.2 candidate: MOSS model downloads
 
-The integrated preview keeps the ComfyUI `0.42.0` runtime identified below.
+The 8.1.2 candidate keeps the ComfyUI `0.42.0` runtime identified below.
 MOSS model weights are separate publisher downloads, not files inside the
 LAKIS runtime archive. The installer pins
 [`Comfy-Org/MOSS-Image` revision `7c5a8777422f0aa8a24ea549dffeaf8ee6e1fc41`](https://huggingface.co/Comfy-Org/MOSS-Image/tree/7c5a8777422f0aa8a24ea549dffeaf8ee6e1fc41).
@@ -33,7 +37,7 @@ The complete Apache-2.0 terms are supplied in
 `third_party_licenses/ComfyUI-Anima-LLLite-Apache-2.0.txt`; that shared licence
 text does not attribute these models to the LLLite node's authors.
 MOSS i2i remains disabled. Neither `ComfyUI-Moss-Image-Edit` nor its
-`adapter_model.safetensors` is included in the preview dependency set.
+`adapter_model.safetensors` is included in the 8.1.2 dependency set.
 
 ### Existing runtime components
 
@@ -110,11 +114,15 @@ available in this repository and through the upstream links.
 The portable runtime also retains the licences supplied inside installed
 Python packages. These entries identify packages whose wheel metadata does not
 populate a licence field; that field is not a replacement for the actual terms.
-The 8.0.0 candidate uses the versions below. The installed-distribution inventory
-and retained licence-file hashes are recorded in
+The 8.1.2 candidate uses the versions below. Its runtime archive contains the
+169 installed-distribution records and retained licence-file hashes in
 `third_party_licenses/runtime-packages.json`; supplemental licence texts and
 their fixed sources are recorded in `third_party_licenses/package-license-sources.json`.
-The final release package must be checked against these inventories.
+These two inventories and `third_party_licenses/packages/` are supplied at the
+runtime archive root, separately from this source checkout's licence texts.
+The package names and versions agree with `RUNTIME_SHA256SUMS.json`; recorded
+metadata and licence-file hashes agree with the archived files. Any rebuilt
+release package must be checked again against these inventories.
 
 | Package | Installed version / corresponding source | Licence and supplied text |
 |---|---|---|
@@ -160,6 +168,20 @@ permission for use, production deployment, or redistribution.
 | `sam3.1_multiplex_fp16.safetensors` | [Comfy-Org/sam3.1 at `f38cd62b`](https://huggingface.co/Comfy-Org/sam3.1/tree/f38cd62b71494b53ac2b56ca36e24f3c8d565581) | Meta SAM License; SHA-256 `9BA99C92703C2E8B4F47DE2D34A539BB8E18923049E238B780D70DBE6368EB03`. The pinned [official license](https://huggingface.co/Comfy-Org/sam3.1/blob/f38cd62b71494b53ac2b56ca36e24f3c8d565581/LICENSE) is bundled as `third_party_licenses/Meta-SAM-License.txt`. |
 | `anima-lllite-inpainting-v2.safetensors` | [kohya-ss/Anima-LLLite](https://huggingface.co/kohya-ss/Anima-LLLite) | CircleStone Labs Non-Commercial License v1.0; SHA-256 `5242e677d2be34ee70ca7c97c3b14ff5ee49838c03fc1e60ac4852a180db6ef5`. Not bundled, mirrored, or automatically downloaded by LAKIS. The user installs it manually from the official publisher. Non-commercial and non-production restrictions remain applicable. |
 | `pooled_text_proj-0611.safetensors` | [Spectrum release 0605](https://github.com/sorryhyun/ComfyUI-Spectrum-KSampler/releases/tag/0605) | Publisher release asset associated with the MIT project; no separate asset terms were stated. |
+| Optional SnapRef inference code | [ArcAnima/SnapRef at `1f7e6066`](https://github.com/ArcAnima/SnapRef/tree/1f7e606621052c11486c7aa5ccf6c2c12c2c5a3a) | Apache-2.0. Not bundled in the node package list. The optional manual installer retains the upstream `LICENSE`; the code license does not apply to the adapter weights. |
+| Optional `snapref_v2a.safetensors` | [SnapRef v2a at `e6d6a21e`](https://huggingface.co/0ppxnhximxr/snapref-v2a/tree/e6d6a21e4d56faae4454a1cc9bfd065d87358bf2) | CircleStone Labs Non-Commercial License v1.2, not Apache-2.0. SHA-256 `8a22fc28d060447544eda283b36efe2dcdbad7422cbc0b8d42828d55a8a61ab4`. Not bundled or automatically fetched by the installer/updater. The optional helper requires explicit terms acknowledgement, verifies and preserves the pinned weight license/notice, and downloads from the publisher. Conditional non-commercial redistribution is not commercial/product-integration authorization. |
+
+For the optional SnapRef adapter, the exact upstream terms and derivative
+attribution are [LICENSE.md](https://huggingface.co/0ppxnhximxr/snapref-v2a/blob/e6d6a21e4d56faae4454a1cc9bfd065d87358bf2/LICENSE.md)
+and [NOTICE.txt](https://huggingface.co/0ppxnhximxr/snapref-v2a/blob/e6d6a21e4d56faae4454a1cc9bfd065d87358bf2/NOTICE.txt).
+The original notice is supplied in `third_party_licenses/SnapRef-v2a-NOTICE.txt`;
+the optional installer also retains the exact pinned license alongside
+the installed node. Rights to the weights come directly from CircleStone Labs
+under its terms, not from LAKIS. The weight notice identifies the adapter as
+an unofficial Anima derivative and preserves the upstream NVIDIA notice.
+See `COMPLIANCE.md` for the optional dependency and model-use boundaries. The original
+regional extension code is governed by the LAKIS license unless otherwise noted;
+this does not relicense upstream code or weights.
 
 Availability through LAKIS is not a representation that every use is permitted.
 Users must review the exact model terms before commercial use, redistribution,
@@ -200,6 +222,13 @@ and `third_party_licenses/NVIDIA-Cosmos-NOTICE.txt`. Built on NVIDIA Cosmos.
 
 ## Installer and runtime prerequisites
 
+- Microsoft Visual C++ v14 x64 Redistributable 14.52.37029.0 is downloaded
+  directly from Microsoft's fixed HTTPS URL when required, with a pinned
+  SHA-256 and size. The Microsoft-signed installer is not bundled in LAKIS.
+  It is governed by the [Microsoft Visual C++ Runtime licence terms](https://aka.ms/VCRedistLicense);
+  LAKIS's licence does not replace those terms. Installation may require
+  Windows administrator approval; LAKIS never forces a reboot or removes
+  this shared system runtime when uninstalling LAKIS.
 - The installer uses the official unmodified `7zr.exe` from
   [7-Zip](https://www.7-zip.org/). Its publisher documents GNU LGPL, BSD
   3-Clause, and unRAR-notice portions.

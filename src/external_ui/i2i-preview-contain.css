@@ -154,7 +154,13 @@
   display: none;
 }
 
-.i2i-panel.is-disabled .i2i-drop-zone #i2iPreview {
-  filter: brightness(.34) saturate(.5);
-  opacity: .58;
+.panel.i2i-panel.is-disabled {
+  grid-template-rows: auto;
+  row-gap: 0;
+  min-height: 0;
+  height: auto;
+}
+
+.panel.i2i-panel.is-disabled > :not(.panel-heading) {
+  display: none;
 }

@@ -127,7 +127,7 @@ internal sealed class SafeSetupForm : Form
         repair.SetBounds(43,337,145,38); repair.Text="기존 설치 복구"; repair.Click += async (_,__) => await RepairAsync();
         install.SetBounds(201,337,157,38); install.Text="새로 설치"; install.Click += async (_,__) => await InstallAsync();
         foreach(Button button in new[]{repair,install}){button.FlatStyle=FlatStyle.Flat;button.FlatAppearance.BorderSize=0;button.BackColor=Color.FromArgb(111,82,225);button.ForeColor=Color.White;button.Font=new Font("Segoe UI",9F,FontStyle.Bold);button.Cursor=Cursors.Hand;}
-        var copyright=new Label{Left=43,Top=399,Width=335,Height=18,Text="© 2026 Luke Jeong. All rights reserved. · LAKIS v8.1.0",ForeColor=Color.FromArgb(104,112,137),Font=new Font("Segoe UI",8F)};
+        var copyright=new Label{Left=43,Top=399,Width=335,Height=18,Text="© 2026 Luke Jeong. All rights reserved. · LAKIS v8.1.2",ForeColor=Color.FromArgb(104,112,137),Font=new Font("Segoe UI",8F)};
         ConfigureCloseButton();
         Controls.AddRange(new Control[]{artwork,logo,destination,progress,status,launch,repair,install,copyright,closeButton});
         closeButton.BringToFront();
@@ -248,15 +248,18 @@ internal sealed class SafeSetupForm : Form
     private async Task RepairAsync()
     {
         string target;try{target=Path.GetFullPath(destination.Text.Trim());}catch{MessageBox.Show("설치 위치가 올바르지 않습니다.");return;}
-        string mode;
-        try{mode=SafeInstaller.ExistingInstallationMode(target);}
+        string mode,updateConfirmation=null;
+        try
+        {
+            mode=SafeInstaller.ExistingInstallationMode(target);
+            if(mode=="update")updateConfirmation=SafeInstaller.UpdateConfirmation(target);
+        }
         catch(Exception error){MessageBox.Show(error.Message);return;}
         string operation=mode=="update"?"업데이트":"복구";
         if(mode=="recover"&&MessageBox.Show("중단된 업데이트 이전의 설치로 복구할까요?\n\n"+target+
             "\n\n모델, 이미지, 설정과 복원용 백업은 삭제하지 않습니다.\n복구 후 LAKIS를 실행해 업데이트를 다시 진행해 주세요.",
             "LAKIS 업데이트 복구",MessageBoxButtons.YesNo,MessageBoxIcon.Information)!=DialogResult.Yes)return;
-        if(mode=="update"&&MessageBox.Show("이 설치를 LAKIS 8.1.0으로 업데이트할까요?\n\n"+target+
-            "\n\nMOSS 모델·VAE·CLIP 약 15.5GB를 추가로 받을 수 있습니다.\n기존 모델, 이미지, 워크플로와 설정은 보존됩니다.",
+        if(mode=="update"&&MessageBox.Show(updateConfirmation,
             "LAKIS 업데이트",MessageBoxButtons.YesNo,MessageBoxIcon.Information)!=DialogResult.Yes)return;
         SetActionButtonsVisible(false);destination.Enabled=false;maintenanceBusy=true;
         try
@@ -296,13 +299,13 @@ internal sealed class SafeSetupForm : Form
 
 internal static class SafeInstaller
 {
-    private const string Revision = "v8.1.0";
+    private const string Revision = "v8.1.2";
     // The release build injects the hash of the exact commit archive.
     private const string SourceArchiveSha256 = "BUILD_REQUIRES_PINNED_SOURCE_SHA256";
     private const string WebView2BootstrapperUrl = "BUILD_REQUIRES_PINNED_WEBVIEW2_URL";
     private const string WebView2BootstrapperSha256 = "BUILD_REQUIRES_PINNED_WEBVIEW2_SHA256";
     private const long WebView2BootstrapperBytes = 0;
-    private const string ReleaseVersion = "8.1.0";
+    private const string ReleaseVersion = "8.1.2";
     private static readonly DownloadItem Portable = new DownloadItem("ComfyUI v0.21.1",
         "https://github.com/Comfy-Org/ComfyUI/releases/download/v0.21.1/ComfyUI_windows_portable_nvidia.7z",
         "7C380D4309BBDA395366C49564EDF8996181FD45E61B6F353EA417F32BC3B970",null,2001582790);
@@ -410,6 +413,7 @@ internal static class SafeInstaller
         ValidateSimpleDownload(RequiredObject(manifest,"base"),"base");
         ValidateSimpleDownload(RequiredObject(manifest,"webview2"),"webview2");
         ValidateRuntimeBundle(RequiredObject(manifest,"runtime_bundle"));
+        RuntimeBundleInstaller.InstallerTargetVersion(json);
         ValidateModelList(RequiredList(manifest,"models"),"models",false);
         ValidateModelList(RequiredList(manifest,"optional_animesharp"),"optional_animesharp",true);
         return json;
@@ -579,6 +583,17 @@ internal static class SafeInstaller
         }
     }
 
+    private static string IntendedApplicationVersion()
+    {
+        return RuntimeBundleInstaller.InstallerTargetVersion(ReadRuntimeInstallManifest());
+    }
+
+    internal static string UpdateConfirmation(string target)
+    {
+        return "이 설치를 LAKIS "+IntendedApplicationVersion()+"으로 업데이트할까요?\n\n"+target+
+            "\n\nMOSS 모델·VAE·CLIP 약 15.5GB를 추가로 받을 수 있습니다.\n기존 모델, 이미지, 워크플로와 설정은 보존됩니다.";
+    }
+
     internal static string ExistingInstallationMode(string target)
     {
         target=Path.GetFullPath(target);
@@ -587,7 +602,8 @@ internal static class SafeInstaller
         if(!IsExistingInstallation(target))
             throw new InvalidOperationException("완료된 LAKIS 설치를 찾을 수 없습니다.");
         string current=File.ReadAllText(Path.Combine(target,"VERSION")).Trim();
-        int comparison=UpdateProtocol.CompareVersions(current,ReleaseVersion);
+        string intendedVersion=IntendedApplicationVersion();
+        int comparison=UpdateProtocol.CompareVersions(current,intendedVersion);
         if(comparison==0)return "repair";
         if(comparison>0)throw new InvalidOperationException("현재 설치가 이 설치기보다 최신입니다. 기존 설치를 변경하지 않았습니다.");
         if(UpdateProtocol.CompareVersions(current,"8.0.0")<0)
@@ -626,9 +642,10 @@ internal static class SafeInstaller
             if(!IsExistingInstallation(target)||!Directory.Exists(comfy))
                 throw new InvalidOperationException("완료된 LAKIS 설치를 찾을 수 없습니다. 설치 위치를 확인하거나 새로 설치를 선택하세요.");
             string installedVersion=File.ReadAllText(Path.Combine(target,"VERSION")).Trim();
-            if(!String.Equals(installedVersion,ReleaseVersion,StringComparison.Ordinal))
-                throw new InvalidOperationException("이 복구는 LAKIS "+ReleaseVersion+" 설치에만 적용할 수 있습니다. 기존 설치를 변경하지 않았습니다.");
             manifest=ReadRuntimeInstallManifest();
+            string intendedVersion=RuntimeBundleInstaller.InstallerTargetVersion(manifest);
+            if(!String.Equals(installedVersion,intendedVersion,StringComparison.Ordinal))
+                throw new InvalidOperationException("이 복구는 LAKIS "+intendedVersion+" 설치에만 적용할 수 있습니다. 기존 설치를 변경하지 않았습니다.");
         }
         var log=new List<string>();
         Action<string> status=s=>{lock(log)log.Add(s);report(s);};
@@ -939,16 +956,7 @@ internal static class SafeInstaller
     private static void Extract7z(string archive,string destination){string tool=Path.Combine(InstallerCache(),"7zr.exe");ExtractResource("LAKIS.7zr",tool);RunInstallerTool(tool,"x -y -o\""+FileSystemPath(destination)+"\" \""+FileSystemPath(archive)+"\"",destination,_=>{});if(!Directory.Exists(FileSystemPath(Path.Combine(destination,"ComfyUI_windows_portable"))))throw new IOException("ComfyUI 압축 해제 결과를 확인할 수 없습니다.");}
     internal static bool IsExistingInstallation(string target)
     {
-        if(String.IsNullOrWhiteSpace(target))return false;
-        try
-        {
-            string full=Path.GetFullPath(target);
-            bool identity=File.Exists(Path.Combine(full,"VERSION"))&&File.Exists(Path.Combine(full,"ComfyUI","LAKIS","STOP_AUTOMATION"));
-            bool runtime=Directory.Exists(Path.Combine(full,"ComfyUI"))&&(Directory.Exists(Path.Combine(full,"python_embeded"))||identity);
-            bool marker=File.Exists(Path.Combine(full,"install.complete"))||File.Exists(Path.Combine(full,"VERSION"))||File.Exists(Path.Combine(full,"LAKIS.exe"));
-            return runtime&&marker;
-        }
-        catch{return false;}
+        return RuntimeBundleInstaller.IsRecognizedInstallation(target);
     }
     internal static bool HasDirectoryEntries(string target)
     {

@@ -157,7 +157,7 @@ def _widget_defaults(schema):
     return result
 
 
-def apply_scene_controls(prompt, application, info, comfy_root, width, height):
+def apply_scene_controls(prompt, application, info, comfy_root, width, height, *, pose_only=False):
     config = normalize_state(application.get("scene_controls", {}))
     if not (config["enabled"] and config["toyxyz_enabled"]):
         return {"scene_controls_enabled": False, "toyxyz_enabled": False}
@@ -167,24 +167,27 @@ def apply_scene_controls(prompt, application, info, comfy_root, width, height):
         raise ValueError("3D 포즈를 사용하려면 구도 설정을 꺼 주세요.")
     try:
         capture = json.loads(config["toyxyz_render_data"])
-        painting = json.loads(config["toyxyz_paint_data"])
+        painting = None if pose_only else json.loads(config["toyxyz_paint_data"])
         pose = json.loads(config["pose_data"])
     except (ValueError, TypeError) as error:
         raise ValueError("3D 인물·영역 편집기에서 설정을 먼저 적용해 주세요.") from error
+    documents = (capture, pose) if pose_only else (capture, painting, pose)
     if not all(isinstance(data, dict) and type(data.get("version")) is int
-               and data["version"] == 1 for data in (capture, painting, pose)):
+               and data["version"] == 1 for data in documents):
         raise ValueError("3D 편집 데이터 형식이 올바르지 않습니다.")
     source = capture.get("region_painter", {})
     if not isinstance(source, dict):
         raise ValueError("3D 인물 마스크 데이터 형식이 올바르지 않습니다.")
-    if (source.get("width"), source.get("height")) != (width, height) or (
-            painting.get("width"), painting.get("height")) != (width, height):
+    if ((source.get("width"), source.get("height")) != (width, height)
+            or (not pose_only and (painting.get("width"), painting.get("height")) != (width, height))):
         raise ValueError("이미지 크기가 바뀌었습니다. 3D 인물·영역 편집기를 다시 적용해 주세요.")
-    missing = [name for name in REQUIRED_NODES if name not in info]
+    required_nodes = ("ToyxyzPose3DEditor", "AnimaLLLiteApply_sdscripts") if pose_only else REQUIRED_NODES
+    missing = [name for name in required_nodes if name not in info]
     if missing:
         raise ValueError("3D 포즈 노드가 누락되었습니다. Repair로 복구해 주세요: " + ", ".join(missing))
     inventory = info["AnimaLLLiteApply_sdscripts"]["input"]["required"]["lllite_name"][0]
-    for name in MODELS:
+    required_models = ("anima_3dpose_6200.safetensors",) if pose_only else MODELS
+    for name in required_models:
         if name not in inventory or not model_status(name, comfy_root)["valid"]:
             raise ValueError(f"설치기·업데이터로 제어 모델을 설치하거나 Repair로 확인해 주세요: {name}")
 
@@ -194,24 +197,32 @@ def apply_scene_controls(prompt, application, info, comfy_root, width, height):
             "render_data": config["toyxyz_render_data"],
         },
     }
-    prompt["lakis:toyxyz_base"] = {
-        "class_type": "ComfyCoupleBasePrompt",
-        "inputs": {"base_prompt_text": ["890:2012", 0]},
+    stages = (("initial", "1634:1721", "1634:1622"), ("highrez", "1633:1612", "1633:1612"))
+    original_conditions = {
+        (stage, branch): prompt[sampler]["inputs"][branch]
+        for stage, _, sampler in stages for branch in ("positive", "negative")
     }
-    prompt["lakis:toyxyz_painter"] = {
-        "class_type": "ComfyCoupleRegionPainter", "inputs": {
-            "clip": ["890:1281", 1], "width": width, "height": height,
-            "paint_data": config["toyxyz_paint_data"],
-            "region_painter": ["lakis:toyxyz_pose", 5],
-            "region": ["lakis:toyxyz_base", 0],
-        },
-    }
+    if not pose_only:
+        prompt["lakis:toyxyz_base"] = {
+            "class_type": "ComfyCoupleBasePrompt",
+            "inputs": {"base_prompt_text": ["890:2012", 0]},
+        }
+        prompt["lakis:toyxyz_painter"] = {
+            "class_type": "ComfyCoupleRegionPainter", "inputs": {
+                "clip": ["890:1281", 1], "width": width, "height": height,
+                "paint_data": config["toyxyz_paint_data"],
+                "region_painter": ["lakis:toyxyz_pose", 5],
+                "region": ["lakis:toyxyz_base", 0],
+            },
+        }
     for key, name, end in (
         ("pose", "anima_3dpose_6200.safetensors", 1.0),
         ("region", "anima_regional_4335.safetensors", 0.3),
     ):
+        if pose_only and key == "region":
+            continue
         image_input = ["lakis:toyxyz_pose" if key == "pose" else "lakis:toyxyz_painter", 0]
-        for stage, owner in (("initial", "1634:1721"), ("highrez", "1633:1612")):
+        for stage, owner, _ in stages:
             identifier = f"lakis:{key}_{stage}"
             prompt[identifier] = {
                 "class_type": "AnimaLLLiteApply_sdscripts", "inputs": {
@@ -222,27 +233,27 @@ def apply_scene_controls(prompt, application, info, comfy_root, width, height):
                 },
             }
             prompt[owner]["inputs"]["model"] = [identifier, 0]
-    for stage, model_owner, sampler in (
-        ("initial", "1634:1721", "1634:1622"), ("highrez", "1633:1612", "1633:1612"),
-    ):
-        identifier = f"lakis:toyxyz_{stage}"
-        inputs = _widget_defaults(info["ComfyCoupleMask"])
-        inputs.update({
-            "model": prompt[model_owner]["inputs"]["model"],
-            "region": ["lakis:toyxyz_painter", 1],
-            "negative": prompt[sampler]["inputs"]["negative"],
-            "model_type": "anima",
-        })
-        prompt[identifier] = {"class_type": "ComfyCoupleMask", "inputs": inputs}
-        prompt[model_owner]["inputs"]["model"] = [identifier, 0]
-        prompt[sampler]["inputs"]["positive"] = [identifier, 1]
-        prompt[sampler]["inputs"]["negative"] = [identifier, 2]
+    if not pose_only:
+        for stage, model_owner, sampler in stages:
+            identifier = f"lakis:toyxyz_{stage}"
+            inputs = _widget_defaults(info["ComfyCoupleMask"])
+            inputs.update({
+                "model": prompt[model_owner]["inputs"]["model"],
+                "region": ["lakis:toyxyz_painter", 1],
+                "negative": prompt[sampler]["inputs"]["negative"],
+                "model_type": "anima",
+            })
+            prompt[identifier] = {"class_type": "ComfyCoupleMask", "inputs": inputs}
+            prompt[model_owner]["inputs"]["model"] = [identifier, 0]
+            prompt[sampler]["inputs"]["positive"] = [identifier, 1]
+            prompt[sampler]["inputs"]["negative"] = [identifier, 2]
     return {
         "scene_controls_enabled": True, "toyxyz_enabled": True,
-        "pose_enabled": True, "region_enabled": True,
+        "pose_enabled": True, "region_enabled": not pose_only,
         "scene_prompt_contract": {
-            f"{stage}_{branch}": prompt[sampler]["inputs"][branch] == [f"lakis:toyxyz_{stage}", output]
-            for stage, sampler in (("initial", "1634:1622"), ("highrez", "1633:1612"))
+            f"{stage}_{branch}": prompt[sampler]["inputs"][branch] == (
+                original_conditions[stage, branch] if pose_only else [f"lakis:toyxyz_{stage}", output])
+            for stage, _, sampler in stages
             for branch, output in (("positive", 1), ("negative", 2))
         },
     }

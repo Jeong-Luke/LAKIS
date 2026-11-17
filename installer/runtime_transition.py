@@ -29,8 +29,9 @@ from lakis_cmd_installer import (
 )
 from runtime_health import check_runtime
 from runtime_manifest import (
-    MANIFEST_NAME, PROTECTED_DIRECTORIES, PROTECTED_FILES, normalized_path,
-    model_dependency_rows, verify_runtime,
+    EDITABLE_TEMPLATE_FILES, MANIFEST_NAME, PROTECTED_DIRECTORIES, PROTECTED_FILES, normalized_path,
+    check_editable_template_compatibility, editable_template_contract,
+    editable_template_path, model_dependency_rows, verify_runtime,
 )
 
 
@@ -137,13 +138,28 @@ def _assert_original(target: Path, version: str, mode: str) -> bool:
         if target.exists() and (not target.is_dir() or any(target.iterdir())):
             raise ValueError("fresh target is not empty")
         return target.exists()
-    if (not (target / "VERSION").is_file()
-            or not (target / "ComfyUI/LAKIS/STOP_AUTOMATION").is_file()):
+    version_path = target / "VERSION"
+    stop_marker = target / "ComfyUI/LAKIS/STOP_AUTOMATION"
+    if mode == "update" and (
+            not version_path.is_file() or not stop_marker.is_file()):
         raise ValueError("target is not an identified public LAKIS installation")
-    current = _version((target / "VERSION").read_text(encoding="utf-8-sig").strip())
+    if mode == "repair" and (
+            not version_path.is_file() or not (target / "ComfyUI").is_dir()):
+        raise ValueError("target is not an identified public LAKIS installation")
+    current = _version(version_path.read_text(encoding="utf-8-sig").strip())
     expected = _version(version)
-    if (mode == "update" and current >= expected) or (mode == "repair" and current != expected):
+    if mode == "update" and current >= expected:
         raise ValueError("update must increase the version; repair must keep the version")
+    if mode == "repair":
+        if current != expected:
+            raise ValueError("update must increase the version; repair must keep the version")
+        has_repair_identity = (
+            (target / "python_embeded").is_dir()
+            or stop_marker.is_file()
+            or (target / "LAKIS.exe").is_file()
+        )
+        if not has_repair_identity:
+            raise ValueError("target is not an identified public LAKIS installation")
     return True
 
 
@@ -192,7 +208,7 @@ def assert_idle(root: Path, probe_python: Path, *, file_paths=None) -> None:
 
 def _data_snapshot(root: Path) -> dict:
     result = {}
-    for relative in (*PROTECTED_DIRECTORIES, *PROTECTED_FILES):
+    for relative in (*PROTECTED_DIRECTORIES, *PROTECTED_FILES, *EDITABLE_TEMPLATE_FILES):
         path = root / relative
         if not path.exists():
             continue
@@ -211,7 +227,7 @@ def _data_snapshot(root: Path) -> dict:
 
 
 def _copy_data(source: Path, stage: Path) -> None:
-    for relative in (*PROTECTED_DIRECTORIES, *PROTECTED_FILES):
+    for relative in (*PROTECTED_DIRECTORIES, *PROTECTED_FILES, *EDITABLE_TEMPLATE_FILES):
         path = source / relative
         if path.is_dir():
             copy_tree(path, stage / relative)
@@ -279,7 +295,8 @@ def recover(target: Path, probe_python: Path) -> dict:
 
 
 def activate(candidate: Path, target: Path, manifest_sha256: str, version: str,
-             mode: str, initial_data: Path | None = None, *, model_files=None) -> dict:
+             mode: str, initial_data: Path | None = None, *, model_files=None,
+             editable_contract=None) -> dict:
     if mode not in {"fresh", "update", "repair"}:
         raise ValueError("unsupported runtime transition mode")
     _version(version)
@@ -306,9 +323,23 @@ def activate(candidate: Path, target: Path, manifest_sha256: str, version: str,
         python = candidate / "python_embeded/python.exe"
         assert_idle(target, python)
         original_data = _data_snapshot(target) if had_original else {}
+        if editable_contract is None:
+            # A legacy full-runtime caller has no capability declaration. Its
+            # authenticated manifest defaults are immutable, not source-inferred
+            # permission to preserve edits over a historical launcher.
+            editable_contract = editable_template_contract(manifest["files"], manifest_sha256)
+        if editable_contract["manifest_sha256"] != manifest_sha256.upper():
+            raise ValueError("editable-template contract is not bound to this runtime manifest")
+        check_editable_template_compatibility(original_data, editable_contract)
         model_rows = model_dependency_rows(model_files, target, version)
         data_source = initial_data if mode == "fresh" else target
-        expected_data = _data_snapshot(data_source) if data_source is not None else {}
+        source_data = (original_data if data_source == target else
+                       _data_snapshot(data_source) if data_source is not None else {})
+        expected_data = {
+            relative: value for relative, value in _data_snapshot(candidate).items()
+            if editable_template_path(relative)
+        }
+        expected_data.update(source_data)
         required = (sum(row["size"] for row in manifest["files"])
                     + (candidate / MANIFEST_NAME).stat().st_size
                     + sum(row[0] for row in expected_data.values() if row is not None)
@@ -336,7 +367,7 @@ def activate(candidate: Path, target: Path, manifest_sha256: str, version: str,
             verify_runtime(stage, manifest_sha256, version)
             if data_source is not None:
                 _copy_data(data_source, stage)
-                if _data_snapshot(stage) != expected_data or _data_snapshot(data_source) != expected_data:
+                if _data_snapshot(stage) != expected_data or _data_snapshot(data_source) != source_data:
                     raise RuntimeError("user data changed during staging; original installation was retained")
             for row in model_rows:
                 destination = reject_reparse_path(stage / row["path"])
@@ -371,7 +402,14 @@ def activate(candidate: Path, target: Path, manifest_sha256: str, version: str,
         except Exception:
             _restore(target, state)
             raise
-        return _result(target, state)
+        result = _result(target, state)
+        result["preserved_editable_templates"] = sorted(
+            relative for relative in source_data if editable_template_path(relative))
+        result["editable_template_policy"] = editable_contract["policy"] or "legacy-immutable"
+        result["verification"] = (
+            "trusted manifest and immutable files; named editable templates are user data; "
+            "target application policy: " + result["editable_template_policy"])
+        return result
 
 
 def main() -> int:

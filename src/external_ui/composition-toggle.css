@@ -3,3 +3,5 @@
 #compositionControls{transition:opacity .18s ease,filter .18s ease}
 #compositionControls.is-disabled{opacity:.38;filter:saturate(.25)}
 #compositionControls.is-disabled canvas,#compositionControls.is-disabled input,#compositionControls.is-disabled button{pointer-events:none}
+#compositionControls[hidden]{display:none!important}
+.composition-panel.is-pose-collapsed{flex:0 0 auto;min-height:0}

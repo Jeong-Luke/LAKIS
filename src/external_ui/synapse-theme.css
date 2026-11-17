@@ -220,7 +220,7 @@ html[data-synapse-theme="true"] .generation-action-row .generate-button::before,
 html[data-synapse-theme="true"] .generation-action-row.mode-fast .generate-button::before,
 html[data-synapse-theme="true"] .generation-action-row.mode-detail.mode-lakis-detail .generate-button::before { box-shadow: none; }
 html[data-synapse-theme="true"] body.moss-mode .generation-action-row .generate-button:not(.is-generating):not(.is-cancelling)::before { background: var(--mx-accent-bg); }
-html[data-synapse-theme="true"] .generation-action-row .generate-button.is-generating:not(.is-cancelling)::before {
+html[data-synapse-theme="true"] .generation-action-row:not(.mode-lakis-detail) .generate-button.is-generating:not(.is-cancelling)::before {
   background: linear-gradient(90deg, var(--mx-accent-bg) 0%, color-mix(in srgb, var(--mx-accent-bg) 85%, white) 62%, var(--mx-text-accent) 100%);
   box-shadow: 5px 0 18px color-mix(in srgb, var(--mx-text-accent) 66%, transparent);
 }

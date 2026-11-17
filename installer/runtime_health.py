@@ -292,6 +292,9 @@ def check_runtime(root: Path, timeout: float = DEFAULT_STARTUP_TIMEOUT_SECONDS) 
     child_env["LORA_MANAGER_RECIPE_CACHE_DB"] = str(profile / "lora-manager" / "recipes.db")
     child_env["WAS_BLOCK_AUTO_INSTALL"] = "1"
     child_env["PYTHONDONTWRITEBYTECODE"] = "1"
+    # Match the production launcher: custom nodes log Unicode outside CP949.
+    child_env["PYTHONUTF8"] = "1"
+    child_env["PYTHONIOENCODING"] = "utf-8"
     log_fd, log_name = tempfile.mkstemp(
         prefix="runtime-health-",
         suffix=".log",

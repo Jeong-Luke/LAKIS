@@ -12,7 +12,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-import test_cmd_installer as fixtures
+from installer.tests import test_cmd_installer as fixtures
 import lakis_cmd_installer as downloader
 import runtime_install
 import runtime_manifest as contract
@@ -35,7 +35,7 @@ class MossModelUpdateTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory(prefix="lakis-model-update-")
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        self.candidate, installer = fixtures.CmdInstallerTests()._runtime_candidate(self.root)
+        self.candidate, installer = fixtures.CmdInstallerTests()._runtime_candidate(self.root, version="8.1.0")
         self.target = self.root / "installed"
         shutil.copytree(self.candidate, self.target)
         (self.target / "VERSION").write_text("8.0.3", encoding="ascii")

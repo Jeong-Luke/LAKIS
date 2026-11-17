@@ -5,7 +5,9 @@ import io
 import json
 import os
 from pathlib import Path
+import shutil
 import struct
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -16,8 +18,8 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "installer" / "lakis_cmd_installer.py"
 MANIFEST = ROOT / "installer" / "cmd-installer-manifest.json"
-# The published installer baseline stays at 8.1.0; app file patches are separate.
-CURRENT_VERSION = "8.1.0"
+# Fresh, update and repair packages share the confirmed 8.1.2 runtime baseline.
+CURRENT_VERSION = "8.1.2"
 CMD = ROOT / "installer" / "LAKIS_CMD_Install.cmd"
 spec = importlib.util.spec_from_file_location("lakis_cmd_installer", SCRIPT)
 module = importlib.util.module_from_spec(spec)
@@ -65,8 +67,73 @@ class CmdInstallerTests(unittest.TestCase):
             archive = root / "runtime.zip"
             with zipfile.ZipFile(archive, "w") as bundle:
                 bundle.writestr(relative, b'{"workflow":"preserved"}')
+            # Inspect and clean up with an independent Win32 path spelling:
+            # the test runner must not require the machine's long-path policy.
+            extended = Path("\\\\?\\" + str(destination))
+            try:
+                runtime_install.extract_runtime_zip(archive, destination, expected_entries=1)
+                self.assertEqual((extended / relative).read_bytes(), b'{"workflow":"preserved"}')
+            finally:
+                if extended.exists():
+                    shutil.rmtree(extended)
+
+    def test_runtime_unpack_long_archive_and_destination_with_unicode(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            parent = root / ("긴 경로_" + "a" * 90) / ("b" * 90) / ("c" * 90)
+            extended_parent = Path("\\\\?\\" + str(parent))
+            self.assertGreater(len(str(parent)), 260)
+            extended_parent.mkdir(parents=True)
+            try:
+                archive = parent / "실행 환경.zip"
+                with zipfile.ZipFile(extended_parent / archive.name, "w") as bundle:
+                    bundle.writestr("empty/", b"")
+                    bundle.writestr("nested/파일.json", b'{"preserved":true}')
+                for prefixed in (False, True):
+                    with self.subTest(prefixed=prefixed):
+                        destination = parent / ("prefixed" if prefixed else "ordinary")
+                        extended = extended_parent / destination.name
+                        runtime_install.extract_runtime_zip(
+                            extended_parent / archive.name if prefixed else archive,
+                            extended if prefixed else destination, expected_entries=2,
+                        )
+                        self.assertTrue((extended / "empty").is_dir())
+                        self.assertEqual((extended / "nested/파일.json").read_bytes(),
+                                         b'{"preserved":true}')
+            finally:
+                shutil.rmtree(Path("\\\\?\\" + str(root / parent.relative_to(root).parts[0])))
+
+    def test_runtime_unpack_short_paths_and_existing_root_protection(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            archive, destination = root / "runtime.zip", root / "candidate"
+            with zipfile.ZipFile(archive, "w") as bundle:
+                bundle.writestr("file.txt", b"release")
             runtime_install.extract_runtime_zip(archive, destination, expected_entries=1)
-            self.assertEqual(output.read_bytes(), b'{"workflow":"preserved"}')
+            self.assertEqual((destination / "file.txt").read_bytes(), b"release")
+            (destination / "file.txt").write_bytes(b"user-owned")
+            with self.assertRaises(FileExistsError):
+                runtime_install.extract_runtime_zip(archive, destination, expected_entries=1)
+            self.assertEqual((destination / "file.txt").read_bytes(), b"user-owned")
+
+    def test_runtime_unpack_rejects_unsafe_members_before_creating_root(self):
+        cases = (
+            ("../escape.txt",), ("/escape.txt",), ("C:/escape.txt",),
+            ("//server/share/file.txt",), ("folder/file.txt:stream",),
+            ("folder/trailing. ",), ("NUL",), ("folder\\..\\escape.txt",),
+            ("Folder/File.txt", "folder/file.TXT"), ("file", "file/child"),
+        )
+        for members in cases:
+            with self.subTest(members=members), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                archive, destination = root / "bad.zip", root / "candidate"
+                with zipfile.ZipFile(archive, "w") as bundle:
+                    for member in members:
+                        bundle.writestr(member, b"must not escape")
+                with self.assertRaises(RuntimeError):
+                    runtime_install.extract_runtime_zip(
+                        archive, destination, expected_entries=len(members))
+                self.assertEqual({path.name for path in root.iterdir()}, {"bad.zip"})
 
     def test_manifest_dependency_contract_matches_runtime_loader(self):
         data = json.loads(MANIFEST.read_text(encoding="utf-8"))
@@ -74,7 +141,7 @@ class CmdInstallerTests(unittest.TestCase):
         self.assertIn('GetManifestResourceStream("LAKIS.RuntimeInstallManifest")', setup)
         self.assertIn('ValidateModelList(RequiredList(manifest,"models"),"models",false)', setup)
         self.assertIn('ValidateModelList(RequiredList(manifest,"optional_animesharp"),"optional_animesharp",true)', setup)
-        records = [data["base"], data["source"], data["webview2"], *(
+        records = [data["base"], data["source"], data["webview2"], data["visual_cpp"], *(
             {"url": row[1], "sha256": row[2]} for row in data["nodes"]
         ), {"url": data["nested_node"][1], "sha256": data["nested_node"][2]}, *(
             {"url": row[1], "sha256": row[2]} for row in data["models"]
@@ -210,18 +277,76 @@ class CmdInstallerTests(unittest.TestCase):
             target.mkdir()
             (target / "LAKIS.exe").write_bytes(b"launcher")
             desktop = root / "Desktop"
-            observed = {}
+            def write_shortcut(path, launcher, working_directory):
+                self.assertEqual(launcher, target / "LAKIS.exe")
+                self.assertEqual(working_directory, target)
+                self.assertFalse((desktop / "LAKIS.lnk").exists())
+                path.write_bytes(b"shortcut")
 
-            def fake_runner(command, **kwargs):
-                observed["command"] = command
-                observed["kwargs"] = kwargs
-                Path(command[3]).write_bytes(b"shortcut")
-
-            shortcut = module.create_desktop_shortcut(target, desktop, fake_runner)
+            with mock.patch.object(module, "_write_windows_shortcut", side_effect=write_shortcut):
+                shortcut = module.create_desktop_shortcut(target, desktop)
             self.assertEqual(shortcut, desktop / "LAKIS.lnk")
-            self.assertEqual(observed["command"][4], str(target / "LAKIS.exe"))
-            self.assertEqual(observed["command"][5], str(target))
-            self.assertTrue(observed["kwargs"]["check"])
+            self.assertEqual(shortcut.read_bytes(), b"shortcut")
+            self.assertEqual(list(desktop.iterdir()), [shortcut])
+
+    def test_desktop_shortcut_preserves_existing_user_file(self):
+        with tempfile.TemporaryDirectory() as folder:
+            desktop = Path(folder)
+            shortcut = desktop / "LAKIS.lnk"
+            shortcut.write_bytes(b"user-customized shortcut")
+            with mock.patch.object(module, "_write_windows_shortcut") as writer:
+                self.assertEqual(module.create_desktop_shortcut(desktop / "LAKIS", desktop), shortcut)
+            writer.assert_not_called()
+            self.assertEqual(shortcut.read_bytes(), b"user-customized shortcut")
+
+    def test_desktop_shortcut_failure_leaves_no_partial_shortcut(self):
+        with tempfile.TemporaryDirectory() as folder:
+            desktop = Path(folder)
+            with mock.patch.object(module, "_write_windows_shortcut", side_effect=OSError("COM failed")):
+                with self.assertRaisesRegex(OSError, "COM failed"):
+                    module.create_desktop_shortcut(desktop / "LAKIS", desktop)
+            self.assertEqual(list(desktop.iterdir()), [])
+
+    def test_desktop_shortcut_preserves_file_created_during_save(self):
+        with tempfile.TemporaryDirectory() as folder:
+            desktop = Path(folder)
+            shortcut = desktop / "LAKIS.lnk"
+
+            def concurrent_write(path, *_arguments):
+                path.write_bytes(b"new shortcut")
+                shortcut.write_bytes(b"user shortcut created concurrently")
+
+            with mock.patch.object(module, "_write_windows_shortcut", side_effect=concurrent_write):
+                self.assertEqual(module.create_desktop_shortcut(desktop / "LAKIS", desktop), shortcut)
+            self.assertEqual(shortcut.read_bytes(), b"user shortcut created concurrently")
+            self.assertEqual(list(desktop.iterdir()), [shortcut])
+
+    def test_desktop_shortcut_native_unicode_paths_and_properties(self):
+        with tempfile.TemporaryDirectory() as folder:
+            target = Path(folder) / "설치 & '$% 폴더"
+            target.mkdir()
+            launcher = target / "LAKIS.exe"
+            launcher.write_bytes(b"launcher fixture")
+            shortcut = module.create_desktop_shortcut(target, Path(folder) / "바탕 화면")
+            # Independently read the saved Shell link through the Windows automation API.
+            environment = os.environ.copy()
+            environment["LAKIS_TEST_SHORTCUT"] = str(shortcut)
+            command = (
+                "[Console]::OutputEncoding = [Text.Encoding]::UTF8; "
+                "$ErrorActionPreference = 'Stop'; "
+                "$shell = New-Object -ComObject WScript.Shell; "
+                "$link = $shell.CreateShortcut($env:LAKIS_TEST_SHORTCUT); "
+                "@{target=$link.TargetPath; working=$link.WorkingDirectory; icon=$link.IconLocation} "
+                "| ConvertTo-Json -Compress"
+            )
+            completed = subprocess.run(
+                ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", command],
+                env=environment, check=True, capture_output=True, encoding="utf-8-sig", timeout=30,
+            )
+            properties = json.loads(completed.stdout)
+            self.assertEqual(Path(properties["target"]), launcher)
+            self.assertEqual(Path(properties["working"]), target)
+            self.assertEqual(properties["icon"], f"{launcher},0")
 
     def test_default_input_image_is_valid_png_with_expected_dimensions(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -461,8 +586,11 @@ class CmdInstallerTests(unittest.TestCase):
             self.assertIn("codeload.github.com/ltdrdata/ffmpy/zip/f000737", text)
             self.assertNotIn("git+https://", text)
 
-    def _runtime_candidate(self, root):
-        version = json.loads(MANIFEST.read_text(encoding="utf-8"))["version"]
+    def _runtime_candidate(self, root, version=None):
+        manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+        version = manifest["version"] if version is None else version
+        manifest["version"] = version
+        manifest["release_base"] = f"https://github.com/Jeong-Luke/LAKIS/releases/download/v{version}"
         candidate = root / "candidate"
         for relative in runtime_contract.REQUIRED_FILES:
             path = candidate / relative
@@ -475,7 +603,6 @@ class CmdInstallerTests(unittest.TestCase):
             })
         inventory_path = candidate / runtime_contract.MANIFEST_NAME
         inventory_path.write_text(json.dumps(inventory), encoding="utf-8")
-        manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
         name = "LAKIS_RuntimeBundle.zip"
         manifest["runtime_bundle"] = {
             "schema": 2, "product": "LAKIS", "version": version,
@@ -505,12 +632,14 @@ class CmdInstallerTests(unittest.TestCase):
             with mock.patch.object(
                 runtime_install, "prepare_bundle", return_value=candidate
             ), mock.patch.object(runtime_install, "prepare_default_data", return_value=seed) as defaults, \
+                 mock.patch.object(runtime_install, "ensure_visual_cpp_runtime") as visual_cpp, \
                  mock.patch.object(runtime_install, "ensure_webview2_runtime") as webview, \
                  mock.patch.object(runtime_transition, "check_runtime"), \
                  mock.patch.object(runtime_transition, "assert_idle"), \
                  mock.patch.object(module, "create_desktop_shortcut", return_value=root / "LAKIS.lnk"), \
                  mock.patch("sys.stdout", io.StringIO()):
                 module.install(manifest_path, portable, target, root / "cache", False)
+                visual_cpp.assert_called_once_with(manifest, root / "cache")
                 webview.assert_called_once()
                 defaults.assert_called_once_with(candidate, manifest, root / "cache", "cmd", False)
             self.assertEqual((target / "VERSION").read_text(encoding="utf-8"), CURRENT_VERSION)
@@ -521,17 +650,94 @@ class CmdInstallerTests(unittest.TestCase):
             self.assertEqual((target / ".lakis" / "install-method.txt").read_text(encoding="ascii"), "cmd\n")
             self.assertEqual(sibling.read_bytes(), b"must survive promotion")
 
+    def test_runtime_verification_accepts_only_setup_root_log_files(self):
+        with tempfile.TemporaryDirectory() as folder:
+            candidate, manifest = self._runtime_candidate(Path(folder))
+            for relative in ("network-install.log", "REPAIR.LOG"):
+                (candidate / relative).write_text("Setup completed\n", encoding="utf-8")
+            expected = manifest["runtime_bundle"]["manifest_sha256"]
+            runtime_contract.verify_runtime(candidate, expected, CURRENT_VERSION, allow_user_data=True)
+            (candidate / "REPAIR.LOG").write_text("Repair completed again\n", encoding="utf-8")
+            runtime_contract.verify_runtime(candidate, expected, CURRENT_VERSION, allow_user_data=True)
+            (candidate / "LAKIS.exe").write_bytes(b"damaged managed file")
+            with self.assertRaisesRegex(ValueError, "runtime file mismatch"):
+                runtime_contract.verify_runtime(candidate, expected, CURRENT_VERSION, allow_user_data=True)
+
+    def test_setup_logs_are_not_release_manifest_entries(self):
+        with tempfile.TemporaryDirectory() as folder:
+            candidate, manifest = self._runtime_candidate(Path(folder))
+            inventory = json.loads((candidate / runtime_contract.MANIFEST_NAME).read_text(encoding="utf-8"))
+            for relative in ("network-install.log", "repair.log"):
+                (candidate / relative).write_bytes(b"diagnostic")
+            self.assertEqual(runtime_contract.create_manifest(
+                candidate, CURRENT_VERSION, inventory["source_revision"], inventory["runtime"]), inventory)
+            for relative in ("network-install.log", "repair.log"):
+                with self.subTest(relative=relative):
+                    invalid = dict(inventory, files=inventory["files"] + [{
+                        "path": relative, "size": 10,
+                        "sha256": hashlib.sha256(b"diagnostic").hexdigest(),
+                    }])
+                    with self.assertRaisesRegex(ValueError, "non-release path in manifest"):
+                        runtime_contract.validate_runtime_manifest(invalid, CURRENT_VERSION)
+
+    def test_runtime_verification_rejects_unlisted_log_lookalikes(self):
+        for relative in ("install.log", "repair.log.exe", "network-install.log.bak",
+                         "ComfyUI/repair.log", "ComfyUI/network-install.log"):
+            with self.subTest(relative=relative), tempfile.TemporaryDirectory() as folder:
+                candidate, manifest = self._runtime_candidate(Path(folder))
+                (candidate / relative).write_bytes(b"unlisted")
+                with self.assertRaisesRegex(ValueError, "unlisted runtime file"):
+                    runtime_contract.verify_runtime(candidate,
+                        manifest["runtime_bundle"]["manifest_sha256"], CURRENT_VERSION, allow_user_data=True)
+
+    def test_runtime_verification_rejects_directories_named_as_setup_logs(self):
+        for relative in ("network-install.log", "repair.log"):
+            with self.subTest(relative=relative), tempfile.TemporaryDirectory() as folder:
+                candidate, manifest = self._runtime_candidate(Path(folder))
+                log = candidate / relative
+                log.mkdir()
+                (log / "hidden.exe").write_bytes(b"must not be ignored")
+                with self.assertRaisesRegex(ValueError, "runtime file became a directory"):
+                    runtime_contract.verify_runtime(candidate,
+                        manifest["runtime_bundle"]["manifest_sha256"], CURRENT_VERSION, allow_user_data=True)
+
+    def test_runtime_verification_rejects_junctions_named_as_setup_logs(self):
+        for relative in ("network-install.log", "repair.log"):
+            with self.subTest(relative=relative), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                candidate, manifest = self._runtime_candidate(root)
+                outside = root / "outside"
+                outside.mkdir()
+                sentinel = outside / "keep.bin"
+                sentinel.write_bytes(b"outside data")
+                log = candidate / relative
+                subprocess.run(["cmd.exe", "/d", "/c", "mklink", "/J", str(log), str(outside)],
+                               check=True, capture_output=True, timeout=10)
+                try:
+                    with self.assertRaisesRegex(RuntimeError, "unsafe reparse path"):
+                        runtime_contract.verify_runtime(candidate,
+                            manifest["runtime_bundle"]["manifest_sha256"], CURRENT_VERSION, allow_user_data=True)
+                    self.assertEqual(sentinel.read_bytes(), b"outside data")
+                finally:
+                    log.rmdir()
+
     def test_runtime_repair_keeps_exact_version_and_all_protected_data(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             candidate, manifest = self._runtime_candidate(root)
             target = root / "installed"
-            for relative in ("VERSION", "ComfyUI/LAKIS/STOP_AUTOMATION"):
-                path = target / relative
-                path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_bytes((candidate / relative).read_bytes())
+            (target / "ComfyUI").mkdir(parents=True)
+            (target / "VERSION").write_text(CURRENT_VERSION, encoding="ascii")
+            (target / "LAKIS.exe").write_bytes(b"old launcher")
             protected = [name + "/user-owned.bin" for name in runtime_contract.PROTECTED_DIRECTORIES]
             protected.extend(runtime_contract.PROTECTED_FILES)
+            protected.extend((
+                "ComfyUI/models/loras/user.safetensors",
+                "ComfyUI/user/default/workflows/user-workflow.json",
+                ".lakis/settings.json",
+                "ComfyUI/input/user.png",
+                "ComfyUI/output/generated.png",
+            ))
             for relative in protected:
                 path = target / relative
                 path.parent.mkdir(parents=True, exist_ok=True)
@@ -539,11 +745,13 @@ class CmdInstallerTests(unittest.TestCase):
             before = {relative: (target / relative).read_bytes() for relative in protected}
             with mock.patch.object(runtime_install, "prepare_bundle", return_value=candidate), \
                  mock.patch.object(runtime_install, "prepare_default_data") as defaults, \
+                 mock.patch.object(runtime_install, "ensure_visual_cpp_runtime") as visual_cpp, \
                  mock.patch.object(runtime_install, "ensure_webview2_runtime") as webview, \
                  mock.patch.object(runtime_install, "prepare_required_models", return_value=None), \
                  mock.patch.object(runtime_transition, "check_runtime"), \
                  mock.patch.object(runtime_transition, "assert_idle"):
                 result = runtime_install.install(manifest, target, root / "cache", "repair", "gui")
+                visual_cpp.assert_called_once_with(manifest, root / "cache")
                 defaults.assert_not_called()
                 webview.assert_not_called()
             self.assertEqual(result["status"], "complete")
@@ -551,6 +759,27 @@ class CmdInstallerTests(unittest.TestCase):
             self.assertEqual({relative: (target / relative).read_bytes() for relative in protected}, before)
             self.assertEqual((target / "LAKIS_Model_Importer.exe").read_bytes(),
                              (candidate / "LAKIS_Model_Importer.exe").read_bytes())
+
+    def test_runtime_repair_still_rejects_unidentified_partial_install_without_changes(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            candidate, manifest = self._runtime_candidate(root)
+            target = root / "installed"
+            target.mkdir()
+            (target / "ComfyUI").mkdir()
+            (target / "VERSION").write_text(CURRENT_VERSION, encoding="ascii")
+            (target / "user-workflow.json").write_bytes(b"preserve")
+            before = {str(p.relative_to(target)): p.read_bytes() for p in target.rglob("*") if p.is_file()}
+            with mock.patch.object(runtime_install, "prepare_bundle", return_value=candidate), \
+                 mock.patch.object(runtime_install, "prepare_required_models", return_value=None), \
+                 mock.patch.object(runtime_transition, "check_runtime"), \
+                 mock.patch.object(runtime_transition, "assert_idle"), \
+                 self.assertRaisesRegex(ValueError, "identified public LAKIS installation"):
+                runtime_install.install(manifest, target, root / "cache", "repair", "gui")
+            self.assertEqual(
+                {str(p.relative_to(target)): p.read_bytes() for p in target.rglob("*") if p.is_file()},
+                before,
+            )
 
     def test_runtime_fresh_rejects_nonempty_and_existing_installation_without_changes(self):
         for existing_installation in (False, True):

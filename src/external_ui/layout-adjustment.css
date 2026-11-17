@@ -66,3 +66,39 @@
     padding:4px 1px;
   }
 }
+
+/* Use the model card's padding and heading row for every column title. */
+@media (min-width:1181px){
+  .workspace > :is(.model-column,.control-column,.preview-column,.prompt-column){
+    scrollbar-gutter:stable;
+    scrollbar-width:auto;
+  }
+  .workspace > :is(.model-column,.control-column,.preview-column,.prompt-column)::-webkit-scrollbar{
+    width:var(--mx-scrollbar-size,8px);
+  }
+  .workspace{
+    /* The shared scrollbar gutter supplies the same gap as stacked cards. */
+    column-gap:0;
+    --column-card-padding-top:16px;
+    --column-heading-height:25px;
+  }
+  .workspace .model-panel,
+  .workspace .composition-panel,
+  .workspace .preview-panel,
+  .prompt-column > .prompt-panel{
+    padding-top:var(--column-card-padding-top);
+  }
+  .prompt-column > .prompt-panel > .prompt-field-title{
+    margin-top:0;
+  }
+  .workspace .model-panel > .panel-heading,
+  .workspace .composition-panel > .panel-heading,
+  .workspace .preview-panel > .preview-toolbar,
+  .prompt-column > .prompt-panel > .prompt-field-title > .prompt-heading-row{
+    min-height:var(--column-heading-height);
+  }
+  .workspace .preview-panel > .preview-toolbar{
+    flex:0 0 var(--column-heading-height);
+    height:var(--column-heading-height);
+  }
+}

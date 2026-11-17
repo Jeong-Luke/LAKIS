@@ -10,6 +10,7 @@ import binascii
 import csv
 from functools import lru_cache
 import hashlib
+import io
 import json
 import os
 import re
@@ -21,6 +22,7 @@ from pathlib import Path
 import subprocess
 import sys
 import time
+import tempfile
 from urllib.error import URLError
 from urllib.request import Request, urlopen
 from urllib.parse import parse_qs, quote, urlencode, urlparse
@@ -35,6 +37,7 @@ if str(UI_ROOT) not in sys.path:
     sys.path.insert(0, str(UI_ROOT))
 
 import scene_controls
+import anima_reference
 import lora_manager
 import moss_mode
 import moss_workflows
@@ -44,6 +47,7 @@ from workflow_bridge import (
     InvalidGenerationRequestError,
     LOCAL_INPAINT_V2,
     WorkflowBridge,
+    _comfy_object_info,
     lora_inventory,
     lora_manager_url,
     model_inventory,
@@ -1025,7 +1029,7 @@ def open_legal_document(document: str) -> dict:
     return {"ok": True, "document": document}
 
 
-def save_source_image(data_url: object, stem: str = "LAKIS_i2i_input") -> dict:
+def save_source_image(data_url: object, stem: str = "LAKIS_i2i_input", *, reference: bool = False) -> dict:
     match = I2I_DATA_PATTERN.fullmatch(str(data_url or ""))
     if not match:
         raise ValueError("PNG, JPEG 또는 WebP 이미지만 사용할 수 있어요.")
@@ -1043,8 +1047,24 @@ def save_source_image(data_url: object, stem: str = "LAKIS_i2i_input") -> dict:
     }
     if not signatures[extension]:
         raise ValueError("파일 내용이 선택한 이미지 형식과 일치하지 않아요.")
+    if reference:
+        # Decode/verify before publishing. Content-addressed input names keep
+        # previously selected references intact and deduplicate repeated uploads.
+        with Image.open(io.BytesIO(payload)) as image:
+            width, height = image.size
+            image.verify()
+        stem = "LAKIS_reference_" + hashlib.sha256(payload).hexdigest()
     INPUT_ROOT.mkdir(parents=True, exist_ok=True)
     target = INPUT_ROOT / f"{stem}.{extension}"
+    if reference:
+        with tempfile.TemporaryDirectory(prefix=".lakis-reference-", dir=INPUT_ROOT) as workspace:
+            temporary = Path(workspace) / target.name
+            temporary.write_bytes(payload)
+            if not target.exists():
+                temporary.rename(target)
+        return {"ok": True, "image_name": target.name, "bytes": len(payload),
+                "image_url": "/api/anima-reference-image?name=" + quote(target.name),
+                "width": width, "height": height}
     temporary = target.with_suffix(target.suffix + ".tmp")
     temporary.write_bytes(payload)
     os.replace(temporary, target)
@@ -1305,6 +1325,28 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802
         if not self._authorize_api_request():
+            return
+        if urlparse(self.path).path == "/api/anima-reference":
+            self._send_json(200, anima_reference.configuration(COMFY_ROOT, _comfy_object_info()))
+            return
+        if urlparse(self.path).path == "/api/anima-reference-image":
+            if not anima_reference.experimental():
+                self.send_error(404)
+                return
+            try:
+                target = anima_reference.image_path(
+                    INPUT_ROOT, parse_qs(urlparse(self.path).query).get("name", [""])[0])
+                payload = target.read_bytes()
+                self.send_response(200)
+                self.send_header("Content-Type", {
+                    ".png": "image/png", ".jpg": "image/jpeg", ".webp": "image/webp",
+                }[target.suffix])
+                self.send_header("Content-Length", str(len(payload)))
+                self.send_header("Cache-Control", "private, no-cache")
+                self.end_headers()
+                self.wfile.write(payload)
+            except (OSError, ValueError):
+                self.send_error(404)
             return
         if urlparse(self.path).path == "/api/lora-manager":
             engines = parse_qs(urlparse(self.path).query).get("engine", [])
@@ -1634,6 +1676,15 @@ class Handler(SimpleHTTPRequestHandler):
                 audit({"event": "external_ui_i2i_upload_failed", "error": repr(error)})
                 self._send_json(400, {"ok": False, "error": str(error)})
             return
+        if self.path == "/api/anima-reference":
+            try:
+                if not anima_reference.experimental():
+                    raise ValueError("ANIMA 레퍼런스 실험이 활성화되어 있지 않아요.")
+                self._send_json(200, save_source_image(
+                    self._read_json(45_000_000).get("data_url"), reference=True))
+            except (OSError, ValueError) as error:
+                self._send_json(400, {"ok": False, "error": str(error)})
+            return
         if self.path == "/api/inpaint-mask":
             try:
                 result = save_inpaint_mask(self._read_json(45_000_000).get("data_url"))
@@ -1761,6 +1812,8 @@ class Handler(SimpleHTTPRequestHandler):
                     incoming.get("composition_enabled", True),
                     incoming.get("wildcard_enabled", False),
                     moss_regions=incoming.get("moss_regions"),
+                    anima_regions=incoming.get("anima_regions"),
+                    anima_reference=incoming.get("anima_reference"),
                     moss_detail=incoming.get("moss_detail"),
                     moss_node_overrides=incoming.get("moss_node_overrides"),
                     i2i=incoming.get("i2i"), continuous=incoming.get("continuous"),

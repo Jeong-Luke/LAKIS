@@ -22,15 +22,17 @@ if __name__ == "__main__":
 
 from lakis_cmd_installer import (
     cache_entry_lock, cache_path, copy_file, create_default_input_image, download,
-    ensure_webview2_runtime, promote_verified_partial,
+    ensure_visual_cpp_runtime, ensure_webview2_runtime, promote_verified_partial,
     reject_reparse_path, safe_leaf, sha256, zip_extraction_plan,
 )
 from runtime_manifest import COMFY_VERSION, _pinned_path, normalized_path, verify_runtime
 import runtime_manifest as runtime_contract
-from runtime_transition import _target_path, activate
+from runtime_transition import _assert_original, _target_path, activate
+from application_release import compose, installer_identity, read_release_metadata
 
 RUNTIME_HELPERS = (
     "runtime_install.py", "runtime_transition.py", "runtime_manifest.py", "runtime_health.py",
+    "application_release.py",
 )
 
 
@@ -128,10 +130,20 @@ def download_bundle(bundle: dict, cache: Path) -> Path:
     return destination
 
 
+def _extended_path(path: Path) -> Path:
+    """Use Win32 extended paths without depending on LongPathsEnabled."""
+    absolute = os.path.abspath(path)
+    if absolute.startswith("\\\\?\\"):
+        return Path(absolute)
+    if absolute.startswith("\\\\"):
+        return Path("\\\\?\\UNC\\" + absolute[2:])
+    return Path("\\\\?\\" + absolute)
+
+
 def extract_runtime_zip(archive: Path, destination: Path, *, expected_entries: int) -> None:
     """Extract only into a new root; pin the archive and each active ancestry."""
-    archive = Path(os.path.abspath(archive))
-    root = Path(os.path.abspath(destination))
+    archive = _extended_path(archive)
+    root = _extended_path(destination)
     with ExitStack() as ancestors:
         for path in (archive, root):
             for parent in reversed(path.parents):
@@ -298,6 +310,23 @@ def prepare_default_data(candidate: Path, manifest: dict, cache: Path, method: s
     return seed
 
 
+def prepare_candidate(manifest: dict, cache: Path, *, target: Path | None = None,
+                      mode: str | None = None, metadata=None) -> Path:
+    bundle, release, _, _ = installer_identity(manifest)
+    if release and metadata is None:
+        metadata = read_release_metadata(bundle, release, cache)
+    if target is not None:
+        target = _target_path(target, prepare_only=True)
+        if mode not in {"fresh", "update", "repair"}:
+            raise ValueError("invalid runtime preparation mode")
+        if mode != "fresh" and metadata is not None:
+            contract = metadata["editable_templates"]
+            runtime_contract.check_editable_template_compatibility(
+                runtime_contract.editable_template_snapshot(target, contract), contract)
+    baseline = prepare_bundle(bundle, bundle["version"], cache)
+    return compose(baseline, bundle, release, cache, metadata=metadata) if release else baseline
+
+
 def install(manifest: dict, target: Path, cache: Path, mode: str, method: str,
             *, prepared_root: Path | None = None, include_animesharp: bool = False) -> dict:
     if mode not in {"fresh", "update", "repair"} or method not in {"cmd", "gui", "updater"}:
@@ -305,15 +334,23 @@ def install(manifest: dict, target: Path, cache: Path, mode: str, method: str,
     if type(include_animesharp) is not bool or (include_animesharp and (mode != "fresh" or method != "gui")):
         raise ValueError("optional model requires explicit fresh GUI installation consent")
     target = _target_path(target)
-    if manifest.get("schema") != 1:
-        raise ValueError("unsupported installer manifest")
-    version = manifest["version"]
-    bundle = validate_bundle(manifest.get("runtime_bundle"), version)
+    bundle, release, version, manifest_hash = installer_identity(manifest)
+    metadata = read_release_metadata(bundle, release, cache) if release else None
+    if mode != "fresh" and metadata is not None:
+        contract = metadata["editable_templates"]
+        runtime_contract.check_editable_template_compatibility(
+            runtime_contract.editable_template_snapshot(target, contract), contract)
+    # Reject an unrelated target before installing a system prerequisite.
+    # Activation repeats the identity check under its transaction lock.
+    _assert_original(target, version, mode)
+    ensure_visual_cpp_runtime(manifest, cache)
     if prepared_root is None:
-        candidate = prepare_bundle(bundle, version, cache)
+        candidate = prepare_candidate(manifest, cache, metadata=metadata)
     else:
         candidate = reject_reparse_path(prepared_root)
-        verify_runtime(candidate, bundle["manifest_sha256"], version)
+        verified = verify_runtime(candidate, manifest_hash, version)
+        if release and verified["source_revision"].lower() != release["source_revision"].lower():
+            raise ValueError("application source revision mismatch")
     initial_data = None
     model_files = None
     if mode == "fresh":
@@ -321,8 +358,9 @@ def install(manifest: dict, target: Path, cache: Path, mode: str, method: str,
         ensure_webview2_runtime(manifest, cache)
     else:
         model_files = prepare_required_models(cache, target, version)
-    return activate(candidate, target, bundle["manifest_sha256"], version, mode,
-                    initial_data, model_files=model_files)
+    return activate(candidate, target, manifest_hash, version, mode,
+                    initial_data, model_files=model_files,
+                    editable_contract=metadata["editable_templates"] if metadata else None)
 
 
 if __name__ == "__main__":
@@ -340,8 +378,7 @@ if __name__ == "__main__":
     try:
         manifest = json.loads(args.manifest.read_text(encoding="utf-8-sig"))
         if args.prepare_only:
-            _target_path(args.target, prepare_only=True)
-            candidate = prepare_bundle(manifest.get("runtime_bundle"), manifest["version"], args.cache)
+            candidate = prepare_candidate(manifest, args.cache, target=args.target, mode=args.mode)
             result = {"status": "prepared", "candidate": str(candidate)}
         else:
             result = install(manifest, args.target, args.cache, args.mode, args.method,

@@ -9,7 +9,32 @@ import comfy.sample
 import comfy.samplers
 
 
-def _upscale_learned(upscale_model, image, preferred_tile=512):
+class LAKISScopeUpscaleModelLoader:
+    """Load a fresh standard descriptor with an upscaler-only static patcher."""
+    @classmethod
+    def INPUT_TYPES(cls):
+        import folder_paths
+        return {"required": {"model_name": (folder_paths.get_filename_list("upscale_models"),)}}
+
+    RETURN_TYPES = ("UPSCALE_MODEL",)
+    FUNCTION, CATEGORY = "load_model", "LAKIS/Upscale"
+
+    def load_model(self, model_name):
+        from comfy_extras.nodes_upscale_model import UpscaleModelLoader
+        from comfy.model_patcher import ModelPatcher
+
+        descriptor, = UpscaleModelLoader.execute(model_name).result
+        original = descriptor.patcher
+        # This descriptor has just been constructed, never dynamically loaded.
+        # Reuse the standard loader's weights, normalization and padding without
+        # sharing an already-patched module or changing CoreModelPatcher globally.
+        descriptor.patcher = ModelPatcher(
+            descriptor.model, original.load_device, original.offload_device,
+            fast_disk=original.fast_disk)
+        return (descriptor,)
+
+
+def _upscale_learned(upscale_model, image, preferred_tile=512, *, contiguous_tiles=False):
     """Reserve inference workspace before moving the pixel upscaler to GPU.
 
     A large convolution tile can reset the Windows display driver before
@@ -19,42 +44,52 @@ def _upscale_learned(upscale_model, image, preferred_tile=512):
     import comfy.model_management as model_management
     import comfy.utils
 
-    device = model_management.get_torch_device()
+    device = upscale_model.patcher.load_device
+    # Reference samplers are finished here. Their cross-run K/V cache is not
+    # needed by pixel upscaling and is released by ComfyUI's forced-cache hook.
+    # Keep model residency under ModelPatcher rather than moving weights.
+    model_management.soft_empty_cache(force=True)
     tile, overlap = max(128, min(512, int(preferred_tile))), 32
     # Model inference below uses float32 even when the input is half precision.
     workspace = (tile * tile * 3) * max(image.element_size(), 4)
     workspace *= max(float(upscale_model.scale), 1.0) * 384.0
-    model_management.free_memory(
-        model_management.module_size(upscale_model.model)
-        + image.nelement() * image.element_size() + workspace,
-        device,
+    # Match the installed ComfyUI upscaler's ModelPatcher contract. Direct
+    # descriptor.to() leaves DynamicVRAM weights demand-loaded per tile and
+    # moving them back independently desynchronizes managed model residency.
+    model_management.load_models_gpu(
+        [upscale_model.patcher],
+        memory_required=image.nelement() * image.element_size() + workspace,
+        force_full_load=True,
     )
     output_device = model_management.intermediate_device()
-    try:
-        upscale_model.to(device)
-        value = image.movedim(-1, -3).to(device)
-        while True:
-            try:
-                logging.info("LAKIS_SCOPE pixel upscale: tile=%s, workspace_mib=%.0f",
-                             tile, workspace / (1024 ** 2))
-                steps = value.shape[0] * comfy.utils.get_tiled_scale_steps(
-                    value.shape[3], value.shape[2], tile_x=tile, tile_y=tile, overlap=overlap
-                )
-                progress = comfy.utils.ProgressBar(steps)
-                result = comfy.utils.tiled_scale(
-                    value, lambda part: upscale_model(part.float()),
-                    tile_x=tile, tile_y=tile, overlap=overlap,
-                    upscale_amount=upscale_model.scale, pbar=progress,
-                    output_device=output_device,
-                )
-                break
-            except Exception as error:
-                model_management.raise_non_oom(error)
-                tile //= 2
-                if tile < 128:
-                    raise
-    finally:
-        upscale_model.to("cpu")
+    value = image.movedim(-1, -3).to(device)
+
+    def upscale_tile(part):
+        part = part.float()
+        if contiguous_tiles:
+            part = part.contiguous()
+        return upscale_model(part)
+
+    while True:
+        try:
+            logging.info("LAKIS_SCOPE pixel upscale: tile=%s, workspace_mib=%.0f",
+                         tile, workspace / (1024 ** 2))
+            steps = value.shape[0] * comfy.utils.get_tiled_scale_steps(
+                value.shape[3], value.shape[2], tile_x=tile, tile_y=tile, overlap=overlap
+            )
+            progress = comfy.utils.ProgressBar(steps)
+            result = comfy.utils.tiled_scale(
+                value, upscale_tile,
+                tile_x=tile, tile_y=tile, overlap=overlap,
+                upscale_amount=upscale_model.scale, pbar=progress,
+                output_device=output_device,
+            )
+            break
+        except Exception as error:
+            model_management.raise_non_oom(error)
+            tile //= 2
+            if tile < 128:
+                raise
     return result.clamp(0, 1).movedim(-3, -1).to(model_management.intermediate_dtype())
 
 def _positions(length, tile, overlap, shift=0):
@@ -160,26 +195,26 @@ class LAKISScope:
             "overlap": ("INT", {"default": 192, "min": 32, "max": 384, "step": 16}),
             "tile_batch_size": ("INT", {"default": 2, "min": 1, "max": 8}),
             "quality_mode": ("BOOLEAN", {"default": False}),
+        }, "optional": {
+            "contiguous_tiles": ("BOOLEAN", {"default": False,
+                "tooltip": "Experimental contiguous tile storage; tiny GPU rounding differences are possible."}),
         }}
     RETURN_TYPES, RETURN_NAMES, FUNCTION, CATEGORY = ("IMAGE",), ("IMAGE",), "refine", "LAKIS/Upscale"
 
     def refine(self, image, model, positive, negative, vae, upscale_model, upscale_by, seed,
                steps, cfg, sampler_name, scheduler, denoise, tile_size, overlap, tile_batch_size,
-               quality_mode=False):
+               quality_mode=False, contiguous_tiles=False):
         source_h, source_w = image.shape[1:3]
         target_h = max(64, int(round(source_h*float(upscale_by)/8))*8)
         target_w = max(64, int(round(source_w*float(upscale_by)/8))*8)
-        upscaled = _resize_bhwc(_upscale_learned(upscale_model, image), target_h, target_w)
+        upscaled = _resize_bhwc(_upscale_learned(
+            upscale_model, image, contiguous_tiles=contiguous_tiles), target_h, target_w)
         if float(denoise) <= 0: return (upscaled,)
 
-        # Candidate v3 fast path. At the workflow's very low denoise (0.07),
-        # the costly diffusion pass mostly reproduces structure already present
-        # in the learned pixel upscaler. Preserve that result and restore detail
+        # At two steps and very low denoise, diffusion mostly reproduces
+        # structure already present in the learned upscaler. Restore detail
         # with bounded multi-scale residuals instead (no VAE round trip).
-        # Quality mode must perform a real VAE/diffusion refinement.  Letting
-        # it enter the pixel-only shortcut merely sharpens enlarged source
-        # pixels and can look blocky on flat or weakly detailed checkpoints.
-        if not quality_mode and int(steps) <= 2 and float(denoise) <= 0.08:
+        if int(steps) <= 2 and float(denoise) <= 0.08:
             base = upscaled.permute(0, 3, 1, 2)
             fine = base - F.avg_pool2d(base, 3, 1, 1)
             medium_blur = F.avg_pool2d(base, 9, 1, 4)
@@ -192,8 +227,8 @@ class LAKISScope:
             local_min = -F.max_pool2d(-base, 3, 1, 1)
             local_max = F.max_pool2d(base, 3, 1, 1)
             enhanced = torch.maximum(local_min, torch.minimum(local_max, enhanced))
-            # A 30% local-mean blend preserves the measured reference edge
-            # variance while suppressing halos from residual sharpening.
+            # A local-mean blend preserves edge variance while suppressing
+            # halos from residual sharpening.
             enhanced = enhanced * (1.0 - smooth_mix) + F.avg_pool2d(enhanced, 3, 1, 1) * smooth_mix
             # Edge-selective micro-contrast: reinforce real linework and eye/
             # hair texture, while leaving flat skin and bokeh regions alone.
@@ -248,8 +283,10 @@ class LAKISScope:
 # Mask compatibility is provided by Local Inpaint; no duplicate registration.
 NODE_CLASS_MAPPINGS = {
     "LAKIS_SCOPE": LAKISScope,
+    "LAKISScopeUpscaleModelLoader": LAKISScopeUpscaleModelLoader,
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
     "LAKIS_SCOPE": "LAKIS_SCOPE v3 (Frequency Balanced / Quality)",
+    "LAKISScopeUpscaleModelLoader": "LAKIS SCOPE · Load Upscale Model",
 }
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]

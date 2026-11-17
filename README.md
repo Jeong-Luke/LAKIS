@@ -9,9 +9,9 @@ LAKIS 애플리케이션, 사용자 인터페이스, 설치기, 업데이터, �
 
 
 
-**[Windows용 설치기](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.1/LAKIS_Setup.exe)**
+**[Windows용 설치기](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.2/LAKIS_Setup.exe)**
 
-**[Windows용 CMD 설치기](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.0/LAKIS_CMD_Installer_8.0.0.zip)**
+**[Windows용 CMD 설치기](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.2/LAKIS_CMD_Installer_8.1.2.zip)**
 
 일반적으로 `LAKIS_Setup.exe`를 사용하세요. Setup을 실행할 수 없다면 기존 8.0.0 CMD 기본 설치기의 압축을 완전히 푼 뒤 `LAKIS_CMD_Install.cmd`로 설치하고, LAKIS를 실행해 앱의 업데이트를 진행하세요. 관리자 권한이나 Defender 예외 설정을 요구하지 않습니다.
 
@@ -114,11 +114,11 @@ from AGPL software remain AGPL-3.0-or-later.
 
 New users can install the pinned 8.1.0 runtime baseline with the installer below, then accept the app's update prompt for 8.1.1.
 
-**[Windows installer — interrupted-update recovery supported](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.1/LAKIS_Setup.exe)**
+**[Windows installer — interrupted-update recovery supported](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.2/LAKIS_Setup.exe)**
 
 If an interrupted update prevents LAKIS from starting, download this installer, enter the existing installation folder, and choose **기존 설치 복구 (Repair existing installation)**. This restores the previous installation so you can retry the update from LAKIS. Keep the installation folder and recovery backups.
 
-**[Download LAKIS Studio v8.0.0 CMD Version](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.0.0/LAKIS_CMD_Installer_8.0.0.zip)**
+**[Download LAKIS Studio v8.0.0 CMD Version](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.2/LAKIS_CMD_Installer_8.1.2.zip)**
 
 Use `LAKIS_Setup.exe` for normal installation and interrupted-update recovery. The retained 8.0.0 CMD installer is an alternative for new installations only; run the installed app afterward to update. Neither installer requires administrator access or a Defender exclusion.
 

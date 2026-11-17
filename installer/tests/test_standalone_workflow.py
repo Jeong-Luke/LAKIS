@@ -757,6 +757,8 @@ class NativeBridge(unittest.TestCase):
                 "model_name": [[aliases["890:1365"]["inputs"]["model_name"]]]}}},
             "VAELoader": {"input": {"required": {"vae_name": [[aliases["890:159"]["inputs"]["vae_name"]]]}}},
             "CLIPLoader": {"input": {"required": {"clip_name": [[aliases["890:164"]["inputs"]["clip_name"]]]}}},
+            "LoraLoaderModelOnly": {"input": {"required": {
+                "lora_name": [["anima-turbo-lora-v0.2.safetensors"]]}}},
         }
         with tempfile.TemporaryDirectory(prefix="lakis-native-") as tmp:
             root = Path(tmp)
@@ -771,7 +773,13 @@ class NativeBridge(unittest.TestCase):
                     "generation": {"mode": "lakis_detail"}, "loras": [],
                     "composition_enabled": False, "output": {"seed": 42, "width": 1024, "height": 768}})
             self.assertTrue(report["native_workflow"])
-            self.assertEqual(set(api), set(result) - {"lakis:configured_output_path"})
+            added = set(result) - set(api) - {"lakis:configured_output_path"}
+            self.assertEqual(len(added), 1)
+            static_id = added.pop()
+            self.assertEqual(result[static_id]["class_type"], "LAKISScopeUpscaleModelLoader")
+            self.assertEqual(result["3051"]["inputs"]["upscale_model"], [static_id, 0])
+            self.assertEqual(result[static_id]["inputs"], aliases["1541:1536"]["inputs"])
+            self.assertTrue(set(api) <= set(result))
             self.assertEqual({k: n["class_type"] for k, n in api.items()},
                              {k: result[k]["class_type"] for k in api})
             self.assertEqual("LAKIS DETAIL", result["3000"]["inputs"]["mode"])

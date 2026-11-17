@@ -59,8 +59,11 @@ class MossGraphTests(unittest.TestCase):
         self.assertTrue(config["ready"])
         self.assertEqual(config["inventory"]["sampler"], ["euler", "heun"])
         self.assertNotIn("anima.safetensors", config["inventory"]["checkpoint"])
+        self.assertNotIn("max_dimension", config["limits"])
+        self.assertNotIn("max_pixels", config["limits"])
         self.assertTrue(config["capabilities"]["regions"])
         self.assertFalse(config["capabilities"]["i2i"])
+        self.assertTrue(config["capabilities"]["lora"])
         with patch.object(bridge, "_comfy_object_info", return_value=schema()):
             self.assertEqual(bridge.lora_inventory("moss")["options"], ["moss/style.safetensors"])
             self.assertEqual(bridge.lora_inventory("anima")["options"], ["anima.safetensors"])
@@ -95,26 +98,46 @@ class MossGraphTests(unittest.TestCase):
             "moss_regions": {"enabled": True, "regions": []},
         }
         anima_advanced = {"model": [{"id": "anima-fixture", "fields": []}]}
+        info = schema()
+        downloaded_lora = "moss/downloaded.safetensors"
+        info["LoraLoaderModelOnly"]["input"]["required"]["lora_name"][0].append(downloaded_lora)
+        selected_loras = [{"name": downloaded_lora, "enabled": True, "strength": .8}]
         with (
             patch.object(bridge, "TEMPLATE", ROOT / "workflows" / "LAKIS_runtime_api_v7.4.json"),
-            patch.object(bridge, "_comfy_object_info", return_value=schema()),
+            patch.object(bridge, "_comfy_object_info", return_value=info),
             patch.object(bridge, "_live_model_inventories", return_value={"checkpoint": [], "clip": [], "vae": []}),
             patch.object(bridge, "load_external_generation_state", return_value=saved),
-            patch.object(bridge, "_load_external_ui_payload", return_value={}),
+            patch.object(bridge, "_load_external_ui_payload", return_value={
+                "lora": {"current": selected_loras, "enabled": True},
+            }),
             patch.object(bridge, "load_external_prompt_state", return_value={}),
             patch.object(bridge, "load_external_prompt_enabled", return_value={}),
             patch.object(bridge, "load_external_prompt_bundle", return_value={}),
             patch.object(bridge, "advanced_node_configuration", return_value=anima_advanced),
         ):
-            result = bridge.workflow_configuration(schema())
+            result = bridge.workflow_configuration(info)
         self.assertEqual(result["sampler"]["current"], "euler")
         self.assertEqual(result["scheduler"]["current"], "sgm_uniform")
         self.assertEqual(result["generation_state"]["model"], moss_mode.MODEL)
         self.assertEqual(result["generation_state"]["output"]["width"], 1024)
         self.assertEqual(result["generation_state"]["moss_regions"], saved["moss_regions"])
+        self.assertEqual(result["lora"]["options"], ["moss/style.safetensors", downloaded_lora])
+        self.assertEqual(result["lora"]["current"], selected_loras)
         self.assertEqual(result["advanced_nodes_by_engine"]["anima"], anima_advanced)
         fields = result["advanced_nodes_by_engine"]["moss"]["model"]
         self.assertEqual(sum(len(node["fields"]) for node in fields), 7)
+        fields_by_name = {field["name"]: field for node in fields for field in node["fields"]}
+        self.assertEqual(fields_by_name["weight_dtype"]["options"], ["default", "fp8_e4m3fn"])
+        self.assertEqual(fields_by_name["device"]["options"], ["default", "cpu"])
+        self.assertEqual(fields_by_name["shift"]["type"], "number")
+
+        value = state()
+        value["loras"] = result["lora"]["current"]
+        graph, preflight = moss_mode.build_prompt(value, info, Path("fixture-output"), 2**53 - 1)
+        lora_node = graph[graph["2"]["inputs"]["model"][0]]
+        self.assertEqual(lora_node["inputs"]["lora_name"], downloaded_lora)
+        self.assertEqual(lora_node["inputs"]["strength_model"], .8)
+        self.assertEqual(preflight["enabled_lora_count"], 1)
 
     def test_regions_lora_sampling_and_composition_reach_the_graph(self):
         value = state()
@@ -251,10 +274,28 @@ class MossGraphTests(unittest.TestCase):
             value["model"].update(model)
             with self.assertRaises(ValueError):
                 self.build(value)
-        value = state()
-        value["output"].update(width=1536, height=1536)
-        with self.assertRaises(ValueError):
-            self.build(value)
+
+    def test_large_resolutions_are_not_capped(self):
+        for width, height in ((1536, 1536), (2048, 1024), (2048, 2048)):
+            with self.subTest(width=width, height=height):
+                value = state()
+                value["output"].update(width=width, height=height)
+                graph, _ = self.build(value)
+                self.assertEqual(moss_workflows.get_input(graph, "7", "width"), width)
+                self.assertEqual(moss_workflows.get_input(graph, "7", "height"), height)
+
+    def test_resolution_still_requires_minimum_integer_multiple_of_16_dimensions(self):
+        for key, dimension in (
+            ("width", 255), ("height", 255),
+            ("width", 257), ("height", 257),
+            ("width", 1024.0), ("height", True),
+        ):
+            with self.subTest(key=key, dimension=dimension):
+                value = state()
+                value["output"][key] = dimension
+                with self.assertRaises(moss_mode.MossValidationError) as raised:
+                    self.build(value)
+                self.assertEqual(raised.exception.code, "LKS-MOSS-1009")
 
 
 class MossStateTests(unittest.TestCase):

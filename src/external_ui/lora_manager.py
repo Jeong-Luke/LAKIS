@@ -48,13 +48,16 @@ def file_matches_engine(path, engine, roots):
     """Keep legacy ANIMA files in place while excluding the MOSS namespace."""
     moss_mode.engine(engine)
     path = Path(path).resolve()
+    matched_root = False
+    moss_path = False
     for root in roots:
         try:
             relative = path.relative_to(Path(root).resolve()).as_posix()
         except ValueError:
             continue
-        return moss_mode.is_moss_path(relative) == (engine == "moss")
-    return False
+        matched_root = True
+        moss_path = moss_path or moss_mode.is_moss_path(relative)
+    return matched_root and moss_path == (engine == "moss")
 
 
 def scope_scanner(scanner_class, engine, roots):
@@ -110,7 +113,8 @@ class ManagerPool:
             for root in self.roots
             if (root if engine == "anima" else root / "moss").resolve() != model_root
         ]
-        if settings_file.exists():
+        changed = not settings_file.exists()
+        if not changed:
             settings = json.loads(settings_file.read_text(encoding="utf-8"))
             for library in [settings, *settings.get("libraries", {}).values()]:
                 for value in library.get("folder_paths", {}).get("loras", []):
@@ -122,29 +126,58 @@ class ManagerPool:
                 default = library.get("default_lora_root")
                 if default and Path(default).resolve() != model_root:
                     raise RuntimeError(f"{engine.upper()} LoRA 다운로드 경로가 전용 폴더와 다릅니다.")
-            return settings_dir
-
-        # Preserve the original ANIMA profile, including unknown preferences.
-        # The original file and databases are never rewritten or moved.
-        legacy_file = self.state_root / "settings.json"
-        settings = json.loads(legacy_file.read_text(encoding="utf-8")) if engine == "anima" and legacy_file.is_file() else {}
-        settings = deepcopy(settings)
-        library = {
-            "folder_paths": {"loras": primary, "checkpoints": [], "unet": [], "embeddings": []},
-            "extra_folder_paths": {"loras": extra},
-            "default_lora_root": str(model_root),
-        }
-        for path in (model_root, settings_dir / "recipes", settings_dir / "example_images", settings_dir / "temp"):
-            path.mkdir(parents=True, exist_ok=True)
-        settings.update(
-            **library,
-            active_library=engine.upper(),
-            libraries={engine.upper(): deepcopy(library)},
-            recipes_path=str(settings_dir / "recipes"),
-            example_images_path=str(settings_dir / "example_images"),
-            auto_download_example_images=False,
-        )
-        _write_json(settings_file, settings)
+        else:
+            # Preserve the original ANIMA profile, including unknown preferences.
+            # The original file and databases are never rewritten or moved.
+            legacy_file = self.state_root / "settings.json"
+            settings = json.loads(legacy_file.read_text(encoding="utf-8")) if engine == "anima" and legacy_file.is_file() else {}
+            settings = deepcopy(settings)
+            library = {
+                "folder_paths": {"loras": primary, "checkpoints": [], "unet": [], "embeddings": []},
+                "extra_folder_paths": {"loras": extra},
+                "default_lora_root": str(model_root),
+            }
+            for path in (model_root, settings_dir / "recipes", settings_dir / "example_images", settings_dir / "temp"):
+                path.mkdir(parents=True, exist_ok=True)
+            settings.update(
+                **library,
+                active_library=engine.upper(),
+                libraries={engine.upper(): deepcopy(library)},
+                recipes_path=str(settings_dir / "recipes"),
+                example_images_path=str(settings_dir / "example_images"),
+                auto_download_example_images=False,
+            )
+        if engine == "moss":
+            model_root.mkdir(parents=True, exist_ok=True)
+            unet_root = (self.comfy_root / "models" / "diffusion_models" / "moss").resolve()
+            unet_root.mkdir(parents=True, exist_ok=True)
+            profiles = [settings]
+            libraries = settings.get("libraries", {})
+            if libraries:
+                profiles.append(libraries.get(settings.get("active_library"), next(iter(libraries.values()))))
+            for library in profiles:
+                folder_paths = library.setdefault("folder_paths", {})
+                lora_roots = folder_paths.setdefault("loras", [])
+                if not any(Path(root).resolve() == model_root for root in lora_roots):
+                    lora_roots.append(str(model_root))
+                    changed = True
+                extra_roots = library.setdefault("extra_folder_paths", {}).setdefault("loras", [])
+                for root in extra:
+                    if not any(Path(existing).resolve() == Path(root).resolve() for existing in extra_roots):
+                        extra_roots.append(root)
+                        changed = True
+                if not library.get("default_lora_root"):
+                    library["default_lora_root"] = str(model_root)
+                    changed = True
+                unet_roots = folder_paths.setdefault("unet", [])
+                if not any(Path(root).resolve() == unet_root for root in unet_roots):
+                    unet_roots.append(str(unet_root))
+                    changed = True
+                if not library.get("default_unet_root"):
+                    library["default_unet_root"] = str(unet_root)
+                    changed = True
+        if changed:
+            _write_json(settings_file, settings)
         return settings_dir
 
     def manager_url(self, engine):
@@ -234,6 +267,38 @@ def stop_managers():
         _POOLS.clear()
 
 
+def install_moss_download_routing(server, source):
+    from aiohttp import web
+    from py.services import download_manager
+
+    module = Path(source).parent / "static" / "js" / "managers" / "DownloadManager.js"
+    javascript = module.read_text(encoding="utf-8")
+    replacements = (
+        (
+            "            const _isDiffusionModel = this.selectedFile\n",
+            "            const _isDiffusionModel = this.apiClient.modelType === 'checkpoints' && this.currentVersion?.baseModel === 'MOSS Image'\n"
+            "                ? true\n"
+            "                : this.selectedFile\n",
+        ),
+        (
+            "        return (file.type === 'UNet' || file.type === 'Diffusion Model') ? 'diffusion' : 'model';",
+            "        return ((this.apiClient.modelType === 'checkpoints' && this.currentVersion?.baseModel === 'MOSS Image')\n"
+            "            || file.type === 'UNet' || file.type === 'Diffusion Model') ? 'diffusion' : 'model';",
+        ),
+    )
+    for anchor, replacement in replacements:
+        if javascript.count(anchor) != 1:
+            raise RuntimeError("MOSS 다운로드 화면의 분류 코드를 확인하지 못했습니다.")
+        javascript = javascript.replace(anchor, replacement, 1)
+    download_manager.DIFFUSION_MODEL_BASE_MODELS |= {"MOSS Image"}
+
+    async def download_module(request):
+        return web.Response(text=javascript, content_type="application/javascript",
+                            headers={"Cache-Control": "no-store"})
+
+    server.app.router.add_get("/loras_static/js/managers/DownloadManager.js", download_module)
+
+
 async def _run_worker(args):
     settings = Path(args.settings).resolve()
     parent = psutil.Process(args.parent_pid)
@@ -248,6 +313,8 @@ async def _run_worker(args):
     if not upstream["validate_settings"]():
         raise RuntimeError("LoRA Manager 설정을 확인하지 못했습니다.")
     server = upstream["StandaloneServer"]()
+    if args.engine == "moss":
+        install_moss_download_routing(server, args.source)
     upstream["StandaloneLoraManager"].add_routes(server)
     identity = {"engine": args.engine, "settings": str(settings), "pid": os.getpid(), "token": args.token}
 

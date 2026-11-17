@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import binascii
 from contextlib import contextmanager
+import ctypes
 from datetime import datetime, timezone
 import errno
 import hashlib
@@ -28,6 +29,7 @@ import time
 import urllib.request
 import urllib.error
 import urllib.parse
+import uuid
 import zipfile
 import zlib
 
@@ -266,7 +268,8 @@ def validate_download_origin(requested: str, final: str) -> None:
         return  # Explicit local fixtures are not network downloads.
     hosts = {"github.com", "api.github.com", "codeload.github.com", "raw.githubusercontent.com",
              "objects.githubusercontent.com", "release-assets.githubusercontent.com", "cdn.jsdelivr.net",
-             "huggingface.co", "go.microsoft.com", "msedge.sf.dl.delivery.mp.microsoft.com"}
+             "huggingface.co", "go.microsoft.com", "msedge.sf.dl.delivery.mp.microsoft.com",
+             "download.visualstudio.microsoft.com"}
     local_request = original.scheme == "http" and original.hostname in {"127.0.0.1", "localhost", "::1"}
     for value in (original, target):
         local = local_request and value.scheme == "http" and value.netloc.lower() == original.netloc.lower()
@@ -578,6 +581,7 @@ def install_release_source(source_root: Path, portable_root: Path) -> None:
     copy_tree(source_root / "src" / "external_ui", runtime / "external_ui")
     runtime.mkdir(parents=True, exist_ok=True)
     copy_file(source_root / "resources" / "STOP_AUTOMATION", runtime / "STOP_AUTOMATION")
+    copy_file(source_root / "installer" / "install_snapref_experiment.py", runtime / "install_snapref.py")
     copy_file(source_root / "src" / "runtime" / "sync_runtime_workflow.py", runtime / "sync_runtime_workflow.py")
     workflows = runtime / "workflows"
     workflows.mkdir(parents=True, exist_ok=True)
@@ -653,6 +657,54 @@ def desktop_directory() -> Path:
         return (Path.home() / "Desktop").resolve()
 
 
+def has_visual_cpp_runtime() -> bool:
+    # Probe system DLLs in a short-lived child so an upgrade is not blocked by
+    # DLL handles held by this installer. Do not search the working directory.
+    probe = subprocess.run(
+        [sys.executable, "-I", "-c",
+         "import ctypes; "
+         "[ctypes.WinDLL(name, winmode=0x00000800) for name in "
+         "('MSVCP140.dll', 'VCRUNTIME140.dll', 'VCRUNTIME140_1.dll')]"],
+        capture_output=True, timeout=30,
+    )
+    return probe.returncode == 0
+
+
+def ensure_visual_cpp_runtime(manifest: dict, cache: Path) -> None:
+    if has_visual_cpp_runtime():
+        print('  [확인] Microsoft Visual C++ x64 Runtime', flush=True)
+        return
+    record = manifest['visual_cpp']
+    installer = download(
+        record['url'], cache_path(cache, record['name'], record['sha256']),
+        record['sha256'], int(record['bytes']), display_name=record['name'],
+    )
+    with tempfile.NamedTemporaryFile(
+        prefix="visual-cpp-", suffix=".log", dir=cache, delete=False,
+    ) as log:
+        log_path = Path(log.name)
+    print('  [설치] Microsoft Visual C++ x64 Runtime (Windows 관리자 승인이 필요할 수 있습니다)', flush=True)
+    result = subprocess.run(
+        [str(installer), '/install', '/quiet', '/norestart', '/log', str(log_path)],
+        cwd=cache,
+    )
+    if result.returncode == 3010:
+        raise RuntimeError(
+            f'Microsoft Visual C++ Runtime 설치 후 재부팅이 필요합니다 (3010). '
+            f'Windows를 재부팅한 뒤 LAKIS 설치기를 다시 실행해 주세요. 로그: {log_path}'
+        )
+    if result.returncode != 0:
+        raise RuntimeError(
+            f'Microsoft Visual C++ Runtime 설치 실패 (코드 {result.returncode}). '
+            f'관리자 승인 및 Microsoft 설치 로그를 확인해 주세요: {log_path}'
+        )
+    if not has_visual_cpp_runtime():
+        raise RuntimeError(
+            f'Microsoft Visual C++ Runtime 설치 후에도 필수 DLL을 불러올 수 없습니다. '
+            f'Windows 재부팅 또는 Microsoft Runtime 복구가 필요합니다. 로그: {log_path}'
+        )
+
+
 def has_webview2_runtime() -> bool:
     import winreg
     # Microsoft-documented Evergreen runtime product registration. Check both
@@ -688,50 +740,74 @@ def ensure_webview2_runtime(manifest: dict, cache: Path) -> None:
         raise RuntimeError('Microsoft WebView2 Runtime 설치를 확인할 수 없습니다. 재부팅 후 설치기를 다시 실행해 주세요.')
 
 
-def create_desktop_shortcut(
-    target: Path,
-    desktop: Path | None = None,
-    runner=subprocess.run,
-) -> Path:
+def _write_windows_shortcut(shortcut: Path, launcher: Path, working_directory: Path) -> None:
+    """Use IShellLinkW/IPersistFile directly; no optional script engine is needed."""
+    def guid(value: str):
+        return (ctypes.c_ubyte * 16).from_buffer_copy(uuid.UUID(value).bytes_le)
+
+    def check(result: int) -> None:
+        if result < 0:
+            raise OSError(f"Windows shortcut API failed: HRESULT 0x{result & 0xffffffff:08X}")
+
+    def method(pointer, index, result_type, *argument_types):
+        table = ctypes.cast(pointer, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))).contents
+        return ctypes.WINFUNCTYPE(result_type, ctypes.c_void_p, *argument_types)(table[index])
+
+    ole32 = ctypes.WinDLL("ole32.dll", winmode=0x00000800)
+    ole32.CoInitialize.argtypes = [ctypes.c_void_p]
+    ole32.CoInitialize.restype = ctypes.c_long
+    ole32.CoCreateInstance.argtypes = [
+        ctypes.c_void_p, ctypes.c_void_p, ctypes.c_ulong, ctypes.c_void_p,
+        ctypes.POINTER(ctypes.c_void_p),
+    ]
+    ole32.CoCreateInstance.restype = ctypes.c_long
+    ole32.CoUninitialize.argtypes = []
+    ole32.CoUninitialize.restype = None
+    clsid = guid("00021401-0000-0000-c000-000000000046")  # ShellLink
+    shell_link_iid = guid("000214f9-0000-0000-c000-000000000046")  # IShellLinkW
+    persist_file_iid = guid("0000010b-0000-0000-c000-000000000046")  # IPersistFile
+    link, persist = ctypes.c_void_p(), ctypes.c_void_p()
+    check(ole32.CoInitialize(None))
+    try:
+        check(ole32.CoCreateInstance(clsid, None, 1, shell_link_iid, ctypes.byref(link)))
+        # IShellLinkW vtable: SetPath=20, SetWorkingDirectory=9, SetIconLocation=17.
+        check(method(link, 20, ctypes.c_long, ctypes.c_wchar_p)(link, str(launcher)))
+        check(method(link, 9, ctypes.c_long, ctypes.c_wchar_p)(link, str(working_directory)))
+        check(method(link, 17, ctypes.c_long, ctypes.c_wchar_p, ctypes.c_int)(
+            link, str(launcher), 0))
+        check(method(link, 0, ctypes.c_long, ctypes.c_void_p, ctypes.POINTER(ctypes.c_void_p))(
+            link, persist_file_iid, ctypes.byref(persist)))
+        # IPersistFile::Save is slot 6, after IUnknown and IPersist.
+        check(method(persist, 6, ctypes.c_long, ctypes.c_wchar_p, ctypes.c_int)(
+            persist, str(shortcut), 1))
+    finally:
+        if persist.value:
+            method(persist, 2, ctypes.c_ulong)(persist)
+        if link.value:
+            method(link, 2, ctypes.c_ulong)(link)
+        ole32.CoUninitialize()
+
+
+def create_desktop_shortcut(target: Path, desktop: Path | None = None) -> Path:
     desktop = desktop or desktop_directory()
     desktop.mkdir(parents=True, exist_ok=True)
     shortcut = desktop / "LAKIS.lnk"
-    launcher = target / "LAKIS.exe"
-    script_text = "\r\n".join((
-        'Set shell = CreateObject("WScript.Shell")',
-        "Set link = shell.CreateShortcut(WScript.Arguments(0))",
-        "link.TargetPath = WScript.Arguments(1)",
-        "link.WorkingDirectory = WScript.Arguments(2)",
-        "link.IconLocation = WScript.Arguments(3)",
-        "link.Save",
-    ))
-    script_path: Path | None = None
-    try:
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".vbs", encoding="ascii", delete=False
-        ) as script:
-            script.write(script_text)
-            script_path = Path(script.name)
-        runner(
-            [
-                "cscript.exe",
-                "//nologo",
-                str(script_path),
-                str(shortcut),
-                str(launcher),
-                str(target),
-                f"{launcher},0",
-            ],
-            check=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        if not shortcut.is_file():
-            raise RuntimeError("desktop shortcut was not created")
+    if shortcut.is_file():
         return shortcut
-    finally:
-        if script_path is not None:
-            script_path.unlink(missing_ok=True)
+    if os.path.lexists(shortcut):
+        raise FileExistsError(f"desktop shortcut path is already occupied: {shortcut}")
+    with tempfile.TemporaryDirectory(prefix=".lakis-shortcut-", dir=desktop) as folder:
+        staged = Path(folder) / "LAKIS.lnk"
+        _write_windows_shortcut(staged, target / "LAKIS.exe", target)
+        if not staged.is_file():
+            raise RuntimeError("desktop shortcut was not created")
+        try:
+            # Windows rename is atomic and refuses to replace an existing path.
+            os.rename(staged, shortcut)
+        except FileExistsError:
+            if not shortcut.is_file():
+                raise
+    return shortcut
 
 
 def install(manifest_path: Path, portable_root: Path, target: Path, cache: Path, dry_run: bool) -> None:

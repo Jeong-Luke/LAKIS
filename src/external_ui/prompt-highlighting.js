@@ -4,7 +4,8 @@ const TARGET_IDS = [
   "artistPromptInput", "triggerPromptInput", "negativePrompt",
   "negativeFixedPromptInput", "negativeQualityPromptInput", "negativeArtistPromptInput",
   "inpaintPromptInput", "inpaintNegativePromptInput",
-  "mossRegionCaptionInput", "mossRegionNegativeInput"
+  "mossRegionCaptionInput", "mossRegionNegativeInput",
+  "animaRegionCaptionInput", "animaRegionNegativeInput"
 ];
 const COMMON_TAGS = [
   ["girl", "소녀"], ["1girl", "한 명의 소녀"], ["boy", "소년"], ["1boy", "한 명의 소년"],
@@ -105,6 +106,19 @@ function copyTextMetrics(textarea, overlay) {
   // appears. Reserve the same gutter in the highlight layer so pasted long
   // prompts wrap at exactly the same positions as the real caret.
   overlay.style.overflowY = textarea.scrollHeight > textarea.clientHeight ? "scroll" : "hidden";
+}
+
+function setPromptEditorHeight(host, panel, height, chrome, region = false) {
+  if (region) {
+    host.style.setProperty("--moss-region-prompt-height", `${height}px`);
+  } else {
+    host.style.flex = "0 0 auto";
+    host.style.height = `${height}px`;
+  }
+  if (panel) {
+    panel.style.flex = "0 0 auto";
+    panel.style.height = `${Math.round(height + chrome)}px`;
+  }
 }
 
 function install(textarea) {
@@ -312,6 +326,7 @@ function install(textarea) {
   let resizeRegion = false;
   let resizePanel = null;
   let resizePanelChrome = 0;
+  let resizeMirror = null;
   resizeHandle.addEventListener("pointerdown", event => {
     event.preventDefault();
     const categoryPanel = host.closest(".fixed-prompt-panel");
@@ -327,23 +342,34 @@ function install(textarea) {
     resizePanel = categoryPanel;
     resizePanelChrome = Math.max(0, (hostRect.top - (categoryRect?.top ?? hostRect.top)) + bottomPadding);
     resizeMaxHeight = resizeRegion
-      ? Math.max(resizeMinHeight, host.closest(".moss-region-dialog").clientHeight)
+      ? Math.max(resizeMinHeight, host.closest("dialog").clientHeight)
       : Math.max(resizeMinHeight, Math.floor((fieldRect?.bottom ?? hostRect.bottom) - hostRect.top - bottomPadding));
+    resizeMirror = null;
+    const column = host.closest(".prompt-column");
+    if (!resizeRegion && column && !host.closest(".negative-prompt-panel")) {
+      const mirrorHost = column.querySelector(".negative-prompt-panel .prompt-category-panel:not([hidden]) .prompt-highlight-host");
+      const mirrorPanel = mirrorHost.closest(".fixed-prompt-panel");
+      const mirrorRect = mirrorHost.getBoundingClientRect();
+      const mirrorPanelRect = mirrorPanel.getBoundingClientRect();
+      const mirrorFieldRect = mirrorHost.closest(".prompt-field-title").getBoundingClientRect();
+      const mirrorPadding = Number.parseFloat(getComputedStyle(mirrorPanel).paddingBottom) || 12;
+      resizeMirror = {
+        host: mirrorHost, panel: mirrorPanel, startHeight: mirrorRect.height,
+        chrome: Math.max(0, mirrorRect.top - mirrorPanelRect.top + mirrorPadding),
+        maxHeight: Math.max(80, Math.floor(mirrorFieldRect.bottom - mirrorRect.top - mirrorPadding)),
+      };
+    }
     resizeHandle.setPointerCapture?.(event.pointerId);
     document.body.classList.add("prompt-resizing");
   });
   resizeHandle.addEventListener("pointermove", event => {
     if (!resizeHandle.hasPointerCapture?.(event.pointerId)) return;
     const height = Math.max(resizeMinHeight, Math.min(resizeMaxHeight, Math.round(resizeStartHeight + event.clientY - resizeStartY)));
-    if (resizeRegion) {
-      host.style.setProperty("--moss-region-prompt-height", `${height}px`);
-    } else {
-      host.style.flex = "0 0 auto";
-      host.style.height = `${height}px`;
-    }
-    if (resizePanel) {
-      resizePanel.style.flex = "0 0 auto";
-      resizePanel.style.height = `${Math.round(height + resizePanelChrome)}px`;
+    setPromptEditorHeight(host, resizePanel, height, resizePanelChrome, resizeRegion);
+    if (resizeMirror) {
+      const mirrorHeight = Math.max(80, Math.min(resizeMirror.maxHeight,
+        Math.round(resizeMirror.startHeight + height - resizeStartHeight)));
+      setPromptEditorHeight(resizeMirror.host, resizeMirror.panel, mirrorHeight, resizeMirror.chrome);
     }
     paint();
   });
@@ -351,6 +377,7 @@ function install(textarea) {
     if (resizeHandle.hasPointerCapture?.(event.pointerId)) resizeHandle.releasePointerCapture(event.pointerId);
     document.body.classList.remove("prompt-resizing");
     resizePanel = null;
+    resizeMirror = null;
     paint();
   };
   resizeHandle.addEventListener("pointerup", finishResize);

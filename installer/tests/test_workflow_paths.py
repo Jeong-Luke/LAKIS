@@ -36,7 +36,9 @@ def _make_workflow_bridge_stub() -> types.ModuleType:
     bridge_stub.LOCAL_INPAINT_V2 = "test-inpaint-model"
     bridge_stub.WorkflowBridge = _WorkflowBridge
     for name in (
+        "_comfy_object_info",
         "lora_inventory",
+        "lora_manager_url",
         "model_inventory",
         "remove_persisted_upscaler_override",
         "save_external_generation_state",

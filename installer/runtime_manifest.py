@@ -80,6 +80,75 @@ PROTECTED_FILES = (
 GENERATED_PATHS = (
     "ComfyUI/LAKIS/launcher_logs", "ComfyUI/LAKIS/lakis_launcher_state.json",
 )
+# Setup writes these exact root-level files after installation or repair.
+# They are diagnostics, never release-owned files or ignored directories.
+GENERATED_FILES = ("network-install.log", "repair.log")
+# Exact shipped editable locations supported by workflow_bridge and MOSS.
+# They remain authenticated release defaults in pristine candidates; only an
+# installed tree may contain user-edited bytes at these names.
+EDITABLE_TEMPLATE_FILES = (
+    "ComfyUI/LAKIS/workflows/LAKIS_custom_v7.4_editable.json",
+    "ComfyUI/LAKIS/external_ui/workflows/LAKIS_custom_v8.0_editable.json",
+    "ComfyUI/LAKIS/workflows/LAKIS_custom_v8.0_editable.json",
+    "ComfyUI/workflows/LAKIS_custom_v8.0_editable.json",
+    "ComfyUI/LAKIS/external_ui/workflows/LAKIS_MOSS_custom_v8.1_editable.json",
+)
+
+
+def editable_template_path(relative: str) -> bool:
+    return relative.casefold() in {name.casefold() for name in EDITABLE_TEMPLATE_FILES}
+
+
+def editable_template_contract(authenticated_entries, manifest_sha256: str, policy=None) -> dict:
+    """Expected defaults come only from authenticated release metadata."""
+    if policy not in (None, "preserve-v1"):
+        raise ValueError("unsupported application editable-template policy")
+    return {
+        "policy": policy, "manifest_sha256": manifest_sha256.upper(),
+        "defaults": {
+            row["path"]: (row["size"], row["sha256"].upper())
+            for row in authenticated_entries if editable_template_path(row["path"])
+        },
+    }
+
+
+def editable_template_snapshot(root: Path, contract: dict) -> dict:
+    """Read only the small legacy startup defaults, not models or other data."""
+    if contract["policy"] == "preserve-v1":
+        return {}
+    snapshot = {}
+    for relative in contract["defaults"]:
+        path = reject_reparse_path(root / relative)
+        if not path.exists():
+            continue
+        if not path.is_file():
+            raise ValueError(f"editable template is not a regular file: {relative}")
+        with ExitStack() as pins:
+            for parent in reversed(path.parents):
+                pins.enter_context(_pinned_path(parent, directory=True))
+            stream = pins.enter_context(_pinned_path(path, read_file=True))
+            snapshot[relative] = (os.fstat(stream.fileno()).st_size, _stream_digest(stream).upper())
+    return snapshot
+
+
+def check_editable_template_compatibility(snapshot: dict, contract: dict) -> None:
+    if contract["policy"] == "preserve-v1":
+        return
+    if contract["policy"] is not None:
+        raise ValueError("unsupported application editable-template policy")
+    actual = {
+        path.casefold(): value for path, value in snapshot.items()
+        if editable_template_path(path.rstrip("/"))
+    }
+    for relative, expected in contract["defaults"].items():
+        key = relative.casefold()
+        if key + "/" in actual or (key in actual and actual[key] != expected):
+            raise ValueError(
+                "EDITABLE_TEMPLATE_COMPATIBILITY_REQUIRED: this target application requires "
+                "its immutable editable default; a compatible preserve-v1 release/update is "
+                f"required. Existing user bytes were not replaced: {relative}")
+
+
 REQUIRED_FILES = (
     "VERSION", "LAKIS.exe", "LAKIS_Updater.exe", "LAKIS_Desktop.exe",
     "python_embeded/python.exe", "ComfyUI/main.py",
@@ -146,7 +215,8 @@ def protected_path(relative: str) -> bool:
 
 def generated_path(relative: str) -> bool:
     path = relative.casefold()
-    return (any(part.casefold() in {".git", "__pycache__"} for part in relative.split("/"))
+    return (path in GENERATED_FILES
+            or any(part.casefold() in {".git", "__pycache__"} for part in relative.split("/"))
             or any(path == name.casefold() or path.startswith(name.casefold() + "/")
                    for name in GENERATED_PATHS))
 
@@ -223,6 +293,10 @@ def _runtime_file_batches(root: Path, *, allow_user_data: bool, scopes=None, bat
             if not allow_user_data:
                 raise ValueError(f"user data in runtime payload: {relative}")
             return False
+        if relative.casefold() in GENERATED_FILES:
+            # Do not let a directory or reparse point hide behind a log name.
+            with _pinned_path(root / relative, read_file=True):
+                pass
         return not generated_path(relative)
 
     def visit(path, relative):
@@ -373,6 +447,58 @@ def verify_runtime(root: Path, expected_hash: str, expected_version: str,
     if hashlib.sha256(raw_manifest).hexdigest().upper() != expected_hash.upper():
         raise ValueError("runtime manifest hash mismatch")
     manifest = json.loads(raw_manifest.decode("utf-8-sig"))
+    expected = validate_runtime_manifest(manifest, expected_version)
+    entries = manifest["files"]
+    if stage_root is not None:
+        stage_root = reject_reparse_path(stage_root)
+        if (allow_user_data or scopes is not None or stage_root == root
+                or root in stage_root.parents or stage_root in root.parents):
+            raise ValueError("staging requires a separate complete release payload")
+        required = sum(entry["size"] for entry in entries) + len(raw_manifest)
+        if shutil.disk_usage(stage_root.parent).free < required:
+            raise RuntimeError("not enough space for new program files")
+        stage_root.mkdir()
+
+    def verify_file(item):
+        relative, actual = item
+        destination = stage_root / relative if stage_root is not None else None
+        with _pinned_path(actual, read_file=True) as stream:
+            if allow_user_data and editable_template_path(relative):
+                return  # User data, not a claim of immutable default bytes.
+            entry = expected[relative.casefold()]
+            if (os.fstat(stream.fileno()).st_size != entry["size"]
+                    or _stream_digest(stream, destination).upper() != entry["sha256"].upper()):
+                raise ValueError(f"runtime file mismatch: {relative}")
+
+    found, last_report = set(), 0
+    # Sixteen readers and 64 queued files bound I/O and memory. Small directories
+    # can share a batch, but every reader finishes before its ancestry is released.
+    with closing(_runtime_file_batches(root, allow_user_data=allow_user_data, scopes=scopes,
+                                       batch_size=64)) as batches:
+        with ThreadPoolExecutor(max_workers=16) as readers:
+            for batch in batches:
+                for relative, _ in batch:
+                    key = relative.casefold()
+                    if key in found:
+                        raise ValueError(f"duplicate runtime path: {relative}")
+                    found.add(key)
+                    if key not in expected and not (allow_user_data and editable_template_path(relative)):
+                        raise ValueError(f"unlisted runtime file: {relative}")
+                list(readers.map(verify_file, batch))
+                if progress and (not last_report or len(found) - last_report >= 256 or len(found) == len(expected)):
+                    print(f"[검증] 프로그램 파일 {len(found):,}/{len(expected):,}", flush=True)
+                    last_report = len(found)
+    if expected.keys() - found:
+        raise ValueError(f"missing runtime files: {sorted(expected.keys() - found)}")
+    if (root / "VERSION").read_text(encoding="utf-8-sig").strip() != expected_version:
+        raise ValueError("runtime VERSION mismatch")
+    if stage_root is not None and (stage_root / "VERSION").read_text(encoding="utf-8-sig").strip() != expected_version:
+        raise ValueError("staged runtime VERSION mismatch")
+    return manifest
+
+
+def validate_runtime_manifest(manifest: dict, expected_version: str) -> dict:
+    """Validate trusted metadata independently of any candidate's current bytes."""
     if not isinstance(manifest, dict):
         raise ValueError("invalid runtime manifest")
     _validate_identity(manifest, expected_version)
@@ -397,47 +523,4 @@ def verify_runtime(root: Path, expected_hash: str, expected_version: str,
     missing = {name.casefold() for name in REQUIRED_FILES} - expected.keys()
     if missing:
         raise ValueError(f"incomplete runtime: {sorted(missing)}")
-    if stage_root is not None:
-        stage_root = reject_reparse_path(stage_root)
-        if (allow_user_data or scopes is not None or stage_root == root
-                or root in stage_root.parents or stage_root in root.parents):
-            raise ValueError("staging requires a separate complete release payload")
-        required = sum(entry["size"] for entry in entries) + len(raw_manifest)
-        if shutil.disk_usage(stage_root.parent).free < required:
-            raise RuntimeError("not enough space for new program files")
-        stage_root.mkdir()
-
-    def verify_file(item):
-        relative, actual = item
-        entry = expected[relative.casefold()]
-        destination = stage_root / relative if stage_root is not None else None
-        with _pinned_path(actual, read_file=True) as stream:
-            if (os.fstat(stream.fileno()).st_size != entry["size"]
-                    or _stream_digest(stream, destination).upper() != entry["sha256"].upper()):
-                raise ValueError(f"runtime file mismatch: {relative}")
-
-    found, last_report = set(), 0
-    # Sixteen readers and 64 queued files bound I/O and memory. Small directories
-    # can share a batch, but every reader finishes before its ancestry is released.
-    with closing(_runtime_file_batches(root, allow_user_data=allow_user_data, scopes=scopes,
-                                       batch_size=64)) as batches:
-        with ThreadPoolExecutor(max_workers=16) as readers:
-            for batch in batches:
-                for relative, _ in batch:
-                    key = relative.casefold()
-                    if key in found:
-                        raise ValueError(f"duplicate runtime path: {relative}")
-                    found.add(key)
-                    if key not in expected:
-                        raise ValueError(f"unlisted runtime file: {relative}")
-                list(readers.map(verify_file, batch))
-                if progress and (not last_report or len(found) - last_report >= 256 or len(found) == len(expected)):
-                    print(f"[검증] 프로그램 파일 {len(found):,}/{len(expected):,}", flush=True)
-                    last_report = len(found)
-    if expected.keys() - found:
-        raise ValueError(f"missing runtime files: {sorted(expected.keys() - found)}")
-    if (root / "VERSION").read_text(encoding="utf-8-sig").strip() != expected_version:
-        raise ValueError("runtime VERSION mismatch")
-    if stage_root is not None and (stage_root / "VERSION").read_text(encoding="utf-8-sig").strip() != expected_version:
-        raise ValueError("staged runtime VERSION mismatch")
-    return manifest
+    return expected
