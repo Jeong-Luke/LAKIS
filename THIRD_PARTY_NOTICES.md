@@ -1,6 +1,10 @@
 # LAKIS third-party notices
 
-Runtime inventory reviewed: 2026-10-27 (8.0.0 candidate; final artifact verification pending)
+Runtime inventory baseline: LAKIS 8.1.2 candidate, ComfyUI 0.42.0,
+Python 3.13.14, PyTorch 2.14.0+cu130, CUDA 13.0.
+The packaged dependency and licence-file inventories have been checked against
+this candidate. Inventory agreement is not a full legal review or public
+release approval.
 
 LAKIS includes, downloads, modifies, or interoperates with third-party software
 and model files. Those materials remain subject to their own copyright notices
@@ -14,9 +18,9 @@ authorship or ownership of these components.
 
 ## Core platform and extensions
 
-### 8.1.0 preview: MOSS model downloads
+### 8.1.2 candidate: MOSS model downloads
 
-The integrated preview keeps the ComfyUI `0.42.0` runtime identified below.
+The 8.1.2 candidate keeps the ComfyUI `0.42.0` runtime identified below.
 MOSS model weights are separate publisher downloads, not files inside the
 LAKIS runtime archive. The installer pins
 [`Comfy-Org/MOSS-Image` revision `7c5a8777422f0aa8a24ea549dffeaf8ee6e1fc41`](https://huggingface.co/Comfy-Org/MOSS-Image/tree/7c5a8777422f0aa8a24ea549dffeaf8ee6e1fc41).
@@ -33,7 +37,7 @@ The complete Apache-2.0 terms are supplied in
 `third_party_licenses/ComfyUI-Anima-LLLite-Apache-2.0.txt`; that shared licence
 text does not attribute these models to the LLLite node's authors.
 MOSS i2i remains disabled. Neither `ComfyUI-Moss-Image-Edit` nor its
-`adapter_model.safetensors` is included in the preview dependency set.
+`adapter_model.safetensors` is included in the 8.1.2 dependency set.
 
 ### Existing runtime components
 
@@ -110,11 +114,15 @@ available in this repository and through the upstream links.
 The portable runtime also retains the licences supplied inside installed
 Python packages. These entries identify packages whose wheel metadata does not
 populate a licence field; that field is not a replacement for the actual terms.
-The 8.0.0 candidate uses the versions below. The installed-distribution inventory
-and retained licence-file hashes are recorded in
+The 8.1.2 candidate uses the versions below. Its runtime archive contains the
+169 installed-distribution records and retained licence-file hashes in
 `third_party_licenses/runtime-packages.json`; supplemental licence texts and
 their fixed sources are recorded in `third_party_licenses/package-license-sources.json`.
-The final release package must be checked against these inventories.
+These two inventories and `third_party_licenses/packages/` are supplied at the
+runtime archive root, separately from this source checkout's licence texts.
+The package names and versions agree with `RUNTIME_SHA256SUMS.json`; recorded
+metadata and licence-file hashes agree with the archived files. Any rebuilt
+release package must be checked again against these inventories.
 
 | Package | Installed version / corresponding source | Licence and supplied text |
 |---|---|---|

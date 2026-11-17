@@ -91,9 +91,9 @@ change the pinned base model's v1.0 license, or change existing installations.
 
 한국어 번역 기능을 사용하면 번역할 프롬프트 텍스트가 외부 Google 번역 서비스로 전송될 수 있습니다.
 
-## MOSS preview model boundary
+## MOSS model boundary in the 8.1.2 candidate
 
-The 8.1.0 preview's MOSS diffusion model, Qwen3.5 encoder and FLUX.2
+The 8.1.2 candidate's MOSS diffusion model, Qwen3.5 encoder and FLUX.2
 autoencoder are pinned publisher downloads, not bundled runtime files.
 Their filenames, hashes, licence sources and attributions are listed in
 `THIRD_PARTY_NOTICES.md`. Existing ANIMA model restrictions still apply to
@@ -102,4 +102,4 @@ ANIMA; adding MOSS does not replace those terms.
 The Qwen INT8 repack is licensed under Apache-2.0.
 
 MOSS i2i is disabled. The experimental Moss-Image-Edit node and adapter are
-excluded from the preview dependency set.
+excluded from the 8.1.2 dependency set.

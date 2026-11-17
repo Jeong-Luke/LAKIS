@@ -26,7 +26,7 @@ try {
     # disagree immediately after installation.
     $source = $snapshot
     $archive = Join-Path $temp "source.zip"
-    & git -c core.autocrlf=false -C $repo archive --format=zip -o $archive HEAD -- VERSION LICENSE.md THIRD_PARTY_NOTICES.md third_party_licenses resources src workflows installer/install_snapref_experiment.py
+    & git -c core.autocrlf=false -C $repo archive --format=zip -o $archive HEAD -- VERSION LICENSE.md THIRD_PARTY_NOTICES.md COMPLIANCE.md third_party_licenses resources src workflows installer/install_snapref_experiment.py
     if ($LASTEXITCODE -ne 0) { throw "git archive failed." }
     Expand-Archive -LiteralPath $archive -DestinationPath $snapshot
 
@@ -54,7 +54,7 @@ try {
         Copy-ManagedFile $name (Join-Path $dist $name)
     }
 
-    foreach ($name in @("LICENSE.md","THIRD_PARTY_NOTICES.md")) {
+    foreach ($name in @("LICENSE.md","THIRD_PARTY_NOTICES.md","COMPLIANCE.md")) {
         Copy-ManagedFile $name (Join-Path $source $name)
     }
     # Setup and Updater write VERSION without a trailing newline.

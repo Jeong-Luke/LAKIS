@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -99,6 +100,7 @@ class ReleaseLayoutTests(unittest.TestCase):
                 "VERSION",
                 "LICENSE.md",
                 "THIRD_PARTY_NOTICES.md",
+                "COMPLIANCE.md",
                 "ComfyUI/LAKIS/external_ui/app.js",
                 "ComfyUI/LAKIS/external_ui/serve_ui.py",
                 "ComfyUI/LAKIS/external_ui/workflow_bridge.py",
@@ -133,12 +135,46 @@ class ReleaseLayoutTests(unittest.TestCase):
 
             with zipfile.ZipFile(pack) as archive:
                 self.assertEqual(payload["version"].encode("utf-8"), archive.read("VERSION"))
+                for name in ("LICENSE.md", "THIRD_PARTY_NOTICES.md", "COMPLIANCE.md"):
+                    committed = subprocess.check_output(
+                        ["git", "-C", str(ROOT), "show", f"HEAD:{name}"])
+                    self.assertEqual(archive.read(name), committed, name)
                 packed = {
                     info.filename.replace("\\", "/").rstrip("/"): info.file_size
                     for info in archive.infolist()
                     if not info.is_dir()
                 }
             self.assertEqual(files, packed)
+
+    def test_update_manifest_delivers_all_legal_documents_without_user_paths(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            dist = root / "dist"
+            dist.mkdir()
+            for name in ROOT_ASSETS:
+                (dist / name).write_bytes(b"isolated binary fixture")
+            output = root / "update.json"
+            revision = "a" * 40
+            version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
+            result = subprocess.run(
+                ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+                 str(INSTALLER / "New-UpdateManifest.ps1"), "-Version", version,
+                 "-DistDirectory", str(dist), "-OutputPath", str(output),
+                 "-SourceRevision", revision, "-UseLocalWorkingTreeHashes"],
+                cwd=ROOT, capture_output=True, text=True, encoding="utf-8", errors="replace",
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            manifest = json.loads(output.read_text(encoding="utf-8-sig"))
+            files = {entry["path"]: entry for entry in manifest["files"]}
+            for name in ("LICENSE.md", "THIRD_PARTY_NOTICES.md", "COMPLIANCE.md"):
+                self.assertEqual(files[name]["sha256"],
+                                 hashlib.sha256((ROOT / name).read_bytes()).hexdigest().upper())
+                self.assertEqual(files[name]["url"],
+                                 f"https://raw.githubusercontent.com/Jeong-Luke/LAKIS/{revision}/{name}")
+                self.assertNotIn(name, manifest["delete"])
+            self.assertFalse(any(path.startswith(("ComfyUI/models/", "ComfyUI/user/",
+                                                  "ComfyUI/input/", "ComfyUI/output/"))
+                                 for path in files))
 
     def test_release_layout_cannot_package_windows_working_tree_bytes(self):
         script = LAYOUT_SCRIPT.read_text(encoding="utf-8")

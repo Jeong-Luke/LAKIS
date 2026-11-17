@@ -465,7 +465,7 @@ internal sealed class UpdaterForm : Form
     {
         string normalized = ValidatePathSyntax(path);
         string p = normalized.Replace('\\', '/');
-        var rootFiles = new[] {"LAKIS.exe", "LAKIS_Patcher.exe", "LAKIS_Updater.exe", "LAKIS_Desktop.exe", "LAKIS_Model_Importer.exe", "Uninstall_LAKIS.exe", "Microsoft.Web.WebView2.Core.dll", "Microsoft.Web.WebView2.WinForms.dll", "WebView2Loader.dll", "LICENSE.md", "THIRD_PARTY_NOTICES.md"};
+        var rootFiles = new[] {"LAKIS.exe", "LAKIS_Patcher.exe", "LAKIS_Updater.exe", "LAKIS_Desktop.exe", "LAKIS_Model_Importer.exe", "Uninstall_LAKIS.exe", "Microsoft.Web.WebView2.Core.dll", "Microsoft.Web.WebView2.WinForms.dll", "WebView2Loader.dll", "LICENSE.md", "THIRD_PARTY_NOTICES.md", "COMPLIANCE.md"};
         var packages = new[] {"ComfyUI-Anima-LLLite", "ComfyUI-KR-Camera-Control", "ComfyUI-KR-Camera-PromptStudio-Bridge", "ComfyUI-LAKIS-AutoPatch", "ComfyUI-LAKIS-Detail", "ComfyUI-LAKIS-Fast-Refiner", "ComfyUI-LAKIS-Local-Inpaint", "ComfyUI-LAKIS-Regional-Reference", "ComfyUI-PreviewMonitor"};
         bool owned = rootFiles.Any(name => String.Equals(p, name, StringComparison.OrdinalIgnoreCase)) ||
             p.StartsWith("third_party_licenses/", StringComparison.OrdinalIgnoreCase) ||

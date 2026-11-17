@@ -55,7 +55,7 @@ foreach ($name in @(
 
 # Legal notices are application-owned release files. Existing installations
 # must receive the same notices as clean installs.
-foreach ($name in @("LICENSE.md", "THIRD_PARTY_NOTICES.md")) {
+foreach ($name in @("LICENSE.md", "THIRD_PARTY_NOTICES.md", "COMPLIANCE.md")) {
     Add-UpdateFile $name (Join-Path $repo $name) "$rawBase/$name"
 }
 $licenceRoot = Join-Path $repo "third_party_licenses"

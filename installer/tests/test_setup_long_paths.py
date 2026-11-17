@@ -128,8 +128,10 @@ class SetupLongPathTests(unittest.TestCase):
         cls.temporary.cleanup()
 
     def probe(self, member, long_root=False, reject=False):
-        with tempfile.TemporaryDirectory(dir=self.root) as directory:
-            root = Path(directory)
+        # Python fixture cleanup needs extended paths even when the product is
+        # deliberately given ordinary long paths with LongPathsEnabled=0.
+        with tempfile.TemporaryDirectory(dir="\\\\?\\" + str(self.root)) as directory:
+            root = Path(directory.removeprefix("\\\\?\\"))
             base = root
             if long_root:
                 base = base/('사용자 지정 TEMP_' + 'x'*70)/('cache_' + 'y'*75)
@@ -239,15 +241,15 @@ class SetupLongPathTests(unittest.TestCase):
             self.assertIn(b'RVTOOLS_EXAMPLES_PASS',result.stdout)
 
     def long_cache_probe(self, mode, first_arg):
-        with tempfile.TemporaryDirectory(dir=self.root) as directory:
-            root=Path(directory);temp=root/('temp_'+'t'*100)/('cache_'+'c'*100)
-            temp.mkdir(parents=True);destination=root/'output';local=root/'localappdata'
+        with tempfile.TemporaryDirectory(dir="\\\\?\\" + str(self.root)) as directory:
+            root=Path(directory.removeprefix("\\\\?\\"));temp=root/('temp_'+'t'*100)/('cache_'+'c'*100)
+            Path("\\\\?\\"+str(temp)).mkdir(parents=True);destination=root/'output';local=root/'localappdata'
             if mode=='sevenzip':
-                archive=temp/'portable.7z';shutil.copyfile(first_arg,archive);first_arg=archive
+                archive=temp/'portable.7z';shutil.copyfile(first_arg,Path("\\\\?\\"+str(archive)));first_arg=archive
                 destination=temp/'extraction'
                 self.assertGreater(len(str(archive)),260)
                 self.assertGreater(len(str(destination)),260)
-            destination.mkdir()
+            Path("\\\\?\\"+str(destination)).mkdir()
             result=subprocess.run([str(self.exe),str(first_arg),str(temp),str(destination),mode,str(local)],capture_output=True)
             self.assertEqual(result.returncode,0,result.stderr.decode(errors='replace'))
             self.assertIn(b'LONG_CACHE_',result.stdout)

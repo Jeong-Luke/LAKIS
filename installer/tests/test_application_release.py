@@ -438,15 +438,18 @@ class ApplicationReleaseTests(unittest.TestCase):
             except OSError as error:
                 self.skipTest("Windows symlink permission unavailable: " + str(error))
             before = snapshot(target)
-            with self.assertRaises(ValueError):
+            with self.assertRaisesRegex(RuntimeError, "unsafe reparse path"):
                 install.install(manifest, link, cache, "repair", "gui")
             self.assertEqual(snapshot(target), before)
             original_asset = assets["manifest"]
             asset_link = original_asset.parent / "linked-manifest.json"
             asset_link.symlink_to(original_asset)
             assets["manifest"] = asset_link
-            with mock.patch.object(app, "download", return_value=asset_link), self.assertRaises(ValueError):
+            before_assets = snapshot(root)
+            with mock.patch.object(app, "download", return_value=asset_link), \
+                    self.assertRaisesRegex(RuntimeError, "unsafe reparse path"):
                 app.compose(baseline, manifest["runtime_bundle"], manifest["application_release"], cache)
+            self.assertEqual(snapshot(root), before_assets)
 
     def test_boolean_application_schema_is_rejected_by_build_and_cli_before_writes(self):
         with tempfile.TemporaryDirectory() as directory:
