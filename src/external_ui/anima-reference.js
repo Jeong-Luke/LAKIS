@@ -7,6 +7,12 @@
   const LEGACY_IDS = ["animaReferenceDropZone", "animaReferencePreview", "animaReferenceEmpty", "animaReferenceRemove", "animaReferenceFile", "animaReferenceMode", "animaReferenceWeight", "animaReferenceTarget"];
   const panel = document.querySelector("#animaReferencePanel");
   const toggle = document.querySelector("#animaReferenceToggle");
+  const notice = document.querySelector("#animaReferenceConsent");
+  const review = document.querySelector("#animaReferenceConsentReview");
+  const checkbox = notice.querySelector("#acceptConsent");
+  const confirm = notice.querySelector("#confirmConsent");
+  const cancel = notice.querySelector("#cancelConsent");
+  const consentError = notice.querySelector("#animaReferenceConsentError");
   const addButton = document.querySelector("#animaReferenceAdd");
   const rowsContainer = document.querySelector("#animaReferenceRows");
   const status = document.querySelector("#animaReferenceStatus");
@@ -19,6 +25,9 @@
   let saved = structuredClone(DEFAULTS);
   let availability = { experimental: false, ready: false, missing: [] };
   let checking = true;
+  let consent = null; // Only the status and consent endpoints can set this.
+  let savingConsent = false;
+  let restoreEnabledAfterCheck = false;
   let uploading = false;
   let errorMessage = "";
   let restoreRevision = 0;
@@ -69,8 +78,12 @@
     };
   }
 
-  function available() {
+  function dependenciesReady() {
     return !checking && availability.experimental === true && availability.ready === true;
+  }
+
+  function available() {
+    return dependenciesReady() && consent?.accepted === true;
   }
 
   function imageUrl(name) {
@@ -284,7 +297,9 @@
     panel.hidden = availability.experimental !== true || currentGenerationEngine() !== "anima";
     panel.classList.toggle("is-enabled", saved.enabled);
     const locked = !available() || uploading;
-    toggle.disabled = locked;
+    toggle.disabled = !dependenciesReady() || !consent || uploading || savingConsent;
+    review.hidden = consent?.accepted !== true;
+    review.disabled = review.hidden || uploading;
     forecast.disabled = locked;
     forecast.value = saved.experimental_forecast ? "on" : "off";
     fidelityInput.disabled = locked;
@@ -322,10 +337,12 @@
     });
     if (errorMessage) status.textContent = errorMessage;
     else if (checking) status.textContent = "실험 준비 상태 확인 중…";
-    else if (!available()) {
+    else if (!dependenciesReady()) {
       const missing = Array.isArray(availability.missing) ? availability.missing.join(" / ") : "";
       status.textContent = `SnapRef 준비 필요 · ${missing || "실험 의존성을 확인해 주세요."}`;
-    } else if (uploading) status.textContent = "참조 이미지 업로드 중…";
+    } else if (!consent) status.textContent = "레퍼런스 이용 조건을 확인하지 못했습니다. 새로고침해 주세요.";
+    else if (!consent.accepted) status.textContent = "레퍼런스를 켜려면 이용 안내를 확인하고 동의해 주세요.";
+    else if (uploading) status.textContent = "참조 이미지 업로드 중…";
     else if (saved.enabled) {
       status.textContent = populated > 0
         ? (multi ? `참조 이미지 ON · ${populated}/${saved.references.length}장` : "참조 이미지 ON")
@@ -341,8 +358,11 @@
   function restore(value) {
     if (value && typeof value === "object" && !Array.isArray(value) && Array.isArray(value.references) && value.references.length > MAX_REFERENCES) return;
     closeReferenceSettings();
+    if (notice.open) notice.close();
     restoreRevision += 1;
     saved = normalize(value);
+    restoreEnabledAfterCheck = checking && saved.enabled;
+    if (consent?.accepted !== true) saved.enabled = false;
     previewUrls = saved.references.map(entry => imageUrl(entry.image_name));
     errorMessage = "";
     render({ resetNumericInputs: true });
@@ -485,8 +505,60 @@
     dispatchChange();
   }
 
+  function openNotice() {
+    if (!consent || savingConsent || uploading || notice.open) return;
+    checkbox.checked = consent.accepted;
+    checkbox.disabled = consent.accepted;
+    confirm.disabled = !checkbox.checked;
+    cancel.disabled = false;
+    consentError.hidden = true;
+    notice.showModal();
+  }
+
+  review.addEventListener("click", openNotice);
+  checkbox.addEventListener("change", () => { confirm.disabled = savingConsent || !checkbox.checked; });
+  cancel.addEventListener("click", () => { if (!savingConsent) notice.close(); });
+  notice.addEventListener("cancel", event => { if (savingConsent) event.preventDefault(); });
+  confirm.addEventListener("click", async () => {
+    if (!notice.open || savingConsent || !checkbox.checked || !consent) return;
+    if (consent.accepted) {
+      notice.close(); // Reviewing the notice never changes reference settings.
+      return;
+    }
+    const revision = restoreRevision;
+    const policy_id = consent.policy_id;
+    savingConsent = true;
+    checkbox.disabled = cancel.disabled = confirm.disabled = true;
+    consentError.hidden = true;
+    render();
+    try {
+      const response = await fetch("/api/anima-reference-consent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accepted: true, policy_id }),
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const result = await response.json();
+      if (result?.accepted !== true || result.policy_id !== policy_id) throw new Error("Consent not confirmed");
+      consent = { accepted: true, policy_id };
+      if (notice.open) notice.close();
+      if (revision === restoreRevision && available() && currentGenerationEngine() === "anima") {
+        commitRoot({ enabled: true });
+      }
+    } catch (error) {
+      console.error("Could not save ANIMA reference consent", error);
+      consentError.textContent = "동의 저장을 확인하지 못했습니다. 이용 조건이 변경되었을 수 있으니 새로고침 후 다시 시도해 주세요.";
+      consentError.hidden = false;
+      checkbox.checked = checkbox.disabled = cancel.disabled = false;
+    } finally {
+      savingConsent = false;
+      render();
+    }
+  });
   toggle.addEventListener("click", () => {
-    if (available() && !uploading) commitRoot({ enabled: !saved.enabled });
+    if (toggle.disabled) return;
+    if (available()) commitRoot({ enabled: !saved.enabled });
+    else openNotice();
   });
   if (addButton) addButton.addEventListener("click", addReference);
 
@@ -571,13 +643,19 @@
     try {
       const response = await fetch("/api/anima-reference", { cache: "no-store" });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      availability = await response.json();
-      defaults = normalize(availability.defaults);
+      const result = await response.json();
+      defaults = normalize(result.defaults);
+      availability = result;
+      const record = result.consent;
+      if (typeof record?.accepted === "boolean" && typeof record.policy_id === "string" && record.policy_id.trim()) {
+        consent = { accepted: record.accepted, policy_id: record.policy_id };
+      }
     } catch (error) {
       errorMessage = "SnapRef 준비 상태를 확인하지 못했습니다.";
       console.error("Could not load ANIMA reference availability", error);
     } finally {
       checking = false;
+      saved.enabled = restoreEnabledAfterCheck && consent?.accepted === true;
       render();
     }
   })();

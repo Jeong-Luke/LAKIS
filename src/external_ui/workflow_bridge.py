@@ -3354,6 +3354,7 @@ class WorkflowBridge:
             self.status.preview_mime = mime
 
     def start(self, application_state: dict[str, Any]) -> dict[str, Any]:
+        anima_reference.require_consent(application_state, UI_STATE_PATH)
         _validate_continuous_settings(application_state.get("continuous"))
         with self._job_lock:
             # A terminal UI status is not proof that its worker finished cleanup.

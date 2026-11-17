@@ -7,10 +7,53 @@ import math
 import os
 from pathlib import Path
 import re
+import tempfile
 
 
 ADAPTER = "snapref_v2a.safetensors"
 ADAPTER_BYTES = 381_821_960
+# Identify the published weight and the exact licence text, never the LAKIS version.
+CONSENT_POLICY_ID = (
+    ADAPTER + ":8a22fc28d060447544eda283b36efe2dcdbad7422cbc0b8d42828d55a8a61ab4"
+    ":ee956174133d7c2cdcf220440c7726187eaf4b50e8e48ee32194353a22164d15"
+)
+
+
+def consent_status(state_path):
+    path = state_path.with_name("snapref-use-consent.json")
+    try:
+        record = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, ValueError):
+        record = None
+    accepted = (isinstance(record, dict) and record.get("accepted") is True
+                and record.get("policy_id") == CONSENT_POLICY_ID)
+    return {"accepted": accepted, "policy_id": CONSENT_POLICY_ID}
+
+
+def accept_terms(state_path, payload):
+    if (not isinstance(payload, dict) or payload.get("accepted") is not True
+            or payload.get("policy_id") != CONSENT_POLICY_ID):
+        raise ValueError("현재 레퍼런스 이용 조건에 동의해 주세요.")
+    path = state_path.with_name("snapref-use-consent.json")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    record = {"accepted": True, "policy_id": CONSENT_POLICY_ID}
+    with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as stream:
+        temporary = Path(stream.name)
+    try:
+        temporary.write_text(json.dumps(record), encoding="utf-8")
+        temporary.replace(path)
+    finally:
+        temporary.unlink(missing_ok=True)
+    return record
+
+
+def require_consent(application_state, state_path):
+    reference = application_state.get("anima_reference")
+    if (isinstance(reference, dict) and reference.get("enabled") is True
+            and not consent_status(state_path)["accepted"]):
+        raise ValueError("레퍼런스를 켜기 전에 레퍼런스 이용 조건에 동의해 주세요.")
+
+
 MAX_REFERENCES = 3
 DEFAULTS = {
     "enabled": False, "mode": "cs", "fidelity": 1.0, "ref_megapixels": 1.0,

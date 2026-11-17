@@ -9,8 +9,10 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import stat
 import tempfile
-from urllib.request import urlopen
+from urllib.parse import urlsplit
+from urllib.request import HTTPRedirectHandler, build_opener
 
 
 SOURCE_REVISION = "1f7e606621052c11486c7aa5ccf6c2c12c2c5a3a"
@@ -54,8 +56,41 @@ TERMS_NOTICE = (
 )
 
 
+def check_origin(source, url):
+    target = urlsplit(url)
+    host = target.hostname or ""
+    allowed = host == source or (source == "huggingface.co" and host.endswith(".hf.co"))
+    if (source not in {"raw.githubusercontent.com", "huggingface.co"} or not allowed
+            or target.scheme != "https" or target.username is not None
+            or target.password is not None or target.port not in (443, None)):
+        raise ValueError("SnapRef download left its official HTTPS publisher")
+
+
+def publisher_stream(url, timeout):
+    source = urlsplit(url).hostname
+    check_origin(source, url)
+
+    class PublisherRedirect(HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            check_origin(source, newurl)
+            return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+    return build_opener(PublisherRedirect()).open(url, timeout=timeout)
+
+
+def check_install_path(path):
+    for item in (*reversed(path.parents), path):
+        try:
+            info = item.lstat()
+        except FileNotFoundError:
+            continue
+        if (stat.S_ISLNK(info.st_mode) or
+                getattr(info, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT):
+            raise ValueError("SnapRef installation path contains a filesystem link: " + str(item))
+
+
 def read_small(url):
-    with urlopen(url, timeout=45) as response:
+    with publisher_stream(url, timeout=45) as response:
         data = response.read(256 * 1024 + 1)
     if len(data) > 256 * 1024:
         raise ValueError("Pinned inference text file exceeded 256 KiB: " + url)
@@ -88,7 +123,7 @@ def inference_files():
 def download_weight(target):
     size = 0
     observed = hashlib.sha256()
-    with urlopen(WEIGHT_URL, timeout=90) as incoming, target.open("xb") as outgoing:
+    with publisher_stream(WEIGHT_URL, timeout=90) as incoming, target.open("xb") as outgoing:
         while block := incoming.read(1024 * 1024):
             size += len(block)
             if size > WEIGHT_SIZE:
@@ -104,16 +139,20 @@ def install(install_root, *, acknowledge_terms=False):
     # weights. This confirmation is not a separate commercial licence grant.
     if acknowledge_terms is not True:
         raise ValueError(TERMS_NOTICE)
-    root = Path(install_root).resolve(strict=True)
+    supplied = Path(install_root).absolute()
+    check_install_path(supplied)
+    root = supplied.resolve(strict=True)
     if root == Path(root.anchor):
         raise ValueError("An explicit standalone LAKIS installation is required")
     if not (root / "ComfyUI/main.py").is_file() or not (root / "python_embeded/python.exe").is_file():
         raise ValueError("Target is not a standalone LAKIS installation")
-    files = inference_files()
     node_parent = root / "ComfyUI/custom_nodes"
     node = node_parent / "snapref"
     weight_parent = root / "ComfyUI/models/loras"
     weight = weight_parent / WEIGHT_NAME
+    for path in (weight, node, *(node / name for name in (*SOURCE_FILES, *WEIGHT_NOTICES))):
+        check_install_path(path)
+    files = inference_files()
     node_existing = node.exists()
     if node_existing:
         for name, expected in files.items():
@@ -138,10 +177,12 @@ def install(install_root, *, acknowledge_terms=False):
             download_weight(staged_weight)
             # Recheck the exact destination rather than replace a concurrently
             # installed or user-provided file.
+            check_install_path(weight)
             if weight.exists():
                 raise FileExistsError("SnapRef model appeared during download; destination preserved")
             staged_weight.rename(weight)
         if not node_existing:
+            check_install_path(node)
             if node.exists():
                 raise FileExistsError("SnapRef package appeared during installation; destination preserved")
             package.rename(node)

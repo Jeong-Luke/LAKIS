@@ -1327,7 +1327,8 @@ class Handler(SimpleHTTPRequestHandler):
         if not self._authorize_api_request():
             return
         if urlparse(self.path).path == "/api/anima-reference":
-            self._send_json(200, anima_reference.configuration(COMFY_ROOT, _comfy_object_info()))
+            self._send_json(200, {**anima_reference.configuration(COMFY_ROOT, _comfy_object_info()),
+                                  "consent": anima_reference.consent_status(UI_STATE_PATH)})
             return
         if urlparse(self.path).path == "/api/anima-reference-image":
             if not anima_reference.experimental():
@@ -1596,6 +1597,12 @@ class Handler(SimpleHTTPRequestHandler):
         if not self._authorize_api_request():
             return
         if scene_controls.handle_post(self, UI_STATE_PATH.parent):
+            return
+        if self.path == "/api/anima-reference-consent":
+            try:
+                self._send_json(200, anima_reference.accept_terms(UI_STATE_PATH, self._read_json(2048)))
+            except (ValueError, OSError) as error:
+                self._send_json(400, {"ok": False, "error": str(error)})
             return
         if self.path == "/api/inpaint-model-notice":
             try:

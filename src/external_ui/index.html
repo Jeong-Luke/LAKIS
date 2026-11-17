@@ -49,7 +49,7 @@
   <link rel="stylesheet" href="image-history.css?v=20261005-library-pagination">
   <link rel="stylesheet" href="moss-mode.css?v=engine-easter-egg-1">
   <link rel="stylesheet" href="moss-regions.css?v=bounding-box-cards-1">
-  <link rel="stylesheet" href="anima-reference.css?v=per-reference-target-1">
+  <link rel="stylesheet" href="anima-reference.css?v=reference-consent-1">
   <link rel="stylesheet" href="lakis-link-download.css?v=8.0.2">
   <link rel="stylesheet" href="desktop-window.css?v=8.1.0">
   <link rel="stylesheet" href="lakis-link-mobile.css?v=20260913-link-1">
@@ -234,6 +234,7 @@
             <div class="panel-heading">
               <div><h2 id="animaReferenceTitle" class="section-title-accent">레퍼런스</h2><small class="inpaint-dev-badge">BETA</small></div>
               <div class="anima-reference-heading-actions">
+                <button id="animaReferenceConsentReview" class="mini-button" type="button" aria-haspopup="dialog" aria-controls="animaReferenceConsent" hidden disabled>이용 안내 다시 보기</button>
                 <button id="animaReferenceToggle" class="lora-switch" type="button" aria-label="레퍼런스 켜기" aria-pressed="false" disabled></button>
               </div>
             </div>
@@ -553,6 +554,36 @@
     </section>
   </div>
   <div id="wildcardOverlay" class="wildcard-overlay" hidden><section class="wildcard-card" role="dialog" aria-modal="true" aria-labelledby="wildcardTitle"><header><div><span>LAKIS</span><h2 id="wildcardTitle">와일드카드</h2></div><button id="wildcardClose" type="button" aria-label="닫기">×</button></header><nav><button type="button" data-wildcard-source="BUILT_IN" class="active">기본 제공</button><button type="button" data-wildcard-source="USER">내 와일드카드</button></nav><input id="wildcardSearch" type="search" placeholder="와일드카드 검색"><div class="wildcard-browser"><div id="wildcardList" class="wildcard-list"></div><div class="wildcard-preview"><div class="wildcard-selection-head"><div><strong id="wildcardSelectionName">목록에서 선택하세요</strong><small id="wildcardSelectionMeta"></small><small id="wildcardUseCount"></small></div><div><button id="wildcardIncludeAll" type="button">전체 포함</button><button id="wildcardExcludeAll" type="button">전체 해제</button><button id="wildcardReset" type="button">초기화</button></div></div><div id="wildcardEntries" class="wildcard-entry-list"></div></div><aside><h3>사용 중인 와일드카드</h3><div id="activeWildcards" class="active-wildcard-list"><small>프롬프트에 삽입된 와일드카드가 없습니다.</small></div><code id="wildcardToken">__name__</code><button id="wildcardInsert" type="button" disabled>프롬프트에 삽입</button></aside></div><footer><button id="wildcardFolder" type="button">폴더 열기</button><button id="wildcardRefresh" type="button">새로고침</button><span id="wildcardStatus"></span></footer></section></div>
+  <dialog id="animaReferenceConsent" class="anima-reference-warning error-dialog-card"
+    role="alertdialog" aria-labelledby="animaReferenceConsentTitle"
+    aria-describedby="animaReferenceConsentMessage">
+    <h2 id="animaReferenceConsentTitle">
+      <span class="anima-reference-warning-icon" aria-hidden="true">⚠︎</span>
+      <span>중요</span>
+    </h2>
+    <p id="animaReferenceConsentMessage">
+      <span class="paragraph">레퍼런스 기능에 사용되는 <strong>snapref_v2a.safetensors</strong>는<br>
+      <strong>CircleStone Labs Non-Commercial License v1.2</strong><br>
+      라이선스로 제공되고 있습니다.</span>
+      <span class="paragraph">레퍼런스 기능을 사용한 <strong>유료 이미지 생성 서비스 제공,<br>
+      기능 판매·임대 등 상업적 이용 및 프로덕션 운영</strong>은<br>
+      별도 상업용 허가 없이 <strong>엄격히 금지됩니다.</strong></span>
+    </p>
+    <p class="license-detail">
+      생성물의 이용 권리는 모델 사용 조건과 구분됩니다.
+      <a href="https://huggingface.co/0ppxnhximxr/snapref-v2a/blob/e6d6a21e4d56faae4454a1cc9bfd065d87358bf2/LICENSE.md"
+        target="_blank" rel="noopener noreferrer">라이선스 원문 보기</a>
+    </p>
+    <p id="animaReferenceConsentError" role="alert" hidden></p>
+    <label for="acceptConsent">
+      <span>레퍼런스 기능의 상업적 이용 불가에 대해 이해했으며 동의합니다</span>
+      <input id="acceptConsent" type="checkbox">
+    </label>
+    <div class="consent-actions">
+      <button id="cancelConsent" class="cancel" type="button">취소</button>
+      <button id="confirmConsent" type="button" disabled>확인</button>
+    </div>
+  </dialog>
   <link rel="stylesheet" href="scene-controls.css?v=output-mode-toolbar-3">
   <link rel="stylesheet" href="precision-prompts.css?v=combined-pose-only-1">
   <link rel="stylesheet" href="precision-pose-controls.css?v=combined-controls-1">
@@ -593,7 +624,7 @@
   <script src="moss-regions.js?v=pose-box-editor-1"></script>
   <script src="generation-clock.js?v=1"></script>
   <script src="app.js?v=prompt-modes-1"></script>
-  <script src="anima-reference.js?v=regional-speed-1"></script>
+  <script src="anima-reference.js?v=reference-consent-1"></script>
   <script src="scene-controls.js?v=regional-reference-target-1"></script>
   <script src="wildcard-control.js?v=20261006-exclude-all"></script>
   <script src="advanced-node-settings.js?v=multi-reference-1"></script>

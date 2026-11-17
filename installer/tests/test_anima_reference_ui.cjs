@@ -9,6 +9,10 @@ const referenceSource = fs.readFileSync(path.join(uiPath, "anima-reference.js"),
 const appSource = fs.readFileSync(path.join(uiPath, "app.js"), "utf8");
 const html = fs.readFileSync(path.join(uiPath, "index.html"), "utf8");
 const DEFAULTS = { enabled: false, mode: "cs", fidelity: 1, ref_megapixels: 1, experimental_forecast: false, references: [{ image_name: "", strength: 0 }] };
+const POLICY = "snapref-test-policy-v1";
+const READY = { experimental: true, ready: true, missing: [], defaults: DEFAULTS };
+const accepted = { accepted: true, policy_id: POLICY };
+const firstUse = { ...READY, consent: { accepted: false, policy_id: POLICY } };
 const plain = value => JSON.parse(JSON.stringify(value));
 const settle = () => new Promise(resolve => setImmediate(resolve));
 
@@ -200,19 +204,26 @@ function buildDocument() {
   add.textContent = "＋";
   const statusEl = el("p", { id: "animaReferenceStatus", class: "anima-reference-status", role: "status" });
   rowHeading.appendChild(add);
-  const heading = el("div", { class: "panel-heading" }, [toggle]);
+  const review = el("button", { id: "animaReferenceConsentReview", hidden: "", disabled: "" });
+  const heading = el("div", { class: "panel-heading" }, [review, toggle]);
   const forecast = el("select", { id: "animaReferenceForecast", disabled: "" });
   forecast.value = "off";
   const common = el("div", { class: "anima-reference-common-settings" }, [
     el("label", {}, [megapixels]), el("label", {}, [fidelity]), el("label", {}, [forecast]),
   ]);
   const panel = el("section", { id: "animaReferencePanel", class: "anima-reference-panel", hidden: "" }, [heading, statusEl, common, rows]);
-  const root = el("div", { id: "test-root" }, [panel]);
+  const notice = el("dialog", { id: "animaReferenceConsent" }, [
+    el("input", { id: "acceptConsent", type: "checkbox" }),
+    el("button", { id: "confirmConsent", disabled: "" }),
+    el("button", { id: "cancelConsent" }),
+    el("p", { id: "animaReferenceConsentError", hidden: "" }),
+  ]);
+  const root = el("div", { id: "test-root" }, [panel, notice]);
   root.isDocumentRoot = true;
   return { root, panel, toggle, add, statusEl, rows, body };
 }
 
-function harness(status = { experimental: true, ready: true, missing: [], defaults: DEFAULTS }, options = {}) {
+function harness(status = { ...READY, consent: accepted }, options = {}) {
   const built = buildDocument();
   const { root, panel, toggle, add, statusEl, rows } = built;
   const byId = id => {
@@ -271,6 +282,10 @@ function harness(status = { experimental: true, ready: true, missing: [], defaul
     },
     fetch: async (url, request = {}) => {
       calls.push({ url, ...request });
+      if (url === "/api/anima-reference-consent" && request.method === "POST") {
+        if (options.saveConsent) return options.saveConsent();
+        return { ok: true, json: async () => ({ accepted: true, policy_id: status.consent.policy_id }) };
+      }
       if (request.method === "POST") {
         if (options.upload) return options.upload(url, request);
         return { ok: true, json: async () => ({
@@ -286,6 +301,7 @@ function harness(status = { experimental: true, ready: true, missing: [], defaul
   vm.createContext(context);
   vm.runInContext(appSource.slice(0, appSource.indexOf("function normalizeContinuousCount(")), context);
   const state = vm.runInContext("state", context);
+  if (options.initialReference) state.anima_reference = structuredClone(options.initialReference);
   context.currentGenerationEngine = () => state.generation.engine;
   vm.runInContext(appSource.slice(
     appSource.indexOf("function persistedGenerationState("),
@@ -323,12 +339,169 @@ function harness(status = { experimental: true, ready: true, missing: [], defaul
     rowCount: () => rows.querySelectorAll(".anima-reference-body").length,
     setAnimaRegions: value => { animaRegions = structuredClone(value); },
     get controls() {
-      return root.querySelectorAll("button").concat(root.querySelectorAll("input")).concat(root.querySelectorAll("select"));
+      return panel.querySelectorAll("button").concat(panel.querySelectorAll("input")).concat(panel.querySelectorAll("select"));
     },
     savedCount: () => saves,
     persisted: () => plain(context.persistedGenerationState()),
   };
 }
+
+function noticeControls(h) {
+  const dialog = h.node("Consent");
+  return { dialog, checkbox: dialog.querySelector("#acceptConsent"), confirm: dialog.querySelector("#confirmConsent"), cancel: dialog.querySelector("#cancelConsent") };
+}
+
+test("the standalone notice uses the approved copy, icon, license link and checkbox before actions", () => {
+  const dialog = html.match(/<dialog id="animaReferenceConsent"[\s\S]*?<\/dialog>/)[0];
+  const text = dialog.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+  assert.equal(text, "⚠︎ 중요 레퍼런스 기능에 사용되는 snapref_v2a.safetensors는 CircleStone Labs Non-Commercial License v1.2 라이선스로 제공되고 있습니다. 레퍼런스 기능을 사용한 유료 이미지 생성 서비스 제공, 기능 판매·임대 등 상업적 이용 및 프로덕션 운영은 별도 상업용 허가 없이 엄격히 금지됩니다. 생성물의 이용 권리는 모델 사용 조건과 구분됩니다. 라이선스 원문 보기 레퍼런스 기능의 상업적 이용 불가에 대해 이해했으며 동의합니다 취소 확인");
+  assert.ok(dialog.includes('href="https://huggingface.co/0ppxnhximxr/snapref-v2a/blob/e6d6a21e4d56faae4454a1cc9bfd065d87358bf2/LICENSE.md"'));
+  assert.match(dialog, /<label for="acceptConsent">[\s\S]*?<input id="acceptConsent" type="checkbox">[\s\S]*?class="consent-actions"/);
+});
+
+test("first enable waits for explicit, policy-matched server confirmation; review never saves or enables", async () => {
+  let finish;
+  const h = harness(firstUse, { saveConsent: () => new Promise(resolve => { finish = resolve; }) });
+  await settle();
+  const { dialog, checkbox, confirm, cancel } = noticeControls(h);
+  await h.node("Toggle").click();
+  assert.equal(dialog.open, true);
+  assert.equal(checkbox.checked, false);
+  assert.equal(confirm.disabled, true);
+  await confirm.fire("click");
+  assert.equal(h.calls.length, 1);
+  checkbox.checked = true;
+  await checkbox.fire("change");
+  const save = confirm.click();
+  await confirm.fire("click");
+  assert.equal(cancel.disabled, true);
+  assert.equal((await dialog.fire("cancel")).defaultPrevented, true);
+  assert.equal(h.api.forGeneration({ engine: "anima" }).enabled, false);
+  assert.equal(h.api.snapshot().enabled, false);
+  assert.equal(h.changes.length, 0);
+  assert.deepEqual(h.calls.map(c => [c.url, c.method || "GET"]), [
+    ["/api/anima-reference", "GET"], ["/api/anima-reference-consent", "POST"],
+  ]);
+  assert.deepEqual(JSON.parse(h.calls[1].body), accepted);
+  finish({ ok: true, json: async () => accepted });
+  await save;
+  assert.equal(dialog.open, false);
+  assert.equal(h.api.forGeneration({ engine: "anima" }).enabled, true);
+  assert.equal(h.changes.length, 1);
+  assert.equal(h.node("Warning"), null);
+  await h.node("Toggle").click();
+  assert.equal(h.node("ConsentReview").hidden, false);
+  await h.node("ConsentReview").click();
+  assert.equal(dialog.open, true);
+  assert.equal(checkbox.checked, true);
+  await confirm.click();
+  assert.equal(dialog.open, false);
+  assert.equal(h.api.snapshot().enabled, false);
+  await h.node("Toggle").click();
+  assert.equal(h.api.snapshot().enabled, true);
+  assert.equal(h.calls.length, 2);
+  await h.node("Add").click();
+  assert.equal(h.node("Warning").open, true);
+});
+
+test("cancel and Escape discard the checkbox and never post, edit, or enable", async () => {
+  const h = harness(firstUse, { session: new Map([["lakis:multi-reference-warning-dismissed", "1"]]) });
+  await settle();
+  const { dialog, checkbox, confirm, cancel } = noticeControls(h);
+  for (const escape of [false, true]) {
+    await h.node("Toggle").click();
+    assert.equal(dialog.open, true);
+    assert.equal(checkbox.checked, false);
+    assert.equal(confirm.disabled, true);
+    checkbox.checked = true;
+    await checkbox.fire("change");
+    if (escape) {
+      assert.equal((await dialog.fire("cancel")).defaultPrevented, false);
+      dialog.close(); // Native default action of an uncanceled dialog cancel event.
+    } else await cancel.click();
+    assert.equal(dialog.open, false);
+    assert.equal(h.api.snapshot().enabled, false);
+    assert.equal(h.changes.length, 0);
+    assert.equal(h.calls.length, 1);
+  }
+});
+
+test("startup and persisted restore cannot supply consent, including for changed or malformed terms", async () => {
+  const saved = { ...DEFAULTS, enabled: true, mode: "char", fidelity: 0.45, ref_megapixels: 2, experimental_forecast: true,
+    consent: accepted, references: [{ image_name: "keep.png", strength: -0.5, target_type: "box", target_id: "box", note: "keep" }] };
+  const off = { ...saved, enabled: false };
+  for (const record of [undefined, { accepted: "true", policy_id: POLICY }, { accepted: true, policy_id: " " }, { accepted: false, policy_id: "revised" }]) {
+    const h = harness({ ...READY, consent: record }, { initialReference: saved });
+    assert.deepEqual(plain(h.api.snapshot()), off);
+    assert.equal(h.api.forGeneration({ engine: "anima" }).enabled, false);
+    await settle();
+    assert.deepEqual(h.persisted().anima_reference, off);
+    h.context.applyPersistedGenerationState({ ...h.persisted(), anima_reference: saved });
+    assert.deepEqual(plain(h.api.forGeneration({ engine: "anima" })), off);
+    assert.deepEqual(plain(h.api.snapshot()), off);
+    assert.equal(h.node("Panel").classList.contains("is-enabled"), false);
+    assert.equal(h.node("Toggle").getAttribute("aria-pressed"), "false");
+    assert.equal(h.changes.length, 0);
+    assert.ok(h.row(0).file.disabled);
+    await h.node("Toggle").click();
+    const { dialog, checkbox, confirm } = noticeControls(h);
+    if (record?.policy_id === "revised") {
+      assert.equal(dialog.open, true);
+      checkbox.checked = true;
+      await checkbox.fire("change");
+      await confirm.click();
+      assert.deepEqual(JSON.parse(h.calls[1].body), { accepted: true, policy_id: "revised" });
+      assert.deepEqual(plain(h.api.snapshot()), saved);
+    } else {
+      assert.equal(h.node("Toggle").disabled, true);
+      assert.ok(!dialog.open);
+      assert.equal(h.calls.length, 1);
+    }
+  }
+});
+
+test("failed saves and mismatched acknowledgements leave the notice open and references off", async () => {
+  for (const saveConsent of [
+    async () => { throw new Error("offline"); },
+    async () => ({ ok: false, status: 409, json: async () => accepted }),
+    async () => ({ ok: true, json: async () => { throw new SyntaxError("invalid JSON"); } }),
+    ...[{}, { accepted: false, policy_id: POLICY }, { accepted: "true", policy_id: POLICY }, { accepted: true, policy_id: "other" }]
+      .map(result => async () => ({ ok: true, json: async () => result })),
+  ]) {
+    const h = harness(firstUse, { saveConsent });
+    await settle();
+    await h.node("Toggle").click();
+    const { dialog, checkbox, confirm, cancel } = noticeControls(h);
+    checkbox.checked = true;
+    await checkbox.fire("change");
+    await confirm.click();
+    assert.equal(dialog.open, true);
+    assert.equal(h.node("ConsentError").hidden, false);
+    assert.equal(checkbox.checked, false);
+    assert.equal(confirm.disabled, true);
+    assert.equal(cancel.disabled, false);
+    assert.equal(h.api.forGeneration({ engine: "anima" }).enabled, false);
+    assert.equal(h.node("ConsentReview").hidden, true);
+    assert.equal(h.changes.length, 0);
+  }
+});
+
+test("consent acknowledged during restore does not enable the replacement profile", async () => {
+  let finish;
+  const h = harness(firstUse, { saveConsent: () => new Promise(resolve => { finish = resolve; }) });
+  await settle();
+  await h.node("Toggle").click();
+  const { checkbox, confirm } = noticeControls(h);
+  checkbox.checked = true;
+  await checkbox.fire("change");
+  const pending = confirm.click();
+  const restored = { ...DEFAULTS, references: [{ image_name: "replacement.png", strength: 0.3 }] };
+  h.api.restore(restored);
+  finish({ ok: true, json: async () => accepted });
+  await pending;
+  assert.deepEqual(plain(h.api.snapshot()), restored);
+  assert.equal(h.changes.length, 0);
+});
 
 test("adding a second reference shows the requested modal and requires confirmation", async () => {
   const h = harness();
@@ -610,11 +783,11 @@ test("experiment visibility, missing dependencies and engine changes never erase
     { experimental: false, ready: true, missing: [] },
     { experimental: true, ready: false, missing: ["SnapRef nodes", "reference model"] },
   ]) {
-    const h = harness(status);
+    const h = harness({ ...status, consent: accepted });
     h.api.restore({ ...DEFAULTS, enabled: true, references: [{ image_name: "keep.png", strength: 0 }] });
     await settle();
     assert.equal(h.node("Panel").hidden, !status.experimental);
-    assert.ok(h.controls.every(node => node.disabled));
+    assert.ok(h.controls.filter(node => node !== h.node("ConsentReview")).every(node => node.disabled));
     if (status.experimental) {
       assert.match(h.node("Status").textContent, /SnapRef nodes/);
       assert.match(h.node("Status").textContent, /reference model/);
@@ -638,7 +811,7 @@ test("experiment visibility, missing dependencies and engine changes never erase
   assert.deepEqual(h.calls.map(call => [call.url, call.method || "GET"]), [["/api/anima-reference", "GET"]]);
 });
 
-test("availability failure fails closed without losing restored state", async () => {
+test("availability failure fails closed without losing restored images or settings", async () => {
   const h = harness(undefined, { get: async () => ({ ok: false, status: 503 }) });
   h.api.restore({ ...DEFAULTS, enabled: true, references: [{ image_name: "keep.png", strength: 0 }] });
   await settle();
@@ -646,7 +819,7 @@ test("availability failure fails closed without losing restored state", async ()
   assert.equal(h.node("Panel").hidden, true);
   assert.ok(h.controls.every(node => node.disabled));
   assert.equal(h.api.forGeneration({ engine: "anima" }).enabled, false);
-  assert.equal(h.api.snapshot().enabled, true);
+  assert.deepEqual(plain(h.api.snapshot()), { ...DEFAULTS, references: [{ image_name: "keep.png", strength: 0 }] });
 });
 
 test("meaningful control edits emit once, persist independently, and ignore equivalent or empty numeric changes", async () => {

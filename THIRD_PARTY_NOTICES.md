@@ -16,6 +16,19 @@ pinned revision and verifies their bytes. Upstream archives are installed with
 their licence files intact. Except where stated otherwise, LAKIS does not claim
 authorship or ownership of these components.
 
+### 8.1.3 candidate: SnapRef pins unchanged
+
+The 8.1.3 candidate keeps the pinned SnapRef sources, hashes, publisher
+URLs, and license/notice references listed below. The code and adapter
+remain excluded from the bundled set and are not automatically fetched by
+the installer/updater; the optional helper runs only after explicit terms
+acknowledgement, downloads directly from the official publisher, verifies
+bytes, preserves the pinned license/notice files, and never overwrites a
+conflicting existing file. The v1.2 adapter terms are conditional
+non-commercial terms, not an unconditional redistribution ban and not a
+blanket output-sale ban; output permissions are separate and base-model
+terms still apply. See `COMPLIANCE.md`.
+
 ## Core platform and extensions
 
 ### 8.1.2 candidate: MOSS model downloads

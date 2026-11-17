@@ -19,6 +19,17 @@ SPEC.loader.exec_module(INSTALLER)
 
 
 class SnapRefTermsTests(unittest.TestCase):
+    def test_official_hosts_only(self):
+        for source, target in [
+                ("huggingface.co", "https://cas-bridge.xethub.hf.co/data"),
+                ("raw.githubusercontent.com", "https://raw.githubusercontent.com/pinned")]:
+            INSTALLER.check_origin(source, target)
+        for url in ("https://example.invalid/model", "http://huggingface.co/model",
+                    "https://user@huggingface.co/model", "https://huggingface.co:444/model",
+                    "https://hf.co.example.invalid/model"):
+            with self.subTest(url=url), self.assertRaises(ValueError):
+                INSTALLER.check_origin("huggingface.co", url)
+
     def test_missing_acknowledgement_fails_before_paths_or_network(self):
         with patch.object(INSTALLER, "inference_files") as files, \
              patch.object(INSTALLER, "download_weight") as download, \

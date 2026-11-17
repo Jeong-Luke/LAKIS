@@ -19,6 +19,12 @@ internal sealed class UpdaterForm : Form
     private const string RcReleaseBaseVariable = "LAKIS_RC_RELEASE_BASE_URL";
     private const string RcManifestVariable = "LAKIS_RC_MANIFEST_URL";
     private const string RcRuntimeManifestVariable = "LAKIS_RC_RUNTIME_MANIFEST_URL";
+    private const string SnapRefOfferVersion = "8.1.3";
+    private const string SnapRefInstallerPath = "ComfyUI/LAKIS/install_snapref.py";
+    private const string SnapRefNodePath = "ComfyUI/custom_nodes/snapref/__init__.py";
+    private const string SnapRefWeightPath = "ComfyUI/models/loras/snapref_v2a.safetensors";
+    private const string SnapRefPublisherFiles =
+        "https://huggingface.co/0ppxnhximxr/snapref-v2a/blob/e6d6a21e4d56faae4454a1cc9bfd065d87358bf2/";
     private readonly Label status = new Label();
     private readonly Label copyright;
     private readonly LakisProgressBar progress = new LakisProgressBar();
@@ -28,6 +34,7 @@ internal sealed class UpdaterForm : Form
     private readonly RuntimeHandoff runtimeHandoff;
     private readonly bool recoverRuntime;
     private readonly bool continueRuntime;
+    private readonly bool interactiveSnapRef;
     private bool runtimeBusy;
     private System.Threading.CancellationTokenSource preparationCancellation;
     private string pendingSelfUpdate;
@@ -42,13 +49,14 @@ internal sealed class UpdaterForm : Form
         : this(root, launchWhenFinished, null, false) { }
 
     internal UpdaterForm(string root, bool launchWhenFinished, RuntimeHandoff handoff, bool recover,
-        bool continueRuntimeUpdate = false)
+        bool continueRuntimeUpdate = false, bool interactiveSnapRefSession = false)
     {
         targetRoot = Path.GetFullPath(root);
         launchAfterUpdate = launchWhenFinished;
         runtimeHandoff = handoff;
         recoverRuntime = recover;
         continueRuntime = continueRuntimeUpdate;
+        interactiveSnapRef = interactiveSnapRefSession;
         Text = "LAKIS 업데이트";
         ClientSize = new Size(760, 430); FormBorderStyle = FormBorderStyle.None;
         MaximizeBox = false; StartPosition = FormStartPosition.CenterScreen;
@@ -181,7 +189,22 @@ internal sealed class UpdaterForm : Form
             if (CompareVersions(manifest.version, current) <= 0)
             {
                 status.Text = "최신 버전입니다. (v" + current + ")";
-                MessageBox.Show("현재 LAKIS가 최신 버전입니다.", "LAKIS 업데이트", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                if (interactiveSnapRef && !launchAfterUpdate && runtimeHandoff == null && !continueRuntime &&
+                    current == SnapRefOfferVersion)
+                {
+                    // Merely checking the version must not prompt for terms or start a download.
+                    update.Text = "SnapRef 다운로드…";
+                    update.SetBounds(168, 350, 190, 38);
+                    update.Click += (_, __) => {
+                        if (ShowSnapRefOffer(targetRoot, this))
+                        {
+                            status.Text = "최신 버전입니다. · SnapRef 파일 준비 완료";
+                            update.Visible = false;
+                        }
+                    };
+                    update.Visible = true;
+                }
+                else MessageBox.Show("현재 LAKIS가 최신 버전입니다.", "LAKIS 업데이트", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
             if (runtimeHandoff == null && !launchAfterUpdate && !continueRuntime && MessageBox.Show(
@@ -235,6 +258,7 @@ internal sealed class UpdaterForm : Form
                 string arguments = "--finish-self-update \"" + targetRoot + "\" \"" + manifest.version + "\" " + Process.GetCurrentProcess().Id;
                 arguments += " --self-name=" + Path.GetFileName(Application.ExecutablePath);
                 if (launchAfterUpdate) arguments += " --launch-after-update";
+                if (!interactiveSnapRef) arguments += " --headless";
                 var helperInfo = new ProcessStartInfo(pendingSelfUpdate, arguments) { UseShellExecute = false, WorkingDirectory = Path.GetTempPath() };
                 CopyRcEnvironment(helperInfo);
                 Process.Start(helperInfo);
@@ -471,7 +495,7 @@ internal sealed class UpdaterForm : Form
             p.StartsWith("third_party_licenses/", StringComparison.OrdinalIgnoreCase) ||
             p.StartsWith("ComfyUI/LAKIS/external_ui/", StringComparison.OrdinalIgnoreCase) ||
             String.Equals(p, "ComfyUI/LAKIS/STOP_AUTOMATION", StringComparison.OrdinalIgnoreCase) ||
-            String.Equals(p, "ComfyUI/LAKIS/install_snapref.py", StringComparison.OrdinalIgnoreCase) ||
+            String.Equals(p, SnapRefInstallerPath, StringComparison.OrdinalIgnoreCase) ||
             String.Equals(p, "ComfyUI/LAKIS/sync_runtime_workflow.py", StringComparison.OrdinalIgnoreCase) ||
             String.Equals(p, "ComfyUI/LAKIS/workflows/LAKIS_runtime_api_v7.4.json", StringComparison.OrdinalIgnoreCase) ||
             String.Equals(p, "ComfyUI/LAKIS/workflows/LAKIS_runtime_visual_v7.4.json", StringComparison.OrdinalIgnoreCase) ||
@@ -700,6 +724,150 @@ internal sealed class UpdaterForm : Form
         }));
     }
 
+    internal static bool OfferSnapRefDownload(string root, Func<DialogResult> decide,
+        Action<ProcessStartInfo> download, Action<string> warn)
+    {
+        try
+        {
+            if (!File.Exists(SafeCombine(root, "LAKIS.exe")) ||
+                !File.Exists(SafeCombine(root, "ComfyUI/main.py")))
+                throw new InvalidDataException("독립형 LAKIS 설치를 찾을 수 없습니다.");
+            string versionPath = SafeCombine(root, "VERSION");
+            if (File.ReadAllText(versionPath).Trim() != SnapRefOfferVersion) return false;
+            // Presence alone cannot prove the installed node and weight are intact.
+            // The helper reuses matching files and refuses conflicting files.
+            if (decide() != DialogResult.Yes) return false;
+
+            // Recheck the installed paths after the modal decision; never run a
+            // staged script, a linked path, or a Python found on PATH.
+            UpdateProtocol.EnsureNoPendingRuntimeTransition(root);
+            if (File.ReadAllText(SafeCombine(root, "VERSION")).Trim() != SnapRefOfferVersion)
+                throw new InvalidDataException("설치 버전이 변경되었습니다.");
+            SafeCombine(root, SnapRefNodePath);
+            SafeCombine(root, SnapRefWeightPath);
+            string python = SafeCombine(root, "python_embeded/python.exe");
+            string script = SafeCombine(root, ValidateRelativePath(SnapRefInstallerPath));
+            if (!File.Exists(python) || !File.Exists(script))
+                throw new FileNotFoundException("설치된 Python 또는 SnapRef 다운로드 도구를 찾을 수 없습니다.");
+            var info = new ProcessStartInfo(python, "-I " + RuntimeBundleInstaller.Quote(script) +
+                " --install-root " + RuntimeBundleInstaller.Quote(root) + " --acknowledge-snapref-terms")
+            {
+                UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = root
+            };
+            download(info);
+            return true;
+        }
+        catch (Exception error)
+        {
+            warn("LAKIS 업데이트는 완료되었습니다. 선택 항목인 SnapRef만 준비하지 못했습니다.\n" +
+                "필요하면 LAKIS 업데이터를 직접 열고 ‘SnapRef 다운로드’를 다시 선택해 주세요.\n\n" + error.Message);
+            return false;
+        }
+    }
+
+    private static bool ShowSnapRefOffer(string root, IWin32Window owner)
+    {
+        return OfferSnapRefDownload(root, () => ShowSnapRefDecision(owner),
+            info => RunSnapRefDownload(owner, info),
+            message => MessageBox.Show(owner, message, "SnapRef 다운로드 안내", MessageBoxButtons.OK, MessageBoxIcon.Warning));
+    }
+
+    private static Form CreateSnapRefDialog()
+    {
+        return new Form {
+            Text = "선택 사항 · SnapRef 다운로드", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Font = SystemFonts.MessageBoxFont, FormBorderStyle = FormBorderStyle.FixedDialog,
+            MaximizeBox = false, MinimizeBox = false, StartPosition = FormStartPosition.CenterScreen
+        };
+    }
+
+    private static DialogResult ShowSnapRefDecision(IWin32Window owner)
+    {
+        using (var dialog = CreateSnapRefDialog())
+        {
+            var content = new TableLayoutPanel { AutoSize = true, ColumnCount = 1, Dock = DockStyle.Fill, Padding = new Padding(16) };
+            content.Controls.Add(new Label {
+                AutoSize = true, MaximumSize = new Size(520, 0),
+                Text = "SnapRef는 레퍼런스 기능에 필요한 선택 항목입니다. 건너뛰어도 LAKIS는 계속 사용할 수 있습니다.\n\n" +
+                    "추론 코드는 Apache-2.0, v2a 모델 가중치는 CircleStone Labs Non-Commercial License v1.2로 제공됩니다. " +
+                    "별도 허가 없이 상업적 이용이나 프로덕션 운영은 할 수 없습니다. " +
+                    "생성물의 이용 권리는 모델 사용 조건과 별개이며 기반 모델의 약관도 적용됩니다."
+            });
+            AddSnapRefLink(content, "공식 게시자 라이선스 원문", SnapRefPublisherFiles + "LICENSE.md");
+            AddSnapRefLink(content, "공식 게시자 고지문 (NOTICE)", SnapRefPublisherFiles + "NOTICE.txt");
+            content.Controls.Add(new Label {
+                AutoSize = true, MaximumSize = new Size(520, 0), Margin = new Padding(3, 10, 3, 6),
+                Text = "공식 약관을 검토하고 수락했다면 게시자로부터 별도로 다운로드할까요?\n" +
+                    "이 선택은 다운로드에만 적용되며 레퍼런스 기능 이용 동의로 저장되지 않습니다.\n" +
+                    "건너뛴 경우, v8.1.3이 최신일 때 업데이터를 직접 열어 다시 선택할 수 있습니다."
+            });
+            var skip = new Button { Text = "건너뛰기", AutoSize = true, DialogResult = DialogResult.No };
+            var accept = new Button { Text = "다운로드", AutoSize = true, DialogResult = DialogResult.Yes };
+            var buttons = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft };
+            buttons.Controls.AddRange(new Control[] { skip, accept });
+            content.Controls.Add(buttons);
+            dialog.Controls.Add(content);
+            dialog.CancelButton = skip;
+            dialog.ActiveControl = skip;
+            return dialog.ShowDialog(owner);
+        }
+    }
+
+    private static void AddSnapRefLink(Control parent, string label, string url)
+    {
+        var link = new LinkLabel { Text = label, AutoSize = true, Margin = new Padding(3, 6, 3, 0) };
+        link.LinkClicked += (_, __) => {
+            try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); }
+            catch (Exception error)
+            {
+                MessageBox.Show(link.FindForm(), url + "\n\n" + error.Message,
+                    "공식 게시자 링크를 열 수 없습니다", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        };
+        parent.Controls.Add(link);
+    }
+
+    private static void RunSnapRefDownload(IWin32Window owner, ProcessStartInfo info)
+    {
+        using (var dialog = CreateSnapRefDialog())
+        {
+            Exception failure = null;
+            dialog.ControlBox = false;
+            var content = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill,
+                FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(16) };
+            content.Controls.Add(new Label { Text = "공식 게시자에서 SnapRef를 다운로드하고 검증하는 중입니다…", AutoSize = true });
+            content.Controls.Add(new ProgressBar { Width = 330, Style = ProgressBarStyle.Marquee });
+            dialog.Controls.Add(content);
+            bool finished = false;
+            dialog.FormClosing += (_, args) => { if (!finished) args.Cancel = true; };
+            dialog.Shown += async (_, __) => {
+                try
+                {
+                    await Task.Run(() => WaitForSnapRefDownload(info));
+                }
+                catch (Exception error) { failure = error; }
+                finally { finished = true; dialog.Close(); }
+            };
+            dialog.ShowDialog(owner);
+            if (failure != null) throw failure;
+        }
+    }
+
+    internal static void WaitForSnapRefDownload(ProcessStartInfo info)
+    {
+        using (var process = Process.Start(info))
+        {
+            process.WaitForExit();
+            if (process.ExitCode != 0)
+                throw new IOException("다운로드 도구가 정상적으로 완료되지 않았습니다. 종료 코드: " + process.ExitCode);
+        }
+    }
+
+    private static bool SuppressSnapRef(string[] args)
+    {
+        return Array.Exists(args, value => value == "--headless" || value == "--repair");
+    }
+
     [STAThread]
     private static void Main(string[] args)
     {
@@ -732,10 +900,16 @@ internal sealed class UpdaterForm : Form
         if (String.IsNullOrWhiteSpace(root))
             root = File.Exists(Path.Combine(executableRoot, "VERSION")) ? executableRoot : installedRoot;
         bool continueRuntime = Array.Exists(args, value => value == "--continue-runtime-update");
-        Application.Run(new UpdaterForm(root, launchAfterUpdate, null, false, continueRuntime));
+        Application.Run(new UpdaterForm(root, launchAfterUpdate, null, false, continueRuntime,
+            Environment.UserInteractive && !SuppressSnapRef(args)));
     }
 
     private static void FinishSelfUpdate(string[] args)
+    {
+        FinishSelfUpdate(args, Environment.UserInteractive, root => ShowSnapRefOffer(root, null));
+    }
+
+    internal static void FinishSelfUpdate(string[] args, bool interactive, Action<string> offerDownload)
     {
         string root = Path.GetFullPath(args[1]);
         string version = args[2];
@@ -744,8 +918,15 @@ internal sealed class UpdaterForm : Form
         bool launch = Array.Exists(args, value => value == "--launch-after-update");
         string destination = null;
         string retiredExecutable = null;
+        string versionPath = Path.Combine(root, "VERSION");
+        ProcessStartInfo continuation;
+        bool offerSnapRef;
         try
         {
+            // Stock 8.1.2 sends its PID, but no new feature/consent flags.
+            // Read the source marker before publishing the new VERSION.
+            offerSnapRef = interactive && !SuppressSnapRef(args) && oldProcessId > 0 && version == SnapRefOfferVersion &&
+                File.Exists(versionPath) && File.ReadAllText(versionPath).Trim() == "8.1.2";
             string selfName = null;
             foreach (string value in args)
                 if (value.StartsWith("--self-name=", StringComparison.Ordinal)) selfName = value.Substring(12);
@@ -819,16 +1000,15 @@ internal sealed class UpdaterForm : Form
                 catch (Exception error) { last = error; System.Threading.Thread.Sleep(500); }
             }
             if (last != null) throw last;
-            ProcessStartInfo continuation = UpdateProtocol.IsRuntimeBridgeVersion(version)
+            continuation = UpdateProtocol.IsRuntimeBridgeVersion(version)
                 ? CreateRuntimeContinuation(root, launch) : null;
-            File.WriteAllText(Path.Combine(root, "VERSION"), version);
-            CreateOrRepairDesktopShortcut(root);
-            if (launch && continuation == null)
+            byte[] versionBytes = Encoding.UTF8.GetBytes(version);
+            using (var marker = new FileStream(versionPath, FileMode.Create, FileAccess.Write, FileShare.Read))
             {
-                var launcherInfo = new ProcessStartInfo(Path.Combine(root, "LAKIS.exe")) { UseShellExecute = false, WorkingDirectory = root };
-                CopyRcEnvironment(launcherInfo);
-                Process.Start(launcherInfo);
+                marker.Write(versionBytes, 0, versionBytes.Length);
+                marker.Flush(true);
             }
+            CreateOrRepairDesktopShortcut(root);
             if (oldProcess != null)
             {
                 try
@@ -841,7 +1021,6 @@ internal sealed class UpdaterForm : Form
             }
             if (!String.IsNullOrWhiteSpace(retiredExecutable))
                 try { File.Delete(retiredExecutable); } catch { }
-            if (continuation != null) Process.Start(continuation);
         }
         catch (Exception error)
         {
@@ -849,6 +1028,26 @@ internal sealed class UpdaterForm : Form
                 !String.IsNullOrWhiteSpace(retiredExecutable) && File.Exists(retiredExecutable))
                 try { File.Move(retiredExecutable, destination); } catch { }
             MessageBox.Show("업데이트 마무리에 실패했습니다.\n\n" + error.Message, "LAKIS 업데이트 오류", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            return;
+        }
+
+        // Optional work is outside the core error/rollback path and finishes
+        // (or is skipped) before any requested launcher restart.
+        if (offerSnapRef) offerDownload(root);
+        try
+        {
+            if (continuation != null) Process.Start(continuation);
+            else if (launch)
+            {
+                var launcherInfo = new ProcessStartInfo(Path.Combine(root, "LAKIS.exe")) { UseShellExecute = false, WorkingDirectory = root };
+                CopyRcEnvironment(launcherInfo);
+                Process.Start(launcherInfo);
+            }
+        }
+        catch (Exception error)
+        {
+            MessageBox.Show("업데이트는 적용되었지만 다음 단계를 시작하지 못했습니다.\n\n" + error.Message,
+                "LAKIS 업데이트 안내", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
     }
 

@@ -127,7 +127,7 @@ class ReleaseSourceContracts(unittest.TestCase):
         self.assertIn('File.Move(destination, retiredExecutable);',finish)
         self.assertLess(finish.index('File.Move(destination, retiredExecutable);'),finish.index('oldProcess.WaitForExit(1000)'))
         self.assertLess(finish.index('File.Copy(Application.ExecutablePath, destination, true)'),finish.index('oldProcess.Kill();'))
-        self.assertLess(finish.index('File.WriteAllText(Path.Combine(root, "VERSION"), version)'),finish.index('oldProcess.Kill();'))
+        self.assertLess(finish.index('marker.Flush(true)'),finish.index('oldProcess.Kill();'))
         self.assertIn('File.Move(retiredExecutable, destination);',finish)
         self.assertIn('Path.Combine(root, "LAKIS_Patcher.exe")',finish)
         self.assertIn('Path.Combine(root, "LAKIS_Updater.exe")',finish)
