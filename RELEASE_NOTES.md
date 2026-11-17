@@ -22,7 +22,7 @@ Windows·NVIDIA GPU 환경용 LAKIS 8.1.2입니다. GUI·CMD 설치기와 업데
 - [Windows 설치기](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.2/LAKIS_Setup.exe) · [CMD 설치기](https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.2/LAKIS_CMD_Installer_8.1.2.zip)
 - 기존 8.1.x 사용자는 앱의 업데이트 안내를 이용합니다. 모델·LoRA·설정·입력·출력·편집한 워크플로는 보존합니다.
 - Visual C++ 구성요소 처리, 한국어 Windows 로그, 바로가기 생성, 긴 경로 압축 해제와 복구 파일 목록을 보완했습니다.
-- exFAT·FAT32의 파일 식별 정보 문제로 안전한 업데이트를 보장할 수 없는 경우, 기존 파일을 교체하기 전에 안내하고 중단합니다. 실패 기록이나 복원용 폴더를 임��로 삭제하지 마세요.
+- exFAT·FAT32의 파일 식별 정보 문제로 안전한 업데이트를 보장할 수 없는 경우, 기존 파일을 교체하기 전에 안내하고 중단합니다. 실패 기록이나 복원용 폴더를 임의로 삭제하지 마세요.
 - 설치·업데이트·복구 패키지 모두 갱신된 `COMPLIANCE.md`와 서드파티 고지를 포함합니다.
 
 ## 선택형 SnapRef
