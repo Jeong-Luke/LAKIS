@@ -59,9 +59,12 @@ MOSS_MODELS = {
         "size": 336211292,
     },
 }
+SNAPREF_NODE = "ComfyUI/custom_nodes/snapref"
 PROTECTED_DIRECTORIES = (
     ".lakis", "ComfyUI/models", "ComfyUI/input", "ComfyUI/output",
     "ComfyUI/user", "ComfyUI/temp",
+    # Fetched from its publisher rather than bundled as release-owned code.
+    SNAPREF_NODE,
     "ComfyUI/custom_nodes/was-ns/workflows", "ComfyUI/custom_nodes/was-ns/cache",
     "ComfyUI/custom_nodes/comfyui-impact-pack/custom_wildcards",
 )
@@ -166,7 +169,7 @@ REQUIRED_FILES = (
 
 def required_model_specs(version: str) -> dict:
     """Keep legacy runtime recovery separate from the 8.1 MOSS dependency set."""
-    if not isinstance(version, str) or not re.fullmatch(r"\d+\.\d+\.\d+", version):
+    if not isinstance(version, str) or not re.fullmatch(r"\d+\.\d+\.\d+(?:\.\d+)?", version):
         raise ValueError("invalid model dependency version")
     return {**POSE_MODELS, **(MOSS_MODELS if tuple(map(int, version.split("."))) >= (8, 1, 0) else {})}
 
@@ -381,7 +384,7 @@ def runtime_files(root: Path, *, allow_user_data: bool, scopes=None):
 
 def _validate_identity(manifest: dict, expected_version: str) -> None:
     if (not isinstance(expected_version, str)
-            or not re.fullmatch(r"\d+\.\d+\.\d+", expected_version)):
+            or not re.fullmatch(r"\d+\.\d+\.\d+(?:\.\d+)?", expected_version)):
         raise ValueError("invalid LAKIS runtime version")
     if (manifest.get("schema") != 1 or manifest.get("product") != "LAKIS"
             or manifest.get("version") != expected_version):

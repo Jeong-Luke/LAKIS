@@ -20,7 +20,8 @@ internal sealed class UpdaterForm : Form
     private const string RcManifestVariable = "LAKIS_RC_MANIFEST_URL";
     private const string RcRuntimeManifestVariable = "LAKIS_RC_RUNTIME_MANIFEST_URL";
     private const string SnapRefSourceVersion = "8.1.3";
-    private const string SnapRefUpdateVersion = "8.1.3.1";
+    private const string SnapRefUpdateVersion = "8.1.3.2";
+    private const string PreviousSnapRefUpdateVersion = "8.1.3.1";
     private const string SnapRefInstallerPath = "ComfyUI/LAKIS/install_snapref.py";
     private const string SnapRefHelperUrl =
         "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.3.1/install_snapref.py";
@@ -28,6 +29,20 @@ internal sealed class UpdaterForm : Form
     private const string HotfixRuntimeUrl =
         "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/39abe580a8238b21f84dc190e568cf2e58bc4d72/manifests/update-v4-latest.json";
     private const string HotfixRuntimeSha256 = "8D9C048DB697A0D7BCF083158368A353DB6F3B71E88073DC81449BD47F9D6369";
+    private const string HotfixNoticePath = "COMPLIANCE.md";
+    private const string HotfixNoticeUrl =
+        "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.3.2/COMPLIANCE.md";
+    private const string HotfixNoticeSha256 = "3FA64308172926C32243445908E60420C9E5A3F5D4C39D0941292C12FF1126EA";
+    // Stock patchers install these UI assets before the handoff. The notice
+    // is a separate release asset because older patchers reject that path.
+    private static readonly KeyValuePair<string, string>[] HotfixUiPins = {
+        new KeyValuePair<string, string>("ComfyUI/LAKIS/external_ui/index.html",
+            "2AF6FD787082F7BDB725C5E63C0B13E7DD8E548868B55346872BF89C43097659"),
+        new KeyValuePair<string, string>("ComfyUI/LAKIS/external_ui/anima-reference.js",
+            "7D52046EAAA047A14212B88BA4BE5D9BB802E77530BB768EE00BD1C67AB0D7AE"),
+        new KeyValuePair<string, string>("ComfyUI/LAKIS/external_ui/anima-reference.css",
+            "BD530E31CB2348CEE809EA8FF2F426CEE0A3265988DBBE1E003603D6C73F0E79")
+    };
     private const string SnapRefPublisherFiles =
         "https://huggingface.co/0ppxnhximxr/snapref-v2a/blob/e6d6a21e4d56faae4454a1cc9bfd065d87358bf2/";
     private const string SnapRefUpdateDisclosure =
@@ -410,9 +425,15 @@ internal sealed class UpdaterForm : Form
     private void ApplyUpdate(UpdateManifest manifest)
     {
         UpdateProtocol.EnsureNoPendingRuntimeTransition(targetRoot);
-        UpdateProtocol.ValidateForInstallation(manifest, ReadCurrentVersion());
+        string current = ReadCurrentVersion();
+        UpdateProtocol.ValidateForInstallation(manifest, current);
         if (manifest.kind != "file-patch")
             throw new InvalidDataException("런타임 교체는 전용 엔진으로만 실행할 수 있습니다.");
+        if (manifest.version == SnapRefUpdateVersion && (!IsSnapRefUpdate(current, manifest.version) ||
+            !manifest.files.Any(file => String.Equals(
+                SafeCombine(targetRoot, ValidateRelativePath(file.path)), Application.ExecutablePath,
+                StringComparison.OrdinalIgnoreCase))))
+            throw new InvalidDataException("Invalid updater self-update target.");
         string work = Path.Combine(Path.GetTempPath(), "LAKIS_Update_" + Guid.NewGuid().ToString("N"));
         string stage = Path.Combine(work, "stage");
         string backup = SafeCombine(targetRoot, Path.Combine(".lakis", "rollback", manifest.version + "_" + DateTime.Now.ToString("yyyyMMdd_HHmmss")));
@@ -687,10 +708,15 @@ internal sealed class UpdaterForm : Form
 
     private void StopInstalledProcesses()
     {
+        StopInstalledProcesses(targetRoot);
+    }
+
+    private static void StopInstalledProcesses(string root)
+    {
         // A directory prefix does not prove ownership of Python/DEV/LUKIS.
         // Until exact owned-process shutdown is verified, fail closed instead
         // of terminating unrelated work. Allow a closing Launcher to exit.
-        string prefix = targetRoot.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        string prefix = root.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
         var remaining = new List<int>();
         int ownPid = Process.GetCurrentProcess().Id;
         for (int pass = 0; pass < 6; pass++)
@@ -726,12 +752,120 @@ internal sealed class UpdaterForm : Form
     private static bool IsSnapRefUpdate(string source, string target)
     {
         return target == SnapRefUpdateVersion &&
-            (source == SnapRefSourceVersion || NeedsHotfixRuntime(source));
+            (source == PreviousSnapRefUpdateVersion || source == SnapRefSourceVersion || NeedsHotfixRuntime(source));
     }
 
     private static bool NeedsHotfixRuntime(string source)
     {
         return source == "8.1.0" || source == "8.1.1" || source == "8.1.2";
+    }
+
+    private sealed class HotfixOverlayFile
+    {
+        internal string RelativePath, Hash, Temporary, Backup;
+        internal byte[] Bytes;
+        internal bool Created;
+    }
+
+    private static List<HotfixOverlayFile> CaptureHotfixOverlay(string root, bool replaceRuntime,
+        Action<string, string, string, string> fetch)
+    {
+        var overlay = new List<HotfixOverlayFile>();
+        using (var sha = SHA256.Create())
+        {
+            if (replaceRuntime)
+                foreach (var pin in HotfixUiPins)
+                {
+                    byte[] bytes = File.ReadAllBytes(SafeCombine(root, pin.Key));
+                    if (BitConverter.ToString(sha.ComputeHash(bytes)).Replace("-", "") != pin.Value)
+                        throw new InvalidDataException("8.1.3.2 SHA-256 mismatch: " + pin.Key);
+                    overlay.Add(new HotfixOverlayFile { RelativePath = pin.Key, Hash = pin.Value, Bytes = bytes });
+                }
+            string noticePath = SafeCombine(root, HotfixNoticePath);
+            byte[] notice = File.Exists(noticePath) ? File.ReadAllBytes(noticePath) : null;
+            if (notice == null || BitConverter.ToString(sha.ComputeHash(notice)).Replace("-", "") != HotfixNoticeSha256)
+                notice = FetchPinnedAsset(HotfixNoticeUrl, HotfixNoticeSha256, fetch);
+            overlay.Add(new HotfixOverlayFile { RelativePath = HotfixNoticePath, Hash = HotfixNoticeSha256, Bytes = notice });
+        }
+        return overlay;
+    }
+
+    private static void RestoreHotfixOverlay(string root, List<HotfixOverlayFile> overlay)
+    {
+        string suffix = ".lakis-8132-" + Guid.NewGuid().ToString("N");
+        string relative = null;
+        bool restored = false;
+        try
+        {
+            foreach (var file in overlay)
+            {
+                relative = file.RelativePath;
+                string destination = SafeCombine(root, relative);
+                if (File.Exists(destination) && HashEquals(destination, file.Hash)) continue;
+                string temporary = destination + suffix + ".new";
+                using (var output = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                {
+                    file.Temporary = temporary;
+                    output.Write(file.Bytes, 0, file.Bytes.Length);
+                    output.Flush(true);
+                }
+            }
+            foreach (var file in overlay)
+            {
+                if (file.Temporary == null) continue;
+                relative = file.RelativePath;
+                string destination = SafeCombine(root, relative);
+                if (File.Exists(destination))
+                {
+                    file.Backup = destination + suffix + ".old";
+                    File.Replace(file.Temporary, destination, file.Backup);
+                }
+                else
+                {
+                    File.Move(file.Temporary, destination);
+                    file.Created = true;
+                }
+            }
+            foreach (var file in overlay)
+            {
+                relative = file.RelativePath;
+                if (!HashEquals(SafeCombine(root, relative), file.Hash))
+                    throw new InvalidDataException("SHA-256 mismatch");
+            }
+            restored = true;
+        }
+        catch (Exception error)
+        {
+            var retained = new List<string>();
+            for (int i = overlay.Count - 1; i >= 0; i--)
+            {
+                var file = overlay[i];
+                try
+                {
+                    if (File.Exists(file.Backup))
+                    {
+                        string destination = SafeCombine(root, file.RelativePath);
+                        if (File.Exists(destination)) File.Replace(file.Backup, destination, null);
+                        else File.Move(file.Backup, destination);
+                    }
+                    else if (file.Created) File.Delete(SafeCombine(root, file.RelativePath));
+                }
+                catch (Exception rollbackError)
+                {
+                    retained.Add((file.Backup ?? file.RelativePath) + ": " + rollbackError.Message);
+                }
+            }
+            throw new IOException("8.1.3.2 관리 파일을 적용하지 못했습니다: " + relative + "\n" + error.Message +
+                (retained.Count == 0 ? "" : "\n복구하지 못한 파일:\n" + String.Join("\n", retained)), error);
+        }
+        finally
+        {
+            foreach (var file in overlay)
+            {
+                if (file.Temporary != null) try { File.Delete(file.Temporary); } catch { }
+                if (restored && file.Backup != null) try { File.Delete(file.Backup); } catch { }
+            }
+        }
     }
 
     private static byte[] FetchPinnedAsset(string url, string hash, Action<string, string, string, string> fetch)
@@ -752,46 +886,26 @@ internal sealed class UpdaterForm : Form
         finally { Directory.Delete(work, true); }
     }
 
-    private static void RunHotfixRuntime(string root, string descriptor)
+    private static void RunHotfixRuntime(string root, string descriptor, Action<string> report)
     {
-        using (var form = new UpdaterForm(root))
-        {
-            // This external finisher already owns the accepted update. Reuse
-            // runtime progress, not the form's normal check/confirmation path.
-            form.started = true;
-            form.runtimeBusy = true;
-            form.status.Text = "업데이트 적용을 완료하고 있습니다…";
-            form.progress.Style = ProgressBarStyle.Marquee;
-            Exception failure = null;
-            form.Shown += async (_, __) => {
-                try
-                {
-                    await Task.Run(() => {
-                        form.StopInstalledProcesses();
-                        string cache = Path.Combine(Environment.GetFolderPath(
-                            Environment.SpecialFolder.LocalApplicationData), "LAKIS", "installer-cache");
-                        RuntimeBundleInstaller.UpdateFromExternalFinisher(
-                            SafeCombine(root, "python_embeded/python.exe"), descriptor, root, cache,
-                            form.ReportRuntimeProgress);
-                    });
-                }
-                catch (Exception error) { failure = error; }
-                finally { form.runtimeBusy = false; form.Close(); }
-            };
-            form.ShowDialog();
-            if (failure != null) throw failure;
-        }
+        StopInstalledProcesses(root);
+        string cache = Path.Combine(Environment.GetFolderPath(
+            Environment.SpecialFolder.LocalApplicationData), "LAKIS", "installer-cache");
+        RuntimeBundleInstaller.UpdateFromExternalFinisher(
+            SafeCombine(root, "python_embeded/python.exe"), descriptor, root, cache, report);
     }
 
-    private static bool PrepareSnapRefForUpdate(string root, bool provision,
-        Action<ProcessStartInfo> download, Func<string, bool> retry, Action<string, string, string, string> fetch)
+    private static bool PrepareSnapRefForUpdate(string root, string expectedSource, bool provision,
+        Action<ProcessStartInfo> download, Func<string, bool> retry, Action<string, string, string, string> fetch,
+        Action<string> report)
     {
         while (true)
         {
             try
             {
+                report("SnapRef 파일을 확인하고 필요한 파일을 다운로드하고 있습니다…");
                 UpdateProtocol.EnsureNoPendingRuntimeTransition(root);
-                if (File.ReadAllText(SafeCombine(root, "VERSION")).Trim() != SnapRefSourceVersion)
+                if (File.ReadAllText(SafeCombine(root, "VERSION")).Trim() != expectedSource)
                     throw new InvalidDataException("설치 버전이 변경되었습니다.");
                 if (!File.Exists(SafeCombine(root, "LAKIS.exe")) ||
                     !File.Exists(SafeCombine(root, "ComfyUI/main.py")))
@@ -820,7 +934,23 @@ internal sealed class UpdaterForm : Form
                 {
                     if (BitConverter.ToString(sha.ComputeHash(file)).Replace("-", "") != SnapRefHelperSha256)
                         throw new InvalidDataException("SHA-256 mismatch: install_snapref.py");
-                    download(new ProcessStartInfo(python, "-I -X utf8 " + RuntimeBundleInstaller.Quote(script) +
+                    string command = RuntimeBundleInstaller.Quote(script);
+                    if (expectedSource == PreviousSnapRefUpdateVersion)
+                    {
+                        // The immutable helper's update mode was written for 8.1.3.
+                        // Adapt only its source check, without rewriting VERSION, the
+                        // verified helper, or using the manual terms-acknowledgement mode.
+                        // Compile the checked source bytes directly (never a cached .pyc).
+                        const string adapter =
+                            "import sys\nfrom pathlib import Path\n" +
+                            "script = sys.argv.pop(1)\n" +
+                            "helper = {'__name__': '_lakis_snapref_update', '__file__': script}\n" +
+                            "exec(compile(Path(script).read_bytes(), script, 'exec'), helper)\n" +
+                            "helper['UPDATE_SOURCE_VERSION'] = '8.1.3.1'\n" +
+                            "helper['main']()\n";
+                        command = "-c " + RuntimeBundleInstaller.Quote(adapter) + " " + command;
+                    }
+                    download(new ProcessStartInfo(python, "-I -X utf8 " + command +
                         " --install-root " + RuntimeBundleInstaller.Quote(root) + " --provision-for-update")
                     {
                         UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = root,
@@ -838,32 +968,45 @@ internal sealed class UpdaterForm : Form
         }
     }
 
-    private static void RunSnapRefDownload(ProcessStartInfo info)
+    internal delegate bool SelfUpdateWork(Action<string> report, Func<string, bool> retry, Action<string> warn);
+
+    internal static bool RunSelfUpdateProgress(string root, SelfUpdateWork finish)
     {
-        using (var dialog = new Form {
-            Text = "LAKIS 업데이트 · SnapRef 준비", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            Font = SystemFonts.MessageBoxFont, FormBorderStyle = FormBorderStyle.FixedDialog,
-            MaximizeBox = false, MinimizeBox = false, StartPosition = FormStartPosition.CenterScreen, ControlBox = false
-        })
+        using (var form = new UpdaterForm(root))
         {
-            Exception failure = null;
-            var content = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill,
-                FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(16) };
-            content.Controls.Add(new Label { Text = "SnapRef 파일을 검증하고 필요한 파일을 공식 게시자에서 다운로드하는 중입니다…", AutoSize = true });
-            content.Controls.Add(new ProgressBar { Width = 330, Style = ProgressBarStyle.Marquee });
-            dialog.Controls.Add(content);
-            bool finished = false;
-            dialog.FormClosing += (_, args) => { if (!finished) args.Cancel = true; };
-            dialog.Shown += async (_, __) => {
+            // Continue an accepted update, not another check or confirmation.
+            form.started = true;
+            form.runtimeBusy = true;
+            form.status.Text = "업데이트 적용을 완료하고 있습니다…";
+            form.progress.Style = ProgressBarStyle.Marquee;
+            form.progress.MarqueeAnimationSpeed = 24;
+            bool completed = false;
+            form.Shown += async (_, __) => {
                 try
                 {
-                    await Task.Run(() => WaitForSnapRefDownload(info));
+                    completed = await Task.Run(() => finish(form.ReportRuntimeProgress,
+                        error => (bool)form.Invoke((Func<bool>)(() => {
+                            form.status.Text = "업데이트 준비 실패";
+                            form.progress.Style = ProgressBarStyle.Continuous;
+                            form.progress.Value = 0;
+                            return MessageBox.Show(form, error, "LAKIS 업데이트 오류", MessageBoxButtons.RetryCancel,
+                                MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) == DialogResult.Retry;
+                        })),
+                        warning => form.Invoke((Action)(() => MessageBox.Show(form, warning, "LAKIS 업데이트 안내",
+                            MessageBoxButtons.OK, MessageBoxIcon.Warning)))));
                 }
-                catch (Exception error) { failure = error; }
-                finally { finished = true; dialog.Close(); }
+                catch (Exception error)
+                {
+                    form.status.Text = "업데이트 실패";
+                    form.progress.Style = ProgressBarStyle.Continuous;
+                    form.progress.Value = 0;
+                    MessageBox.Show(form, SelfUpdateError(error), "LAKIS 업데이트 오류",
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+                finally { form.runtimeBusy = false; form.Close(); }
             };
-            dialog.ShowDialog();
-            if (failure != null) throw failure;
+            form.ShowDialog();
+            return completed;
         }
     }
 
@@ -926,33 +1069,39 @@ internal sealed class UpdaterForm : Form
     private static void FinishSelfUpdate(string[] args)
     {
         ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
-        if (!FinishSelfUpdate(args, Environment.UserInteractive, RunSnapRefDownload,
-            error => MessageBox.Show(error, "LAKIS 업데이트 · SnapRef 준비 오류", MessageBoxButtons.RetryCancel,
-                MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) == DialogResult.Retry,
-            DownloadVerifiedFile, RunHotfixRuntime,
-            error => MessageBox.Show(error, "LAKIS 업데이트 오류", MessageBoxButtons.OK, MessageBoxIcon.Error)))
+        bool interactive = Environment.UserInteractive && !IsUnattended(args);
+        if (!FinishSelfUpdate(args, interactive, WaitForSnapRefDownload, DownloadVerifiedFile, RunHotfixRuntime,
+            RunSelfUpdateProgress, error => ShowSelfUpdateMessage(interactive, error, MessageBoxIcon.Error),
+            warning => ShowSelfUpdateMessage(interactive, warning, MessageBoxIcon.Warning)))
             Environment.ExitCode = 1;
     }
 
-    internal static bool FinishSelfUpdate(string[] args, bool interactive,
-        Action<ProcessStartInfo> download, Func<string, bool> retry, Action<string, string, string, string> fetch,
-        Action<string, string> applyRuntime, Action<string> fail)
+    private static string SelfUpdateError(Exception error)
     {
-        string root = Path.GetFullPath(args[1]);
+        return "업데이트 마무리에 실패했습니다.\n\n" + error.Message;
+    }
+
+    private static void ShowSelfUpdateMessage(bool interactive, string message, MessageBoxIcon icon)
+    {
+        if (interactive) MessageBox.Show(message, "LAKIS 업데이트", MessageBoxButtons.OK, icon);
+        else Console.Error.WriteLine(message);
+    }
+
+    internal static bool FinishSelfUpdate(string[] args, bool interactive,
+        Action<ProcessStartInfo> download, Action<string, string, string, string> fetch,
+        Action<string, string, Action<string>> applyRuntime, Func<string, SelfUpdateWork, bool> runProgress,
+        Action<string> fail, Action<string> warn)
+    {
         string version = args[2];
         int oldProcessId;
         Int32.TryParse(args[3], out oldProcessId);
         bool launch = Array.Exists(args, value => value == "--launch-after-update");
-        string destination = null;
-        string retiredExecutable = null;
-        string versionPath = Path.Combine(root, "VERSION");
-        ProcessStartInfo continuation;
         Process oldProcess = null;
         try
         {
-            // Stock 8.1.3 accepts the update in the launcher or updater and
-            // sends its PID, not a terms acknowledgement. Disclosure for those
-            // clients belongs in the release and file-patch manifest notes.
+            string root = Path.GetFullPath(args[1]);
+            // Stock clients pass the updater PID, not a terms acknowledgement.
+            // Their confirmation copy can only come from the release/manifest.
             bool hotfix = version == SnapRefUpdateVersion;
             string source = hotfix ? File.ReadAllText(SafeCombine(root, "VERSION")).Trim() : null;
             if (hotfix && (oldProcessId <= 0 || !IsSnapRefUpdate(source, version)))
@@ -963,6 +1112,7 @@ internal sealed class UpdaterForm : Form
             foreach (string value in args)
                 if (value.StartsWith("--self-name=", StringComparison.Ordinal)) selfName = value.Substring(12);
 
+            string destination;
             {
                 string oldExecutable = null;
                 if ((String.IsNullOrWhiteSpace(selfName) || hotfix) && oldProcessId > 0)
@@ -1009,43 +1159,78 @@ internal sealed class UpdaterForm : Form
                 if (!String.Equals(selfName, "LAKIS_Patcher.exe", StringComparison.OrdinalIgnoreCase) &&
                     !String.Equals(selfName, "LAKIS_Updater.exe", StringComparison.OrdinalIgnoreCase))
                     throw new InvalidDataException("Invalid updater self-update target.");
-                destination = Path.GetFullPath(Path.Combine(root, selfName));
+                destination = hotfix ? SafeCombine(root, selfName) : Path.GetFullPath(Path.Combine(root, selfName));
                 if (oldProcess != null &&
                     !String.Equals(oldExecutable, destination, StringComparison.OrdinalIgnoreCase))
                     throw new InvalidDataException("Updater process identity does not match the approved self-update target.");
-                if (replaceRuntime)
+            }
+            // Stock ApplyUpdate starts this executable and closes its own window.
+            // Wait before showing a new regular updater form; there is no HWND transfer.
+            if (hotfix && oldProcess != null && !oldProcess.WaitForExit(30000))
+                throw new InvalidOperationException("The original updater has not exited; the update was not completed.");
+
+            SelfUpdateWork finish = (report, retry, warning) =>
+            {
+                if (hotfix)
                 {
                     UpdateProtocol.EnsureNoPendingRuntimeTransition(root);
-                    if (oldProcess != null && !oldProcess.WaitForExit(30000))
-                        throw new InvalidOperationException("The original updater has not exited; runtime was not replaced.");
+                    if (File.ReadAllText(SafeCombine(root, "VERSION")).Trim() != source)
+                        throw new InvalidDataException("설치 버전이 변경되었습니다.");
+                }
+                if (replaceRuntime) report("필요한 런타임 업데이트를 준비하고 있습니다…");
+                var overlay = hotfix ? CaptureHotfixOverlay(root, replaceRuntime, fetch) : null;
+                if (replaceRuntime)
+                {
                     string descriptor = new UTF8Encoding(false, true).GetString(
                         FetchPinnedAsset(HotfixRuntimeUrl, HotfixRuntimeSha256, fetch));
                     var manifest = UpdateProtocol.Read(descriptor);
                     UpdateProtocol.ValidateForInstallation(manifest, source);
                     if (manifest.kind != "runtime-update" || manifest.version != SnapRefSourceVersion)
                         throw new InvalidDataException("Expected the pinned LAKIS 8.1.3 runtime.");
-                    applyRuntime(root, descriptor);
+                    applyRuntime(root, descriptor, report);
                 }
-                // A failed or cancelled preparation must not mark the patch
-                // complete, replace the running updater alias, or launch LAKIS.
-                if (hotfix && !PrepareSnapRefForUpdate(root, provisionSnapRef, download, retry, fetch)) return false;
+                // Do not commit the patch or launch LAKIS until preparation succeeds.
+                if (hotfix && !PrepareSnapRefForUpdate(root, replaceRuntime ? SnapRefSourceVersion : source,
+                    provisionSnapRef, download, retry, fetch, report)) return false;
+                report("업데이트 적용을 완료하고 있습니다…");
+                if (hotfix) RestoreHotfixOverlay(root, overlay);
                 if (replaceRuntime)
                 {
-                    // Runtime activation installed the public 8.1.3 aliases.
-                    // Restore the bootstrap sibling from the verified finisher.
+                    // The pinned runtime installs 8.1.3 aliases, not 8.1.3.1.
+                    // Restore the final candidate sibling from the verified finisher.
                     string sibling = Path.GetFileName(destination).Equals("LAKIS_Patcher.exe",
                         StringComparison.OrdinalIgnoreCase) ? "LAKIS_Updater.exe" : "LAKIS_Patcher.exe";
                     CopyVerifiedFile(Application.ExecutablePath, SafeCombine(root, sibling),
                         ComputeSha256(Application.ExecutablePath));
                 }
-                if (File.Exists(destination))
-                {
-                    string retiredDirectory = Path.Combine(root, ".lakis", "self-update-retired");
-                    Directory.CreateDirectory(retiredDirectory);
-                    retiredExecutable = Path.Combine(retiredDirectory,
-                        selfName + "." + Guid.NewGuid().ToString("N") + ".old");
-                    File.Move(destination, retiredExecutable);
-                }
+                return CommitSelfUpdate(root, version, launch, selfName, destination, oldProcess, hotfix, warning);
+            };
+            return hotfix && provisionSnapRef ? runProgress(root, finish) : finish(_ => {}, _ => false, warn);
+        }
+        catch (Exception error)
+        {
+            fail(SelfUpdateError(error));
+            return false;
+        }
+        finally { if (oldProcess != null) oldProcess.Dispose(); }
+    }
+
+    private static bool CommitSelfUpdate(string root, string version, bool launch, string selfName,
+        string destination, Process oldProcess, bool hotfix, Action<string> warn)
+    {
+        string retiredExecutable = null;
+        string versionPath = hotfix ? SafeCombine(root, "VERSION") : Path.Combine(root, "VERSION");
+        ProcessStartInfo continuation;
+        try
+        {
+            if (File.Exists(destination))
+            {
+                string retiredDirectory = hotfix ? SafeCombine(root, ".lakis/self-update-retired") :
+                    Path.Combine(root, ".lakis", "self-update-retired");
+                Directory.CreateDirectory(retiredDirectory);
+                retiredExecutable = Path.Combine(retiredDirectory,
+                    selfName + "." + Guid.NewGuid().ToString("N") + ".old");
+                File.Move(destination, retiredExecutable);
             }
             Exception last = null;
             for (int attempt = 0; attempt < 10; attempt++)
@@ -1075,15 +1260,13 @@ internal sealed class UpdaterForm : Form
             if (!String.IsNullOrWhiteSpace(retiredExecutable))
                 try { File.Delete(retiredExecutable); } catch { }
         }
-        catch (Exception error)
+        catch
         {
             if (!String.IsNullOrWhiteSpace(destination) && !File.Exists(destination) &&
                 !String.IsNullOrWhiteSpace(retiredExecutable) && File.Exists(retiredExecutable))
                 try { File.Move(retiredExecutable, destination); } catch { }
-            fail("업데이트 마무리에 실패했습니다.\n\n" + error.Message);
-            return false;
+            throw;
         }
-        finally { if (oldProcess != null) oldProcess.Dispose(); }
 
         try
         {
@@ -1097,8 +1280,7 @@ internal sealed class UpdaterForm : Form
         }
         catch (Exception error)
         {
-            MessageBox.Show("업데이트는 적용되었지만 다음 단계를 시작하지 못했습니다.\n\n" + error.Message,
-                "LAKIS 업데이트 안내", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            warn("업데이트는 적용되었지만 다음 단계를 시작하지 못했습니다.\n\n" + error.Message);
         }
         return true;
     }

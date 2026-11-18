@@ -29,7 +29,7 @@ def sha256(path: Path) -> str:
 
 def build(repo: Path, dist: Path, archive: Path, contract_path: Path, pinned_setup: Path) -> Path:
     version = (repo / "VERSION").read_text(encoding="utf-8-sig").strip()
-    if not re.fullmatch(r"\d+\.\d+\.\d+", version):
+    if not re.fullmatch(r"\d+\.\d+\.\d+(?:\.\d+)?", version):
         raise ValueError("invalid public version")
     contract = json.loads(contract_path.read_text(encoding="utf-8-sig"))
     revision = contract["revision"]

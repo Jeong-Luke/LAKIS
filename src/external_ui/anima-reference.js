@@ -8,7 +8,6 @@
   const panel = document.querySelector("#animaReferencePanel");
   const toggle = document.querySelector("#animaReferenceToggle");
   const notice = document.querySelector("#animaReferenceConsent");
-  const review = document.querySelector("#animaReferenceConsentReview");
   const checkbox = notice.querySelector("#acceptConsent");
   const confirm = notice.querySelector("#confirmConsent");
   const cancel = notice.querySelector("#cancelConsent");
@@ -298,8 +297,6 @@
     panel.classList.toggle("is-enabled", saved.enabled);
     const locked = !available() || uploading;
     toggle.disabled = !dependenciesReady() || !consent || uploading || savingConsent;
-    review.hidden = consent?.accepted !== true;
-    review.disabled = review.hidden || uploading;
     forecast.disabled = locked;
     forecast.value = saved.experimental_forecast ? "on" : "off";
     fidelityInput.disabled = locked;
@@ -515,14 +512,13 @@
     notice.showModal();
   }
 
-  review.addEventListener("click", openNotice);
   checkbox.addEventListener("change", () => { confirm.disabled = savingConsent || !checkbox.checked; });
   cancel.addEventListener("click", () => { if (!savingConsent) notice.close(); });
   notice.addEventListener("cancel", event => { if (savingConsent) event.preventDefault(); });
   confirm.addEventListener("click", async () => {
     if (!notice.open || savingConsent || !checkbox.checked || !consent) return;
     if (consent.accepted) {
-      notice.close(); // Reviewing the notice never changes reference settings.
+      notice.close();
       return;
     }
     const revision = restoreRevision;

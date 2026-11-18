@@ -148,7 +148,6 @@
 #animaReferenceConsent label { justify-content: center; margin: 18px 0; }
 #animaReferenceConsent label > span { text-align: center; white-space: normal; word-break: keep-all; line-height: 1.6; }
 #animaReferencePanel #animaReferenceStatus:not([hidden]) { display: block; }
-#animaReferenceConsentReview[hidden] { display: none; }
 html[data-synapse-theme="true"] #animaReferenceConsent::backdrop { background: var(--mx-scrim); }
 html[data-synapse-theme="true"] #animaReferenceConsentMessage strong { color: var(--mx-text); }
 html[data-synapse-theme="true"] #animaReferenceConsent .license-detail a { color: var(--mx-text-accent); }

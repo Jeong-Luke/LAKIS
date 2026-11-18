@@ -32,10 +32,11 @@ internal sealed class OptionalModelForm : Form
 
     internal bool IncludeAnimeSharp { get { return includeAnimeSharp.Checked; } }
 
-    internal OptionalModelForm()
+    internal OptionalModelForm(bool includeSnapRef)
     {
         Text = "LAKIS 선택 모델 추가";
-        ClientSize = new Size(720, 470);
+        int extra = includeSnapRef ? 80 : 0;
+        ClientSize = new Size(720, 470 + extra);
         StartPosition = FormStartPosition.CenterParent;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false; MinimizeBox = false;
@@ -51,7 +52,7 @@ internal sealed class OptionalModelForm : Form
             ForeColor=Color.FromArgb(151,160,185) });
 
         defaultOnly.SetBounds(38, 128, 620, 74);
-        defaultOnly.Text="RealESRGAN Anime 6B  ·  기본 추천  ·  BSD-3-Clause\n상업적 이용 가능한 공식 애니메이션 특화 모델만 설치합니다.";
+        defaultOnly.Text="RealESRGAN Anime 6B  ·  기본 추천  ·  BSD-3-Clause\n업스케일 모델은 상업적 이용이 가능한 기본 모델만 설치합니다.";
         defaultOnly.Checked=true; defaultOnly.Padding=new Padding(14,0,0,0);
         defaultOnly.Appearance=Appearance.Button; defaultOnly.FlatStyle=FlatStyle.Flat;
         defaultOnly.FlatAppearance.BorderColor=Color.FromArgb(143,107,255);
@@ -75,8 +76,17 @@ internal sealed class OptionalModelForm : Form
             Text="원 배포 페이지 및 라이선스 확인", LinkColor=Color.FromArgb(124,211,255),
             ActiveLinkColor=Color.FromArgb(184,168,255), VisitedLinkColor=Color.FromArgb(124,211,255) };
         licence.LinkClicked += delegate { Process.Start("https://huggingface.co/Kim2091/2x-AnimeSharpV4"); };
-        var back = new Button { Left=456, Top=397, Width=95, Height=42, Text="취소", DialogResult=DialogResult.Cancel };
-        next.SetBounds(562,397,96,42); next.Text="다음"; next.DialogResult=DialogResult.OK;
+        if(includeSnapRef)
+        {
+            Controls.Add(new Label { Left=52, Top=393, Width=606, Height=46,
+                Text="SnapRef v2a(약 382 MB)는 새 설치 중 자동으로 준비됩니다.\nCircleStone Labs Non-Commercial License v1.2 · 비상업/비프로덕션 · 첫 사용 시 별도 동의" });
+            var snapRefTerms = new LinkLabel { Left=52, Top=444, Width=400, Height=24,
+                Text="SnapRef v2a 원 배포 라이선스 및 고지문", LinkColor=licence.LinkColor };
+            snapRefTerms.LinkClicked += delegate { Process.Start("https://huggingface.co/0ppxnhximxr/snapref-v2a/tree/e6d6a21e4d56faae4454a1cc9bfd065d87358bf2"); };
+            Controls.Add(snapRefTerms);
+        }
+        var back = new Button { Left=456, Top=397+extra, Width=95, Height=42, Text="취소", DialogResult=DialogResult.Cancel };
+        next.SetBounds(562,397+extra,96,42); next.Text="다음"; next.DialogResult=DialogResult.OK;
         foreach(Button button in new[]{back,next}) { button.FlatStyle=FlatStyle.Flat; button.FlatAppearance.BorderSize=0; button.ForeColor=Color.White; button.BackColor=Color.FromArgb(92,69,199); }
         AcceptButton=next; CancelButton=back;
         Controls.AddRange(new Control[]{defaultOnly,includeAnimeSharp,acknowledgement,licence,back,next});
@@ -222,11 +232,15 @@ internal sealed class SafeSetupForm : Form
         var drive = new DriveInfo(Path.GetPathRoot(target));
         if (drive.AvailableFreeSpace < 15L*1024*1024*1024) { MessageBox.Show("최소 15GB의 여유 공간이 필요합니다."); return; }
         bool addAnimeSharp;
-        using(var options=new OptionalModelForm())
+        try
         {
-            if(options.ShowDialog(this)!=DialogResult.OK)return;
-            addAnimeSharp=options.IncludeAnimeSharp;
+            using(var options=new OptionalModelForm(SafeInstaller.FreshIncludesSnapRef()))
+            {
+                if(options.ShowDialog(this)!=DialogResult.OK)return;
+                addAnimeSharp=options.IncludeAnimeSharp;
+            }
         }
+        catch(Exception error){MessageBox.Show(error.Message,"LAKIS 설치 오류",MessageBoxButtons.OK,MessageBoxIcon.Error);return;}
         SetActionButtonsVisible(false); destination.Enabled=false;
         try
         {
@@ -586,6 +600,11 @@ internal static class SafeInstaller
     private static string IntendedApplicationVersion()
     {
         return RuntimeBundleInstaller.InstallerTargetVersion(ReadRuntimeInstallManifest());
+    }
+
+    internal static bool FreshIncludesSnapRef()
+    {
+        return IntendedApplicationVersion()=="8.1.3.2";
     }
 
     internal static string UpdateConfirmation(string target)

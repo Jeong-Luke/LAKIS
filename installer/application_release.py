@@ -32,7 +32,7 @@ def validate_release(release: dict, bundle: dict) -> dict:
     """Bind the exact component pair, not the revision of the installer helpers."""
     if (not isinstance(release, dict) or type(release.get("schema")) is not int or release["schema"] != 1
             or release.get("product") != "LAKIS"
-            or not re.fullmatch(r"\d+\.\d+\.\d+", str(release.get("version", "")))
+            or not re.fullmatch(r"\d+\.\d+\.\d+(?:\.\d+)?", str(release.get("version", "")))
             or not re.fullmatch(r"[a-fA-F0-9]{40}", str(release.get("source_revision", "")))
             or release.get("runtime_version") != bundle["version"]
             or tuple(map(int, release["version"].split("."))) <

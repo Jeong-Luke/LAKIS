@@ -34,6 +34,8 @@ RUNTIME_HELPERS = (
     "runtime_install.py", "runtime_transition.py", "runtime_manifest.py", "runtime_health.py",
     "application_release.py",
 )
+SNAPREF_FRESH_VERSION = "8.1.3.2"
+SNAPREF_HELPER = "ComfyUI/LAKIS/install_snapref.py"
 
 
 def validate_bundle(bundle: dict, version: str) -> dict:
@@ -310,6 +312,55 @@ def prepare_default_data(candidate: Path, manifest: dict, cache: Path, method: s
     return seed
 
 
+def prepare_fresh_snapref(candidate: Path, seed: Path, cache: Path, manifest_hash: str) -> None:
+    # Use the helper already shipped in the authenticated application release.
+    # Execute exactly the bytes verified here, without consulting import paths
+    # or changing the legacy updater's separately pinned copy of this helper.
+    manifest = reject_reparse_path(candidate / runtime_contract.MANIFEST_NAME).read_bytes()
+    if hashlib.sha256(manifest).hexdigest().upper() != manifest_hash.upper():
+        raise ValueError("runtime manifest hash mismatch")
+    inventory = runtime_contract.validate_runtime_manifest(json.loads(manifest), SNAPREF_FRESH_VERSION)
+    entry = inventory.get(SNAPREF_HELPER.casefold())
+    if entry is None:
+        raise ValueError("SnapRef helper is missing from the pinned application manifest")
+    helper = reject_reparse_path(candidate / entry["path"])
+    source = helper.read_bytes()
+    if len(source) != entry["size"] or hashlib.sha256(source).hexdigest().upper() != entry["sha256"].upper():
+        raise ValueError("SnapRef helper integrity mismatch")
+    pins = {"__name__": "_lakis_fresh_snapref", "__file__": str(helper)}
+    exec(compile(source, str(helper), "exec"), pins)
+
+    print("[SnapRef] v2a · CircleStone Labs Non-Commercial License v1.2 (비상업·비프로덕션). "
+          "레퍼런스 첫 사용 시 별도 동의가 필요합니다.", flush=True)
+    print(f"{pins['WEIGHT_LICENSE_URL']}\n{pins['WEIGHT_NOTICE_URL']}", flush=True)
+    print("[SnapRef] 공식 추론 노드와 라이선스·고지문 확인", flush=True)
+    files = pins["inference_files"]()
+    name, size, expected = pins["WEIGHT_NAME"], pins["WEIGHT_SIZE"], pins["WEIGHT_SHA256"].upper()
+    cached = cache_path(cache, name, expected)
+    staged = seed / "ComfyUI/models/loras" / name
+    with cache_entry_lock(cached, name):
+        reject_reparse_path(cached)
+        if cached.is_file() and cached.stat().st_size == size and sha256(cached) == expected:
+            print(f"[SnapRef] 검증된 가중치 재사용 · {name}", flush=True)
+        else:
+            print(f"[SnapRef] 공식 가중치 다운로드 · {size:,} bytes", flush=True)
+            with tempfile.TemporaryDirectory(prefix=".lakis-snapref-", dir=cached.parent) as work:
+                partial = Path(work) / name
+                pins["download_weight"](partial)
+                promote_verified_partial(partial, cached, name)
+        copy_file(cached, staged)
+    if staged.stat().st_size != size or sha256(staged) != expected:
+        raise ValueError("SnapRef weight changed during staging")
+    node = seed / runtime_contract.SNAPREF_NODE
+    node.mkdir(parents=True)
+    for name, data in files.items():
+        path = node / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("xb") as output:
+            output.write(data)
+    print("[SnapRef] 가중치와 추론 노드 검증 완료", flush=True)
+
+
 def prepare_candidate(manifest: dict, cache: Path, *, target: Path | None = None,
                       mode: str | None = None, metadata=None) -> Path:
     bundle, release, _, _ = installer_identity(manifest)
@@ -355,6 +406,8 @@ def install(manifest: dict, target: Path, cache: Path, mode: str, method: str,
     model_files = None
     if mode == "fresh":
         initial_data = prepare_default_data(candidate, manifest, cache, method, include_animesharp)
+        if version == SNAPREF_FRESH_VERSION and method in {"cmd", "gui"}:
+            prepare_fresh_snapref(candidate, initial_data, cache, manifest_hash)
         ensure_webview2_runtime(manifest, cache)
     else:
         model_files = prepare_required_models(cache, target, version)

@@ -380,7 +380,7 @@ internal static class RuntimeBundleInstaller
         string version = TextField(release, "version");
         if (!release.ContainsKey("schema") || !Equals(release["schema"], 1) ||
             TextField(release, "product") != "LAKIS" ||
-            !System.Text.RegularExpressions.Regex.IsMatch(version, @"^\d+\.\d+\.\d+$") ||
+            !System.Text.RegularExpressions.Regex.IsMatch(version, @"^\d+\.\d+\.\d+(?:\.\d+)?$") ||
             !System.Text.RegularExpressions.Regex.IsMatch(TextField(release, "source_revision"), "^[a-fA-F0-9]{40}$") ||
             TextField(release, "runtime_version") != baseline ||
             TextField(bundle, "version") != baseline ||

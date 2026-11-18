@@ -811,12 +811,11 @@ def create_desktop_shortcut(target: Path, desktop: Path | None = None) -> Path:
 
 
 def install(manifest_path: Path, portable_root: Path, target: Path, cache: Path, dry_run: bool) -> None:
-    from runtime_install import install as install_runtime, validate_bundle
+    from application_release import installer_identity
+    from runtime_install import install as install_runtime
 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
-    if manifest.get("schema") != 1:
-        raise RuntimeError("unsupported CMD installer manifest")
-    bundle = validate_bundle(manifest.get("runtime_bundle"), manifest["version"])
+    bundle, _, version, _ = installer_identity(manifest)
     portable_root = reject_reparse_path(portable_root)
     target = reject_reparse_path(target)
     reject_reparse_tree(portable_root)
@@ -829,7 +828,7 @@ def install(manifest_path: Path, portable_root: Path, target: Path, cache: Path,
     if portable_root == target or portable_root in target.parents or target in portable_root.parents:
         raise RuntimeError("staging and target paths overlap")
     if dry_run:
-        print(json.dumps({"ok": True, "version": manifest["version"],
+        print(json.dumps({"ok": True, "version": version,
                           "runtime_files": bundle["files"], "target": str(target)}, ensure_ascii=False))
         return
 

@@ -99,7 +99,9 @@ an interactive session: when finishing a stock 8.1.2 → 8.1.3 update, or
 through an explicit `SnapRef 다운로드…` retry from the updater while 8.1.3
 is current. Headless and repair runs never offer it, and checking the
 version alone neither asks for terms nor starts a download.
-Fresh-installation auto-download is not offered.
+That update path does not govern new installations. The 8.1.3.2 fresh GUI
+and CMD installers prepare the same pinned files during normal installation,
+reuse a verified cached weight, and do not record feature-use consent.
 
 Skipping or failing the optional download leaves the completed LAKIS update
 usable. The offer runs outside the core error/rollback path: a skip returns

@@ -43,7 +43,7 @@ class ApplicationReleaseTests(unittest.TestCase):
         prerequisite.start()
         self.addCleanup(prerequisite.stop)
 
-    def fixture(self, root, version="8.1.1", editable_template_policy=None):
+    def fixture(self, root, version="8.1.1", editable_template_policy=None, extra_payload=None):
         baseline, installer = cmd_tests.CmdInstallerTests()._runtime_candidate(root, version="8.1.0")
         editable = contract.EDITABLE_TEMPLATE_FILES[1]
         retired = "ComfyUI/LAKIS/external_ui/obsolete.py"
@@ -62,6 +62,7 @@ class ApplicationReleaseTests(unittest.TestCase):
             editable: ('{"pristine":"' + version + ' shipped default"}').encode(),
             "ComfyUI/LAKIS/external_ui/app.py": b"trusted application code",
         }
+        changed.update(extra_payload or {})
         for relative, contents in changed.items():
             put(pristine, relative, contents)
         revision = ("2" if version == "8.1.1" else "3") * 40

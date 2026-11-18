@@ -204,8 +204,7 @@ function buildDocument() {
   add.textContent = "＋";
   const statusEl = el("p", { id: "animaReferenceStatus", class: "anima-reference-status", role: "status" });
   rowHeading.appendChild(add);
-  const review = el("button", { id: "animaReferenceConsentReview", hidden: "", disabled: "" });
-  const heading = el("div", { class: "panel-heading" }, [review, toggle]);
+  const heading = el("div", { class: "panel-heading" }, [toggle]);
   const forecast = el("select", { id: "animaReferenceForecast", disabled: "" });
   forecast.value = "off";
   const common = el("div", { class: "anima-reference-common-settings" }, [
@@ -359,7 +358,7 @@ test("the standalone notice uses the approved copy, icon, license link and check
   assert.match(dialog, /<label for="acceptConsent">[\s\S]*?<input id="acceptConsent" type="checkbox">[\s\S]*?class="consent-actions"/);
 });
 
-test("first enable waits for explicit, policy-matched server confirmation; review never saves or enables", async () => {
+test("first enable waits for policy-matched confirmation; subsequent toggles do not reopen the notice", async () => {
   let finish;
   const h = harness(firstUse, { saveConsent: () => new Promise(resolve => { finish = resolve; }) });
   await settle();
@@ -390,14 +389,10 @@ test("first enable waits for explicit, policy-matched server confirmation; revie
   assert.equal(h.changes.length, 1);
   assert.equal(h.node("Warning"), null);
   await h.node("Toggle").click();
-  assert.equal(h.node("ConsentReview").hidden, false);
-  await h.node("ConsentReview").click();
-  assert.equal(dialog.open, true);
-  assert.equal(checkbox.checked, true);
-  await confirm.click();
   assert.equal(dialog.open, false);
   assert.equal(h.api.snapshot().enabled, false);
   await h.node("Toggle").click();
+  assert.equal(dialog.open, false);
   assert.equal(h.api.snapshot().enabled, true);
   assert.equal(h.calls.length, 2);
   await h.node("Add").click();
@@ -481,7 +476,6 @@ test("failed saves and mismatched acknowledgements leave the notice open and ref
     assert.equal(confirm.disabled, true);
     assert.equal(cancel.disabled, false);
     assert.equal(h.api.forGeneration({ engine: "anima" }).enabled, false);
-    assert.equal(h.node("ConsentReview").hidden, true);
     assert.equal(h.changes.length, 0);
   }
 });
@@ -787,7 +781,7 @@ test("experiment visibility, missing dependencies and engine changes never erase
     h.api.restore({ ...DEFAULTS, enabled: true, references: [{ image_name: "keep.png", strength: 0 }] });
     await settle();
     assert.equal(h.node("Panel").hidden, !status.experimental);
-    assert.ok(h.controls.filter(node => node !== h.node("ConsentReview")).every(node => node.disabled));
+    assert.ok(h.controls.every(node => node.disabled));
     if (status.experimental) {
       assert.match(h.node("Status").textContent, /SnapRef nodes/);
       assert.match(h.node("Status").textContent, /reference model/);
