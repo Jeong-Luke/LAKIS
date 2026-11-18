@@ -58,11 +58,13 @@ class HotfixPackaging(unittest.TestCase):
         self.assertEqual(set(ui) | {"COMPLIANCE.md"}, set(overlays))
         for path, row in overlays.items():
             versions = ["8.1.0", "8.1.1", "8.1.2"]
+            url = f"{release}/{Path(path).name}"
             if path == "COMPLIANCE.md":
                 versions += ["8.1.3", "8.1.3.1"]
+                url = "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/80723fefb4522f073f91f9b77728fb998545ab43/COMPLIANCE.md"
             flat = stage / Path(path).name
             self.assertEqual(repaired[path], flat.read_bytes())
-            self.assertEqual((versions, f"{release}/{flat.name}", len(repaired[path]), hotfix.sha256(repaired[path])),
+            self.assertEqual((versions, url, len(repaired[path]), hotfix.sha256(repaired[path])),
                              (row["source_versions"], row["url"], row["bytes"], row["sha256"]))
         self.assertEqual("private-draft-release-blocked", report["status"])
         self.assertEqual(hotfix.sha256(baseline[helper]), report["existing_finisher_work"]["helper"]["sha256"])

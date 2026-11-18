@@ -127,6 +127,7 @@ def build_report(payload, native_inputs):
         "required_finisher_overlays": [
             {
                 **asset_record(path, payload[path]), "bytes": len(payload[path]),
+                **({"url": pin("HotfixNoticeUrl")} if path == "COMPLIANCE.md" else {}),
                 "source_versions": list(SUPPORTED if path == "COMPLIANCE.md" else PRE_RUNTIME),
                 "reason": ("Not accepted by stock 8.1.0/8.1.1; intentionally absent from the common patch."
                            if path == "COMPLIANCE.md" else

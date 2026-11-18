@@ -134,7 +134,7 @@ internal static class SnapRefUpdaterFinisherContract
             {
                 ++noticeFetches;
                 Require(!runtimeActivated && url ==
-                    "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.3.2/COMPLIANCE.md",
+                    "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/80723fefb4522f073f91f9b77728fb998545ab43/COMPLIANCE.md",
                     "Did not prepare the exact official notice before changing the runtime.");
                 using (var sha = SHA256.Create())
                     Require(hash == BitConverter.ToString(sha.ComputeHash(exactNotice)).Replace("-", ""),

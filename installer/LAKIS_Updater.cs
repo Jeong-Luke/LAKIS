@@ -31,7 +31,7 @@ internal sealed class UpdaterForm : Form
     private const string HotfixRuntimeSha256 = "8D9C048DB697A0D7BCF083158368A353DB6F3B71E88073DC81449BD47F9D6369";
     private const string HotfixNoticePath = "COMPLIANCE.md";
     private const string HotfixNoticeUrl =
-        "https://github.com/Jeong-Luke/LAKIS/releases/download/v8.1.3.2/COMPLIANCE.md";
+        "https://raw.githubusercontent.com/Jeong-Luke/LAKIS/80723fefb4522f073f91f9b77728fb998545ab43/COMPLIANCE.md";
     private const string HotfixNoticeSha256 = "3FA64308172926C32243445908E60420C9E5A3F5D4C39D0941292C12FF1126EA";
     // Stock patchers install these UI assets before the handoff. The notice
     // is a separate release asset because older patchers reject that path.
